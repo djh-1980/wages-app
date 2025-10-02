@@ -132,66 +132,125 @@
         /* Mobile & Tablet Optimizations */
         @media (max-width: 768px) {
             .container-fluid {
-                padding-left: 1rem !important;
-                padding-right: 1rem !important;
+                padding-left: 0.5rem !important;
+                padding-right: 0.5rem !important;
+            }
+            
+            .navbar {
+                padding: 0.5rem 1rem;
+            }
+            
+            .navbar-brand {
+                font-size: 0.9rem;
+            }
+            
+            .navbar-brand i {
+                font-size: 1.2rem;
+            }
+            
+            #currentDate {
+                font-size: 0.75rem;
+            }
+            
+            /* Summary cards - stack vertically */
+            .row.g-4 {
+                gap: 0.75rem !important;
             }
             
             .stat-card {
-                margin-bottom: 1rem;
+                margin-bottom: 0;
             }
             
             .stat-icon {
-                width: 50px;
-                height: 50px;
-                font-size: 24px;
+                width: 45px;
+                height: 45px;
+                font-size: 20px;
             }
             
             .stat-card h3 {
-                font-size: 1.5rem;
+                font-size: 1.25rem;
+            }
+            
+            .stat-card small {
+                font-size: 0.7rem;
+            }
+            
+            .stat-card p {
+                font-size: 0.75rem;
             }
             
             .chart-container {
                 height: 250px;
+                margin-bottom: 1rem;
             }
             
             .table-responsive {
-                font-size: 0.875rem;
+                font-size: 0.8rem;
             }
             
-            .navbar-brand {
-                font-size: 1rem;
+            .table th, .table td {
+                padding: 0.5rem 0.25rem;
             }
             
+            /* Navigation tabs - horizontal scroll */
             .nav-pills {
                 flex-wrap: nowrap;
                 overflow-x: auto;
                 -webkit-overflow-scrolling: touch;
+                margin-bottom: 1rem;
+                padding-bottom: 0.5rem;
+            }
+            
+            .nav-pills::-webkit-scrollbar {
+                height: 4px;
+            }
+            
+            .nav-pills::-webkit-scrollbar-thumb {
+                background: #667eea;
+                border-radius: 4px;
             }
             
             .nav-pills .nav-link {
                 white-space: nowrap;
-                font-size: 0.875rem;
-                padding: 0.5rem 1rem;
+                font-size: 0.85rem;
+                padding: 0.5rem 0.75rem;
+                margin-right: 0.5rem;
             }
             
             .card-body {
-                padding: 1rem;
+                padding: 0.75rem;
+            }
+            
+            .card-header {
+                padding: 0.75rem;
             }
             
             .btn-sm {
                 font-size: 0.75rem;
-                padding: 0.25rem 0.5rem;
+                padding: 0.35rem 0.6rem;
             }
             
             /* Hide less important columns on mobile */
             .hide-mobile {
-                display: none;
+                display: none !important;
             }
             
             /* Stack filters vertically on mobile */
             .filter-row .col-md-3,
-            .filter-row .col-md-2 {
+            .filter-row .col-md-2,
+            .filter-row .col-md-4 {
                 margin-bottom: 0.5rem;
+            }
+            
+            /* Make badges smaller */
+            .badge {
+                font-size: 0.7rem;
+                padding: 0.25rem 0.5rem;
+            }
+            
+            /* Section titles */
+            .section-title {
+                font-size: 1.1rem;
             }
         }
         
