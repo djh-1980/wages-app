@@ -595,107 +595,108 @@
 
                             <!-- Settings Tab -->
                             <div class="tab-pane fade" id="settings" role="tabpanel">
-                                <h5 class="section-title">Settings & Maintenance</h5>
                                 
-                                <div class="row g-4 mb-4">
-                                    <!-- Process Payslips Section -->
-                                    <div class="col-md-6">
-                                        <div class="card border-0 shadow-sm h-100">
-                                            <div class="card-header bg-gradient-danger text-white">
-                                                <h6 class="mb-0">
-                                                    <i class="bi bi-file-earmark-pdf-fill"></i>
-                                                    Process New Payslips
-                                                </h6>
-                                            </div>
-                                            <div class="card-body">
-                                                <p class="text-muted small">Extract data from new PDF payslips</p>
-                                                
-                                                <div class="alert alert-warning small">
-                                                    <i class="bi bi-exclamation-triangle"></i>
-                                                    Add PDFs to <code>PaySlips/</code> folder first
-                                                </div>
-                                                
-                                                <button class="btn btn-danger w-100" onclick="processPayslips()">
-                                                    <i class="bi bi-gear-fill"></i> Process All PDFs
-                                                </button>
-                                                
-                                                <div id="processingStatus" class="mt-3" style="display: none;">
-                                                    <div class="progress">
-                                                        <div class="progress-bar progress-bar-striped progress-bar-animated" 
-                                                             role="progressbar" style="width: 100%">Processing...</div>
+                                <!-- Page Header -->
+                                <div class="d-flex justify-content-between align-items-center mb-4">
+                                    <div>
+                                        <h4 class="mb-1"><i class="bi bi-gear-fill text-primary"></i> Settings & Maintenance</h4>
+                                        <p class="text-muted small mb-0">Manage your payslips, data, and groupings</p>
+                                    </div>
+                                </div>
+                                
+                                <!-- Data Management Section -->
+                                <div class="card border-0 shadow-sm mb-4">
+                                    <div class="card-header bg-white border-bottom">
+                                        <h5 class="mb-0"><i class="bi bi-database-fill-gear text-danger"></i> Data Management</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row g-3">
+                                            <!-- Process Payslips -->
+                                            <div class="col-md-6">
+                                                <div class="border rounded p-3 h-100">
+                                                    <h6 class="text-danger mb-2">
+                                                        <i class="bi bi-file-earmark-pdf-fill"></i> Process Payslips
+                                                    </h6>
+                                                    <p class="text-muted small mb-3">Extract data from PDF files in the PaySlips folder</p>
+                                                    
+                                                    <button class="btn btn-danger btn-sm w-100" onclick="processPayslips()">
+                                                        <i class="bi bi-gear-fill"></i> Process All PDFs
+                                                    </button>
+                                                    
+                                                    <div id="processingStatus" class="mt-3" style="display: none;">
+                                                        <div class="progress" style="height: 5px;">
+                                                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-danger" 
+                                                                 role="progressbar" style="width: 100%"></div>
+                                                        </div>
+                                                        <p class="text-muted small mt-2 mb-0" id="processingMessage">Processing...</p>
                                                     </div>
-                                                    <p class="text-muted small mt-2" id="processingMessage">Please wait...</p>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Check Missing Payslips -->
-                                    <div class="col-md-6">
-                                        <div class="card border-0 shadow-sm h-100">
-                                            <div class="card-header bg-gradient-warning text-dark">
-                                                <h6 class="mb-0">
-                                                    <i class="bi bi-exclamation-circle-fill"></i>
-                                                    Check Missing Payslips
-                                                </h6>
-                                            </div>
-                                            <div class="card-body">
-                                                <p class="text-muted small">Verify all weeks are present</p>
-                                                
-                                                <button class="btn btn-warning w-100" onclick="checkMissingPayslips()">
-                                                    <i class="bi bi-search"></i> Check for Missing Weeks
-                                                </button>
-                                                
-                                                <div id="missingResults" class="mt-3" style="display: none;">
-                                                    <!-- Results will be shown here -->
+                                            
+                                            <!-- Check Missing -->
+                                            <div class="col-md-6">
+                                                <div class="border rounded p-3 h-100">
+                                                    <h6 class="text-warning mb-2">
+                                                        <i class="bi bi-exclamation-triangle-fill"></i> Check Missing Weeks
+                                                    </h6>
+                                                    <p class="text-muted small mb-3">Verify all payslip weeks are present</p>
+                                                    
+                                                    <button class="btn btn-warning btn-sm w-100" onclick="checkMissingPayslips()">
+                                                        <i class="bi bi-search"></i> Check for Gaps
+                                                    </button>
+                                                    
+                                                    <div id="missingResults" class="mt-3" style="display: none;">
+                                                        <!-- Results will be shown here -->
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                                 
-                                <h5 class="section-title mt-4">Groupings</h5>
-                                <div class="alert alert-info">
-                                    <i class="bi bi-info-circle"></i>
-                                    <strong>Select items from the list and group them together</strong> to simplify your reports.
-                                </div>
+                                <!-- Groupings Section -->
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-header bg-white border-bottom">
+                                        <h5 class="mb-0"><i class="bi bi-collection-fill text-primary"></i> Report Groupings</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted small mb-3">
+                                            <i class="bi bi-info-circle"></i>
+                                            Create groups to combine multiple clients or job types in your reports
+                                        </p>
                                 
-                                <div class="row g-4">
-                                    <!-- Client Groupings -->
-                                    <div class="col-md-6">
-                                        <div class="card border-0 shadow-sm">
-                                            <div class="card-header bg-gradient-primary text-white d-flex justify-content-between align-items-center">
-                                                <h6 class="mb-0">
-                                                    <i class="bi bi-people-fill"></i>
-                                                    Client Groupings
-                                                </h6>
-                                                <button class="btn btn-sm btn-light" onclick="showClientGroupModal()">
-                                                    <i class="bi bi-plus-circle"></i> New Group
-                                                </button>
-                                            </div>
-                                            <div class="card-body">
-                                                <div id="clientGroupsList" class="mb-3" style="max-height: 400px; overflow-y: auto;">
-                                                    <p class="text-muted small">Loading...</p>
+                                        <div class="row g-3">
+                                            <!-- Client Groupings -->
+                                            <div class="col-md-6">
+                                                <div class="border rounded p-3">
+                                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                                        <h6 class="mb-0 text-primary">
+                                                            <i class="bi bi-people-fill"></i> Client Groups
+                                                        </h6>
+                                                        <button class="btn btn-sm btn-outline-primary" onclick="showClientGroupModal()">
+                                                            <i class="bi bi-plus-circle"></i> New
+                                                        </button>
+                                                    </div>
+                                                    <div id="clientGroupsList" style="max-height: 300px; overflow-y: auto;">
+                                                        <p class="text-muted small mb-0">Loading...</p>
+                                                    </div>
                                                 </div>
                                             </div>
-                                        </div>
-                                    </div>
-                                    
-                                    <!-- Job Type Groupings -->
-                                    <div class="col-md-6">
-                                        <div class="card border-0 shadow-sm">
-                                            <div class="card-header bg-gradient-success text-white d-flex justify-content-between align-items-center">
-                                                <h6 class="mb-0">
-                                                    <i class="bi bi-briefcase-fill"></i>
-                                                    Job Type Groupings
-                                                </h6>
-                                                <button class="btn btn-sm btn-light" onclick="showJobTypeGroupModal()">
-                                                    <i class="bi bi-plus-circle"></i> New Group
-                                                </button>
-                                            </div>
-                                            <div class="card-body">
-                                                <div id="jobTypeGroupsList" class="mb-3" style="max-height: 400px; overflow-y: auto;">
-                                                    <p class="text-muted small">Loading...</p>
+                                            
+                                            <!-- Job Type Groupings -->
+                                            <div class="col-md-6">
+                                                <div class="border rounded p-3">
+                                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                                        <h6 class="mb-0 text-success">
+                                                            <i class="bi bi-briefcase-fill"></i> Job Type Groups
+                                                        </h6>
+                                                        <button class="btn btn-sm btn-outline-success" onclick="showJobTypeGroupModal()">
+                                                            <i class="bi bi-plus-circle"></i> New
+                                                        </button>
+                                                    </div>
+                                                    <div id="jobTypeGroupsList" style="max-height: 300px; overflow-y: auto;">
+                                                        <p class="text-muted small mb-0">Loading...</p>
+                                                    </div>
                                                 </div>
                                             </div>
                                         </div>
