@@ -128,6 +128,99 @@
         .nav-pills .nav-link.active {
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
         }
+        
+        /* Mobile & Tablet Optimizations */
+        @media (max-width: 768px) {
+            .container-fluid {
+                padding-left: 1rem !important;
+                padding-right: 1rem !important;
+            }
+            
+            .stat-card {
+                margin-bottom: 1rem;
+            }
+            
+            .stat-icon {
+                width: 50px;
+                height: 50px;
+                font-size: 24px;
+            }
+            
+            .stat-card h3 {
+                font-size: 1.5rem;
+            }
+            
+            .chart-container {
+                height: 250px;
+            }
+            
+            .table-responsive {
+                font-size: 0.875rem;
+            }
+            
+            .navbar-brand {
+                font-size: 1rem;
+            }
+            
+            .nav-pills {
+                flex-wrap: nowrap;
+                overflow-x: auto;
+                -webkit-overflow-scrolling: touch;
+            }
+            
+            .nav-pills .nav-link {
+                white-space: nowrap;
+                font-size: 0.875rem;
+                padding: 0.5rem 1rem;
+            }
+            
+            .card-body {
+                padding: 1rem;
+            }
+            
+            .btn-sm {
+                font-size: 0.75rem;
+                padding: 0.25rem 0.5rem;
+            }
+            
+            /* Hide less important columns on mobile */
+            .hide-mobile {
+                display: none;
+            }
+            
+            /* Stack filters vertically on mobile */
+            .filter-row .col-md-3,
+            .filter-row .col-md-2 {
+                margin-bottom: 0.5rem;
+            }
+        }
+        
+        @media (min-width: 769px) and (max-width: 1024px) {
+            /* Tablet specific styles */
+            .container-fluid {
+                padding-left: 2rem !important;
+                padding-right: 2rem !important;
+            }
+            
+            .chart-container {
+                height: 300px;
+            }
+            
+            .stat-card h3 {
+                font-size: 1.75rem;
+            }
+        }
+        
+        /* Touch-friendly buttons */
+        @media (hover: none) {
+            .btn {
+                min-height: 44px;
+            }
+            
+            .stat-card:hover {
+                transform: none;
+            }
+        }
     </style>
 </head>
 <body>
@@ -321,9 +414,9 @@
                                             <tr>
                                                 <th>Tax Year</th>
                                                 <th>Week</th>
-                                                <th>Pay Date</th>
+                                                <th class="hide-mobile">Pay Date</th>
                                                 <th>Net Payment</th>
-                                                <th>Jobs</th>
+                                                <th class="hide-mobile">Jobs</th>
                                                 <th>Action</th>
                                             </tr>
                                         </thead>
@@ -355,9 +448,9 @@
                                                 <thead class="table-light">
                                                     <tr>
                                                         <th>Client</th>
-                                                        <th>Jobs</th>
+                                                        <th class="hide-mobile">Jobs</th>
                                                         <th>Total</th>
-                                                        <th>Avg</th>
+                                                        <th class="hide-mobile">Avg</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="clientsTable"></tbody>
@@ -382,9 +475,9 @@
                                                 <thead class="table-light">
                                                     <tr>
                                                         <th>Job Type</th>
-                                                        <th>Count</th>
+                                                        <th class="hide-mobile">Count</th>
                                                         <th>Total</th>
-                                                        <th>Avg</th>
+                                                        <th class="hide-mobile">Avg</th>
                                                     </tr>
                                                 </thead>
                                                 <tbody id="jobTypesTable"></tbody>

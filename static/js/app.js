@@ -208,9 +208,9 @@ async function loadPayslips(taxYear = '') {
             <tr>
                 <td><span class="badge bg-primary">${p.tax_year}</span></td>
                 <td><strong>Week ${p.week_number}</strong></td>
-                <td>${p.pay_date || 'N/A'}</td>
+                <td class="hide-mobile">${p.pay_date || 'N/A'}</td>
                 <td><strong class="text-success">${formatCurrency(p.net_payment)}</strong></td>
-                <td><span class="badge bg-info">${p.job_count} jobs</span></td>
+                <td class="hide-mobile"><span class="badge bg-info">${p.job_count} jobs</span></td>
                 <td>
                     <button class="btn btn-sm btn-outline-primary" onclick="viewPayslip(${p.id})">
                         <i class="bi bi-eye"></i> View
@@ -244,9 +244,9 @@ async function loadClients() {
                         ${truncate(c.client, 40)}
                     </div>
                 </td>
-                <td><span class="badge bg-info">${c.job_count}</span></td>
+                <td class="hide-mobile"><span class="badge bg-info">${c.job_count}</span></td>
                 <td><strong class="text-success">${formatCurrency(c.total_amount)}</strong></td>
-                <td>${formatCurrency(c.avg_amount)}</td>
+                <td class="hide-mobile">${formatCurrency(c.avg_amount)}</td>
             </tr>
         `).join('');
         
@@ -321,9 +321,9 @@ async function loadJobTypes() {
                         ${truncate(j.job_type, 40)}
                     </div>
                 </td>
-                <td><span class="badge bg-info">${j.job_count}</span></td>
+                <td class="hide-mobile"><span class="badge bg-info">${j.job_count}</span></td>
                 <td><strong class="text-success">${formatCurrency(j.total_amount)}</strong></td>
-                <td>${formatCurrency(j.avg_amount)}</td>
+                <td class="hide-mobile">${formatCurrency(j.avg_amount)}</td>
             </tr>
         `).join('');
         
