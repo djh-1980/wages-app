@@ -1816,11 +1816,14 @@ function backupDatabase() {
 
 // Clear database
 async function clearDatabase() {
-    if (!confirm('⚠️ WARNING: This will DELETE ALL payslip data!\n\nThis action cannot be undone.\n\nAre you sure you want to continue?')) {
+    if (!confirm('⚠️ WARNING: This will DELETE ALL payslip data from the database!\n\nThis action cannot be undone.\n\nAre you sure you want to continue?')) {
         return;
     }
     
-    if (!confirm('⚠️ FINAL WARNING!\n\nThis will permanently delete:\n- All payslips\n- All job data\n- All reports\n\nType YES in the next prompt to confirm.')) {
+    // Ask about PDF files
+    const deletePDFs = confirm('Do you also want to DELETE all PDF files?\n\nClick OK to delete PDFs\nClick Cancel to keep PDFs');
+    
+    if (!confirm('⚠️ FINAL WARNING!\n\nThis will permanently delete:\n- All payslips from database\n- All job data\n- All reports\n' + (deletePDFs ? '- All PDF files\n' : '') + '\nType YES in the next prompt to confirm.')) {
         return;
     }
     
@@ -1834,17 +1837,21 @@ async function clearDatabase() {
     const messageDiv = document.getElementById('clearMessage');
     
     statusDiv.style.display = 'block';
-    messageDiv.textContent = 'Clearing database...';
+    messageDiv.textContent = 'Clearing database' + (deletePDFs ? ' and PDFs' : '') + '...';
     
     try {
         const response = await fetch('/api/clear_database', {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ delete_pdfs: deletePDFs })
         });
         
         const result = await response.json();
         
         if (result.success) {
-            messageDiv.textContent = '✅ Database cleared! Reloading...';
+            messageDiv.textContent = '✅ ' + result.message + '! Reloading...';
             setTimeout(() => {
                 location.reload();
             }, 2000);

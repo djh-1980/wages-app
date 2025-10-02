@@ -657,12 +657,15 @@ def api_backup_database():
 
 @app.route('/api/clear_database', methods=['POST'])
 def api_clear_database():
-    """Clear all data from database."""
+    """Clear all data from database and optionally delete PDF files."""
     try:
+        data = request.get_json() or {}
+        delete_pdfs = data.get('delete_pdfs', False)
+        
         conn = get_db()
         cursor = conn.cursor()
         
-        # Delete all data
+        # Delete all data from database
         cursor.execute("DELETE FROM job_items")
         cursor.execute("DELETE FROM payslips")
         cursor.execute("DELETE FROM settings")
@@ -670,7 +673,24 @@ def api_clear_database():
         conn.commit()
         conn.close()
         
-        return jsonify({'success': True, 'message': 'Database cleared'})
+        message = 'Database cleared'
+        
+        # Delete PDF files if requested
+        if delete_pdfs:
+            import shutil
+            payslips_folder = 'PaySlips'
+            if os.path.exists(payslips_folder):
+                for item in os.listdir(payslips_folder):
+                    item_path = os.path.join(payslips_folder, item)
+                    if os.path.isdir(item_path):
+                        # Delete year folders (2021, 2022, etc.)
+                        shutil.rmtree(item_path)
+                    elif item.endswith('.pdf'):
+                        # Delete any PDFs in root PaySlips folder
+                        os.remove(item_path)
+                message = 'Database and PDF files cleared'
+        
+        return jsonify({'success': True, 'message': message})
     except Exception as e:
         return jsonify({'success': False, 'message': str(e)}), 500
 
