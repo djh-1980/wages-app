@@ -1807,6 +1807,57 @@ async function processPayslips() {
     }
 }
 
+// Backup database
+function backupDatabase() {
+    if (confirm('Download a backup of your database?\n\nThis will save all your payslip data.')) {
+        window.location.href = '/api/backup_database';
+    }
+}
+
+// Clear database
+async function clearDatabase() {
+    if (!confirm('⚠️ WARNING: This will DELETE ALL payslip data!\n\nThis action cannot be undone.\n\nAre you sure you want to continue?')) {
+        return;
+    }
+    
+    if (!confirm('⚠️ FINAL WARNING!\n\nThis will permanently delete:\n- All payslips\n- All job data\n- All reports\n\nType YES in the next prompt to confirm.')) {
+        return;
+    }
+    
+    const confirmation = prompt('Type YES (in capitals) to confirm deletion:');
+    if (confirmation !== 'YES') {
+        alert('Deletion cancelled.');
+        return;
+    }
+    
+    const statusDiv = document.getElementById('clearStatus');
+    const messageDiv = document.getElementById('clearMessage');
+    
+    statusDiv.style.display = 'block';
+    messageDiv.textContent = 'Clearing database...';
+    
+    try {
+        const response = await fetch('/api/clear_database', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            messageDiv.textContent = '✅ Database cleared! Reloading...';
+            setTimeout(() => {
+                location.reload();
+            }, 2000);
+        } else {
+            messageDiv.textContent = `❌ Error: ${result.message}`;
+        }
+        
+    } catch (error) {
+        console.error('Error clearing database:', error);
+        messageDiv.textContent = '❌ Error clearing database';
+    }
+}
+
 // Check for missing payslips
 async function checkMissingPayslips() {
     const resultsDiv = document.getElementById('missingResults');

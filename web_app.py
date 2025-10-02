@@ -638,6 +638,43 @@ def api_process_payslips():
     return jsonify({'success': True, 'message': 'Processing started'})
 
 
+@app.route('/api/backup_database')
+def api_backup_database():
+    """Download database backup."""
+    from flask import send_file
+    from datetime import datetime
+    
+    # Create backup filename with timestamp
+    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+    
+    return send_file(
+        DB_PATH,
+        as_attachment=True,
+        download_name=f'payslips_backup_{timestamp}.db',
+        mimetype='application/x-sqlite3'
+    )
+
+
+@app.route('/api/clear_database', methods=['POST'])
+def api_clear_database():
+    """Clear all data from database."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Delete all data
+        cursor.execute("DELETE FROM job_items")
+        cursor.execute("DELETE FROM payslips")
+        cursor.execute("DELETE FROM settings")
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Database cleared'})
+    except Exception as e:
+        return jsonify({'success': False, 'message': str(e)}), 500
+
+
 if __name__ == '__main__':
     print("\n" + "="*80)
     print("WAGES APP - WEB INTERFACE")
