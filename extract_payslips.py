@@ -148,6 +148,7 @@ class PayslipExtractor:
     def parse_job_items(self, text: str) -> List[Dict]:
         """Extract individual job items from payslip."""
         job_items = []
+        seen_descriptions = set()  # Track seen jobs to avoid duplicates
         
         # Pattern to match job entries
         # This is complex due to the varied format, so we'll use a simpler approach
@@ -231,7 +232,13 @@ class PayslipExtractor:
                                 job_item['weekend_date'] = date_match.group(1)
                         break
                 
-                job_items.append(job_item)
+                # Create a unique key for this job to detect duplicates
+                job_key = f"{job_item.get('client', '')}|{job_item.get('location', '')}|{job_item.get('date', '')}|{job_item.get('time', '')}|{job_item.get('amount', 0)}"
+                
+                # Only add if we haven't seen this exact job before
+                if job_key not in seen_descriptions:
+                    seen_descriptions.add(job_key)
+                    job_items.append(job_item)
             
             i += 1
         
