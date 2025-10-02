@@ -504,31 +504,6 @@ def api_settings_groups():
             return jsonify({'client_groups': {}, 'job_type_groups': {}})
 
 
-@app.route('/api/process_payslips', methods=['POST'])
-def api_process_payslips():
-    """Trigger payslip extraction process."""
-    import subprocess
-    import threading
-    
-    def run_extraction():
-        try:
-            result = subprocess.run(
-                ['python3', 'extract_payslips.py'],
-                capture_output=True,
-                text=True,
-                cwd=os.path.dirname(os.path.abspath(__file__))
-            )
-            print("Extraction completed:", result.returncode)
-        except Exception as e:
-            print("Extraction error:", e)
-    
-    # Run in background thread
-    thread = threading.Thread(target=run_extraction)
-    thread.start()
-    
-    return jsonify({'success': True, 'message': 'Processing started'})
-
-
 @app.route('/api/check_missing')
 def api_check_missing():
     """Check for missing payslips in each tax year."""
