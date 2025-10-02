@@ -233,7 +233,8 @@ class PayslipExtractor:
     
     def extract_from_filename(self, filename: str) -> Dict:
         """Extract tax year and week number from filename."""
-        match = re.search(r'Week(\d+)\s+(\d{4})', filename)
+        # Try format: Week52 2021 or Week52_2021
+        match = re.search(r'Week(\d+)[\s_]+(\d{4})', filename)
         if match:
             return {
                 'week_number': int(match.group(1)),

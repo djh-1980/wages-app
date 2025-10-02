@@ -419,6 +419,42 @@ async function loadTaxYears() {
             reportMonthlyYear.appendChild(option2);
         });
         
+        // Populate upload year filter (add future years + existing years)
+        const uploadYearFilter = document.getElementById('uploadTaxYear');
+        if (uploadYearFilter) {
+            uploadYearFilter.innerHTML = ''; // Clear existing
+            
+            // Add future years
+            const currentYear = new Date().getFullYear();
+            for (let y = currentYear + 2; y >= currentYear; y--) {
+                const option = document.createElement('option');
+                option.value = y;
+                option.textContent = y;
+                if (y === currentYear) option.selected = true;
+                uploadYearFilter.appendChild(option);
+            }
+            
+            // Add existing years from database
+            years.forEach(year => {
+                if (year < currentYear) {
+                    const option = document.createElement('option');
+                    option.value = year;
+                    option.textContent = year;
+                    uploadYearFilter.appendChild(option);
+                }
+            });
+            
+            // Add older years for historical uploads
+            for (let y = currentYear - 1; y >= 2015; y--) {
+                if (!years.includes(y.toString())) {
+                    const option = document.createElement('option');
+                    option.value = y;
+                    option.textContent = y;
+                    uploadYearFilter.appendChild(option);
+                }
+            }
+        }
+        
     } catch (error) {
         console.error('Error loading tax years:', error);
     }
@@ -1674,6 +1710,59 @@ async function deleteJobTypeGroup(groupName) {
         } catch (error) {
             console.error('Error deleting group:', error);
         }
+    }
+}
+
+// Upload payslips
+async function uploadPayslips() {
+    const fileInput = document.getElementById('payslipFiles');
+    const files = fileInput.files;
+    
+    if (files.length === 0) {
+        alert('Please select at least one PDF file');
+        return;
+    }
+    
+    // Get tax year
+    const taxYear = document.getElementById('uploadTaxYear').value;
+    
+    const statusDiv = document.getElementById('uploadStatus');
+    const messageDiv = document.getElementById('uploadMessage');
+    
+    statusDiv.style.display = 'block';
+    messageDiv.textContent = `Uploading ${files.length} file(s) to ${taxYear}...`;
+    
+    const formData = new FormData();
+    formData.append('tax_year', taxYear);
+    for (let i = 0; i < files.length; i++) {
+        formData.append('files', files[i]);
+    }
+    
+    try {
+        const response = await fetch('/api/upload_payslips', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            messageDiv.textContent = `✅ Uploaded ${result.uploaded} file(s) to ${taxYear}. Processing...`;
+            
+            // Wait then reload
+            setTimeout(() => {
+                messageDiv.textContent = '✅ Complete! Reloading data...';
+                setTimeout(() => {
+                    location.reload();
+                }, 2000);
+            }, 5000);
+        } else {
+            messageDiv.textContent = `❌ Error: ${result.message}`;
+        }
+        
+    } catch (error) {
+        console.error('Error uploading payslips:', error);
+        messageDiv.textContent = '❌ Error uploading files';
     }
 }
 
