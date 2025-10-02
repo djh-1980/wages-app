@@ -157,11 +157,17 @@ class PayslipExtractor:
         while i < len(lines):
             line = lines[i].strip()
             
-            # Look for job number pattern
-            job_match = re.match(r'Daniel Hanson:\s*(\d+)\s*\|', line)
-            if job_match:
+            # Look for job pattern - with or without job number
+            # Format 2022+: "Daniel Hanson: 2609338 | Client..."
+            # Format 2021: "Daniel Hanson: Client..."
+            job_match = re.match(r'Daniel Hanson:\s*(?:(\d+)\s*\|)?(.+)', line)
+            if job_match and '|' in line:
                 job_item = {}
-                job_item['job_number'] = job_match.group(1)
+                if job_match.group(1):
+                    job_item['job_number'] = job_match.group(1)
+                else:
+                    # No job number in 2021 format, use a placeholder
+                    job_item['job_number'] = None
                 
                 # Extract full description (may span multiple lines)
                 description_parts = [line]
