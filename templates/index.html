@@ -611,15 +611,52 @@
                                     </div>
                                     <div class="card-body">
                                         <div class="row g-3">
+                                            <!-- Upload Payslips -->
+                                            <div class="col-md-4">
+                                                <div class="border rounded p-3 h-100 bg-light">
+                                                    <h6 class="text-success mb-2">
+                                                        <i class="bi bi-cloud-upload-fill"></i> Upload Payslips
+                                                    </h6>
+                                                    <p class="text-muted small mb-3">Upload PDF payslips to process</p>
+                                                    
+                                                    <div class="mb-2">
+                                                        <select class="form-select form-select-sm" id="uploadTaxYear">
+                                                            <option value="2026">2026</option>
+                                                            <option value="2025" selected>2025</option>
+                                                            <option value="2024">2024</option>
+                                                            <option value="2023">2023</option>
+                                                            <option value="2022">2022</option>
+                                                        </select>
+                                                    </div>
+                                                    
+                                                    <div class="mb-2">
+                                                        <input type="file" class="form-control form-control-sm" id="payslipFiles" 
+                                                               accept=".pdf" multiple>
+                                                    </div>
+                                                    
+                                                    <button class="btn btn-success btn-sm w-100" onclick="uploadPayslips()">
+                                                        <i class="bi bi-upload"></i> Upload & Process
+                                                    </button>
+                                                    
+                                                    <div id="uploadStatus" class="mt-3" style="display: none;">
+                                                        <div class="progress" style="height: 5px;">
+                                                            <div class="progress-bar progress-bar-striped progress-bar-animated bg-success" 
+                                                                 role="progressbar" style="width: 100%"></div>
+                                                        </div>
+                                                        <p class="text-muted small mt-2 mb-0" id="uploadMessage">Uploading...</p>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                            
                                             <!-- Process Payslips -->
-                                            <div class="col-md-6">
+                                            <div class="col-md-4">
                                                 <div class="border rounded p-3 h-100">
                                                     <h6 class="text-danger mb-2">
-                                                        <i class="bi bi-file-earmark-pdf-fill"></i> Process Payslips
+                                                        <i class="bi bi-file-earmark-pdf-fill"></i> Reprocess All
                                                     </h6>
-                                                    <p class="text-muted small mb-3">Extract data from PDF files in the PaySlips folder</p>
+                                                    <p class="text-muted small mb-3">Re-extract data from all existing PDFs</p>
                                                     
-                                                    <button class="btn btn-danger btn-sm w-100" onclick="processPayslips()">
+                                                    <button class="btn btn-danger btn-sm w-100 mt-4" onclick="processPayslips()">
                                                         <i class="bi bi-gear-fill"></i> Process All PDFs
                                                     </button>
                                                     
@@ -634,14 +671,14 @@
                                             </div>
                                             
                                             <!-- Check Missing -->
-                                            <div class="col-md-6">
+                                            <div class="col-md-4">
                                                 <div class="border rounded p-3 h-100">
                                                     <h6 class="text-warning mb-2">
-                                                        <i class="bi bi-exclamation-triangle-fill"></i> Check Missing Weeks
+                                                        <i class="bi bi-exclamation-triangle-fill"></i> Check Missing
                                                     </h6>
                                                     <p class="text-muted small mb-3">Verify all payslip weeks are present</p>
                                                     
-                                                    <button class="btn btn-warning btn-sm w-100" onclick="checkMissingPayslips()">
+                                                    <button class="btn btn-warning btn-sm w-100 mt-4" onclick="checkMissingPayslips()">
                                                         <i class="bi bi-search"></i> Check for Gaps
                                                     </button>
                                                     

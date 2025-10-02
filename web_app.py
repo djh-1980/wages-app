@@ -4,12 +4,19 @@ Flask web application for payslip data visualization.
 """
 
 from flask import Flask, render_template, jsonify, request
+from werkzeug.utils import secure_filename
 import sqlite3
 from datetime import datetime
 import json
 import os
+import subprocess
+import threading
 
 app = Flask(__name__)
+app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max
+app.config['UPLOAD_FOLDER'] = 'PaySlips'
+ALLOWED_EXTENSIONS = {'pdf'}
+
 DB_PATH = "payslips.db"
 
 
@@ -572,6 +579,88 @@ def api_check_missing():
         })
     
     return jsonify(result)
+
+
+def allowed_file(filename):
+    """Check if file extension is allowed."""
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+
+@app.route('/api/upload_payslips', methods=['POST'])
+def api_upload_payslips():
+    """Upload and process payslip PDFs."""
+    if 'files' not in request.files:
+        return jsonify({'success': False, 'message': 'No files provided'}), 400
+    
+    # Get tax year
+    tax_year = request.form.get('tax_year', '2025')
+    
+    # Create year folder if it doesn't exist
+    year_folder = os.path.join(app.config['UPLOAD_FOLDER'], tax_year)
+    os.makedirs(year_folder, exist_ok=True)
+    
+    files = request.files.getlist('files')
+    uploaded_count = 0
+    
+    for file in files:
+        if file and allowed_file(file.filename):
+            filename = secure_filename(file.filename)
+            filepath = os.path.join(year_folder, filename)
+            file.save(filepath)
+            uploaded_count += 1
+            print(f"✅ Saved: {filepath}")
+    
+    if uploaded_count > 0:
+        # Run extraction on uploaded files
+        def run_extraction():
+            try:
+                result = subprocess.run(
+                    ['python3', 'extract_payslips.py'],
+                    capture_output=True,
+                    text=True,
+                    cwd=os.path.dirname(os.path.abspath(__file__))
+                )
+                print(f"Extraction completed: {result.returncode}")
+                if result.stdout:
+                    print(result.stdout)
+            except Exception as e:
+                print(f"Extraction error: {e}")
+        
+        thread = threading.Thread(target=run_extraction)
+        thread.start()
+        
+        return jsonify({
+            'success': True,
+            'uploaded': uploaded_count,
+            'tax_year': tax_year,
+            'message': f'Uploaded {uploaded_count} file(s) to {tax_year}'
+        })
+    
+    return jsonify({'success': False, 'message': 'No valid PDF files uploaded'}), 400
+
+
+@app.route('/api/process_payslips', methods=['POST'])
+def api_process_payslips():
+    """Trigger payslip extraction process."""
+    def run_extraction():
+        try:
+            result = subprocess.run(
+                ['python3', 'extract_payslips.py'],
+                capture_output=True,
+                text=True,
+                cwd=os.path.dirname(os.path.abspath(__file__))
+            )
+            print("Extraction completed:", result.returncode)
+            if result.stdout:
+                print(result.stdout)
+        except Exception as e:
+            print("Extraction error:", e)
+    
+    # Run in background thread
+    thread = threading.Thread(target=run_extraction)
+    thread.start()
+    
+    return jsonify({'success': True, 'message': 'Processing started'})
 
 
 if __name__ == '__main__':
