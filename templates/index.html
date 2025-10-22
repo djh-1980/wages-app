@@ -406,6 +406,11 @@
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="analytics-tab" data-bs-toggle="pill" data-bs-target="#analytics" type="button">
+                                    <i class="bi bi-graph-up-arrow"></i> Analytics
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
                                 <button class="nav-link" id="settings-tab" data-bs-toggle="pill" data-bs-target="#settings" type="button">
                                     <i class="bi bi-gear"></i> Settings
                                 </button>
@@ -745,6 +750,159 @@
                                 </div>
                             </div>
 
+                            <!-- Analytics Tab -->
+                            <div class="tab-pane fade" id="analytics" role="tabpanel">
+                                <h4 class="mb-4"><i class="bi bi-graph-up-arrow text-primary"></i> Advanced Analytics</h4>
+                                
+                                <!-- Year-over-Year Comparison -->
+                                <div class="card border-0 shadow-sm mb-4">
+                                    <div class="card-header bg-white">
+                                        <h5 class="mb-0"><i class="bi bi-bar-chart-line text-primary"></i> Year-over-Year Comparison</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted small">Compare weekly earnings across different tax years</p>
+                                        <div class="chart-container" style="height: 400px;">
+                                            <canvas id="yearComparisonChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Earnings Forecast -->
+                                <div class="card border-0 shadow-sm mb-4">
+                                    <div class="card-header bg-white">
+                                        <h5 class="mb-0"><i class="bi bi-graph-up text-success"></i> Earnings Forecast</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <div class="row">
+                                            <div class="col-md-8">
+                                                <p class="text-muted small">Predicted earnings for the remainder of the current tax year</p>
+                                                <div class="chart-container" style="height: 350px;">
+                                                    <canvas id="forecastChart"></canvas>
+                                                </div>
+                                            </div>
+                                            <div class="col-md-4">
+                                                <div class="card bg-light border-0">
+                                                    <div class="card-body">
+                                                        <h6 class="text-muted">Forecast Summary</h6>
+                                                        <hr>
+                                                        <div class="mb-3">
+                                                            <small class="text-muted">Current Year</small>
+                                                            <h5 id="forecastYear" class="mb-0">-</h5>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <small class="text-muted">Weeks Worked</small>
+                                                            <h5 id="forecastWeeksWorked" class="mb-0">-</h5>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <small class="text-muted">Total Earned</small>
+                                                            <h5 id="forecastTotalEarned" class="mb-0">£0.00</h5>
+                                                        </div>
+                                                        <div class="mb-3">
+                                                            <small class="text-muted">Trend</small>
+                                                            <h5 id="forecastTrend" class="mb-0">
+                                                                <span class="badge bg-secondary">-</span>
+                                                            </h5>
+                                                        </div>
+                                                        <hr>
+                                                        <div class="mb-0">
+                                                            <small class="text-muted">Projected Year-End</small>
+                                                            <h4 id="forecastProjected" class="mb-0 text-primary">£0.00</h4>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Client Activity Heatmap -->
+                                <div class="card border-0 shadow-sm mb-4">
+                                    <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                                        <h5 class="mb-0"><i class="bi bi-calendar-heat text-warning"></i> Client Activity Heatmap</h5>
+                                        <select class="form-select w-auto" id="heatmapYearFilter" onchange="loadClientHeatmap()">
+                                            <option value="">All Years</option>
+                                        </select>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted small">Visualize which clients are most active by month</p>
+                                        <div id="heatmapContainer" style="overflow-x: auto;">
+                                            <div class="text-center py-5">
+                                                <div class="spinner-border text-primary" role="status"></div>
+                                                <p class="text-muted mt-2">Loading heatmap...</p>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Weekly Performance Analysis -->
+                                <div class="card border-0 shadow-sm mb-4">
+                                    <div class="card-header bg-white">
+                                        <h5 class="mb-0"><i class="bi bi-trophy text-danger"></i> Weekly Performance Analysis</h5>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted small">Compare your best and worst performing weeks</p>
+                                        <div class="row">
+                                            <!-- Best Weeks -->
+                                            <div class="col-md-6">
+                                                <h6 class="text-success mb-3">
+                                                    <i class="bi bi-arrow-up-circle-fill"></i> Top 10 Best Weeks
+                                                </h6>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-hover">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th>Rank</th>
+                                                                <th>Week</th>
+                                                                <th>Amount</th>
+                                                                <th>Jobs</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody id="bestWeeksTable">
+                                                            <tr>
+                                                                <td colspan="4" class="text-center">
+                                                                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                                                                </td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                            
+                                            <!-- Worst Weeks -->
+                                            <div class="col-md-6">
+                                                <h6 class="text-danger mb-3">
+                                                    <i class="bi bi-arrow-down-circle-fill"></i> Top 10 Lowest Weeks
+                                                </h6>
+                                                <div class="table-responsive">
+                                                    <table class="table table-sm table-hover">
+                                                        <thead class="table-light">
+                                                            <tr>
+                                                                <th>Rank</th>
+                                                                <th>Week</th>
+                                                                <th>Amount</th>
+                                                                <th>Jobs</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody id="worstWeeksTable">
+                                                            <tr>
+                                                                <td colspan="4" class="text-center">
+                                                                    <div class="spinner-border spinner-border-sm text-primary"></div>
+                                                                </td>
+                                                            </tr>
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="alert alert-info mt-3">
+                                            <strong><i class="bi bi-info-circle"></i> Average Weekly Earnings:</strong>
+                                            <span id="avgWeeklyEarnings" class="float-end">£0.00</span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
                             <!-- Settings Tab -->
                             <div class="tab-pane fade" id="settings" role="tabpanel">
                                 
@@ -1067,5 +1225,6 @@
     
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
 </body>
 </html>

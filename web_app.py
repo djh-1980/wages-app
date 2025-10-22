@@ -700,6 +700,227 @@ def api_clear_database():
         return jsonify({'success': False, 'message': str(e)}), 500
 
 
+@app.route('/api/year_comparison')
+def api_year_comparison():
+    """Get year-over-year comparison data."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Get all tax years
+    cursor.execute("SELECT DISTINCT tax_year FROM payslips ORDER BY tax_year")
+    years = [row['tax_year'] for row in cursor.fetchall()]
+    
+    comparison_data = {}
+    for year in years:
+        cursor.execute("""
+            SELECT 
+                week_number,
+                net_payment
+            FROM payslips
+            WHERE tax_year = ?
+            ORDER BY week_number
+        """, (year,))
+        
+        comparison_data[year] = [
+            {'week': row['week_number'], 'amount': row['net_payment']}
+            for row in cursor.fetchall()
+        ]
+    
+    conn.close()
+    return jsonify(comparison_data)
+
+
+@app.route('/api/earnings_forecast')
+def api_earnings_forecast():
+    """Predict future earnings based on historical trends."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Get current year data
+    cursor.execute("""
+        SELECT tax_year, week_number, net_payment
+        FROM payslips
+        WHERE tax_year = (SELECT MAX(tax_year) FROM payslips)
+        ORDER BY week_number
+    """)
+    
+    current_year_data = [dict(row) for row in cursor.fetchall()]
+    
+    if not current_year_data:
+        conn.close()
+        return jsonify({'error': 'No data available'}), 404
+    
+    current_year = current_year_data[0]['tax_year']
+    weeks_worked = len(current_year_data)
+    total_earned = sum(row['net_payment'] for row in current_year_data)
+    avg_weekly = total_earned / weeks_worked if weeks_worked > 0 else 0
+    
+    # Calculate trend (simple linear regression on last 12 weeks)
+    recent_weeks = current_year_data[-12:] if len(current_year_data) >= 12 else current_year_data
+    if len(recent_weeks) >= 2:
+        # Simple trend calculation
+        x_values = list(range(len(recent_weeks)))
+        y_values = [row['net_payment'] for row in recent_weeks]
+        
+        n = len(x_values)
+        sum_x = sum(x_values)
+        sum_y = sum(y_values)
+        sum_xy = sum(x * y for x, y in zip(x_values, y_values))
+        sum_x2 = sum(x * x for x in x_values)
+        
+        slope = (n * sum_xy - sum_x * sum_y) / (n * sum_x2 - sum_x * sum_x) if (n * sum_x2 - sum_x * sum_x) != 0 else 0
+        intercept = (sum_y - slope * sum_x) / n
+        
+        trend = 'increasing' if slope > 10 else 'decreasing' if slope < -10 else 'stable'
+    else:
+        slope = 0
+        trend = 'stable'
+    
+    # Forecast remaining weeks
+    weeks_remaining = 52 - weeks_worked
+    forecast_data = []
+    
+    for i in range(1, weeks_remaining + 1):
+        week_num = weeks_worked + i
+        # Use average with trend adjustment
+        predicted_amount = avg_weekly + (slope * i)
+        forecast_data.append({
+            'week': week_num,
+            'predicted_amount': max(0, predicted_amount),  # Don't predict negative
+            'confidence': 'high' if i <= 4 else 'medium' if i <= 12 else 'low'
+        })
+    
+    projected_year_end = total_earned + sum(f['predicted_amount'] for f in forecast_data)
+    
+    conn.close()
+    return jsonify({
+        'current_year': current_year,
+        'weeks_worked': weeks_worked,
+        'total_earned': total_earned,
+        'avg_weekly': avg_weekly,
+        'trend': trend,
+        'slope': slope,
+        'forecast': forecast_data,
+        'projected_year_end': projected_year_end
+    })
+
+
+@app.route('/api/client_heatmap')
+def api_client_heatmap():
+    """Get client activity heatmap data (clients by month)."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    tax_year = request.args.get('tax_year')
+    
+    if tax_year:
+        query = """
+            SELECT 
+                ji.client,
+                p.tax_year,
+                CAST((p.week_number - 1) / 4.33 AS INTEGER) + 1 as month,
+                COUNT(*) as job_count,
+                SUM(ji.amount) as total_amount
+            FROM job_items ji
+            JOIN payslips p ON ji.payslip_id = p.id
+            WHERE ji.client IS NOT NULL AND p.tax_year = ?
+            GROUP BY ji.client, p.tax_year, month
+            ORDER BY total_amount DESC
+        """
+        cursor.execute(query, (tax_year,))
+    else:
+        query = """
+            SELECT 
+                ji.client,
+                p.tax_year,
+                CAST((p.week_number - 1) / 4.33 AS INTEGER) + 1 as month,
+                COUNT(*) as job_count,
+                SUM(ji.amount) as total_amount
+            FROM job_items ji
+            JOIN payslips p ON ji.payslip_id = p.id
+            WHERE ji.client IS NOT NULL
+            GROUP BY ji.client, p.tax_year, month
+            ORDER BY total_amount DESC
+        """
+        cursor.execute(query)
+    
+    rows = [dict(row) for row in cursor.fetchall()]
+    
+    # Get top 10 clients overall
+    cursor.execute("""
+        SELECT client, SUM(amount) as total
+        FROM job_items
+        WHERE client IS NOT NULL
+        GROUP BY client
+        ORDER BY total DESC
+        LIMIT 10
+    """)
+    top_clients = [row['client'] for row in cursor.fetchall()]
+    
+    conn.close()
+    
+    return jsonify({
+        'heatmap_data': rows,
+        'top_clients': top_clients
+    })
+
+
+@app.route('/api/weekly_performance')
+def api_weekly_performance():
+    """Analyze best and worst performing weeks with context."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Get best weeks
+    cursor.execute("""
+        SELECT 
+            p.id,
+            p.tax_year,
+            p.week_number,
+            p.pay_date,
+            p.net_payment,
+            COUNT(ji.id) as job_count,
+            GROUP_CONCAT(DISTINCT ji.client) as clients
+        FROM payslips p
+        LEFT JOIN job_items ji ON p.id = ji.payslip_id
+        GROUP BY p.id
+        ORDER BY p.net_payment DESC
+        LIMIT 10
+    """)
+    best_weeks = [dict(row) for row in cursor.fetchall()]
+    
+    # Get worst weeks (but not zero)
+    cursor.execute("""
+        SELECT 
+            p.id,
+            p.tax_year,
+            p.week_number,
+            p.pay_date,
+            p.net_payment,
+            COUNT(ji.id) as job_count,
+            GROUP_CONCAT(DISTINCT ji.client) as clients
+        FROM payslips p
+        LEFT JOIN job_items ji ON p.id = ji.payslip_id
+        WHERE p.net_payment > 0
+        GROUP BY p.id
+        ORDER BY p.net_payment ASC
+        LIMIT 10
+    """)
+    worst_weeks = [dict(row) for row in cursor.fetchall()]
+    
+    # Get average for comparison
+    cursor.execute("SELECT AVG(net_payment) as avg FROM payslips WHERE net_payment > 0")
+    average = cursor.fetchone()['avg']
+    
+    conn.close()
+    
+    return jsonify({
+        'best_weeks': best_weeks,
+        'worst_weeks': worst_weeks,
+        'average': average
+    })
+
+
 if __name__ == '__main__':
     print("\n" + "="*80)
     print("WAGES APP - WEB INTERFACE")
