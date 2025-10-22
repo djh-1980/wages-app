@@ -9,10 +9,15 @@ venv/
 ENV/
 
 # Database (don't upload personal data)
-payslips.db
+data/payslips.db
+data/*.db
 
 # PDFs (don't upload personal payslips)
 PaySlips/
+
+# Generated output files
+output/*.csv
+output/*.txt
 
 # IDE
 .vscode/

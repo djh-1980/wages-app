@@ -8,7 +8,7 @@ import csv
 from pathlib import Path
 
 
-def export_payslips_summary(db_path="payslips.db", output_file="payslips_summary.csv"):
+def export_payslips_summary(db_path="data/payslips.db", output_file="output/payslips_summary.csv"):
     """Export payslips summary to CSV."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -41,7 +41,7 @@ def export_payslips_summary(db_path="payslips.db", output_file="payslips_summary
     conn.close()
 
 
-def export_job_items(db_path="payslips.db", output_file="job_items.csv"):
+def export_job_items(db_path="data/payslips.db", output_file="output/job_items.csv"):
     """Export all job items to CSV."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -74,7 +74,7 @@ def export_job_items(db_path="payslips.db", output_file="job_items.csv"):
     conn.close()
 
 
-def export_client_summary(db_path="payslips.db", output_file="client_summary.csv"):
+def export_client_summary(db_path="data/payslips.db", output_file="output/client_summary.csv"):
     """Export client summary to CSV."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -110,7 +110,7 @@ def export_client_summary(db_path="payslips.db", output_file="client_summary.csv
     conn.close()
 
 
-def export_job_type_summary(db_path="payslips.db", output_file="job_type_summary.csv"):
+def export_job_type_summary(db_path="data/payslips.db", output_file="output/job_type_summary.csv"):
     """Export job type summary to CSV."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
@@ -146,7 +146,7 @@ def export_job_type_summary(db_path="payslips.db", output_file="job_type_summary
     conn.close()
 
 
-def export_weekly_summary(db_path="payslips.db", output_file="weekly_summary.csv"):
+def export_weekly_summary(db_path="data/payslips.db", output_file="output/weekly_summary.csv"):
     """Export weekly summary with job counts."""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row

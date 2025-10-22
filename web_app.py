@@ -17,7 +17,7 @@ app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max
 app.config['UPLOAD_FOLDER'] = 'PaySlips'
 ALLOWED_EXTENSIONS = {'pdf'}
 
-DB_PATH = "payslips.db"
+DB_PATH = "data/payslips.db"
 
 
 def get_db():
@@ -226,7 +226,13 @@ def api_payslip_detail(payslip_id):
     
     # Get payslip
     cursor.execute("SELECT * FROM payslips WHERE id = ?", (payslip_id,))
-    payslip = dict(cursor.fetchone())
+    payslip_row = cursor.fetchone()
+    
+    if not payslip_row:
+        conn.close()
+        return jsonify({'error': 'Payslip not found'}), 404
+    
+    payslip = dict(payslip_row)
     
     # Get job items
     cursor.execute("""
@@ -590,7 +596,7 @@ def api_upload_payslips():
         def run_extraction():
             try:
                 result = subprocess.run(
-                    ['python3', 'extract_payslips.py'],
+                    ['python3', 'scripts/extract_payslips.py'],
                     capture_output=True,
                     text=True,
                     cwd=os.path.dirname(os.path.abspath(__file__))
@@ -620,7 +626,7 @@ def api_process_payslips():
     def run_extraction():
         try:
             result = subprocess.run(
-                ['python3', 'extract_payslips.py'],
+                ['python3', 'scripts/extract_payslips.py'],
                 capture_output=True,
                 text=True,
                 cwd=os.path.dirname(os.path.abspath(__file__))
@@ -642,7 +648,6 @@ def api_process_payslips():
 def api_backup_database():
     """Download database backup."""
     from flask import send_file
-    from datetime import datetime
     
     # Create backup filename with timestamp
     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')

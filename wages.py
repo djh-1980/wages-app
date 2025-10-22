@@ -66,31 +66,31 @@ def main():
             run_script("web_app.py")
         elif choice == "2":
             print("\n📊 Running Quick Stats...\n")
-            run_script("quick_stats.py")
+            run_script("scripts/quick_stats.py")
         elif choice == "3":
             print("\n🔍 Opening Query Tool...\n")
-            run_script("query_payslips.py")
+            run_script("scripts/query_payslips.py")
         elif choice == "4":
             print("\n📄 Generating Report...\n")
-            run_script("generate_report.py")
-            print("\n✅ Report saved to: payslip_report.txt")
+            run_script("scripts/generate_report.py")
+            print("\n✅ Report saved to: output/payslip_report.txt")
         elif choice == "5":
             print("\n💾 Exporting to CSV...\n")
-            run_script("export_to_csv.py")
+            run_script("scripts/export_to_csv.py")
         elif choice == "6":
             print("\n🔄 Extracting PDFs...\n")
             print("⚠️  This will process all PDF files in the PaySlips directory.")
             confirm = input("Continue? (y/n): ").strip().lower()
             if confirm == 'y':
-                run_script("extract_payslips.py")
+                run_script("scripts/extract_payslips.py")
             else:
                 print("Cancelled.")
         elif choice == "7":
             view_file("README.md")
         elif choice == "8":
-            view_file("USAGE_GUIDE.md")
+            view_file("docs/USAGE_GUIDE.md")
         elif choice == "9":
-            view_file("WEB_APP_GUIDE.md")
+            view_file("docs/WEB_APP_GUIDE.md")
         else:
             print("\n❌ Invalid choice. Please try again.")
         

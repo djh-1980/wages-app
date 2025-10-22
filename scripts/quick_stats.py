@@ -7,7 +7,7 @@ import sqlite3
 import sys
 
 
-def quick_stats(db_path="payslips.db"):
+def quick_stats(db_path="data/payslips.db"):
     """Display quick statistics."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -24,6 +24,10 @@ def quick_stats(db_path="payslips.db"):
         LIMIT 1
     """)
     row = cursor.fetchone()
+    if not row:
+        print("\n❌ No payslips found in database. Run 'python3 extract_payslips.py' first.\n")
+        conn.close()
+        return
     print(f"\n📅 Latest payslip: Tax Year {row[0]}, Week {row[1]} - £{row[2]:,.2f}")
     
     # This tax year

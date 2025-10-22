@@ -21,18 +21,28 @@ pip install -r requirements.txt
 
 ## Usage
 
+### Quick Start
+
+Run the main interface:
+
+```bash
+python3 wages.py
+```
+
+This provides a menu with all available tools.
+
 ### Extract Data from PDFs
 
 Run the extraction script to process all payslip PDFs:
 
 ```bash
-python3 extract_payslips.py
+python3 scripts/extract_payslips.py
 ```
 
 This will:
 - Scan the `PaySlips/` directory for all PDF files
 - Extract data from each payslip
-- Store the data in `payslips.db` (SQLite database)
+- Store the data in `data/payslips.db` (SQLite database)
 - Display summary statistics
 
 ### Query the Database
@@ -40,7 +50,7 @@ This will:
 Run the interactive query tool:
 
 ```bash
-python3 query_payslips.py
+python3 scripts/query_payslips.py
 ```
 
 Available queries:
@@ -73,7 +83,7 @@ Stores individual job entries:
 You can also query the database directly using SQLite:
 
 ```bash
-sqlite3 payslips.db
+sqlite3 data/payslips.db
 ```
 
 Example queries:
@@ -102,14 +112,30 @@ ORDER BY p.tax_year, p.week_number;
 
 ```
 Wages-App/
-├── PaySlips/           # PDF files organized by tax year
+├── PaySlips/              # PDF files organized by tax year
 │   ├── 2024/
 │   └── 2025/
-├── extract_payslips.py # Main extraction script
-├── query_payslips.py   # Interactive query tool
-├── requirements.txt    # Python dependencies
-├── payslips.db        # SQLite database (created after extraction)
-└── README.md          # This file
+├── data/                  # Database files
+│   └── payslips.db       # SQLite database (created after extraction)
+├── output/                # Generated reports and exports
+│   ├── *.csv             # CSV exports
+│   └── payslip_report.txt
+├── scripts/               # Python scripts
+│   ├── extract_payslips.py  # Main extraction script
+│   ├── query_payslips.py    # Interactive query tool
+│   ├── generate_report.py   # Report generator
+│   ├── export_to_csv.py     # CSV export tool
+│   └── quick_stats.py       # Quick statistics
+├── docs/                  # Documentation
+│   ├── USAGE_GUIDE.md
+│   ├── WEB_APP_GUIDE.md
+│   └── DEBIAN_DEPLOYMENT_GUIDE.md
+├── templates/             # Web app HTML templates
+├── static/                # Web app static files
+├── web_app.py            # Flask web application
+├── wages.py              # Main CLI interface
+├── requirements.txt      # Python dependencies
+└── README.md             # This file
 ```
 
 ## Notes

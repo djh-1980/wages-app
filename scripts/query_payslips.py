@@ -10,7 +10,7 @@ from typing import Optional
 
 
 class PayslipQuery:
-    def __init__(self, db_path: str = "payslips.db"):
+    def __init__(self, db_path: str = "data/payslips.db"):
         self.db_path = db_path
         self.conn = sqlite3.connect(db_path)
         self.conn.row_factory = sqlite3.Row

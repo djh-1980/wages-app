@@ -13,7 +13,7 @@ import json
 
 
 class PayslipExtractor:
-    def __init__(self, db_path: str = "payslips.db"):
+    def __init__(self, db_path: str = "data/payslips.db"):
         self.db_path = db_path
         self.conn = None
         self.setup_database()
@@ -173,12 +173,15 @@ class PayslipExtractor:
                 # Extract full description (may span multiple lines)
                 description_parts = [line]
                 j = i + 1
-                while j < len(lines) and not re.match(r'^\d+\.\d+$', lines[j].strip()):
-                    if lines[j].strip() and not re.match(r'^Rico$', lines[j].strip()):
-                        description_parts.append(lines[j].strip())
-                        j += 1
-                    else:
+                # Continue reading lines that are part of the description
+                # Stop when we hit a line that looks like a rate (decimal number) or agency name
+                while j < len(lines):
+                    next_line = lines[j].strip()
+                    # Stop if empty, or if it's a standalone decimal number (rate), or agency name
+                    if not next_line or re.match(r'^\d+\.\d+$', next_line) or next_line == 'Rico':
                         break
+                    description_parts.append(next_line)
+                    j += 1
                 
                 job_item['description'] = ' '.join(description_parts)
                 

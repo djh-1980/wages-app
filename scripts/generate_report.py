@@ -7,7 +7,7 @@ import sqlite3
 from datetime import datetime
 
 
-def generate_report(db_path="payslips.db", output_file="payslip_report.txt"):
+def generate_report(db_path="data/payslips.db", output_file="output/payslip_report.txt"):
     """Generate a comprehensive text report."""
     conn = sqlite3.connect(db_path)
     cursor = conn.cursor()
@@ -27,13 +27,20 @@ def generate_report(db_path="payslips.db", output_file="payslip_report.txt"):
         total_weeks, total_earnings = cursor.fetchone()
         f.write(f"Total weeks worked: {total_weeks}\n")
         f.write(f"Total net earnings: £{total_earnings:,.2f}\n")
-        f.write(f"Average per week: £{total_earnings/total_weeks:,.2f}\n")
-        f.write(f"Estimated annual rate: £{(total_earnings/total_weeks)*52:,.2f}\n\n")
+        if total_weeks > 0:
+            f.write(f"Average per week: £{total_earnings/total_weeks:,.2f}\n")
+            f.write(f"Estimated annual rate: £{(total_earnings/total_weeks)*52:,.2f}\n\n")
+        else:
+            f.write(f"Average per week: £0.00\n")
+            f.write(f"Estimated annual rate: £0.00\n\n")
         
         cursor.execute("SELECT COUNT(*) FROM job_items")
         total_jobs = cursor.fetchone()[0]
         f.write(f"Total jobs completed: {total_jobs}\n")
-        f.write(f"Average jobs per week: {total_jobs/total_weeks:.1f}\n\n")
+        if total_weeks > 0:
+            f.write(f"Average jobs per week: {total_jobs/total_weeks:.1f}\n\n")
+        else:
+            f.write(f"Average jobs per week: 0.0\n\n")
         
         # By Tax Year
         f.write("\nBY TAX YEAR\n")
