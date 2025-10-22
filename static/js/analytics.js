@@ -15,12 +15,14 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Main function to load all analytics
-function loadAnalytics() {
+async function loadAnalytics() {
     loadYearComparison();
     loadEarningsForecast();
-    loadClientHeatmap();
     loadWeeklyPerformance();
-    populateHeatmapYearFilter();
+    
+    // Populate year filter first, then load heatmap
+    await populateHeatmapYearFilter();
+    loadClientHeatmap();
 }
 
 // Year-over-Year Comparison Chart
