@@ -287,6 +287,16 @@ class PayslipExtractor:
             
             # Insert payslip summary
             cursor = self.conn.cursor()
+            
+            # First, check if this payslip already exists and delete its old job items
+            cursor.execute("""
+                DELETE FROM job_items 
+                WHERE payslip_id IN (
+                    SELECT id FROM payslips 
+                    WHERE tax_year = ? AND week_number = ?
+                )
+            """, (payslip_data.get('tax_year'), payslip_data.get('week_number')))
+            
             cursor.execute("""
                 INSERT OR REPLACE INTO payslips (
                     tax_year, week_number, verification_number, utr_number,
