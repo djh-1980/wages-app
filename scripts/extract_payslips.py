@@ -178,7 +178,11 @@ class PayslipExtractor:
                 while j < len(lines):
                     next_line = lines[j].strip()
                     # Stop if empty, or if it's a standalone decimal number (rate), or agency name
-                    if not next_line or re.match(r'^\d+\.\d+$', next_line) or next_line == 'Rico':
+                    # Also stop at common separator lines like TVS, SCS, IFM, Limited
+                    if (not next_line or 
+                        re.match(r'^\d+\.\d+$', next_line) or 
+                        next_line in ['Rico', 'TVS', 'SCS', 'IFM', 'Limited'] or
+                        re.match(r'^\d{2}/\d{2}/\d{4}$', next_line)):  # Date format
                         break
                     description_parts.append(next_line)
                     j += 1
@@ -236,7 +240,8 @@ class PayslipExtractor:
                         break
                 
                 # Create a unique key for this job to detect duplicates
-                job_key = f"{job_item.get('client', '')}|{job_item.get('location', '')}|{job_item.get('date', '')}|{job_item.get('time', '')}|{job_item.get('amount', 0)}"
+                # Include job_number to ensure uniqueness even if other fields match
+                job_key = f"{job_item.get('job_number', '')}|{job_item.get('client', '')}|{job_item.get('location', '')}|{job_item.get('date', '')}|{job_item.get('time', '')}|{job_item.get('amount', 0)}"
                 
                 # Only add if we haven't seen this exact job before
                 if job_key not in seen_descriptions:
