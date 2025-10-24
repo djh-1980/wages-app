@@ -38,8 +38,6 @@ class RunSheetImporter:
                 priority TEXT,
                 job_address TEXT,
                 postcode TEXT,
-                instructions_1 TEXT,
-                instructions_2 TEXT,
                 notes TEXT,
                 source_file TEXT,
                 imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -246,54 +244,6 @@ class RunSheetImporter:
                             if priority_match:
                                 job['priority'] = priority_match.group(1)
                         
-                        # Instructions 1 - lines with part numbers and descriptions (e.g., "3446536 - DT - HME Nexeo...")
-                        # OR lines with // pattern (e.g., "38960886//32013//PPD")
-                        # OR lines with ALT/PART pattern (e.g., "ALT1=_O2HEP3DS22AV")
-                        if not job.get('instructions_1'):
-                            if re.match(r'^\d{7,8}\s*-\s*DT\s*-', curr_line):
-                                # Collect multiple DT instruction lines
-                                inst1_lines = [curr_line]
-                                # Look ahead for more instruction lines
-                                for k in range(j+1, min(j+5, len(lines))):
-                                    next_inst = lines[k].strip()
-                                    if re.match(r'^\d{7,8}\s*-\s*DT\s*-', next_inst):
-                                        inst1_lines.append(next_inst)
-                                job['instructions_1'] = '; '.join(inst1_lines)
-                            elif '//' in curr_line:
-                                # Extract reference numbers with // pattern
-                                job['instructions_1'] = curr_line
-                            elif re.match(r'ALT\d+=', curr_line) or re.match(r'PART\d+=', curr_line):
-                                # Collect ALT/PART lines and the part number line
-                                inst1_lines = []
-                                for k in range(j, min(j+10, len(lines))):
-                                    line_check = lines[k].strip()
-                                    if re.match(r'(ALT|PART)\d+=', line_check) and '=' in line_check:
-                                        # Extract the value after =
-                                        value = line_check.split('=')[1].strip()
-                                        if value:
-                                            inst1_lines.append(value)
-                                    elif re.match(r'^[A-Z0-9_-]+\s+x\s+\d+', line_check):
-                                        # Part number with quantity (e.g., "_O2HEP3DS22AV-V1-23 x 1")
-                                        inst1_lines.append(line_check.split('Problem:')[0].strip())
-                                        break
-                                if inst1_lines:
-                                    job['instructions_1'] = '; '.join(inst1_lines)
-                        
-                        # Instructions 2 - longer text with keywords like "Replace", "Please", "Problem:", etc.
-                        if not job.get('instructions_2'):
-                            # Look for instruction keywords
-                            keywords = ['Replace', 'Please record', 'without fail', 'Call your depot', 
-                                      'Problem:', 'Action:', '**Please sign in']
-                            if any(keyword in curr_line for keyword in keywords):
-                                # Collect this and following lines until we hit a blank or new section
-                                inst2_lines = [curr_line]
-                                for k in range(j+1, min(j+10, len(lines))):
-                                    next_inst = lines[k].strip()
-                                    if not next_inst or next_inst.startswith('Page ') or re.match(r'^\d{10,}', next_inst) or next_inst.startswith('Call history'):
-                                        break
-                                    inst2_lines.append(next_inst)
-                                job['instructions_2'] = ' '.join(inst2_lines)
-                        
                         # Address collection - starts after we see a phone number (with or without +) or "MANAGER" or contact name with number
                         # Also starts after Ref 1 number (8 digits) or after a line like "1." or "1 " or "0MANAGER"
                         if (re.match(r'^\d{10,}', curr_line) or 
@@ -382,8 +332,8 @@ class RunSheetImporter:
                     cursor.execute("""
                         INSERT OR REPLACE INTO run_sheet_jobs (
                             date, driver, jobs_on_run, job_number, customer, activity, 
-                            priority, job_address, postcode, instructions_1, instructions_2, notes, source_file
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            priority, job_address, postcode, notes, source_file
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         job.get('date'),
                         job.get('driver'),
@@ -394,8 +344,6 @@ class RunSheetImporter:
                         job.get('priority'),
                         job.get('job_address'),
                         job.get('postcode'),
-                        job.get('instructions_1'),
-                        job.get('instructions_2'),
                         job.get('notes'),
                         file_path.name
                     ))
