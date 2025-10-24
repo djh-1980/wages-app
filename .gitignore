@@ -12,8 +12,13 @@ ENV/
 data/payslips.db
 data/*.db
 
-# PDFs (don't upload personal payslips)
+# PDFs (don't upload personal payslips and run sheets)
 PaySlips/
+RunSheets/
+
+# Gmail API credentials (keep private)
+credentials.json
+token.json
 
 # Generated output files
 output/*.csv
