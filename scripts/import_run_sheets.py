@@ -30,10 +30,15 @@ class RunSheetImporter:
             CREATE TABLE IF NOT EXISTS run_sheet_jobs (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 date TEXT,
+                driver TEXT,
+                jobs_on_run INTEGER,
                 job_number TEXT,
                 customer TEXT,
                 activity TEXT,
-                location TEXT,
+                priority TEXT,
+                job_address TEXT,
+                postcode TEXT,
+                instructions TEXT,
                 notes TEXT,
                 source_file TEXT,
                 imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -163,90 +168,121 @@ class RunSheetImporter:
             # Process each page separately
             for page_num, page in enumerate(reader.pages):
                 page_text = page.extract_text()
+                lines = page_text.split('\n')
                 
                 # Check if this page is for the specified person
-                # Look in first 5 lines of page
-                page_lines = page_text.split('\n')
                 is_my_page = False
-                for i in range(min(5, len(page_lines))):
-                    if self.name.lower() in page_lines[i].lower():
+                for i in range(min(5, len(lines))):
+                    if self.name.lower() in lines[i].lower():
                         is_my_page = True
                         break
                 
                 if not is_my_page:
-                    continue  # Skip this page
+                    continue
                 
-                # Parse jobs from this page
-                lines = page_lines
+                # Extract header info (date, driver, jobs on run) from line 3
+                # Format: "Date 25/10/2025 Depot Warrington Driver Hanson, Daniel Jobs on Run 8"
+                header_date = None
+                header_driver = None
+                jobs_on_run = None
                 
-                # Look for "Job #" pattern which indicates start of a job
-                i = 0
-                while i < len(lines):
-                    line = lines[i].strip()
+                for line in lines[:5]:
+                    if 'Date' in line and 'Driver' in line and 'Jobs on Run' in line:
+                        date_match = re.search(r'Date\s+(\d{2}/\d{2}/\d{4})', line)
+                        if date_match:
+                            header_date = date_match.group(1)
+                        
+                        driver_match = re.search(r'Driver\s+([^J]+?)(?:\s+Jobs)', line)
+                        if driver_match:
+                            header_driver = driver_match.group(1).strip()
+                        
+                        jobs_match = re.search(r'Jobs on Run\s+(\d+)', line)
+                        if jobs_match:
+                            jobs_on_run = int(jobs_match.group(1))
+                        break
+                
+                # Find job entry
+                for i, line in enumerate(lines):
+                    if not line.strip().startswith('Job #'):
+                        continue
                     
-                    # Found a job entry
-                    if line.startswith('Job #'):
-                        job = {}
+                    job = {
+                        'date': header_date,
+                        'driver': header_driver,
+                        'jobs_on_run': jobs_on_run
+                    }
+                    
+                    # Extract job number
+                    job_match = re.search(r'Job #\s*(\d+)', line)
+                    if job_match:
+                        job['job_number'] = job_match.group(1)
+                    
+                    # Parse subsequent lines for job details
+                    address_lines = []
+                    collecting_address = False
+                    
+                    for j in range(i+1, min(i+40, len(lines))):
+                        curr_line = lines[j].strip()
                         
-                        # Extract job number from this line
-                        job_match = re.search(r'Job #\s*(\d+)', line)
-                        if job_match:
-                            job['job_number'] = job_match.group(1)
+                        # Customer - line starting with "Customer Signature" or "Customer Print"
+                        if curr_line.startswith('Customer Signature') or curr_line.startswith('Customer Print'):
+                            customer = curr_line.replace('Customer Signature', '').replace('Customer Print', '').strip()
+                            if customer:
+                                job['customer'] = customer
                         
-                        # Look ahead for customer, activity, date in rest of page
-                        for j in range(i+1, len(lines)):
-                            next_line = lines[j].strip()
-                            
-                            # Customer - typically ends with "Limited", "Ltd", "PLC", etc.
-                            if not job.get('customer'):
-                                customer_match = re.search(r'^([A-Za-z0-9\s\-&()]+(?:Limited|Ltd|PLC|plc|LTD))(?:\s|$)', next_line)
-                                if customer_match:
-                                    customer = customer_match.group(1).strip()
-                                    # Clean up common prefixes
-                                    customer = re.sub(r'^Customer\s*Signature\s*', '', customer)
-                                    customer = re.sub(r'^Customer\s*Print\s*', '', customer)
-                                    job['customer'] = customer.strip()
-                            
-                            # Date - format DD/MM/YYYY
-                            if not job.get('date'):
-                                date_match = re.search(r'(\d{2}/\d{2}/\d{4})', next_line)
-                                if date_match:
-                                    job['date'] = date_match.group(1)
-                            
-                            # Activity
-                            if not job.get('activity'):
-                                activity_patterns = [
-                                    'TECH EXCHANGE',
-                                    'NON TECH EXCHANGE',
-                                    'REPAIR WITH PARTS',
-                                    'REPAIR WITHOUT PARTS',
-                                    'CONSUMABLE INSTALL',
-                                    'COLLECTION',
-                                    'DELIVERY',
-                                    'INSTALL'
-                                ]
-                                for pattern in activity_patterns:
-                                    if pattern in next_line.upper():
-                                        job['activity'] = pattern
-                                        break
-                            
-                            # Location - UK postcode
-                            if not job.get('location'):
-                                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', next_line)
-                                if postcode_match:
-                                    job['location'] = postcode_match.group(1)
-                            
-                            # Stop if we hit next job or page end
-                            if next_line.startswith('Job #') or next_line.startswith('Page '):
-                                break
+                        # Activity - TECH EXCHANGE, etc.
+                        if not job.get('activity'):
+                            activity_patterns = ['TECH EXCHANGE', 'NON TECH EXCHANGE', 'REPAIR WITH PARTS', 
+                                               'REPAIR WITHOUT PARTS', 'CONSUMABLE INSTALL', 'COLLECTION', 'DELIVERY', 'INSTALL']
+                            for pattern in activity_patterns:
+                                if pattern in curr_line.upper():
+                                    job['activity'] = pattern
+                                    break
                         
-                        # Add job if valid
-                        if job.get('job_number') and (job.get('customer') or job.get('activity')):
-                            jobs.append(job)
+                        # Priority - 4HR, ND 1700, etc. (comes after "Priority" label or activity)
+                        if not job.get('priority') and job.get('activity'):
+                            priority_match = re.match(r'^(4HR|8HR|6HR|ND\s+\d+)$', curr_line)
+                            if priority_match:
+                                job['priority'] = priority_match.group(1)
                         
-                        i = j if j < len(lines) else i + 1
-                    else:
-                        i += 1
+                        # Instructions - line with // pattern, extract just the reference part
+                        if '//' in curr_line and not job.get('instructions'):
+                            # Extract the part before any descriptive text
+                            inst_match = re.search(r'([\d/]+//[\d/]+(?://[A-Z]+)?)', curr_line)
+                            if inst_match:
+                                job['instructions'] = inst_match.group(1)
+                            else:
+                                job['instructions'] = curr_line
+                        
+                        # Address collection - starts after we see a phone number or "MANAGER"
+                        if re.match(r'^\d{10,}', curr_line) or curr_line == 'MANAGER':
+                            collecting_address = True
+                            continue
+                        
+                        # Collect address lines (between phone/MANAGER and postcode)
+                        if collecting_address:
+                            # UK postcode pattern
+                            postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', curr_line)
+                            if postcode_match:
+                                job['postcode'] = postcode_match.group(1)
+                                # Add this line to address if it has more than just postcode
+                                if len(curr_line) > len(job['postcode']) + 2:
+                                    address_lines.append(curr_line.replace(job['postcode'], '').strip())
+                                collecting_address = False
+                            elif curr_line and not curr_line.startswith('Page '):
+                                address_lines.append(curr_line)
+                        
+                        # Stop at next job or page end
+                        if curr_line.startswith('Job #') or curr_line.startswith('Page '):
+                            break
+                    
+                    # Combine address lines
+                    if address_lines:
+                        job['job_address'] = ', '.join([a for a in address_lines if a])
+                    
+                    # Add job if valid
+                    if job.get('job_number') and job.get('customer'):
+                        jobs.append(job)
         
         return jobs
     
@@ -276,14 +312,20 @@ class RunSheetImporter:
                 try:
                     cursor.execute("""
                         INSERT OR REPLACE INTO run_sheet_jobs (
-                            date, job_number, customer, activity, location, notes, source_file
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                            date, driver, jobs_on_run, job_number, customer, activity, 
+                            priority, job_address, postcode, instructions, notes, source_file
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         job.get('date'),
+                        job.get('driver'),
+                        job.get('jobs_on_run'),
                         job.get('job_number'),
                         job.get('customer'),
                         job.get('activity'),
-                        job.get('location'),
+                        job.get('priority'),
+                        job.get('job_address'),
+                        job.get('postcode'),
+                        job.get('instructions'),
                         job.get('notes'),
                         file_path.name
                     ))
