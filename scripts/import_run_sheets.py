@@ -38,7 +38,8 @@ class RunSheetImporter:
                 priority TEXT,
                 job_address TEXT,
                 postcode TEXT,
-                instructions TEXT,
+                instructions_1 TEXT,
+                instructions_2 TEXT,
                 notes TEXT,
                 source_file TEXT,
                 imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -245,32 +246,100 @@ class RunSheetImporter:
                             if priority_match:
                                 job['priority'] = priority_match.group(1)
                         
-                        # Instructions - line with // pattern, extract just the reference part
-                        if '//' in curr_line and not job.get('instructions'):
-                            # Extract the part before any descriptive text
-                            inst_match = re.search(r'([\d/]+//[\d/]+(?://[A-Z]+)?)', curr_line)
-                            if inst_match:
-                                job['instructions'] = inst_match.group(1)
-                            else:
-                                job['instructions'] = curr_line
+                        # Instructions 1 - lines with part numbers and descriptions (e.g., "3446536 - DT - HME Nexeo...")
+                        # OR lines with // pattern (e.g., "38960886//32013//PPD")
+                        # OR lines with ALT/PART pattern (e.g., "ALT1=_O2HEP3DS22AV")
+                        if not job.get('instructions_1'):
+                            if re.match(r'^\d{7,8}\s*-\s*DT\s*-', curr_line):
+                                # Collect multiple DT instruction lines
+                                inst1_lines = [curr_line]
+                                # Look ahead for more instruction lines
+                                for k in range(j+1, min(j+5, len(lines))):
+                                    next_inst = lines[k].strip()
+                                    if re.match(r'^\d{7,8}\s*-\s*DT\s*-', next_inst):
+                                        inst1_lines.append(next_inst)
+                                job['instructions_1'] = '; '.join(inst1_lines)
+                            elif '//' in curr_line:
+                                # Extract reference numbers with // pattern
+                                job['instructions_1'] = curr_line
+                            elif re.match(r'ALT\d+=', curr_line) or re.match(r'PART\d+=', curr_line):
+                                # Collect ALT/PART lines and the part number line
+                                inst1_lines = []
+                                for k in range(j, min(j+10, len(lines))):
+                                    line_check = lines[k].strip()
+                                    if re.match(r'(ALT|PART)\d+=', line_check) and '=' in line_check:
+                                        # Extract the value after =
+                                        value = line_check.split('=')[1].strip()
+                                        if value:
+                                            inst1_lines.append(value)
+                                    elif re.match(r'^[A-Z0-9_-]+\s+x\s+\d+', line_check):
+                                        # Part number with quantity (e.g., "_O2HEP3DS22AV-V1-23 x 1")
+                                        inst1_lines.append(line_check.split('Problem:')[0].strip())
+                                        break
+                                if inst1_lines:
+                                    job['instructions_1'] = '; '.join(inst1_lines)
                         
-                        # Address collection - starts after we see a phone number or "MANAGER"
-                        if re.match(r'^\d{10,}', curr_line) or curr_line == 'MANAGER':
+                        # Instructions 2 - longer text with keywords like "Replace", "Please", "Problem:", etc.
+                        if not job.get('instructions_2'):
+                            # Look for instruction keywords
+                            keywords = ['Replace', 'Please record', 'without fail', 'Call your depot', 
+                                      'Problem:', 'Action:', '**Please sign in']
+                            if any(keyword in curr_line for keyword in keywords):
+                                # Collect this and following lines until we hit a blank or new section
+                                inst2_lines = [curr_line]
+                                for k in range(j+1, min(j+10, len(lines))):
+                                    next_inst = lines[k].strip()
+                                    if not next_inst or next_inst.startswith('Page ') or re.match(r'^\d{10,}', next_inst) or next_inst.startswith('Call history'):
+                                        break
+                                    inst2_lines.append(next_inst)
+                                job['instructions_2'] = ' '.join(inst2_lines)
+                        
+                        # Address collection - starts after we see a phone number (with or without +) or "MANAGER" or contact name with number
+                        # Also starts after Ref 1 number (8 digits) or after a line like "1." or "1 " or "0MANAGER"
+                        if (re.match(r'^\d{10,}', curr_line) or 
+                            re.match(r'^\+\d{10,}', curr_line) or 
+                            curr_line == 'MANAGER' or
+                            re.match(r'^\d[A-Za-z]+$', curr_line) or  # e.g., "1Ryan", "0MANAGER"
+                            re.match(r'^\d+\.$', curr_line) or  # e.g., "1."
+                            re.match(r'^\d+\s*$', curr_line) or  # e.g., "1 " or "1"
+                            re.match(r'^\d{8}$', curr_line)):  # Ref 1 number
                             collecting_address = True
+                            # If it's a ref number, skip it but start collecting
+                            if re.match(r'^\d{8}$', curr_line):
+                                continue
+                            # If it's a phone or contact or just number, skip it
                             continue
                         
-                        # Collect address lines (between phone/MANAGER and postcode)
+                        # Collect address lines (between start marker and postcode)
                         if collecting_address:
+                            # Skip empty lines and lines that are just dots
+                            if not curr_line or re.match(r'^\.+$', curr_line):
+                                continue
+                            
+                            # Skip lines that are clearly not address (payment info, contact names, etc.)
+                            if (curr_line.startswith('PO ') or 
+                                'Service Desk:' in curr_line or
+                                re.match(r'^\d[A-Za-z\s]+$', curr_line) or  # e.g., "1Ellie Fitzgerald"
+                                re.match(r'^0[A-Z\s]+$', curr_line)):  # e.g., "0MASON MELLOR"
+                                continue
+                            
                             # UK postcode pattern
                             postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', curr_line)
                             if postcode_match:
                                 job['postcode'] = postcode_match.group(1)
                                 # Add this line to address if it has more than just postcode
                                 if len(curr_line) > len(job['postcode']) + 2:
-                                    address_lines.append(curr_line.replace(job['postcode'], '').strip())
+                                    clean_line = curr_line.replace(job['postcode'], '').strip()
+                                    # Remove leading dots
+                                    clean_line = re.sub(r'^\.+', '', clean_line).strip()
+                                    if clean_line:
+                                        address_lines.append(clean_line)
                                 collecting_address = False
                             elif curr_line and not curr_line.startswith('Page '):
-                                address_lines.append(curr_line)
+                                # Clean leading dots
+                                clean_line = re.sub(r'^\.+', '', curr_line).strip()
+                                if clean_line:
+                                    address_lines.append(clean_line)
                         
                         # Stop at next job or page end
                         if curr_line.startswith('Job #') or curr_line.startswith('Page '):
@@ -313,8 +382,8 @@ class RunSheetImporter:
                     cursor.execute("""
                         INSERT OR REPLACE INTO run_sheet_jobs (
                             date, driver, jobs_on_run, job_number, customer, activity, 
-                            priority, job_address, postcode, instructions, notes, source_file
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            priority, job_address, postcode, instructions_1, instructions_2, notes, source_file
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                     """, (
                         job.get('date'),
                         job.get('driver'),
@@ -325,7 +394,8 @@ class RunSheetImporter:
                         job.get('priority'),
                         job.get('job_address'),
                         job.get('postcode'),
-                        job.get('instructions'),
+                        job.get('instructions_1'),
+                        job.get('instructions_2'),
                         job.get('notes'),
                         file_path.name
                     ))
