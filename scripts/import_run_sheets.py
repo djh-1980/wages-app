@@ -325,7 +325,15 @@ class RunSheetImporter:
                         job['job_address'] = ', '.join([a for a in address_lines if a])
                     
                     # Add job if valid
+                    # Skip RICO Depot jobs with no activity (not real jobs - just depot visits)
                     if job.get('job_number') and job.get('customer'):
+                        customer = job.get('customer', '').upper()
+                        activity = job.get('activity', '')
+                        
+                        # Skip RICO Depots without activity
+                        if 'RICO' in customer and not activity:
+                            continue
+                        
                         jobs.append(job)
         
         return jobs
