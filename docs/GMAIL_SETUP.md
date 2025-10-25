@@ -58,10 +58,15 @@ pip3 install -r requirements-gmail.txt
      mv ~/Downloads/client_secret_*.json /Users/danielhanson/CascadeProjects/Wages-App/credentials.json
      ```
 
-## Step 3: Run the Downloader
+## Step 3: Run the Automated Downloader
+
+The script now automatically:
+1. 📥 Downloads PDFs from Gmail
+2. 🗂️ Organizes them into year/month folders
+3. 💾 Imports jobs to the database
 
 ```bash
-# Download all run sheets from January 1st, 2025
+# Download, organize, and import all run sheets from January 1st, 2025
 python3 scripts/download_runsheets_gmail.py
 
 # Or specify a custom date (format: YYYY/MM/DD)
@@ -74,9 +79,17 @@ python3 scripts/download_runsheets_gmail.py 2025/10/01
 - Click "Allow" to grant access
 - The script will save a `token.json` file for future runs
 
-## Step 4: Import Run Sheets
+**What It Does:**
+1. Connects to Gmail and searches for run sheet emails
+2. Downloads PDF attachments to `RunSheets/` folder
+3. Extracts the date from each PDF
+4. Moves PDFs to `RunSheets/YYYY/MM/` folders
+5. Imports all jobs to the database automatically
+6. Shows summary of downloaded and imported jobs
 
-After downloading, import them into the database:
+## Manual Import (Optional)
+
+If you want to import run sheets manually:
 
 ```bash
 python3 scripts/import_run_sheets.py

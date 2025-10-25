@@ -2,16 +2,19 @@
 """
 Download run sheets from Gmail automatically.
 Searches for emails with run sheet attachments and downloads them.
+Optionally organizes by date and imports to database.
 """
 
 import os
 import base64
+import re
 from datetime import datetime
 from pathlib import Path
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
+import PyPDF2
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
@@ -22,6 +25,56 @@ class GmailRunSheetDownloader:
         self.download_dir.mkdir(exist_ok=True)
         self.service = None
         
+    def extract_date_from_pdf(self, pdf_path: Path) -> str:
+        """Extract date from PDF to determine folder structure."""
+        try:
+            with open(pdf_path, 'rb') as file:
+                reader = PyPDF2.PdfReader(file)
+                for page in reader.pages[:3]:
+                    text = page.extract_text()
+                    lines = text.split('\n')
+                    
+                    for line in lines[:10]:
+                        # Look for date pattern DD/MM/YYYY
+                        date_match = re.search(r'Date\s+(\d{2}/\d{2}/\d{4})', line)
+                        if date_match:
+                            return date_match.group(1)
+                        
+                        date_match = re.search(r'\b(\d{2}/\d{2}/\d{4})\b', line)
+                        if date_match:
+                            return date_match.group(1)
+            return None
+        except:
+            return None
+    
+    def organize_pdf(self, pdf_path: Path) -> Path:
+        """Move PDF to year/month folder based on date in PDF."""
+        date_str = self.extract_date_from_pdf(pdf_path)
+        
+        if not date_str:
+            return pdf_path
+        
+        try:
+            # Parse DD/MM/YYYY
+            dt = datetime.strptime(date_str, '%d/%m/%Y')
+            
+            # Create year/month folder
+            target_dir = self.download_dir / str(dt.year) / f"{dt.month:02d}"
+            target_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Move file
+            target_path = target_dir / pdf_path.name
+            
+            if target_path.exists():
+                pdf_path.unlink()  # Delete duplicate
+                return target_path
+            
+            pdf_path.rename(target_path)
+            return target_path
+            
+        except Exception as e:
+            return pdf_path
+    
     def authenticate(self):
         """Authenticate with Gmail API."""
         creds = None
@@ -146,7 +199,7 @@ class GmailRunSheetDownloader:
             print(f"  ✗ Error downloading attachments: {e}")
             return []
     
-    def download_all_run_sheets(self, after_date='2025/01/01'):
+    def download_all_run_sheets(self, after_date='2025/01/01', organize=True, auto_import=True):
         """Download all run sheets from Gmail."""
         print("=" * 70)
         print("GMAIL RUN SHEET DOWNLOADER")
@@ -175,17 +228,67 @@ class GmailRunSheetDownloader:
         # Download attachments
         print("📥 Downloading attachments...")
         total_downloaded = 0
+        downloaded_files = []
         
         for i, message in enumerate(messages, 1):
             print(f"[{i}/{len(messages)}] Processing email...")
-            downloaded = self.download_attachments(message['id'])
-            total_downloaded += len(downloaded)
+            filenames = self.download_attachments(message['id'])
+            total_downloaded += len(filenames)
+            
+            # Track downloaded file paths
+            for filename in filenames:
+                downloaded_files.append(self.download_dir / filename)
         
         print()
         print("=" * 70)
         print(f"✅ Download complete: {total_downloaded} new run sheets downloaded")
-        print(f"📁 Saved to: {self.download_dir.absolute()}")
         print("=" * 70)
+        print()
+        
+        # Organize into year/month folders
+        if organize and downloaded_files:
+            print("🗂️  Organizing by date...")
+            organized_files = []
+            for pdf_path in downloaded_files:
+                organized_path = self.organize_pdf(pdf_path)
+                organized_files.append(organized_path)
+                if organized_path != pdf_path:
+                    print(f"  📁 {organized_path.relative_to(self.download_dir)}")
+            
+            print()
+            print("=" * 70)
+            print(f"✅ Organization complete")
+            print("=" * 70)
+            print()
+            
+            downloaded_files = organized_files
+        
+        # Import to database
+        if auto_import and downloaded_files:
+            print("💾 Importing to database...")
+            try:
+                from import_run_sheets import RunSheetImporter
+                
+                importer = RunSheetImporter()
+                total_imported = 0
+                
+                for pdf_path in downloaded_files:
+                    count = importer.import_run_sheet(pdf_path, self.download_dir)
+                    total_imported += count
+                
+                importer.close()
+                
+                print()
+                print("=" * 70)
+                print(f"✅ Import complete: {total_imported} jobs imported")
+                print("=" * 70)
+                
+            except Exception as e:
+                print(f"⚠️  Import failed: {e}")
+                print("   Run 'python scripts/import_run_sheets.py' manually")
+        
+        print()
+        print(f"📁 Files saved to: {self.download_dir.absolute()}")
 
 
 def main():
