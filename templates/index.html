@@ -386,6 +386,11 @@
                                 </button>
                             </li>
                             <li class="nav-item" role="presentation">
+                                <button class="nav-link" id="runsheets-tab" data-bs-toggle="pill" data-bs-target="#runsheets" type="button">
+                                    <i class="bi bi-calendar-check"></i> Run Sheets
+                                </button>
+                            </li>
+                            <li class="nav-item" role="presentation">
                                 <button class="nav-link" id="clients-tab" data-bs-toggle="pill" data-bs-target="#clients" type="button">
                                     <i class="bi bi-people"></i> Clients
                                 </button>
@@ -495,6 +500,104 @@
                                         </tbody>
                                     </table>
                                 </div>
+                            </div>
+
+                            <!-- Run Sheets Tab -->
+                            <div class="tab-pane fade" id="runsheets" role="tabpanel">
+                                <h5 class="section-title">Run Sheets Overview</h5>
+                                
+                                <!-- Run Sheets Summary Cards -->
+                                <div class="row g-3 mb-4">
+                                    <div class="col-md-3">
+                                        <div class="card border-0 bg-light">
+                                            <div class="card-body text-center">
+                                                <i class="bi bi-calendar-range text-primary" style="font-size: 2rem;"></i>
+                                                <h4 class="mt-2 mb-0" id="rsTotalDays">0</h4>
+                                                <small class="text-muted">Total Days</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card border-0 bg-light">
+                                            <div class="card-body text-center">
+                                                <i class="bi bi-briefcase text-success" style="font-size: 2rem;"></i>
+                                                <h4 class="mt-2 mb-0" id="rsTotalJobs">0</h4>
+                                                <small class="text-muted">Total Jobs</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card border-0 bg-light">
+                                            <div class="card-body text-center">
+                                                <i class="bi bi-people text-info" style="font-size: 2rem;"></i>
+                                                <h4 class="mt-2 mb-0" id="rsUniqueCustomers">0</h4>
+                                                <small class="text-muted">Customers</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div class="col-md-3">
+                                        <div class="card border-0 bg-light">
+                                            <div class="card-body text-center">
+                                                <i class="bi bi-graph-up text-warning" style="font-size: 2rem;"></i>
+                                                <h4 class="mt-2 mb-0" id="rsAvgJobsPerDay">0</h4>
+                                                <small class="text-muted">Avg Jobs/Day</small>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="row g-4">
+                                    <!-- Activity Breakdown -->
+                                    <div class="col-lg-4">
+                                        <h6 class="mb-3">Activity Breakdown</h6>
+                                        <div class="chart-container" style="height: 300px;">
+                                            <canvas id="activityChart"></canvas>
+                                        </div>
+                                    </div>
+
+                                    <!-- Top Customers -->
+                                    <div class="col-lg-8">
+                                        <h6 class="mb-3">Top Customers</h6>
+                                        <div class="table-responsive">
+                                            <table class="table table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Customer</th>
+                                                        <th class="text-end">Jobs</th>
+                                                        <th class="text-end">Percentage</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="rsTopCustomersTable">
+                                                    <tr><td colspan="3" class="text-center">Loading...</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Run Sheets List -->
+                                <h6 class="mt-4 mb-3">Recent Run Sheets</h6>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Date</th>
+                                                <th class="text-center">Jobs</th>
+                                                <th>Activities</th>
+                                                <th class="text-end">Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="runsheetsList">
+                                            <tr><td colspan="4" class="text-center">Loading...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                                
+                                <!-- Pagination -->
+                                <nav aria-label="Run sheets pagination">
+                                    <ul class="pagination justify-content-center" id="rsPagination">
+                                    </ul>
+                                </nav>
                             </div>
 
                             <!-- Clients Tab -->
@@ -1226,5 +1329,6 @@
     <!-- Custom JS -->
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
     <script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+    <script src="{{ url_for('static', filename='runsheets.js') }}"></script>
 </body>
 </html>

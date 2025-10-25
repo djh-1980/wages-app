@@ -921,6 +921,130 @@ def api_weekly_performance():
     })
 
 
+@app.route('/api/runsheets/summary')
+def api_runsheets_summary():
+    """Get run sheets summary statistics."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Overall stats
+    cursor.execute("""
+        SELECT 
+            COUNT(DISTINCT date) as total_days,
+            COUNT(*) as total_jobs,
+            COUNT(DISTINCT customer) as unique_customers,
+            MIN(date) as first_date,
+            MAX(date) as last_date
+        FROM run_sheet_jobs
+        WHERE date IS NOT NULL
+    """)
+    overall = dict(cursor.fetchone())
+    
+    # Top customers
+    cursor.execute("""
+        SELECT customer, COUNT(*) as job_count
+        FROM run_sheet_jobs
+        WHERE customer IS NOT NULL
+        GROUP BY customer
+        ORDER BY job_count DESC
+        LIMIT 10
+    """)
+    top_customers = [dict(row) for row in cursor.fetchall()]
+    
+    # Activity breakdown
+    cursor.execute("""
+        SELECT activity, COUNT(*) as count
+        FROM run_sheet_jobs
+        WHERE activity IS NOT NULL
+        GROUP BY activity
+        ORDER BY count DESC
+    """)
+    activities = [dict(row) for row in cursor.fetchall()]
+    
+    # Jobs per day average
+    cursor.execute("""
+        SELECT AVG(jobs_per_day) as avg_jobs_per_day
+        FROM (
+            SELECT date, COUNT(*) as jobs_per_day
+            FROM run_sheet_jobs
+            WHERE date IS NOT NULL
+            GROUP BY date
+        )
+    """)
+    avg_jobs = cursor.fetchone()['avg_jobs_per_day']
+    
+    conn.close()
+    
+    return jsonify({
+        'overall': overall,
+        'top_customers': top_customers,
+        'activities': activities,
+        'avg_jobs_per_day': avg_jobs
+    })
+
+
+@app.route('/api/runsheets/list')
+def api_runsheets_list():
+    """Get list of all run sheets."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Get pagination parameters
+    page = request.args.get('page', 1, type=int)
+    per_page = request.args.get('per_page', 20, type=int)
+    offset = (page - 1) * per_page
+    
+    # Get total count
+    cursor.execute("SELECT COUNT(DISTINCT date) FROM run_sheet_jobs WHERE date IS NOT NULL")
+    total = cursor.fetchone()[0]
+    
+    # Get run sheets grouped by date
+    cursor.execute("""
+        SELECT 
+            date,
+            COUNT(*) as job_count,
+            GROUP_CONCAT(DISTINCT customer) as customers,
+            GROUP_CONCAT(DISTINCT activity) as activities
+        FROM run_sheet_jobs
+        WHERE date IS NOT NULL
+        GROUP BY date
+        ORDER BY date DESC
+        LIMIT ? OFFSET ?
+    """, (per_page, offset))
+    
+    runsheets = [dict(row) for row in cursor.fetchall()]
+    
+    conn.close()
+    
+    return jsonify({
+        'runsheets': runsheets,
+        'total': total,
+        'page': page,
+        'per_page': per_page,
+        'total_pages': (total + per_page - 1) // per_page
+    })
+
+
+@app.route('/api/runsheets/jobs/<date>')
+def api_runsheets_jobs(date):
+    """Get all jobs for a specific date."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    cursor.execute("""
+        SELECT *
+        FROM run_sheet_jobs
+        WHERE date = ?
+        ORDER BY job_number
+    """, (date,))
+    
+    jobs = [dict(row) for row in cursor.fetchall()]
+    
+    conn.close()
+    
+    return jsonify({'jobs': jobs})
+
+
 if __name__ == '__main__':
     print("\n" + "="*80)
     print("WAGES APP - WEB INTERFACE")

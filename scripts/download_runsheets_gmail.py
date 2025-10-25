@@ -67,7 +67,8 @@ class GmailRunSheetDownloader:
         
         # Search query for run sheets
         # Adjust these search terms based on your email patterns
-        query = f'has:attachment filename:pdf subject:"run sheet" OR subject:"RUN SHEET" after:{after_date}'
+        # Searches for PDFs with "RUN SHEETS" in subject or "runsheet" in filename
+        query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR filename:runsheet OR subject:runsheet) after:{after_date}'
         
         try:
             results = self.service.users().messages().list(
