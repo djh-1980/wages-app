@@ -1010,6 +1010,12 @@ def api_runsheets_list():
     total = cursor.fetchone()[0]
     
     # Get run sheets grouped by date with sorting
+    # For date sorting, convert DD/MM/YYYY to YYYY-MM-DD for proper sorting
+    if sort_column == 'date':
+        order_clause = f"substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2) {sort_order}"
+    else:
+        order_clause = f"{sort_column} {sort_order}"
+    
     query = f"""
         SELECT 
             date,
@@ -1019,7 +1025,7 @@ def api_runsheets_list():
         FROM run_sheet_jobs
         WHERE date IS NOT NULL
         GROUP BY date
-        ORDER BY {sort_column} {sort_order}
+        ORDER BY {order_clause}
         LIMIT ? OFFSET ?
     """
     cursor.execute(query, (per_page, offset))
