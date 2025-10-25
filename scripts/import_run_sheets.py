@@ -246,16 +246,23 @@ class RunSheetImporter:
                         
                         # Address collection - starts after we see a phone number (with or without +) or "MANAGER" or contact name with number
                         # Also starts after Ref 1 number (8 digits) or after a line like "1." or "1 " or "0MANAGER"
+                        # NEW: Also starts after contact name like "1WILLIAM HARRIS" or "tbcWILLIAM HARRIS"
+                        # But NOT store codes like "16661UK 6661UK" or "1614510810TESCO"
                         if (re.match(r'^\d{10,}', curr_line) or 
-                            re.match(r'^\+\d{10,}', curr_line) or 
+                            re.match(r'^\+\d{10,}', curr_line) or
+                            re.search(r'\d{4,}\s+\d{3,}\s+\d{3,}\s*/\s*\d', curr_line) or  # Phone with slash like "02920 320 193 / 07741 248 780" 
                             curr_line == 'MANAGER' or
-                            re.match(r'^\d[A-Za-z]+$', curr_line) or  # e.g., "1Ryan", "0MANAGER"
+                            (re.match(r'^\d[A-Z0-9\s]+$', curr_line) and 
+                             len(curr_line) > 8 and 
+                             not re.match(r'^\d+[A-Z]+\s+\d+', curr_line) and  # Not store codes like "16661UK 6661UK"
+                             (' ' in curr_line or re.search(r'[A-Z]{3,}', curr_line))) or  # Has space OR 3+ consecutive letters
+                            re.match(r'^tbc[A-Z\s]+$', curr_line) or  # e.g., "tbcWILLIAM HARRIS"
                             re.match(r'^\d+\.$', curr_line) or  # e.g., "1."
                             re.match(r'^\d+\s*$', curr_line) or  # e.g., "1 " or "1"
-                            re.match(r'^\d{8}$', curr_line)):  # Ref 1 number
+                            re.match(r'^\d{8,10}$', curr_line)):  # Ref 1 number (8-10 digits)
                             collecting_address = True
                             # If it's a ref number, skip it but start collecting
-                            if re.match(r'^\d{8}$', curr_line):
+                            if re.match(r'^\d{8,10}$', curr_line):
                                 continue
                             # If it's a phone or contact or just number, skip it
                             continue
@@ -266,11 +273,23 @@ class RunSheetImporter:
                             if not curr_line or re.match(r'^\.+$', curr_line):
                                 continue
                             
-                            # Skip lines that are clearly not address (payment info, contact names, etc.)
+                            # Skip lines that are clearly not address (payment info, instructions, etc.)
+                            # Stop collecting if we hit instructions/notes
                             if (curr_line.startswith('PO ') or 
                                 'Service Desk:' in curr_line or
-                                re.match(r'^\d[A-Za-z\s]+$', curr_line) or  # e.g., "1Ellie Fitzgerald"
-                                re.match(r'^0[A-Z\s]+$', curr_line)):  # e.g., "0MASON MELLOR"
+                                curr_line.startswith('Home User') or
+                                curr_line.startswith('Hand over') or
+                                curr_line.startswith('ALONG WITH') or
+                                curr_line.startswith('Country:') or
+                                curr_line.startswith('Summary:') or
+                                curr_line.startswith('Subject:') or
+                                curr_line.startswith('Troubleshooting:') or
+                                curr_line.startswith('Problem description') or
+                                'engineer must' in curr_line.lower() or
+                                re.search(r'\d:\d\d', curr_line) or  # Time patterns like "9:00"
+                                re.match(r'^\d[a-z]', curr_line)):  # e.g., "1Ellie" (lowercase after digit)
+                                # Stop collecting address if we hit instructions
+                                collecting_address = False
                                 continue
                             
                             # UK postcode pattern
@@ -286,6 +305,12 @@ class RunSheetImporter:
                                         address_lines.append(clean_line)
                                 collecting_address = False
                             elif curr_line and not curr_line.startswith('Page '):
+                                # Skip reference codes like "16661UK 6661UK" or "1614510810TESCO"
+                                if re.match(r'^\d+[A-Z]+\s+\d+[A-Z]+$', curr_line):  # e.g., "16661UK 6661UK"
+                                    continue
+                                if re.match(r'^\d{10,}[A-Z]+$', curr_line):  # e.g., "1614510810TESCO"
+                                    continue
+                                    
                                 # Clean leading dots
                                 clean_line = re.sub(r'^\.+', '', curr_line).strip()
                                 if clean_line:
