@@ -49,7 +49,7 @@ if [ "$OS" == "macos" ]; then
     # Create LaunchAgents directory
     mkdir -p "$HOME/Library/LaunchAgents"
     
-    # Create the plist file
+    # Create the plist file (runs twice daily: 6 AM and 11 PM)
     cat > "$PLIST_FILE" << EOF
 <?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
@@ -68,12 +68,20 @@ if [ "$OS" == "macos" ]; then
     <string>$PROJECT_DIR</string>
     
     <key>StartCalendarInterval</key>
-    <dict>
-        <key>Hour</key>
-        <integer>20</integer>
-        <key>Minute</key>
-        <integer>0</integer>
-    </dict>
+    <array>
+        <dict>
+            <key>Hour</key>
+            <integer>6</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+        <dict>
+            <key>Hour</key>
+            <integer>23</integer>
+            <key>Minute</key>
+            <integer>0</integer>
+        </dict>
+    </array>
     
     <key>StandardOutPath</key>
     <string>$PROJECT_DIR/logs/runsheet_sync.log</string>
@@ -96,7 +104,9 @@ EOF
     echo ""
     echo "✅ macOS LaunchAgent setup complete!"
     echo ""
-    echo "The sync will run automatically every day at 8:00 PM"
+    echo "The sync will run automatically twice daily:"
+    echo "  - 6:00 AM (morning check)"
+    echo "  - 11:00 PM (evening check)"
     echo ""
     echo "Commands:"
     echo "  Check status:  launchctl list | grep wages-app"
@@ -135,15 +145,15 @@ StandardError=append:$PROJECT_DIR/logs/runsheet_sync_error.log
 WantedBy=multi-user.target
 EOF
     
-    # Create the timer file (runs daily at 8:00 PM)
+    # Create the timer file (runs twice daily: 6 AM and 11 PM)
     sudo tee "$TIMER_FILE" > /dev/null << EOF
 [Unit]
 Description=Wages App Run Sheet Sync Timer
 Requires=wages-app-runsheet-sync.service
 
 [Timer]
-OnCalendar=daily
-OnCalendar=*-*-* 20:00:00
+OnCalendar=*-*-* 06:00:00
+OnCalendar=*-*-* 23:00:00
 Persistent=true
 
 [Install]
@@ -160,7 +170,9 @@ EOF
     echo ""
     echo "✅ Debian/Ubuntu systemd setup complete!"
     echo ""
-    echo "The sync will run automatically every day at 8:00 PM"
+    echo "The sync will run automatically twice daily:"
+    echo "  - 6:00 AM (morning check)"
+    echo "  - 11:00 PM (evening check)"
     echo ""
     echo "Commands:"
     echo "  Check status:  sudo systemctl status wages-app-runsheet-sync.timer"
