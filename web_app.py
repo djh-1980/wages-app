@@ -29,8 +29,32 @@ def get_db():
 
 @app.route('/')
 def index():
-    """Main dashboard."""
-    return render_template('index.html')
+    """Main landing page - redirect to runsheets."""
+    return render_template('runsheets.html')
+
+
+@app.route('/wages')
+def wages():
+    """Wages dashboard page."""
+    return render_template('wages.html')
+
+
+@app.route('/runsheets')
+def runsheets():
+    """Run sheets page."""
+    return render_template('runsheets.html')
+
+
+@app.route('/reports')
+def reports():
+    """Reports page."""
+    return render_template('reports.html')
+
+
+@app.route('/settings')
+def settings():
+    """Settings page."""
+    return render_template('settings.html')
 
 
 @app.route('/api/summary')
@@ -998,6 +1022,12 @@ def api_runsheets_list():
     sort_column = request.args.get('sort', 'date')
     sort_order = request.args.get('order', 'desc').upper()
     
+    # Get filter parameters
+    filter_year = request.args.get('year', '')
+    filter_month = request.args.get('month', '')
+    filter_week = request.args.get('week', '')
+    filter_day = request.args.get('day', '')
+    
     # Validate sort parameters
     valid_columns = ['date', 'job_count']
     if sort_column not in valid_columns:
@@ -1005,11 +1035,39 @@ def api_runsheets_list():
     if sort_order not in ['ASC', 'DESC']:
         sort_order = 'DESC'
     
-    # Get total count
-    cursor.execute("SELECT COUNT(DISTINCT date) FROM run_sheet_jobs WHERE date IS NOT NULL")
+    # Build WHERE clause for filters
+    where_conditions = ["date IS NOT NULL"]
+    
+    if filter_year:
+        where_conditions.append(f"substr(date, 7, 4) = '{filter_year}'")
+    
+    if filter_month:
+        where_conditions.append(f"substr(date, 4, 2) = '{filter_month}'")
+    
+    if filter_week and filter_week.strip():
+        # Calculate week number from date (Sunday-Saturday weeks)
+        try:
+            week_num = int(filter_week)
+            # Use %W for week number with Sunday as first day (%W uses Monday, %U uses Sunday)
+            # %U: Week number (00-53), Sunday as first day
+            where_conditions.append(f"""
+                CAST(strftime('%U', substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2)) AS INTEGER) = {week_num - 1}
+            """)
+        except ValueError:
+            pass  # Invalid week number, skip filter
+    
+    if filter_day:
+        # Day of week (0=Sunday, 1=Monday, etc.)
+        where_conditions.append(f"CAST(strftime('%w', substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2)) AS INTEGER) = {filter_day}")
+    
+    where_clause = " AND ".join(where_conditions)
+    
+    # Get total count with filters
+    count_query = f"SELECT COUNT(DISTINCT date) FROM run_sheet_jobs WHERE {where_clause}"
+    cursor.execute(count_query)
     total = cursor.fetchone()[0]
     
-    # Get run sheets grouped by date with sorting
+    # Get run sheets grouped by date with sorting and filters
     # For date sorting, convert DD/MM/YYYY to YYYY-MM-DD for proper sorting
     if sort_column == 'date':
         order_clause = f"substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2) {sort_order}"
@@ -1023,7 +1081,7 @@ def api_runsheets_list():
             GROUP_CONCAT(DISTINCT customer) as customers,
             GROUP_CONCAT(DISTINCT activity) as activities
         FROM run_sheet_jobs
-        WHERE date IS NOT NULL
+        WHERE {where_clause}
         GROUP BY date
         ORDER BY {order_clause}
         LIMIT ? OFFSET ?
@@ -1066,6 +1124,166 @@ def api_runsheets_jobs():
     conn.close()
     
     return jsonify({'jobs': jobs, 'date': date})
+
+
+@app.route('/api/runsheets/update-statuses', methods=['POST'])
+def api_update_job_statuses():
+    """Update job statuses for multiple jobs and save mileage/fuel data."""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    updates = data.get('updates', [])
+    date = data.get('date')
+    mileage = data.get('mileage')
+    fuel_cost = data.get('fuel_cost')
+    
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Update each job status
+        for update in updates:
+            job_id = update.get('job_id')
+            status = update.get('status')
+            
+            if job_id and status in ['completed', 'missed', 'dnco', 'extra', 'pending']:
+                cursor.execute("""
+                    UPDATE run_sheet_jobs
+                    SET status = ?
+                    WHERE id = ?
+                """, (status, job_id))
+        
+        # Save mileage and fuel cost if provided
+        if date and (mileage is not None or fuel_cost is not None):
+            cursor.execute("""
+                INSERT INTO runsheet_daily_data (date, mileage, fuel_cost, updated_at)
+                VALUES (?, ?, ?, CURRENT_TIMESTAMP)
+                ON CONFLICT(date) DO UPDATE SET
+                    mileage = COALESCE(excluded.mileage, mileage),
+                    fuel_cost = COALESCE(excluded.fuel_cost, fuel_cost),
+                    updated_at = CURRENT_TIMESTAMP
+            """, (date, mileage, fuel_cost))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'updated': len(updates)})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/runsheets/daily-data')
+def api_get_daily_data():
+    """Get mileage and fuel cost for a specific date."""
+    date = request.args.get('date')
+    
+    if not date:
+        return jsonify({'error': 'Date parameter required'}), 400
+    
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT mileage, fuel_cost
+            FROM runsheet_daily_data
+            WHERE date = ?
+        """, (date,))
+        
+        row = cursor.fetchone()
+        conn.close()
+        
+        if row:
+            return jsonify({
+                'mileage': row['mileage'],
+                'fuel_cost': row['fuel_cost']
+            })
+        else:
+            return jsonify({
+                'mileage': None,
+                'fuel_cost': None
+            })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/runsheets/update-job-status', methods=['POST'])
+def api_update_job_status():
+    """Update a single job's status immediately."""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    job_id = data.get('job_id')
+    status = data.get('status')
+    
+    if not job_id or not status:
+        return jsonify({'success': False, 'error': 'Job ID and status are required'}), 400
+    
+    if status not in ['completed', 'missed', 'dnco', 'extra', 'pending']:
+        return jsonify({'success': False, 'error': 'Invalid status'}), 400
+    
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            UPDATE run_sheet_jobs
+            SET status = ?
+            WHERE id = ?
+        """, (status, job_id))
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/runsheets/add-job', methods=['POST'])
+def api_add_extra_job():
+    """Add an extra job to a run sheet."""
+    data = request.get_json()
+    
+    if not data:
+        return jsonify({'success': False, 'error': 'No data provided'}), 400
+    
+    date = data.get('date')
+    job_number = data.get('job_number')
+    customer = data.get('customer')
+    activity = data.get('activity', '')
+    job_address = data.get('job_address', '')
+    status = data.get('status', 'extra')
+    
+    if not date or not job_number or not customer:
+        return jsonify({'success': False, 'error': 'Date, job number, and customer are required'}), 400
+    
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Insert the new job
+        cursor.execute("""
+            INSERT INTO run_sheet_jobs 
+            (date, job_number, customer, activity, job_address, status)
+            VALUES (?, ?, ?, ?, ?, ?)
+        """, (date, job_number, customer, activity, job_address, status))
+        
+        conn.commit()
+        job_id = cursor.lastrowid
+        conn.close()
+        
+        return jsonify({'success': True, 'job_id': job_id})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 if __name__ == '__main__':

@@ -1,0 +1,251 @@
+{% extends "base.html" %}
+
+{% block title %}Run Sheets - TVS App{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        position: relative;
+        height: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="row g-4 mb-4">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Days</p>
+                        <h3 class="mb-0" id="rsTotalDays">0</h3>
+                        <small class="text-success"><i class="bi bi-calendar-check"></i> With jobs</small>
+                    </div>
+                    <div class="stat-icon bg-gradient-primary text-white">
+                        <i class="bi bi-calendar-range"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Jobs</p>
+                        <h3 class="mb-0" id="rsTotalJobs">0</h3>
+                        <small class="text-info"><i class="bi bi-briefcase"></i> Completed</small>
+                    </div>
+                    <div class="stat-icon bg-gradient-success text-white">
+                        <i class="bi bi-briefcase-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Unique Customers</p>
+                        <h3 class="mb-0" id="rsUniqueCustomers">0</h3>
+                        <small class="text-warning"><i class="bi bi-people"></i> Clients</small>
+                    </div>
+                    <div class="stat-icon bg-gradient-info text-white">
+                        <i class="bi bi-people-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Avg Jobs/Day</p>
+                        <h3 class="mb-0" id="rsAvgJobsPerDay">0</h3>
+                        <small class="text-danger"><i class="bi bi-graph-up"></i> Average</small>
+                    </div>
+                    <div class="stat-icon bg-gradient-warning text-white">
+                        <i class="bi bi-bar-chart-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Tabs -->
+<div class="row">
+    <div class="col-12">
+        <div class="card table-card">
+            <div class="card-body">
+                <ul class="nav nav-pills mb-3" id="runsheetsTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="list-tab" data-bs-toggle="pill" data-bs-target="#list" type="button">
+                            <i class="bi bi-list-ul"></i> All Run Sheets
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button">
+                            <i class="bi bi-speedometer2"></i> Overview
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="customers-tab" data-bs-toggle="pill" data-bs-target="#customers" type="button">
+                            <i class="bi bi-building"></i> Customers
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="activities-tab" data-bs-toggle="pill" data-bs-target="#activities" type="button">
+                            <i class="bi bi-list-check"></i> Activities
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="runsheetsTabContent">
+                    <!-- All Run Sheets Tab -->
+                    <div class="tab-pane fade show active" id="list" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="section-title mb-0">All Run Sheets</h5>
+                        </div>
+                        
+                        <!-- Filters -->
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label small">Year</label>
+                                <select class="form-select" id="filterYear" onchange="applyRunSheetFilters()">
+                                    <option value="">All Years</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Month</label>
+                                <select class="form-select" id="filterMonth" onchange="applyRunSheetFilters()">
+                                    <option value="">All Months</option>
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Week</label>
+                                <select class="form-select" id="filterWeek" onchange="applyRunSheetFilters()">
+                                    <option value="">All Weeks</option>
+                                </select>
+                            </div>
+                            <div class="col-md-3">
+                                <label class="form-label small">Day of Week</label>
+                                <select class="form-select" id="filterDay" onchange="applyRunSheetFilters()">
+                                    <option value="">All Days</option>
+                                    <option value="1">Monday</option>
+                                    <option value="2">Tuesday</option>
+                                    <option value="3">Wednesday</option>
+                                    <option value="4">Thursday</option>
+                                    <option value="5">Friday</option>
+                                    <option value="6">Saturday</option>
+                                    <option value="0">Sunday</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th style="cursor: pointer;" onclick="sortRunSheets('date')">
+                                            Date <i class="bi bi-arrow-down-up"></i>
+                                        </th>
+                                        <th class="text-center" style="cursor: pointer;" onclick="sortRunSheets('job_count')">
+                                            Jobs <i class="bi bi-arrow-down-up"></i>
+                                        </th>
+                                        <th>Activities</th>
+                                        <th class="text-end">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="runsheetsList">
+                                    <tr><td colspan="4" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination -->
+                        <nav aria-label="Run sheets pagination">
+                            <ul class="pagination justify-content-center" id="rsPagination">
+                            </ul>
+                        </nav>
+                    </div>
+
+                    <!-- Overview Tab -->
+                    <div class="tab-pane fade" id="overview" role="tabpanel">
+                        <div class="row g-4">
+                            <div class="col-lg-4">
+                                <h5 class="section-title">Activity Breakdown</h5>
+                                <div class="chart-container">
+                                    <canvas id="activityChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="col-lg-8">
+                                <h5 class="section-title">Top Customers</h5>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Customer</th>
+                                                <th class="text-end">Jobs</th>
+                                                <th class="text-end">Percentage</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="rsTopCustomersTable">
+                                            <tr><td colspan="3" class="text-center">Loading...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Customers Tab -->
+                    <div class="tab-pane fade" id="customers" role="tabpanel">
+                        <h5 class="section-title">Customer Analysis</h5>
+                        <p>Detailed customer breakdown coming soon...</p>
+                    </div>
+
+                    <!-- Activities Tab -->
+                    <div class="tab-pane fade" id="activities" role="tabpanel">
+                        <h5 class="section-title">Activity Analysis</h5>
+                        <p>Detailed activity breakdown coming soon...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='runsheets.js') }}"></script>
+<script>
+    // Load data on page load
+    document.addEventListener('DOMContentLoaded', function() {
+        populateYearFilter();
+        loadRunSheetsSummary();
+        loadRunSheetsList(1);
+    });
+</script>
+{% endblock %}

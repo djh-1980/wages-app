@@ -1,0 +1,221 @@
+{% extends "base.html" %}
+
+{% block title %}Reporting - TVS App{% endblock %}
+
+{% block content %}
+<h2 class="mb-4">
+    <i class="bi bi-file-earmark-bar-graph"></i> Reporting
+</h2>
+
+<div class="row g-4">
+    <!-- Wages Reports -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-wallet2 text-primary"></i> Wages Reports
+                </h5>
+                <p class="card-text text-muted">Generate detailed reports on your earnings and payslips.</p>
+                
+                <div class="list-group list-group-flush">
+                    <a href="#" class="list-group-item list-group-item-action" onclick="generateTaxYearReport(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-calendar-range text-primary"></i>
+                                <strong>Tax Year Summary</strong>
+                                <br>
+                                <small class="text-muted">Earnings breakdown by tax year</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                    
+                    <a href="#" class="list-group-item list-group-item-action" onclick="generateMonthlyReport(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-bar-chart text-success"></i>
+                                <strong>Monthly Earnings</strong>
+                                <br>
+                                <small class="text-muted">Month-by-month earnings analysis</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                    
+                    <a href="#" class="list-group-item list-group-item-action" onclick="generateClientReport(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-people text-info"></i>
+                                <strong>Client Breakdown</strong>
+                                <br>
+                                <small class="text-muted">Earnings by client</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Run Sheets Reports -->
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-calendar-check text-success"></i> Run Sheets Reports
+                </h5>
+                <p class="card-text text-muted">Analyze your job history and performance.</p>
+                
+                <div class="list-group list-group-flush">
+                    <a href="#" class="list-group-item list-group-item-action" onclick="generateMissingDatesReport(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-calendar-x text-warning"></i>
+                                <strong>Missing Dates Report</strong>
+                                <br>
+                                <small class="text-muted">Identify gaps in run sheet coverage</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                    
+                    <a href="#" class="list-group-item list-group-item-action" onclick="generateCustomerReport(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-building text-primary"></i>
+                                <strong>Customer Analysis</strong>
+                                <br>
+                                <small class="text-muted">Jobs by customer and activity type</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                    
+                    <a href="#" class="list-group-item list-group-item-action" onclick="generateActivityReport(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-list-check text-success"></i>
+                                <strong>Activity Breakdown</strong>
+                                <br>
+                                <small class="text-muted">Jobs by activity type over time</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Export Options -->
+<div class="row mt-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-download text-primary"></i> Export Data
+                </h5>
+                <p class="card-text text-muted">Download your data in various formats.</p>
+                
+                <div class="btn-group" role="group">
+                    <button type="button" class="btn btn-outline-primary" onclick="exportToCSV()">
+                        <i class="bi bi-filetype-csv"></i> Export to CSV
+                    </button>
+                    <button type="button" class="btn btn-outline-danger" onclick="exportToPDF()">
+                        <i class="bi bi-filetype-pdf"></i> Export to PDF
+                    </button>
+                    <button type="button" class="btn btn-outline-success" onclick="exportToExcel()">
+                        <i class="bi bi-file-earmark-excel"></i> Export to Excel
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Report Status -->
+<div id="reportStatus" class="mt-4" style="display: none;">
+    <div class="alert alert-info">
+        <i class="bi bi-hourglass-split"></i> Generating report...
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    function generateMissingDatesReport() {
+        showStatus('Generating missing dates report...');
+        
+        fetch('/api/reports/missing-dates', {
+            method: 'POST'
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('Report generated! Check the reports/ folder.');
+                // Optionally download the file
+                window.location.href = '/download/report/' + data.filename;
+            } else {
+                showError('Failed to generate report');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error generating report');
+        });
+    }
+    
+    function generateTaxYearReport() {
+        alert('Tax Year Report - Coming soon!');
+    }
+    
+    function generateMonthlyReport() {
+        alert('Monthly Report - Coming soon!');
+    }
+    
+    function generateClientReport() {
+        alert('Client Report - Coming soon!');
+    }
+    
+    function generateCustomerReport() {
+        alert('Customer Analysis - Coming soon!');
+    }
+    
+    function generateActivityReport() {
+        alert('Activity Breakdown - Coming soon!');
+    }
+    
+    function exportToCSV() {
+        alert('CSV Export - Coming soon!');
+    }
+    
+    function exportToPDF() {
+        alert('PDF Export - Coming soon!');
+    }
+    
+    function exportToExcel() {
+        alert('Excel Export - Coming soon!');
+    }
+    
+    function showStatus(message) {
+        const status = document.getElementById('reportStatus');
+        status.innerHTML = `<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> ${message}</div>`;
+        status.style.display = 'block';
+    }
+    
+    function showSuccess(message) {
+        const status = document.getElementById('reportStatus');
+        status.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle"></i> ${message}</div>`;
+        status.style.display = 'block';
+        setTimeout(() => status.style.display = 'none', 5000);
+    }
+    
+    function showError(message) {
+        const status = document.getElementById('reportStatus');
+        status.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${message}</div>`;
+        status.style.display = 'block';
+    }
+</script>
+{% endblock %}

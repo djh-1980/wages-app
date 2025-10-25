@@ -1,0 +1,242 @@
+{% extends "base.html" %}
+
+{% block title %}Wages - TVS App{% endblock %}
+
+{% block extra_css %}
+<style>
+    .chart-container {
+        position: relative;
+        height: 400px;
+    }
+    
+    .table-card {
+        background: white;
+    }
+    
+    .section-title {
+        font-weight: 600;
+        color: #2d3748;
+        margin-bottom: 1.5rem;
+    }
+    
+    .tab-content {
+        padding-top: 2rem;
+    }
+    
+    .nav-pills .nav-link {
+        border-radius: 10px;
+        font-weight: 500;
+        transition: all 0.3s;
+    }
+    
+    .nav-pills .nav-link.active {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- Summary Cards -->
+<div class="row g-4 mb-4" id="summaryCards">
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Earnings</p>
+                        <h3 class="mb-0" id="totalEarnings">£0.00</h3>
+                        <small class="text-success"><i class="bi bi-arrow-up"></i> All time</small>
+                    </div>
+                    <div class="stat-icon bg-gradient-primary text-white">
+                        <i class="bi bi-currency-pound"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Average Weekly</p>
+                        <h3 class="mb-0" id="avgWeekly">£0.00</h3>
+                        <small class="text-info"><i class="bi bi-graph-up"></i> Per week</small>
+                    </div>
+                    <div class="stat-icon bg-gradient-success text-white">
+                        <i class="bi bi-bar-chart-line"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Total Jobs</p>
+                        <h3 class="mb-0" id="totalJobs">0</h3>
+                        <small class="text-warning"><i class="bi bi-briefcase"></i> Completed</small>
+                    </div>
+                    <div class="stat-icon bg-gradient-info text-white">
+                        <i class="bi bi-briefcase-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card stat-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center">
+                    <div>
+                        <p class="text-muted mb-1 small">Best Week</p>
+                        <h3 class="mb-0" id="bestWeek">£0.00</h3>
+                        <small class="text-danger"><i class="bi bi-trophy"></i> <span id="bestWeekInfo"></span></small>
+                    </div>
+                    <div class="stat-icon bg-gradient-warning text-white">
+                        <i class="bi bi-trophy-fill"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Main Content Tabs -->
+<div class="row">
+    <div class="col-12">
+        <div class="card table-card">
+            <div class="card-body">
+                <ul class="nav nav-pills mb-3" id="wagesTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="dashboard-tab" data-bs-toggle="pill" data-bs-target="#dashboard" type="button">
+                            <i class="bi bi-speedometer2"></i> Dashboard
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="payslips-tab" data-bs-toggle="pill" data-bs-target="#payslips" type="button">
+                            <i class="bi bi-file-earmark-text"></i> Payslips
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="analytics-tab" data-bs-toggle="pill" data-bs-target="#analytics" type="button">
+                            <i class="bi bi-graph-up-arrow"></i> Analytics
+                        </button>
+                    </li>
+                </ul>
+
+                <div class="tab-content" id="wagesTabContent">
+                    <!-- Dashboard Tab -->
+                    <div class="tab-pane fade show active" id="dashboard" role="tabpanel">
+                        <div class="row g-4">
+                            <div class="col-lg-8">
+                                <div class="d-flex justify-content-between align-items-center mb-3">
+                                    <h5 class="section-title mb-0">Weekly Earnings Trend</h5>
+                                    <select class="form-select form-select-sm" id="trendYearFilter" style="width: auto;" onchange="updateWeeklyTrend()">
+                                        <!-- Years will be populated here -->
+                                    </select>
+                                </div>
+                                <div class="chart-container">
+                                    <canvas id="weeklyChart"></canvas>
+                                </div>
+                            </div>
+                            <div class="col-lg-4">
+                                <h5 class="section-title">Current Tax Year</h5>
+                                <div class="card border-0 bg-light">
+                                    <div class="card-body">
+                                        <h6 class="text-muted">Tax Year <span id="currentTaxYear"></span></h6>
+                                        <hr>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Weeks Worked:</span>
+                                            <strong id="currentYearWeeks">0</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Total Earned:</span>
+                                            <strong id="currentYearTotal">£0.00</strong>
+                                        </div>
+                                        <div class="d-flex justify-content-between mb-2">
+                                            <span>Average/Week:</span>
+                                            <strong id="currentYearAvg">£0.00</strong>
+                                        </div>
+                                        <hr>
+                                        <div class="d-flex justify-content-between">
+                                            <span>Last 4 Weeks Avg:</span>
+                                            <strong class="text-primary" id="last4WeeksAvg">£0.00</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <h5 class="section-title mt-4">Top Clients</h5>
+                                <div id="topClientsList"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Payslips Tab -->
+                    <div class="tab-pane fade" id="payslips" role="tabpanel">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="section-title mb-0">All Payslips</h5>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Week Ending</th>
+                                        <th>Tax Year</th>
+                                        <th class="text-end">Gross Pay</th>
+                                        <th class="text-end">Tax</th>
+                                        <th class="text-end">NI</th>
+                                        <th class="text-end">Net Pay</th>
+                                        <th class="text-center">Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="payslipsTableBody">
+                                    <tr>
+                                        <td colspan="7" class="text-center">
+                                            <div class="spinner-border text-primary" role="status">
+                                                <span class="visually-hidden">Loading...</span>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+
+                    <!-- Analytics Tab -->
+                    <div class="tab-pane fade" id="analytics" role="tabpanel">
+                        <h5 class="section-title">Earnings Analytics</h5>
+                        <p>Advanced analytics coming soon...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/app.js') }}"></script>
+<script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+<script>
+    // Load data when page loads
+    document.addEventListener('DOMContentLoaded', function() {
+        // Load summary data
+        loadSummary();
+        
+        // Load tax years for filters
+        loadTaxYears();
+        
+        // Load weekly trend chart
+        loadWeeklyTrend();
+        
+        // Load top clients
+        loadTopClients();
+    });
+</script>
+{% endblock %}

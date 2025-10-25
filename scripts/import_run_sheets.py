@@ -305,9 +305,13 @@ class RunSheetImporter:
         
         return jobs
     
-    def import_run_sheet(self, file_path: Path) -> int:
+    def import_run_sheet(self, file_path: Path, base_path: Path = None) -> int:
         """Import a single run sheet file."""
-        print(f"Processing: {file_path.name}")
+        if base_path:
+            relative_path = file_path.relative_to(base_path)
+            print(f"Processing: {relative_path}")
+        else:
+            print(f"Processing: {file_path.name}")
         
         try:
             # Determine file type and parse
@@ -404,9 +408,50 @@ class RunSheetImporter:
         print(f"Found {len(files)} run sheet files")
         print()
         
-        total_imported = 0
+        # Group files by year/month if organized
+        from collections import defaultdict
+        files_by_folder = defaultdict(list)
+        
         for file_path in sorted(files):
-            total_imported += self.import_run_sheet(file_path)
+            # Check if file is in year/month structure
+            parts = file_path.relative_to(run_sheets_path).parts
+            if len(parts) >= 3 and parts[0].isdigit() and parts[1].isdigit():
+                # Organized: 2024/10/filename.pdf
+                folder_key = f"{parts[0]}/{parts[1]}"
+                files_by_folder[folder_key].append(file_path)
+            else:
+                # Root level
+                files_by_folder['root'].append(file_path)
+        
+        total_imported = 0
+        
+        # Process organized folders first
+        for folder in sorted(files_by_folder.keys()):
+            if folder == 'root':
+                continue
+            
+            year, month = folder.split('/')
+            month_names = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", 
+                          "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"]
+            month_name = month_names[int(month) - 1]
+            
+            print(f"📁 {year}/{month} ({month_name}) - {len(files_by_folder[folder])} files")
+            print("-" * 60)
+            
+            for file_path in files_by_folder[folder]:
+                total_imported += self.import_run_sheet(file_path, run_sheets_path)
+            
+            print()
+        
+        # Process root files
+        if 'root' in files_by_folder:
+            print(f"📁 Root directory - {len(files_by_folder['root'])} files")
+            print("-" * 60)
+            
+            for file_path in files_by_folder['root']:
+                total_imported += self.import_run_sheet(file_path, run_sheets_path)
+            
+            print()
         
         print()
         print("=" * 60)

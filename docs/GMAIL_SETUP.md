@@ -11,36 +11,49 @@ pip3 install -r requirements-gmail.txt
 ## Step 2: Set Up Gmail API Access
 
 1. **Go to Google Cloud Console:**
-   - Visit: https://console.cloud.google.com/
+   - Visit: <https://console.cloud.google.com/>
 
 2. **Create a New Project:**
-   - Click "Select a project" → "New Project"
-   - Name it "Wages App" or similar
-   - Click "Create"
+   - Click the project dropdown at the top (next to "Google Cloud")
+   - Click "NEW PROJECT"
+   - Project name: "Wages App" (or similar)
+   - Click "CREATE"
+   - Wait for project creation, then select it from the dropdown
 
 3. **Enable Gmail API:**
-   - In the search bar, type "Gmail API"
+   - Click the hamburger menu (☰) → "APIs & Services" → "Library"
+   - Search for "Gmail API"
    - Click on "Gmail API"
-   - Click "Enable"
+   - Click "ENABLE"
 
-4. **Create OAuth Credentials:**
-   - Go to "APIs & Services" → "Credentials"
-   - Click "+ CREATE CREDENTIALS" → "OAuth client ID"
-   - If prompted, configure the OAuth consent screen:
-     - User Type: External
+4. **Configure OAuth Consent Screen:**
+   - Go to "APIs & Services" → "OAuth consent screen"
+   - User Type: Select "External"
+   - Click "CREATE"
+   - Fill in required fields:
      - App name: "Wages App"
-     - User support email: your email
-     - Developer contact: your email
-     - Click "Save and Continue" through the screens
-   - Back to Create OAuth client ID:
-     - Application type: "Desktop app"
-     - Name: "Wages App Desktop"
-     - Click "Create"
-   - Click "Download JSON"
+     - User support email: (select your email)
+     - Developer contact information: (enter your email)
+   - Click "SAVE AND CONTINUE"
+   - Scopes: Click "SAVE AND CONTINUE" (no changes needed)
+   - Test users: Click "ADD USERS" and add your Gmail address
+   - Click "SAVE AND CONTINUE"
+   - Review and click "BACK TO DASHBOARD"
 
-5. **Save Credentials:**
+5. **Create OAuth Credentials:**
+   - Go to "APIs & Services" → "Credentials"
+   - Click "+ CREATE CREDENTIALS" at the top
+   - Select "OAuth client ID"
+   - Application type: Select "Desktop app"
+   - Name: "Wages App Desktop"
+   - Click "CREATE"
+   - A dialog will appear with your credentials
+   - Click "DOWNLOAD JSON"
+
+6. **Save Credentials:**
    - Rename the downloaded file to `credentials.json`
    - Move it to the Wages-App directory:
+
      ```bash
      mv ~/Downloads/client_secret_*.json /Users/danielhanson/CascadeProjects/Wages-App/credentials.json
      ```
