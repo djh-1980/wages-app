@@ -257,8 +257,11 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
                     <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/runsheets' or request.path == '/' %}active{% endif %}" href="/runsheets">
+                        <a class="nav-link position-relative {% if request.path == '/runsheets' or request.path == '/' %}active{% endif %}" href="/runsheets" id="runsheets-link">
                             <i class="bi bi-calendar-check"></i> Run Sheets
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="notification-badge" style="display: none;">
+                                <span id="notification-count">0</span>
+                            </span>
                         </a>
                     </li>
                     <li class="nav-item">
@@ -294,6 +297,42 @@
     <!-- jsPDF for PDF export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
+    
+    <!-- Notification System -->
+    <script>
+        // Check for new run sheet notifications
+        async function checkNotifications() {
+            try {
+                const response = await fetch('/api/notifications/runsheets');
+                const data = await response.json();
+                
+                const badge = document.getElementById('notification-badge');
+                const count = document.getElementById('notification-count');
+                
+                if (data.has_new && data.count > 0) {
+                    count.textContent = data.count;
+                    badge.style.display = 'inline-block';
+                } else {
+                    badge.style.display = 'none';
+                }
+            } catch (error) {
+                console.error('Error checking notifications:', error);
+            }
+        }
+        
+        // Mark notifications as read when viewing run sheets page
+        if (window.location.pathname === '/runsheets' || window.location.pathname === '/') {
+            fetch('/api/notifications/runsheets/mark-read', {
+                method: 'POST'
+            }).catch(err => console.error('Error marking notifications as read:', err));
+        }
+        
+        // Check notifications on page load
+        checkNotifications();
+        
+        // Check every 5 minutes
+        setInterval(checkNotifications, 5 * 60 * 1000);
+    </script>
     
     {% block extra_js %}{% endblock %}
 </body>

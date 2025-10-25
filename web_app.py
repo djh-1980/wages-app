@@ -1286,6 +1286,50 @@ def api_add_extra_job():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/notifications/runsheets')
+def get_runsheet_notifications():
+    """Get new run sheet notifications."""
+    notification_file = Path('data/new_runsheets.json')
+    
+    if not notification_file.exists():
+        return jsonify({'has_new': False, 'count': 0})
+    
+    try:
+        with open(notification_file, 'r') as f:
+            notification = json.load(f)
+        
+        return jsonify({
+            'has_new': not notification.get('read', False),
+            'count': notification.get('count', 0),
+            'date': notification.get('date', ''),
+            'timestamp': notification.get('timestamp', '')
+        })
+    except:
+        return jsonify({'has_new': False, 'count': 0})
+
+
+@app.route('/api/notifications/runsheets/mark-read', methods=['POST'])
+def mark_runsheet_notifications_read():
+    """Mark run sheet notifications as read."""
+    notification_file = Path('data/new_runsheets.json')
+    
+    if notification_file.exists():
+        try:
+            with open(notification_file, 'r') as f:
+                notification = json.load(f)
+            
+            notification['read'] = True
+            
+            with open(notification_file, 'w') as f:
+                json.dump(notification, f)
+            
+            return jsonify({'success': True})
+        except:
+            return jsonify({'success': False, 'error': 'Failed to update notification'})
+    
+    return jsonify({'success': True})
+
+
 if __name__ == '__main__':
     print("\n" + "="*80)
     print("WAGES APP - WEB INTERFACE")
