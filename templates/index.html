@@ -581,8 +581,12 @@
                                     <table class="table table-hover">
                                         <thead>
                                             <tr>
-                                                <th>Date</th>
-                                                <th class="text-center">Jobs</th>
+                                                <th style="cursor: pointer;" onclick="sortRunSheets('date')">
+                                                    Date <i class="bi bi-arrow-down-up"></i>
+                                                </th>
+                                                <th class="text-center" style="cursor: pointer;" onclick="sortRunSheets('job_count')">
+                                                    Jobs <i class="bi bi-arrow-down-up"></i>
+                                                </th>
                                                 <th>Activities</th>
                                                 <th class="text-end">Actions</th>
                                             </tr>

@@ -994,12 +994,23 @@ def api_runsheets_list():
     per_page = request.args.get('per_page', 20, type=int)
     offset = (page - 1) * per_page
     
+    # Get sorting parameters
+    sort_column = request.args.get('sort', 'date')
+    sort_order = request.args.get('order', 'desc').upper()
+    
+    # Validate sort parameters
+    valid_columns = ['date', 'job_count']
+    if sort_column not in valid_columns:
+        sort_column = 'date'
+    if sort_order not in ['ASC', 'DESC']:
+        sort_order = 'DESC'
+    
     # Get total count
     cursor.execute("SELECT COUNT(DISTINCT date) FROM run_sheet_jobs WHERE date IS NOT NULL")
     total = cursor.fetchone()[0]
     
-    # Get run sheets grouped by date
-    cursor.execute("""
+    # Get run sheets grouped by date with sorting
+    query = f"""
         SELECT 
             date,
             COUNT(*) as job_count,
@@ -1008,9 +1019,10 @@ def api_runsheets_list():
         FROM run_sheet_jobs
         WHERE date IS NOT NULL
         GROUP BY date
-        ORDER BY date DESC
+        ORDER BY {sort_column} {sort_order}
         LIMIT ? OFFSET ?
-    """, (per_page, offset))
+    """
+    cursor.execute(query, (per_page, offset))
     
     runsheets = [dict(row) for row in cursor.fetchall()]
     
@@ -1025,9 +1037,14 @@ def api_runsheets_list():
     })
 
 
-@app.route('/api/runsheets/jobs/<date>')
-def api_runsheets_jobs(date):
+@app.route('/api/runsheets/jobs')
+def api_runsheets_jobs():
     """Get all jobs for a specific date."""
+    date = request.args.get('date')
+    
+    if not date:
+        return jsonify({'error': 'Date parameter required'}), 400
+    
     conn = get_db()
     cursor = conn.cursor()
     
@@ -1042,7 +1059,7 @@ def api_runsheets_jobs(date):
     
     conn.close()
     
-    return jsonify({'jobs': jobs})
+    return jsonify({'jobs': jobs, 'date': date})
 
 
 if __name__ == '__main__':

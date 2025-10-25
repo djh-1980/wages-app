@@ -2,12 +2,29 @@
 
 let activityChart = null;
 let currentRSPage = 1;
+let currentRSSortColumn = 'date';
+let currentRSSortOrder = 'desc';
 
 // Load Run Sheets data when tab is shown
 document.getElementById('runsheets-tab').addEventListener('shown.bs.tab', function () {
     loadRunSheetsSummary();
     loadRunSheetsList(1);
 });
+
+// Sort run sheets by column
+function sortRunSheets(column) {
+    if (currentRSSortColumn === column) {
+        // Toggle sort order
+        currentRSSortOrder = currentRSSortOrder === 'asc' ? 'desc' : 'asc';
+    } else {
+        // New column, default to descending for date, ascending for others
+        currentRSSortColumn = column;
+        currentRSSortOrder = column === 'date' ? 'desc' : 'asc';
+    }
+    
+    // Reload with new sort
+    loadRunSheetsList(1);
+}
 
 // Load Run Sheets summary
 async function loadRunSheetsSummary() {
@@ -104,7 +121,7 @@ async function loadRunSheetsList(page = 1) {
     currentRSPage = page;
     
     try {
-        const response = await fetch(`/api/runsheets/list?page=${page}&per_page=20`);
+        const response = await fetch(`/api/runsheets/list?page=${page}&per_page=20&sort=${currentRSSortColumn}&order=${currentRSSortOrder}`);
         const data = await response.json();
         
         const tbody = document.getElementById('runsheetsList');
@@ -193,7 +210,7 @@ function updateRSPagination(currentPage, totalPages) {
 // View jobs for a specific date
 async function viewRunSheetJobs(date) {
     try {
-        const response = await fetch(`/api/runsheets/jobs/${encodeURIComponent(date)}`);
+        const response = await fetch(`/api/runsheets/jobs?date=${encodeURIComponent(date)}`);
         const data = await response.json();
         
         if (data.jobs && data.jobs.length > 0) {
