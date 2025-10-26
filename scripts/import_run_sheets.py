@@ -394,7 +394,9 @@ class RunSheetImporter:
             return imported
             
         except Exception as e:
+            import traceback
             print(f"  ✗ Error: {e}")
+            print(f"  Traceback: {traceback.format_exc()}")
             return 0
     
     def import_all_run_sheets(self, run_sheets_dir: str = None):
