@@ -248,23 +248,28 @@ class RunSheetImporter:
                         # Also starts after Ref 1 number (8 digits) or after a line like "1." or "1 " or "0MANAGER"
                         # NEW: Also starts after contact name like "1WILLIAM HARRIS" or "tbcWILLIAM HARRIS"
                         # But NOT store codes like "16661UK 6661UK" or "1614510810TESCO"
-                        if (re.match(r'^\d{10,}', curr_line) or 
-                            re.match(r'^\+\d{10,}', curr_line) or
-                            re.search(r'\d{4,}\s+\d{3,}\s+\d{3,}\s*/\s*\d', curr_line) or  # Phone with slash like "02920 320 193 / 07741 248 780" 
-                            curr_line == 'MANAGER' or
-                            (re.match(r'^\d[A-Z0-9\s]+$', curr_line) and 
-                             len(curr_line) > 8 and 
-                             not re.match(r'^\d+[A-Z]+\s+\d+', curr_line) and  # Not store codes like "16661UK 6661UK"
-                             (' ' in curr_line or re.search(r'[A-Z]{3,}', curr_line))) or  # Has space OR 3+ consecutive letters
-                            re.match(r'^tbc[A-Z\s]+$', curr_line) or  # e.g., "tbcWILLIAM HARRIS"
-                            re.match(r'^\d+\.$', curr_line) or  # e.g., "1."
-                            re.match(r'^\d+\s*$', curr_line) or  # e.g., "1 " or "1"
-                            re.match(r'^\d{8,10}$', curr_line)):  # Ref 1 number (8-10 digits)
-                            collecting_address = True
-                            # If it's a ref number, skip it but start collecting
-                            if re.match(r'^\d{8,10}$', curr_line):
+                        try:
+                            if (re.match(r'^\d{10,}', curr_line) or 
+                                re.match(r'^\+\d{10,}', curr_line) or
+                                re.search(r'\d{4,}\s+\d{3,}\s+\d{3,}\s*\/\s*\d', curr_line) or  # Phone with slash like "02920 320 193 / 07741 248 780" 
+                                curr_line == 'MANAGER' or
+                                (re.match(r'^\d[A-Z0-9\s]+$', curr_line) and 
+                                 len(curr_line) > 8 and 
+                                 not re.match(r'^\d+[A-Z]+\s+\d+', curr_line) and  # Not store codes like "16661UK 6661UK"
+                                 (' ' in curr_line or re.search(r'[A-Z]{3,}', curr_line))) or  # Has space OR 3+ consecutive letters
+                                re.match(r'^tbc[A-Z\s]+$', curr_line) or  # e.g., "tbcWILLIAM HARRIS"
+                                re.match(r'^\d+\.$', curr_line) or  # e.g., "1."
+                                re.match(r'^\d+\s*$', curr_line) or  # e.g., "1 " or "1"
+                                re.match(r'^\d{8,10}$', curr_line)):  # Ref 1 number (8-10 digits)
+                                collecting_address = True
+                                # If it's a ref number, skip it but start collecting
+                                if re.match(r'^\d{8,10}$', curr_line):
+                                    continue
+                                # If it's a phone or contact or just number, skip it
                                 continue
-                            # If it's a phone or contact or just number, skip it
+                        except re.error as regex_err:
+                            # Skip this line if regex fails
+                            print(f"  ⚠️  Regex error on line: {curr_line[:50]}")
                             continue
                         
                         # Collect address lines (between start marker and postcode)
@@ -286,7 +291,7 @@ class RunSheetImporter:
                                 curr_line.startswith('Troubleshooting:') or
                                 curr_line.startswith('Problem description') or
                                 'engineer must' in curr_line.lower() or
-                                re.search(r'\d:\d\d', curr_line) or  # Time patterns like "9:00"
+                                re.search(r'\d\:\d\d', curr_line) or  # Time patterns like "9:00"
                                 re.match(r'^\d[a-z]', curr_line)):  # e.g., "1Ellie" (lowercase after digit)
                                 # Stop collecting address if we hit instructions
                                 collecting_address = False
