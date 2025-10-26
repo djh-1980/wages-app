@@ -465,13 +465,24 @@ class GmailRunSheetDownloader:
         if auto_import and downloaded_files:
             print("💾 Importing payslips to database...")
             try:
-                from extract_payslip_data import extract_payslip_data
+                import subprocess
+                import sys
                 
+                # Run extract_payslips.py for each file
                 total_imported = 0
                 for pdf_path in downloaded_files:
                     try:
-                        extract_payslip_data(str(pdf_path))
-                        total_imported += 1
+                        result = subprocess.run(
+                            [sys.executable, 'scripts/extract_payslips.py', str(pdf_path)],
+                            capture_output=True,
+                            text=True,
+                            timeout=60
+                        )
+                        if result.returncode == 0:
+                            total_imported += 1
+                            print(f"  ✓ Imported: {pdf_path.name}")
+                        else:
+                            print(f"  ⚠️  Failed to import {pdf_path.name}")
                     except Exception as e:
                         print(f"  ⚠️  Failed to import {pdf_path.name}: {e}")
                 
@@ -482,7 +493,7 @@ class GmailRunSheetDownloader:
                 
             except Exception as e:
                 print(f"⚠️  Import failed: {e}")
-                print("   Run 'python scripts/extract_payslip_data.py' manually")
+                print("   Run 'python scripts/extract_payslips.py' manually")
         
         print()
         print(f"📁 Files saved to: {payslip_dir.absolute()}")

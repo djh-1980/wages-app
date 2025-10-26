@@ -220,38 +220,195 @@ function loadDatabaseInfo() {
     document.getElementById('dbSize').textContent = '~5MB';
 }
 
-function syncPayslips() {
+async function syncPayslips() {
     const statusDiv = document.getElementById('dataManagementStatus');
     statusDiv.style.display = 'block';
-    statusDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-terminal"></i> <strong>Run from terminal:</strong><pre class="mt-2 mb-0">python3 scripts/extract_payslip_data.py</pre></div>';
-    showStatus('Ready to sync payslips from PaySlips folder');
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Syncing payslips from PaySlips folder...</div>';
+    
+    showStatus('Importing payslips...');
+    
+    try {
+        const response = await fetch('/api/data/sync-payslips', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> ${result.message}
+                    <details class="mt-2">
+                        <summary>View Details</summary>
+                        <pre class="mt-2 small">${result.output}</pre>
+                    </details>
+                </div>
+            `;
+            showSuccess('Payslips synced successfully');
+            loadDatabaseInfo();
+        } else {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle"></i> Sync failed: ${result.error}
+                    ${result.output ? `<details class="mt-2"><summary>View Details</summary><pre class="mt-2 small">${result.output}</pre></details>` : ''}
+                </div>
+            `;
+            showError('Payslip sync failed');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error syncing payslips');
+    }
 }
 
-function syncRunSheets() {
+async function syncRunSheets() {
     const statusDiv = document.getElementById('dataManagementStatus');
     statusDiv.style.display = 'block';
-    statusDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-terminal"></i> <strong>Run from terminal:</strong><pre class="mt-2 mb-0">python3 scripts/import_run_sheets.py</pre></div>';
-    showStatus('Ready to sync run sheets from RunSheets folder');
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Syncing run sheets from RunSheets folder... This may take several minutes.</div>';
+    
+    showStatus('Importing run sheets...');
+    
+    try {
+        const response = await fetch('/api/data/sync-runsheets', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> ${result.message}
+                    <details class="mt-2">
+                        <summary>View Details</summary>
+                        <pre class="mt-2 small">${result.output}</pre>
+                    </details>
+                </div>
+            `;
+            showSuccess('Run sheets synced successfully');
+            loadDatabaseInfo();
+        } else {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle"></i> Sync failed: ${result.error}
+                    ${result.output ? `<details class="mt-2"><summary>View Details</summary><pre class="mt-2 small">${result.output}</pre></details>` : ''}
+                </div>
+            `;
+            showError('Run sheet sync failed');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error syncing run sheets');
+    }
 }
 
-function reorganizeRunSheets() {
+async function reorganizeRunSheets() {
     const statusDiv = document.getElementById('dataManagementStatus');
     
-    if (!confirm('This will reorganize all run sheets:\n\n1. Move all to RunSheets/backup\n2. Check for "Hanson, Daniel"\n3. Organize by year/month\n4. Rename to DH_DD-MM-YYYY.pdf\n\nRecommended: Run with --dry-run first!\n\nContinue?')) {
+    // First, show options
+    const choice = confirm('This will reorganize all run sheets:\n\n1. Move all to RunSheets/backup\n2. Check for "Hanson, Daniel"\n3. Organize by year/month\n4. Rename to DH_DD-MM-YYYY.pdf\n\nClick OK to preview changes (dry run)\nClick Cancel to abort');
+    
+    if (!choice) {
         return;
     }
     
+    // Start with dry run
     statusDiv.style.display = 'block';
-    statusDiv.innerHTML = `
-        <div class="alert alert-warning">
-            <i class="bi bi-terminal"></i> <strong>Run from terminal:</strong>
-            <pre class="mt-2 mb-0"># Preview changes first (recommended)
-python3 scripts/reorganize_runsheets.py --dry-run
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Running preview (dry run)... This may take several minutes.</div>';
+    
+    showStatus('Previewing reorganization...');
+    
+    try {
+        const response = await fetch('/api/data/reorganize-runsheets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ dry_run: true })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-info-circle"></i> <strong>Preview Complete</strong>
+                    <details class="mt-2" open>
+                        <summary>View Changes</summary>
+                        <pre class="mt-2 small" style="max-height: 400px; overflow-y: auto;">${result.output}</pre>
+                    </details>
+                    <div class="mt-3">
+                        <button class="btn btn-danger" onclick="executeReorganize()">
+                            <i class="bi bi-folder-symlink"></i> Execute Reorganization
+                        </button>
+                        <button class="btn btn-secondary" onclick="document.getElementById('dataManagementStatus').style.display='none'">
+                            Cancel
+                        </button>
+                    </div>
+                </div>
+            `;
+            showSuccess('Preview complete - review changes above');
+        } else {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle"></i> Preview failed: ${result.error}
+                    ${result.output ? `<details class="mt-2"><summary>View Details</summary><pre class="mt-2 small">${result.output}</pre></details>` : ''}
+                </div>
+            `;
+            showError('Preview failed');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error running preview');
+    }
+}
 
-# Actually reorganize files
-python3 scripts/reorganize_runsheets.py</pre>
-        </div>
-    `;
+async function executeReorganize() {
+    const statusDiv = document.getElementById('dataManagementStatus');
+    
+    if (!confirm('Are you sure you want to execute the reorganization?\n\nThis will move and rename files!')) {
+        return;
+    }
+    
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Reorganizing files... This may take several minutes.</div>';
+    showStatus('Reorganizing run sheets...');
+    
+    try {
+        const response = await fetch('/api/data/reorganize-runsheets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ dry_run: false })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> <strong>${result.message}</strong>
+                    <details class="mt-2">
+                        <summary>View Details</summary>
+                        <pre class="mt-2 small" style="max-height: 400px; overflow-y: auto;">${result.output}</pre>
+                    </details>
+                </div>
+            `;
+            showSuccess('Reorganization complete!');
+            loadDatabaseInfo();
+        } else {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle"></i> Reorganization failed: ${result.error}
+                    ${result.output ? `<details class="mt-2"><summary>View Details</summary><pre class="mt-2 small">${result.output}</pre></details>` : ''}
+                </div>
+            `;
+            showError('Reorganization failed');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error executing reorganization');
+    }
 }
 
 function validateData() {

@@ -1735,6 +1735,137 @@ def api_gmail_status():
     })
 
 
+@app.route('/api/data/sync-payslips', methods=['POST'])
+def api_sync_payslips():
+    """Sync payslips from PaySlips folder."""
+    try:
+        import subprocess
+        import sys
+        
+        process = subprocess.Popen(
+            [sys.executable, 'scripts/extract_payslips.py'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        stdout, stderr = process.communicate(timeout=180)
+        
+        if process.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Payslips synced successfully',
+                'output': stdout
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': stderr or 'Sync failed',
+                'output': stdout
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'error': 'Sync timed out (took longer than 3 minutes)'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/data/sync-runsheets', methods=['POST'])
+def api_sync_runsheets():
+    """Sync run sheets from RunSheets folder."""
+    try:
+        import subprocess
+        import sys
+        
+        process = subprocess.Popen(
+            [sys.executable, 'scripts/import_run_sheets.py'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        stdout, stderr = process.communicate(timeout=300)
+        
+        if process.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Run sheets synced successfully',
+                'output': stdout
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': stderr or 'Sync failed',
+                'output': stdout
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'error': 'Sync timed out (took longer than 5 minutes)'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/data/reorganize-runsheets', methods=['POST'])
+def api_reorganize_runsheets():
+    """Reorganize run sheets by date and driver."""
+    data = request.json
+    dry_run = data.get('dry_run', False)
+    
+    try:
+        import subprocess
+        import sys
+        
+        cmd = [sys.executable, 'scripts/reorganize_runsheets.py']
+        if dry_run:
+            cmd.append('--dry-run')
+        
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        stdout, stderr = process.communicate(timeout=600)
+        
+        if process.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Reorganization complete' if not dry_run else 'Dry run complete',
+                'output': stdout,
+                'dry_run': dry_run
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': stderr or 'Reorganization failed',
+                'output': stdout
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'error': 'Reorganization timed out (took longer than 10 minutes)'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 if __name__ == '__main__':
     # Initialize attendance table on startup
     init_attendance_table()
