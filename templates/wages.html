@@ -3,36 +3,7 @@
 {% block title %}Wages - TVS App{% endblock %}
 
 {% block extra_css %}
-<style>
-    .chart-container {
-        position: relative;
-        height: 400px;
-    }
-    
-    .table-card {
-        background: white;
-    }
-    
-    .section-title {
-        font-weight: 600;
-        color: #2d3748;
-        margin-bottom: 1.5rem;
-    }
-    
-    .tab-content {
-        padding-top: 2rem;
-    }
-    
-    .nav-pills .nav-link {
-        border-radius: 10px;
-        font-weight: 500;
-        transition: all 0.3s;
-    }
-    
-    .nav-pills .nav-link.active {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/wages.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -119,7 +90,7 @@
                         </button>
                     </li>
                     <li class="nav-item" role="presentation">
-                        <button class="nav-link" id="payslips-tab" data-bs-toggle="pill" data-bs-target="#payslips" type="button">
+                        <button class="nav-link" id="payslips-tab" data-bs-toggle="pill" data-bs-target="#payslips" type="button" onclick="setTimeout(() => loadPayslips(), 100)">
                             <i class="bi bi-file-earmark-text"></i> Payslips
                         </button>
                     </li>
@@ -181,23 +152,30 @@
                     <div class="tab-pane fade" id="payslips" role="tabpanel">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5 class="section-title mb-0">All Payslips</h5>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-sm btn-outline-secondary" id="sortOrderBtn" onclick="togglePayslipSort()">
+                                    <i class="bi bi-sort-down"></i> Newest First
+                                </button>
+                                <select class="form-select form-select-sm" id="taxYearFilter" style="width: auto;" onchange="loadPayslips(this.value)">
+                                    <!-- Years populated by JavaScript -->
+                                </select>
+                            </div>
                         </div>
                         <div class="table-responsive">
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
-                                        <th>Week Ending</th>
                                         <th>Tax Year</th>
-                                        <th class="text-end">Gross Pay</th>
-                                        <th class="text-end">Tax</th>
-                                        <th class="text-end">NI</th>
+                                        <th>Week</th>
+                                        <th>Pay Date</th>
                                         <th class="text-end">Net Pay</th>
-                                        <th class="text-center">Actions</th>
+                                        <th class="text-center">Jobs</th>
+                                        <th class="text-center">Action</th>
                                     </tr>
                                 </thead>
                                 <tbody id="payslipsTableBody">
                                     <tr>
-                                        <td colspan="7" class="text-center">
+                                        <td colspan="6" class="text-center">
                                             <div class="spinner-border text-primary" role="status">
                                                 <span class="visually-hidden">Loading...</span>
                                             </div>
@@ -214,6 +192,28 @@
                         <p>Advanced analytics coming soon...</p>
                     </div>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Payslip Detail Modal -->
+<div class="modal fade" id="payslipModal" tabindex="-1" aria-labelledby="payslipModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="payslipModalLabel">Payslip Details</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="payslipModalBody">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>

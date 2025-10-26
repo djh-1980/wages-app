@@ -578,10 +578,20 @@ function updateStatusCounts() {
     const rows = document.querySelectorAll('[id^="job-row-"]');
     let counts = { completed: 0, missed: 0, dnco: 0, extra: 0 };
     
+    // Track unique job IDs to avoid double counting (desktop + mobile views)
+    const seenJobIds = new Set();
+    
     rows.forEach(row => {
-        const status = row.dataset.status;
-        if (counts.hasOwnProperty(status)) {
-            counts[status]++;
+        // Extract job ID from the row ID (format: "job-row-12345")
+        const jobId = row.id.replace('job-row-', '');
+        
+        // Only count each job once
+        if (!seenJobIds.has(jobId)) {
+            seenJobIds.add(jobId);
+            const status = row.dataset.status;
+            if (counts.hasOwnProperty(status)) {
+                counts[status]++;
+            }
         }
     });
     
@@ -672,11 +682,15 @@ async function loadDailyData(date) {
 async function saveAllJobStatuses(date) {
     const rows = document.querySelectorAll('[id^="job-row-"]');
     const updates = [];
+    const seenJobIds = new Set();
     
     rows.forEach(row => {
         const jobId = row.id.replace('job-row-', '');
         const status = row.dataset.status;
-        if (status !== 'pending') {
+        
+        // Only add each job once (avoid counting desktop + mobile views)
+        if (status !== 'pending' && !seenJobIds.has(jobId)) {
+            seenJobIds.add(jobId);
             updates.push({ job_id: jobId, status: status });
         }
     });

@@ -2,139 +2,520 @@
 
 {% block title %}Reporting - TVS App{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css') }}">
+{% endblock %}
+
 {% block content %}
-<h2 class="mb-4">
-    <i class="bi bi-file-earmark-bar-graph"></i> Reporting
-</h2>
-
-<div class="row g-4">
-    <!-- Wages Reports -->
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="bi bi-wallet2 text-primary"></i> Wages Reports
-                </h5>
-                <p class="card-text text-muted">Generate detailed reports on your earnings and payslips.</p>
-                
-                <div class="list-group list-group-flush">
-                    <a href="#" class="list-group-item list-group-item-action" onclick="generateTaxYearReport(); return false;">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <i class="bi bi-calendar-range text-primary"></i>
-                                <strong>Tax Year Summary</strong>
-                                <br>
-                                <small class="text-muted">Earnings breakdown by tax year</small>
-                            </div>
-                            <i class="bi bi-chevron-right"></i>
-                        </div>
-                    </a>
-                    
-                    <a href="#" class="list-group-item list-group-item-action" onclick="generateMonthlyReport(); return false;">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <i class="bi bi-bar-chart text-success"></i>
-                                <strong>Monthly Earnings</strong>
-                                <br>
-                                <small class="text-muted">Month-by-month earnings analysis</small>
-                            </div>
-                            <i class="bi bi-chevron-right"></i>
-                        </div>
-                    </a>
-                    
-                    <a href="#" class="list-group-item list-group-item-action" onclick="generateClientReport(); return false;">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <i class="bi bi-people text-info"></i>
-                                <strong>Client Breakdown</strong>
-                                <br>
-                                <small class="text-muted">Earnings by client</small>
-                            </div>
-                            <i class="bi bi-chevron-right"></i>
-                        </div>
-                    </a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Run Sheets Reports -->
-    <div class="col-md-6">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="bi bi-calendar-check text-success"></i> Run Sheets Reports
-                </h5>
-                <p class="card-text text-muted">Analyze your job history and performance.</p>
-                
-                <div class="list-group list-group-flush">
-                    <a href="#" class="list-group-item list-group-item-action" onclick="generateMissingDatesReport(); return false;">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <i class="bi bi-calendar-x text-warning"></i>
-                                <strong>Missing Dates Report</strong>
-                                <br>
-                                <small class="text-muted">Identify gaps in run sheet coverage</small>
-                            </div>
-                            <i class="bi bi-chevron-right"></i>
-                        </div>
-                    </a>
-                    
-                    <a href="#" class="list-group-item list-group-item-action" onclick="generateCustomerReport(); return false;">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <i class="bi bi-building text-primary"></i>
-                                <strong>Customer Analysis</strong>
-                                <br>
-                                <small class="text-muted">Jobs by customer and activity type</small>
-                            </div>
-                            <i class="bi bi-chevron-right"></i>
-                        </div>
-                    </a>
-                    
-                    <a href="#" class="list-group-item list-group-item-action" onclick="generateActivityReport(); return false;">
-                        <div class="d-flex justify-content-between align-items-center">
-                            <div>
-                                <i class="bi bi-list-check text-success"></i>
-                                <strong>Activity Breakdown</strong>
-                                <br>
-                                <small class="text-muted">Jobs by activity type over time</small>
-                            </div>
-                            <i class="bi bi-chevron-right"></i>
-                        </div>
-                    </a>
-                </div>
-            </div>
-        </div>
+<div class="d-flex justify-content-between align-items-center mb-4">
+    <h2>
+        <i class="bi bi-file-earmark-bar-graph"></i> Comprehensive Reports
+    </h2>
+    <div>
+        <button class="btn btn-outline-primary" onclick="refreshAllData()">
+            <i class="bi bi-arrow-clockwise"></i> Refresh
+        </button>
+        <button class="btn btn-primary" onclick="exportAllData()">
+            <i class="bi bi-download"></i> Export All
+        </button>
     </div>
 </div>
 
-<!-- Export Options -->
-<div class="row mt-4">
-    <div class="col-12">
-        <div class="card">
-            <div class="card-body">
-                <h5 class="card-title">
-                    <i class="bi bi-download text-primary"></i> Export Data
-                </h5>
-                <p class="card-text text-muted">Download your data in various formats.</p>
-                
-                <div class="btn-group" role="group">
-                    <button type="button" class="btn btn-outline-primary" onclick="exportToCSV()">
-                        <i class="bi bi-filetype-csv"></i> Export to CSV
-                    </button>
-                    <button type="button" class="btn btn-outline-danger" onclick="exportToPDF()">
-                        <i class="bi bi-filetype-pdf"></i> Export to PDF
-                    </button>
-                    <button type="button" class="btn btn-outline-success" onclick="exportToExcel()">
-                        <i class="bi bi-file-earmark-excel"></i> Export to Excel
-                    </button>
+<!-- Report Tabs -->
+<ul class="nav nav-pills mb-4" id="reportTabs" role="tablist">
+    <li class="nav-item" role="presentation">
+        <button class="nav-link active" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button">
+            <i class="bi bi-speedometer2"></i> Overview
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="correlation-tab" data-bs-toggle="pill" data-bs-target="#correlation" type="button">
+            <i class="bi bi-graph-up"></i> Jobs vs Earnings
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="wages-reports-tab" data-bs-toggle="pill" data-bs-target="#wages-reports" type="button">
+            <i class="bi bi-wallet2"></i> Wages
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="runsheets-reports-tab" data-bs-toggle="pill" data-bs-target="#runsheets-reports" type="button">
+            <i class="bi bi-calendar-check"></i> Run Sheets
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="discrepancies-tab" data-bs-toggle="pill" data-bs-target="#discrepancies" type="button">
+            <i class="bi bi-exclamation-triangle"></i> Discrepancies
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="missing-runsheets-tab" data-bs-toggle="pill" data-bs-target="#missing-runsheets" type="button">
+            <i class="bi bi-calendar-x"></i> Missing Run Sheets
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="missing-payslips-tab" data-bs-toggle="pill" data-bs-target="#missing-payslips" type="button">
+            <i class="bi bi-file-earmark-x"></i> Missing Payslips
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="export-tab" data-bs-toggle="pill" data-bs-target="#export" type="button">
+            <i class="bi bi-file-earmark-arrow-down"></i> Export
+        </button>
+    </li>
+</ul>
+
+<!-- Tab Content -->
+<div class="tab-content" id="reportTabContent">
+    
+    <!-- Overview Tab -->
+    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+        <!-- Summary Cards -->
+        <div class="row g-4 mb-4">
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <h6 class="text-muted mb-2">Total Earnings</h6>
+                        <h3 class="mb-0" id="overviewTotalEarnings">£0.00</h3>
+                        <small class="text-success"><i class="bi bi-arrow-up"></i> All time</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <h6 class="text-muted mb-2">Total Jobs</h6>
+                        <h3 class="mb-0" id="overviewTotalJobs">0</h3>
+                        <small class="text-info"><i class="bi bi-briefcase"></i> Completed</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <h6 class="text-muted mb-2">Avg Per Job</h6>
+                        <h3 class="mb-0" id="overviewAvgPerJob">£0.00</h3>
+                        <small class="text-warning"><i class="bi bi-calculator"></i> Average</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-3">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <h6 class="text-muted mb-2">Working Days</h6>
+                        <h3 class="mb-0" id="overviewWorkingDays">0</h3>
+                        <small class="text-primary"><i class="bi bi-calendar-check"></i> Days</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Charts -->
+        <div class="row g-4">
+            <div class="col-lg-8">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Monthly Trends</h5>
+                        <div class="chart-container">
+                            <canvas id="monthlyTrendsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Job Status Breakdown</h5>
+                        <div class="chart-container-small">
+                            <canvas id="jobStatusChart"></canvas>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
     </div>
-</div>
+    
+    <!-- Jobs vs Earnings Correlation Tab -->
+    <div class="tab-pane fade" id="correlation" role="tabpanel">
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title">Jobs vs Earnings Analysis</h5>
+                <p class="text-muted">See how your completed jobs correlate with your earnings over time</p>
+                
+                <!-- Date Range Filter -->
+                <div class="row mb-4">
+                    <div class="col-md-4">
+                        <label class="form-label">From Date</label>
+                        <input type="date" class="form-control" id="correlationFromDate">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">To Date</label>
+                        <input type="date" class="form-control" id="correlationToDate">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label">&nbsp;</label>
+                        <button class="btn btn-primary w-100" onclick="loadCorrelationData()">
+                            <i class="bi bi-search"></i> Analyze
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="chart-container-large">
+                    <canvas id="correlationChart"></canvas>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Correlation Stats -->
+        <div class="row g-4">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h6 class="text-muted">Average Earnings per Job</h6>
+                        <h3 id="avgEarningsPerJob">£0.00</h3>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h6 class="text-muted">Best Day (Jobs)</h6>
+                        <h3 id="bestDayJobs">-</h3>
+                        <small class="text-muted" id="bestDayJobsCount">0 jobs</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body text-center">
+                        <h6 class="text-muted">Best Day (Earnings)</h6>
+                        <h3 id="bestDayEarnings">-</h3>
+                        <small class="text-muted" id="bestDayEarningsAmount">£0.00</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Wages Reports Tab -->
+    <div class="tab-pane fade" id="wages-reports" role="tabpanel">
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-wallet2 text-primary"></i> Wages Reports
+                        </h5>
+                        <p class="card-text text-muted">Generate detailed reports on your earnings and payslips.</p>
+                
+                        <div class="list-group list-group-flush">
+                            <a href="#" class="list-group-item list-group-item-action" onclick="generateTaxYearReport(); return false;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-calendar-range text-primary"></i>
+                                        <strong>Tax Year Summary</strong>
+                                        <br>
+                                        <small class="text-muted">Earnings breakdown by tax year</small>
+                                    </div>
+                                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            </a>
+                            
+                            <a href="#" class="list-group-item list-group-item-action" onclick="generateMonthlyReport(); return false;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-calendar-month text-success"></i>
+                                        <strong>Monthly Breakdown</strong>
+                                        <br>
+                                        <small class="text-muted">Earnings by month</small>
+                                    </div>
+                                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            </a>
+                            
+                            <a href="#" class="list-group-item list-group-item-action" onclick="generateClientReport(); return false;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-building text-info"></i>
+                                        <strong>Client Analysis</strong>
+                                        <br>
+                                        <small class="text-muted">Earnings by client</small>
+                                    </div>
+                                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-graph-up text-success"></i> Wage Trends
+                        </h5>
+                        <div class="chart-container">
+                            <canvas id="wagesTrendChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
 
+    <!-- Run Sheets Reports Tab -->
+    <div class="tab-pane fade" id="runsheets-reports" role="tabpanel">
+        <div class="row g-4">
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-calendar-check text-success"></i> Run Sheets Reports
+                        </h5>
+                        <p class="card-text text-muted">Analyze your job completion and performance.</p>
+                        
+                        <div class="list-group list-group-flush">
+                            <a href="#" class="list-group-item list-group-item-action" onclick="generateCustomerReport(); return false;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-people text-primary"></i>
+                                        <strong>Customer Analysis</strong>
+                                        <br>
+                                        <small class="text-muted">Jobs by customer</small>
+                                    </div>
+                                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            </a>
+                            
+                            <a href="#" class="list-group-item list-group-item-action" onclick="generateActivityReport(); return false;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-activity text-success"></i>
+                                        <strong>Activity Breakdown</strong>
+                                        <br>
+                                        <small class="text-muted">Jobs by activity type</small>
+                                    </div>
+                                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            </a>
+                            
+                            <a href="#" class="list-group-item list-group-item-action" onclick="generateMissingDatesReport(); return false;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-calendar-x text-warning"></i>
+                                        <strong>Missing Dates</strong>
+                                        <br>
+                                        <small class="text-muted">Identify gaps in run sheets</small>
+                                    </div>
+                                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-bar-chart text-info"></i> Job Completion Trends
+                        </h5>
+                        <div class="chart-container">
+                            <canvas id="jobCompletionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Discrepancies Tab -->
+    <div class="tab-pane fade" id="discrepancies" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-exclamation-triangle text-danger"></i> Wages vs Run Sheets Discrepancies
+                        </h5>
+                        <p class="text-muted mb-0">Compare payslip jobs with run sheet jobs to find mismatches</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm" id="discrepancyYear" style="width: auto;" onchange="loadDiscrepancyReport()">
+                            <option value="">All Years</option>
+                            <option value="2025">2025</option>
+                            <option value="2024">2024</option>
+                            <option value="2023">2023</option>
+                            <option value="2022">2022</option>
+                            <option value="2021">2021</option>
+                        </select>
+                        <select class="form-select form-select-sm" id="discrepancyMonth" style="width: auto;" onchange="loadDiscrepancyReport()">
+                            <option value="">All Months</option>
+                            <option value="01">January</option>
+                            <option value="02">February</option>
+                            <option value="03">March</option>
+                            <option value="04">April</option>
+                            <option value="05">May</option>
+                            <option value="06">June</option>
+                            <option value="07">July</option>
+                            <option value="08">August</option>
+                            <option value="09">September</option>
+                            <option value="10">October</option>
+                            <option value="11">November</option>
+                            <option value="12">December</option>
+                        </select>
+                        <button class="btn btn-primary btn-sm" onclick="loadDiscrepancyReport()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="discrepancyReportContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-3 text-muted">Loading discrepancy report...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Missing Run Sheets Tab -->
+    <div class="tab-pane fade" id="missing-runsheets" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-calendar-x text-warning"></i> Missing Run Sheets
+                        </h5>
+                        <p class="text-muted mb-0">Find dates where you have no run sheet records</p>
+                    </div>
+                    <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm" id="missingRunSheetsYear" style="width: auto;" onchange="loadMissingRunSheets()">
+                            <option value="">All Years</option>
+                            <option value="2025">2025</option>
+                            <option value="2024">2024</option>
+                            <option value="2023">2023</option>
+                            <option value="2022">2022</option>
+                            <option value="2021">2021</option>
+                        </select>
+                        <button class="btn btn-primary btn-sm" onclick="loadMissingRunSheets()">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="missingRunSheetsContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-3 text-muted">Analyzing dates...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Missing Payslips Tab -->
+    <div class="tab-pane fade" id="missing-payslips" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <div>
+                        <h5 class="card-title mb-0">
+                            <i class="bi bi-file-earmark-x text-danger"></i> Missing Payslips
+                        </h5>
+                        <p class="text-muted mb-0">Find weeks where you have no payslip records</p>
+                    </div>
+                    <button class="btn btn-primary" onclick="loadMissingPayslips()">
+                        <i class="bi bi-arrow-clockwise"></i> Refresh
+                    </button>
+                </div>
+                
+                <div id="missingPayslipsContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-3 text-muted">Analyzing weeks...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Export Tab -->
+    <div class="tab-pane fade" id="export" role="tabpanel">
+        <div class="card">
+            <div class="card-body">
+                <h5 class="card-title">
+                    <i class="bi bi-file-earmark-arrow-down text-info"></i> Export Options
+                </h5>
+                <p class="card-text text-muted">Export your data in various formats.</p>
+                
+                <!-- Export Type Selection -->
+                <div class="row mb-4">
+                    <div class="col-md-6">
+                        <label class="form-label">Data to Export</label>
+                        <select class="form-select" id="exportDataType">
+                            <option value="all">All Data (Wages + Run Sheets)</option>
+                            <option value="wages">Wages Only</option>
+                            <option value="runsheets">Run Sheets Only</option>
+                            <option value="correlation">Jobs vs Earnings Analysis</option>
+                        </select>
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">Date Range</label>
+                        <select class="form-select" id="exportDateRange">
+                            <option value="all">All Time</option>
+                            <option value="year">This Year</option>
+                            <option value="month">This Month</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+                </div>
+                
+                <!-- Custom Date Range -->
+                <div class="row mb-4" id="customDateRange" style="display: none;">
+                    <div class="col-md-6">
+                        <label class="form-label">From Date</label>
+                        <input type="date" class="form-control" id="exportFromDate">
+                    </div>
+                    <div class="col-md-6">
+                        <label class="form-label">To Date</label>
+                        <input type="date" class="form-control" id="exportToDate">
+                    </div>
+                </div>
+                
+                <!-- Export Buttons -->
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-success w-100" onclick="exportToCSV()">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> Export to CSV
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-danger w-100" onclick="exportToPDF()">
+                            <i class="bi bi-file-earmark-pdf"></i> Export to PDF
+                        </button>
+                    </div>
+                    <div class="col-md-4">
+                        <button class="btn btn-outline-primary w-100" onclick="exportToExcel()">
+                            <i class="bi bi-file-earmark-excel"></i> Export to Excel
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+</div>
 <!-- Report Status -->
 <div id="reportStatus" class="mt-4" style="display: none;">
     <div class="alert alert-info">
@@ -144,78 +525,5 @@
 {% endblock %}
 
 {% block extra_js %}
-<script>
-    function generateMissingDatesReport() {
-        showStatus('Generating missing dates report...');
-        
-        fetch('/api/reports/missing-dates', {
-            method: 'POST'
-        })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showSuccess('Report generated! Check the reports/ folder.');
-                // Optionally download the file
-                window.location.href = '/download/report/' + data.filename;
-            } else {
-                showError('Failed to generate report');
-            }
-        })
-        .catch(error => {
-            console.error('Error:', error);
-            showError('Error generating report');
-        });
-    }
-    
-    function generateTaxYearReport() {
-        alert('Tax Year Report - Coming soon!');
-    }
-    
-    function generateMonthlyReport() {
-        alert('Monthly Report - Coming soon!');
-    }
-    
-    function generateClientReport() {
-        alert('Client Report - Coming soon!');
-    }
-    
-    function generateCustomerReport() {
-        alert('Customer Analysis - Coming soon!');
-    }
-    
-    function generateActivityReport() {
-        alert('Activity Breakdown - Coming soon!');
-    }
-    
-    function exportToCSV() {
-        alert('CSV Export - Coming soon!');
-    }
-    
-    function exportToPDF() {
-        alert('PDF Export - Coming soon!');
-    }
-    
-    function exportToExcel() {
-        alert('Excel Export - Coming soon!');
-    }
-    
-    function showStatus(message) {
-        const status = document.getElementById('reportStatus');
-        status.innerHTML = `<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> ${message}</div>`;
-        status.style.display = 'block';
-    }
-    
-    function showSuccess(message) {
-        const status = document.getElementById('reportStatus');
-        status.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle"></i> ${message}</div>`;
-        status.style.display = 'block';
-        setTimeout(() => status.style.display = 'none', 5000);
-    }
-    
-    function showError(message) {
-        const status = document.getElementById('reportStatus');
-        status.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${message}</div>`;
-        status.style.display = 'block';
-    }
-</script>
+<script src="{{ url_for('static', filename='js/reports.js') }}"></script>
 {% endblock %}

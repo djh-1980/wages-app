@@ -47,8 +47,36 @@ class GmailRunSheetDownloader:
         except:
             return None
     
+    def has_driver_name(self, pdf_path: Path, driver_name: str = "Hanson, Daniel") -> bool:
+        """Check if driver name appears in PDF."""
+        try:
+            with open(pdf_path, 'rb') as file:
+                reader = PyPDF2.PdfReader(file)
+                for page in reader.pages:
+                    text = page.extract_text()
+                    if driver_name.lower() in text.lower():
+                        return True
+            return False
+        except:
+            return False
+    
     def organize_pdf(self, pdf_path: Path) -> Path:
-        """Move PDF to year/month folder based on date in PDF."""
+        """Move PDF to year/month folder and rename to DH_DD-MM-YYYY.pdf."""
+        # Check if this is your run sheet
+        if not self.has_driver_name(pdf_path):
+            # Move to manual folder for review
+            manual_dir = self.download_dir / "manual"
+            manual_dir.mkdir(exist_ok=True)
+            target_path = manual_dir / pdf_path.name
+            
+            if target_path.exists():
+                pdf_path.unlink()  # Delete duplicate
+                return target_path
+            
+            pdf_path.rename(target_path)
+            print(f"  ⚠️  Not your run sheet - moved to manual: {pdf_path.name}")
+            return target_path
+        
         date_str = self.extract_date_from_pdf(pdf_path)
         
         if not date_str:
@@ -58,13 +86,16 @@ class GmailRunSheetDownloader:
             # Parse DD/MM/YYYY
             dt = datetime.strptime(date_str, '%d/%m/%Y')
             
-            # Create year/month folder
-            target_dir = self.download_dir / str(dt.year) / f"{dt.month:02d}"
+            # Create year/month folder (e.g., 2025/September)
+            month_name = dt.strftime('%B')  # Full month name
+            target_dir = self.download_dir / str(dt.year) / month_name
             target_dir.mkdir(parents=True, exist_ok=True)
             
-            # Move file
-            target_path = target_dir / pdf_path.name
+            # Rename file to DH_DD-MM-YYYY.pdf
+            new_filename = f"DH_{dt.strftime('%d-%m-%Y')}.pdf"
+            target_path = target_dir / new_filename
             
+            # Handle duplicates
             if target_path.exists():
                 pdf_path.unlink()  # Delete duplicate
                 return target_path
@@ -147,6 +178,64 @@ class GmailRunSheetDownloader:
         
         except Exception as e:
             print(f"Error searching emails: {e}")
+            return []
+    
+    def search_payslip_emails(self, after_date='2025/01/01'):
+        """Search for emails with payslip attachments (Tuesdays at 1300)."""
+        if not self.service:
+            return []
+        
+        # Search query for payslips - looking for 'saser' filename
+        query = f'has:attachment filename:saser after:{after_date}'
+        
+        try:
+            results = self.service.users().messages().list(
+                userId='me',
+                q=query,
+                maxResults=500
+            ).execute()
+            
+            messages = results.get('messages', [])
+            
+            # Handle pagination
+            while 'nextPageToken' in results:
+                page_token = results['nextPageToken']
+                results = self.service.users().messages().list(
+                    userId='me',
+                    q=query,
+                    maxResults=500,
+                    pageToken=page_token
+                ).execute()
+                messages.extend(results.get('messages', []))
+            
+            # Filter for Tuesdays around 1300 (13:00)
+            filtered_messages = []
+            for msg in messages:
+                try:
+                    full_msg = self.service.users().messages().get(
+                        userId='me',
+                        id=msg['id'],
+                        format='full'
+                    ).execute()
+                    
+                    headers = full_msg['payload']['headers']
+                    date_str = next((h['value'] for h in headers if h['name'] == 'Date'), '')
+                    
+                    # Parse email date
+                    from email.utils import parsedate_to_datetime
+                    email_date = parsedate_to_datetime(date_str)
+                    
+                    # Check if Tuesday (weekday() == 1) and around 1300 (between 12:00 and 15:00)
+                    if email_date.weekday() == 1 and 12 <= email_date.hour <= 15:
+                        filtered_messages.append(msg)
+                except:
+                    # If we can't parse date, include it anyway
+                    filtered_messages.append(msg)
+            
+            return filtered_messages
+        
+        except Exception as e:
+            print(f"Error searching payslip emails: {e}")
             return []
     
     def download_attachments(self, message_id):
@@ -289,17 +378,176 @@ class GmailRunSheetDownloader:
         
         print()
         print(f"📁 Files saved to: {self.download_dir.absolute()}")
+    
+    def download_all_payslips(self, after_date='2025/01/01', auto_import=True):
+        """Download all payslips from Gmail (Tuesdays at 1300 - saser files)."""
+        print("=" * 70)
+        print("GMAIL PAYSLIP DOWNLOADER")
+        print("=" * 70)
+        print()
+        
+        # Authenticate
+        print("🔐 Authenticating with Gmail...")
+        if not self.authenticate():
+            return
+        
+        print("✓ Authenticated successfully")
+        print()
+        
+        # Search for payslip emails
+        print(f"🔍 Searching for payslip emails (saser files) after {after_date}...")
+        messages = self.search_payslip_emails(after_date)
+        
+        if not messages:
+            print("No payslip emails found")
+            return
+        
+        print(f"✓ Found {len(messages)} payslip emails (Tuesdays at 1300)")
+        print()
+        
+        # Download attachments to PaySlips folder
+        payslip_dir = Path('PaySlips')
+        payslip_dir.mkdir(exist_ok=True)
+        
+        print("📥 Downloading payslips...")
+        total_downloaded = 0
+        downloaded_files = []
+        
+        for i, message in enumerate(messages, 1):
+            print(f"[{i}/{len(messages)}] Processing email...")
+            
+            try:
+                msg = self.service.users().messages().get(
+                    userId='me',
+                    id=message['id'],
+                    format='full'
+                ).execute()
+                
+                # Download attachments
+                if 'parts' in msg['payload']:
+                    for part in msg['payload']['parts']:
+                        filename = part.get('filename', '')
+                        if 'saser' in filename.lower() and filename.lower().endswith('.pdf'):
+                            attachment_id = part['body'].get('attachmentId')
+                            
+                            if attachment_id:
+                                attachment = self.service.users().messages().attachments().get(
+                                    userId='me',
+                                    messageId=message['id'],
+                                    id=attachment_id
+                                ).execute()
+                                
+                                file_data = base64.urlsafe_b64decode(attachment['data'])
+                                filepath = payslip_dir / filename
+                                
+                                # Don't overwrite existing files
+                                if filepath.exists():
+                                    print(f"  ⏭️  Skipped (already exists): {filename}")
+                                    continue
+                                
+                                with open(filepath, 'wb') as f:
+                                    f.write(file_data)
+                                
+                                downloaded_files.append(filepath)
+                                total_downloaded += 1
+                                print(f"  ✓ Downloaded: {filename}")
+            
+            except Exception as e:
+                print(f"  ✗ Error: {e}")
+        
+        print()
+        print("=" * 70)
+        print(f"✅ Download complete: {total_downloaded} new payslips downloaded")
+        print("=" * 70)
+        print()
+        
+        # Import to database
+        if auto_import and downloaded_files:
+            print("💾 Importing payslips to database...")
+            try:
+                from extract_payslip_data import extract_payslip_data
+                
+                total_imported = 0
+                for pdf_path in downloaded_files:
+                    try:
+                        extract_payslip_data(str(pdf_path))
+                        total_imported += 1
+                    except Exception as e:
+                        print(f"  ⚠️  Failed to import {pdf_path.name}: {e}")
+                
+                print()
+                print("=" * 70)
+                print(f"✅ Import complete: {total_imported} payslips imported")
+                print("=" * 70)
+                
+            except Exception as e:
+                print(f"⚠️  Import failed: {e}")
+                print("   Run 'python scripts/extract_payslip_data.py' manually")
+        
+        print()
+        print(f"📁 Files saved to: {payslip_dir.absolute()}")
+    
+    def download_all(self, after_date='2025/01/01'):
+        """Download both run sheets and payslips."""
+        print("\n" + "=" * 70)
+        print("GMAIL AUTO-DOWNLOADER - RUN SHEETS & PAYSLIPS")
+        print("=" * 70)
+        print()
+        
+        # Download run sheets
+        self.download_all_run_sheets(after_date, organize=True, auto_import=True)
+        
+        print("\n")
+        
+        # Download payslips
+        self.download_all_payslips(after_date, auto_import=True)
+        
+        print("\n" + "=" * 70)
+        print("✅ ALL DOWNLOADS COMPLETE")
+        print("=" * 70)
 
 
 def main():
     """Run the downloader."""
     import sys
     
-    # Allow custom date as argument
-    after_date = sys.argv[1] if len(sys.argv) > 1 else '2025/01/01'
+    # Parse arguments
+    after_date = '2025/01/01'
+    mode = 'all'  # all, runsheets, payslips
+    
+    for arg in sys.argv[1:]:
+        if arg.startswith('--date='):
+            after_date = arg.split('=')[1]
+        elif arg == '--runsheets':
+            mode = 'runsheets'
+        elif arg == '--payslips':
+            mode = 'payslips'
+        elif arg in ['--help', '-h']:
+            print("Usage: python download_runsheets_gmail.py [options]")
+            print()
+            print("Options:")
+            print("  --date=YYYY/MM/DD   Download emails after this date (default: 2025/01/01)")
+            print("  --runsheets         Download only run sheets")
+            print("  --payslips          Download only payslips")
+            print("  --help, -h          Show this help")
+            print()
+            print("Examples:")
+            print("  python download_runsheets_gmail.py")
+            print("  python download_runsheets_gmail.py --date=2024/01/01")
+            print("  python download_runsheets_gmail.py --payslips")
+            return
+        else:
+            # Assume it's a date
+            after_date = arg
     
     downloader = GmailRunSheetDownloader()
-    downloader.download_all_run_sheets(after_date)
+    
+    if mode == 'all':
+        downloader.download_all(after_date)
+    elif mode == 'runsheets':
+        downloader.download_all_run_sheets(after_date)
+    elif mode == 'payslips':
+        downloader.download_all_payslips(after_date)
 
 
 if __name__ == "__main__":

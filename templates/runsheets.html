@@ -3,12 +3,7 @@
 {% block title %}Run Sheets - TVS App{% endblock %}
 
 {% block extra_css %}
-<style>
-    .chart-container {
-        position: relative;
-        height: 300px;
-    }
-</style>
+<link rel="stylesheet" href="{{ url_for('static', filename='css/runsheets.css') }}">
 {% endblock %}
 
 {% block content %}

@@ -10,12 +10,15 @@ let currentReportData = null;
 
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
-    // Set current date
-    document.getElementById('currentDate').textContent = new Date().toLocaleDateString('en-GB', {
-        day: 'numeric',
-        month: 'short',
-        year: 'numeric'
-    });
+    // Set current date (if element exists)
+    const currentDateEl = document.getElementById('currentDate');
+    if (currentDateEl) {
+        currentDateEl.textContent = new Date().toLocaleDateString('en-GB', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric'
+        });
+    }
     
     // Load initial data
     loadSummary();
@@ -24,30 +27,62 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Setup event listeners
     setupEventListeners();
+    
+    // TEST: Load payslips immediately to see if function works
+    console.log('🧪 Testing payslips load on page load...');
+    setTimeout(() => {
+        if (typeof window.loadPayslips === 'function') {
+            console.log('✓ loadPayslips function exists');
+            window.loadPayslips();
+        } else {
+            console.error('❌ loadPayslips function not found!');
+        }
+    }, 2000);
 });
 
 function setupEventListeners() {
-    // Tab change events
-    document.getElementById('payslips-tab').addEventListener('click', function() {
-        loadPayslips();
-    });
-    document.getElementById('clients-tab').addEventListener('click', loadClients);
-    document.getElementById('jobs-tab').addEventListener('click', loadJobTypes);
-    document.getElementById('settings-tab').addEventListener('click', loadSettings);
+    // Tab change events - use Bootstrap's shown.bs.tab event (with null checks)
+    const payslipsTab = document.getElementById('payslips-tab');
+    if (payslipsTab) {
+        payslipsTab.addEventListener('shown.bs.tab', function() {
+            loadPayslips();
+        });
+    }
+    
+    const clientsTab = document.getElementById('clients-tab');
+    if (clientsTab) {
+        clientsTab.addEventListener('shown.bs.tab', loadClients);
+    }
+    
+    const jobsTab = document.getElementById('jobs-tab');
+    if (jobsTab) {
+        jobsTab.addEventListener('shown.bs.tab', loadJobTypes);
+    }
+    
+    const settingsTab = document.getElementById('settings-tab');
+    if (settingsTab) {
+        settingsTab.addEventListener('shown.bs.tab', loadSettings);
+    }
     
     // Tax year filter
-    document.getElementById('taxYearFilter').addEventListener('change', function() {
-        loadPayslips(this.value);
-    });
+    const taxYearFilter = document.getElementById('taxYearFilter');
+    if (taxYearFilter) {
+        taxYearFilter.addEventListener('change', function() {
+            loadPayslips(this.value);
+        });
+    }
     
-    // Search input with debounce
-    let searchTimeout;
-    document.getElementById('searchInput').addEventListener('input', function() {
-        clearTimeout(searchTimeout);
-        searchTimeout = setTimeout(() => {
-            performSearch(this.value);
-        }, 500);
-    });
+    // Search input with debounce (if exists)
+    const searchInput = document.getElementById('searchInput');
+    if (searchInput) {
+        let searchTimeout;
+        searchInput.addEventListener('input', function() {
+            clearTimeout(searchTimeout);
+            searchTimeout = setTimeout(() => {
+                performSearch(this.value);
+            }, 500);
+        });
+    }
 }
 
 // Load summary statistics
@@ -179,24 +214,61 @@ async function loadTopClients() {
     }
 }
 
+// Global sort order for payslips
+let payslipSortOrder = 'desc'; // 'desc' = newest first, 'asc' = oldest first
+
+// Toggle payslip sort order
+window.togglePayslipSort = function() {
+    payslipSortOrder = payslipSortOrder === 'desc' ? 'asc' : 'desc';
+    
+    const btn = document.getElementById('sortOrderBtn');
+    if (payslipSortOrder === 'desc') {
+        btn.innerHTML = '<i class="bi bi-sort-down"></i> Newest First';
+    } else {
+        btn.innerHTML = '<i class="bi bi-sort-up"></i> Oldest First';
+    }
+    
+    // Reload payslips with current filter
+    const taxYearFilter = document.getElementById('taxYearFilter');
+    loadPayslips(taxYearFilter ? taxYearFilter.value : '');
+}
+
 // Load all payslips
-async function loadPayslips(taxYear = '') {
-    const tbody = document.getElementById('payslipsTable');
+window.loadPayslips = async function(taxYear = '') {
+    console.log('=== loadPayslips called ===');
+    console.log('Tax year filter:', taxYear);
+    console.log('Sort order:', payslipSortOrder);
+    
+    const tbody = document.getElementById('payslipsTableBody');
+    
+    if (!tbody) {
+        console.error('❌ payslipsTableBody element not found!');
+        alert('Error: Table body element not found. Check console.');
+        return;
+    }
+    
+    console.log('✓ Table body element found');
     
     // Show loading state
     tbody.innerHTML = '<tr><td colspan="6" class="text-center"><div class="spinner-border text-primary" role="status"><span class="visually-hidden">Loading...</span></div></td></tr>';
+    console.log('✓ Loading spinner displayed');
     
     try {
         const url = taxYear ? `/api/payslips?tax_year=${taxYear}` : '/api/payslips';
-        console.log('Fetching payslips from:', url);
+        console.log('📡 Fetching payslips from:', url);
         
-        const response = await fetch(url);
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+        
+        const response = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
         
         if (!response.ok) {
             throw new Error(`HTTP error! status: ${response.status}`);
         }
         
-        const data = await response.json();
+        let data = await response.json();
         console.log('Received payslips:', data.length);
         
         if (data.length === 0) {
@@ -204,14 +276,23 @@ async function loadPayslips(taxYear = '') {
             return;
         }
         
+        // Sort data based on current sort order
+        data.sort((a, b) => {
+            const yearCompare = a.tax_year.localeCompare(b.tax_year);
+            if (yearCompare !== 0) {
+                return payslipSortOrder === 'desc' ? -yearCompare : yearCompare;
+            }
+            return payslipSortOrder === 'desc' ? b.week_number - a.week_number : a.week_number - b.week_number;
+        });
+        
         tbody.innerHTML = data.map(p => `
             <tr>
                 <td><span class="badge bg-primary">${p.tax_year}</span></td>
-                <td><strong>Week ${p.week_number}</strong></td>
-                <td class="hide-mobile">${p.pay_date || 'N/A'}</td>
-                <td><strong class="text-success">${formatCurrency(p.net_payment)}</strong></td>
-                <td class="hide-mobile"><span class="badge bg-info">${p.job_count} jobs</span></td>
-                <td>
+                <td>Week ${p.week_number}</td>
+                <td>${p.pay_date || 'N/A'}</td>
+                <td class="text-end"><strong class="text-success">${formatCurrency(p.net_payment)}</strong></td>
+                <td class="text-center"><span class="badge bg-info">${p.job_count || 0} jobs</span></td>
+                <td class="text-center">
                     <button class="btn btn-sm btn-outline-primary" onclick="viewPayslip(${p.id})">
                         <i class="bi bi-eye"></i> View
                     </button>
@@ -221,9 +302,16 @@ async function loadPayslips(taxYear = '') {
         
     } catch (error) {
         console.error('Error loading payslips:', error);
+        
+        let errorMessage = error.message;
+        if (error.name === 'AbortError') {
+            errorMessage = 'Request timed out. Server may be slow or not responding.';
+        }
+        
         tbody.innerHTML = `<tr><td colspan="6" class="text-center text-danger">
-            <i class="bi bi-exclamation-triangle"></i> Error loading payslips: ${error.message}
+            <i class="bi bi-exclamation-triangle"></i> Error loading payslips: ${errorMessage}
             <br><small>Check browser console for details</small>
+            <br><button class="btn btn-sm btn-primary mt-2" onclick="loadPayslips()">Retry</button>
         </td></tr>`;
     }
 }
@@ -377,47 +465,64 @@ async function loadTaxYears() {
         const response = await fetch('/api/tax_years');
         const years = await response.json();
         
-        // Populate payslips filter
+        // Populate payslips filter (if exists)
         const select = document.getElementById('taxYearFilter');
-        years.forEach(year => {
-            const option = document.createElement('option');
-            option.value = year;
-            option.textContent = year;
-            select.appendChild(option);
-        });
-        
-        // Populate dashboard trend filter (no "All Years" option)
-        const trendFilter = document.getElementById('trendYearFilter');
-        years.forEach((year, index) => {
-            const option = document.createElement('option');
-            option.value = year;
-            option.textContent = year;
-            if (index === 0) {
-                option.selected = true; // Select most recent year by default
-            }
-            trendFilter.appendChild(option);
-        });
-        
-        // Load trend for the default (most recent) year
-        if (years.length > 0) {
-            loadWeeklyTrend(years[0]);
+        if (select) {
+            select.innerHTML = ''; // Clear existing options
+            
+            // Add "All Years" option
+            const allOption = document.createElement('option');
+            allOption.value = '';
+            allOption.textContent = 'All Years';
+            select.appendChild(allOption);
+            
+            // Add year options
+            years.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                select.appendChild(option);
+            });
         }
         
-        // Populate report filters
+        // Populate dashboard trend filter (if exists)
+        const trendFilter = document.getElementById('trendYearFilter');
+        if (trendFilter) {
+            trendFilter.innerHTML = ''; // Clear existing options
+            
+            years.forEach((year, index) => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = year;
+                if (index === 0) {
+                    option.selected = true; // Select most recent year by default
+                }
+                trendFilter.appendChild(option);
+            });
+            
+            // Load trend for the default (most recent) year
+            if (years.length > 0) {
+                loadWeeklyTrend(years[0]);
+            }
+        }
+        
+        // Populate report filters (if exist)
         const reportTaxYear = document.getElementById('reportTaxYear');
         const reportMonthlyYear = document.getElementById('reportMonthlyYear');
         
-        years.forEach(year => {
-            const option1 = document.createElement('option');
-            option1.value = year;
-            option1.textContent = year;
-            reportTaxYear.appendChild(option1);
-            
-            const option2 = document.createElement('option');
-            option2.value = year;
-            option2.textContent = year;
-            reportMonthlyYear.appendChild(option2);
-        });
+        if (reportTaxYear && reportMonthlyYear) {
+            years.forEach(year => {
+                const option1 = document.createElement('option');
+                option1.value = year;
+                option1.textContent = year;
+                reportTaxYear.appendChild(option1);
+                
+                const option2 = document.createElement('option');
+                option2.value = year;
+                option2.textContent = year;
+                reportMonthlyYear.appendChild(option2);
+            });
+        }
         
         // Populate upload year filter (add future years + existing years)
         const uploadYearFilter = document.getElementById('uploadTaxYear');
@@ -462,7 +567,17 @@ async function loadTaxYears() {
 
 // View payslip detail
 async function viewPayslip(payslipId) {
-    const modal = new bootstrap.Modal(document.getElementById('payslipModal'));
+    const modalEl = document.getElementById('payslipModal');
+    if (!modalEl) {
+        alert('Payslip modal not found');
+        return;
+    }
+    
+    const modal = new bootstrap.Modal(modalEl, {
+        backdrop: true,
+        keyboard: true,
+        focus: true
+    });
     const modalBody = document.getElementById('payslipModalBody');
     
     modalBody.innerHTML = `
@@ -1060,6 +1175,16 @@ async function loadCustomFilterOptions() {
 
 async function refreshCustomFilters() {
     try {
+        // Check if custom filter elements exist (they may not on all pages)
+        const customTaxYear = document.getElementById('customTaxYear');
+        const customClient = document.getElementById('customClient');
+        const customJobType = document.getElementById('customJobType');
+        
+        if (!customTaxYear || !customClient || !customJobType) {
+            // Custom filters not on this page, skip
+            return;
+        }
+        
         // Load settings/groups
         const settingsResponse = await fetch('/api/settings/groups');
         const settings = await settingsResponse.json();
@@ -1068,7 +1193,6 @@ async function refreshCustomFilters() {
         const yearsResponse = await fetch('/api/tax_years');
         const years = await yearsResponse.json();
         
-        const customTaxYear = document.getElementById('customTaxYear');
         customTaxYear.innerHTML = '<option value="">All Years</option>';
         years.forEach(year => {
             const option = document.createElement('option');
@@ -1081,7 +1205,6 @@ async function refreshCustomFilters() {
         const clientsResponse = await fetch('/api/all_clients');
         const clients = await clientsResponse.json();
         
-        const customClient = document.getElementById('customClient');
         customClient.innerHTML = '<option value="">All Clients</option>';
         
         // Add groups first (if any)
@@ -1113,7 +1236,6 @@ async function refreshCustomFilters() {
         const jobTypesResponse = await fetch('/api/all_job_types');
         const jobTypes = await jobTypesResponse.json();
         
-        const customJobType = document.getElementById('customJobType');
         customJobType.innerHTML = '<option value="">All Types</option>';
         
         // Add groups first (if any)

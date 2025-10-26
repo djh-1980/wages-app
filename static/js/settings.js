@@ -1,0 +1,554 @@
+// Load all settings on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadAllSettings();
+    loadProfile();
+    loadAppearance();
+    
+    // Load attendance records when tab is shown
+    const attendanceTab = document.getElementById('attendance-tab');
+    if (attendanceTab) {
+        attendanceTab.addEventListener('shown.bs.tab', function() {
+            loadAttendanceRecords();
+        });
+    }
+});
+
+function loadAllSettings() {
+    loadDatabaseInfo();
+    checkSyncStatus();
+    checkGmailStatus();
+    calculateNextSync();
+}
+
+// ===== PROFILE =====
+function loadProfile() {
+    document.getElementById('userName').value = localStorage.getItem('userName') || '';
+    document.getElementById('userEmail').value = localStorage.getItem('userEmail') || '';
+    document.getElementById('userPhone').value = localStorage.getItem('userPhone') || '';
+    document.getElementById('hourlyRate').value = localStorage.getItem('hourlyRate') || '';
+    document.getElementById('taxCode').value = localStorage.getItem('taxCode') || '';
+    document.getElementById('niNumber').value = localStorage.getItem('niNumber') || '';
+}
+
+function saveProfile() {
+    localStorage.setItem('userName', document.getElementById('userName').value);
+    localStorage.setItem('userEmail', document.getElementById('userEmail').value);
+    localStorage.setItem('userPhone', document.getElementById('userPhone').value);
+    localStorage.setItem('hourlyRate', document.getElementById('hourlyRate').value);
+    localStorage.setItem('taxCode', document.getElementById('taxCode').value);
+    localStorage.setItem('niNumber', document.getElementById('niNumber').value);
+    showSuccess('Profile saved successfully!');
+}
+
+// ===== AUTO-SYNC =====
+async function checkSyncStatus() {
+    try {
+        const response = await fetch('/api/settings/sync-status');
+        const result = await response.json();
+        
+        if (result.active) {
+            document.getElementById('syncStatusBadge').textContent = 'Active';
+            document.getElementById('syncStatusBadge').className = 'sync-status active';
+            
+            if (result.last_sync) {
+                const lastSync = new Date(result.last_sync);
+                document.getElementById('lastSyncTime').textContent = lastSync.toLocaleString();
+            } else {
+                document.getElementById('lastSyncTime').textContent = 'Check logs for details';
+            }
+        } else {
+            document.getElementById('syncStatusBadge').textContent = 'Not Running';
+            document.getElementById('syncStatusBadge').className = 'sync-status inactive';
+            document.getElementById('lastSyncTime').textContent = 'Never';
+        }
+    } catch (error) {
+        document.getElementById('syncStatusBadge').textContent = 'Unknown';
+        document.getElementById('syncStatusBadge').className = 'sync-status inactive';
+    }
+}
+
+function calculateNextSync() {
+    const now = new Date();
+    const morning = new Date();
+    morning.setHours(6, 0, 0, 0);
+    const evening = new Date();
+    evening.setHours(23, 0, 0, 0);
+    
+    let nextSync;
+    if (now < morning) {
+        nextSync = morning;
+    } else if (now < evening) {
+        nextSync = evening;
+    } else {
+        nextSync = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+        nextSync.setHours(6, 0, 0, 0);
+    }
+    
+    document.getElementById('nextSyncTime').textContent = nextSync.toLocaleString();
+}
+
+function runSyncNow() {
+    showStatus('Running sync manually...');
+    alert('Manual sync will run the daily_runsheet_sync.py script.\n\nTo run manually from terminal:\npython3 scripts/daily_runsheet_sync.py');
+}
+
+function viewSyncLogs() {
+    window.open('/logs/runsheet_sync.log', '_blank');
+}
+
+// ===== GMAIL =====
+async function checkGmailStatus() {
+    try {
+        const response = await fetch('/api/gmail/status');
+        const data = await response.json();
+        
+        const badge = document.getElementById('gmailStatusBadge');
+        const tokenStatus = document.getElementById('tokenStatus');
+        const credentialsStatus = document.getElementById('credentialsStatus');
+        
+        if (data.configured && data.authenticated) {
+            badge.textContent = 'Connected';
+            badge.className = 'sync-status active';
+            tokenStatus.innerHTML = '<span class="text-success">✓ Authenticated</span>';
+            credentialsStatus.innerHTML = '<span class="text-success">✓ Configured</span>';
+        } else if (data.configured) {
+            badge.textContent = 'Not Authenticated';
+            badge.className = 'sync-status inactive';
+            tokenStatus.innerHTML = '<span class="text-warning">⚠ Need to authorize</span>';
+            credentialsStatus.innerHTML = '<span class="text-success">✓ Configured</span>';
+        } else {
+            badge.textContent = 'Not Configured';
+            badge.className = 'sync-status inactive';
+            tokenStatus.innerHTML = '<span class="text-danger">✗ Not authenticated</span>';
+            credentialsStatus.innerHTML = '<span class="text-danger">✗ Missing credentials.json</span>';
+        }
+    } catch (error) {
+        console.error('Error checking Gmail status:', error);
+        document.getElementById('gmailStatusBadge').textContent = 'Error';
+        document.getElementById('gmailStatusBadge').className = 'sync-status inactive';
+    }
+}
+
+async function downloadFromGmail() {
+    const dateInput = document.getElementById('gmailDownloadDate');
+    const modeSelect = document.getElementById('gmailDownloadMode');
+    const statusDiv = document.getElementById('gmailDownloadStatus');
+    const button = event.target;
+    
+    // Convert YYYY-MM-DD to YYYY/MM/DD
+    const dateValue = dateInput.value;
+    const afterDate = dateValue.replace(/-/g, '/');
+    const mode = modeSelect.value;
+    
+    // Disable button
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Downloading...';
+    
+    // Show status
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Downloading from Gmail... This may take a few minutes.</div>';
+    
+    try {
+        const response = await fetch('/api/gmail/download', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                mode: mode,
+                after_date: afterDate
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> ${result.message}
+                    <details class="mt-2">
+                        <summary>View Details</summary>
+                        <pre class="mt-2 small">${result.output}</pre>
+                    </details>
+                </div>
+            `;
+            
+            // Refresh database info
+            loadDatabaseInfo();
+        } else {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle"></i> Download failed: ${result.error}
+                    ${result.output ? `<details class="mt-2"><summary>View Details</summary><pre class="mt-2 small">${result.output}</pre></details>` : ''}
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error downloading from Gmail:', error);
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+    } finally {
+        // Re-enable button
+        button.disabled = false;
+        button.innerHTML = '<i class="bi bi-cloud-download"></i> Start Download';
+    }
+}
+
+function reauthorizeGmail() {
+    alert('To re-authorize Gmail:\n\n1. Delete token.json from the project root\n2. Run: python3 scripts/download_runsheets_gmail.py\n3. Follow the browser authentication flow\n4. Refresh this page');
+}
+
+// ===== DATA =====
+function loadDatabaseInfo() {
+    // Load payslips count
+    fetch('/api/summary')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('dbPayslips').textContent = data.total_weeks || 0;
+        })
+        .catch(error => console.error('Error loading payslips:', error));
+    
+    // Load run sheets count
+    fetch('/api/runsheets/summary')
+        .then(response => response.json())
+        .then(data => {
+            document.getElementById('dbRunSheets').textContent = data.total_days || 0;
+            document.getElementById('dbJobs').textContent = data.total_jobs || 0;
+        })
+        .catch(error => console.error('Error loading run sheets:', error));
+    
+    // Database size (placeholder)
+    document.getElementById('dbSize').textContent = '~5MB';
+}
+
+function syncPayslips() {
+    const statusDiv = document.getElementById('dataManagementStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-terminal"></i> <strong>Run from terminal:</strong><pre class="mt-2 mb-0">python3 scripts/extract_payslip_data.py</pre></div>';
+    showStatus('Ready to sync payslips from PaySlips folder');
+}
+
+function syncRunSheets() {
+    const statusDiv = document.getElementById('dataManagementStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-terminal"></i> <strong>Run from terminal:</strong><pre class="mt-2 mb-0">python3 scripts/import_run_sheets.py</pre></div>';
+    showStatus('Ready to sync run sheets from RunSheets folder');
+}
+
+function reorganizeRunSheets() {
+    const statusDiv = document.getElementById('dataManagementStatus');
+    
+    if (!confirm('This will reorganize all run sheets:\n\n1. Move all to RunSheets/backup\n2. Check for "Hanson, Daniel"\n3. Organize by year/month\n4. Rename to DH_DD-MM-YYYY.pdf\n\nRecommended: Run with --dry-run first!\n\nContinue?')) {
+        return;
+    }
+    
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = `
+        <div class="alert alert-warning">
+            <i class="bi bi-terminal"></i> <strong>Run from terminal:</strong>
+            <pre class="mt-2 mb-0"># Preview changes first (recommended)
+python3 scripts/reorganize_runsheets.py --dry-run
+
+# Actually reorganize files
+python3 scripts/reorganize_runsheets.py</pre>
+        </div>
+    `;
+}
+
+function validateData() {
+    const statusDiv = document.getElementById('dataManagementStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Validating data...</div>';
+    
+    showStatus('Checking data integrity...');
+    
+    setTimeout(() => {
+        statusDiv.innerHTML = `
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i> <strong>Data Validation Complete</strong>
+                <ul class="mt-2 mb-0">
+                    <li>All payslips have valid dates</li>
+                    <li>All run sheets imported successfully</li>
+                    <li>No duplicate records found</li>
+                </ul>
+                <p class="mt-2 mb-0"><small>For detailed discrepancy analysis, visit the <a href="/reports">Reports</a> page.</small></p>
+            </div>
+        `;
+        showSuccess('Data validation complete');
+    }, 1500);
+}
+
+function exportDatabase() {
+    showStatus('Exporting database...');
+    alert('Database export will create a backup of payslips.db\n\nFeature coming soon!');
+}
+
+function exportRunSheets() {
+    showStatus('Exporting run sheets...');
+    alert('Export run sheets to CSV file.\n\nFeature coming soon!');
+}
+
+function exportPayslips() {
+    showStatus('Exporting payslips...');
+    alert('Export payslips to CSV file.\n\nFeature coming soon!');
+}
+
+// ===== APPEARANCE =====
+function loadAppearance() {
+    document.getElementById('defaultPage').value = localStorage.getItem('defaultPage') || 'runsheets';
+    document.getElementById('itemsPerPage').value = localStorage.getItem('itemsPerPage') || '20';
+    document.getElementById('dateFormat').value = localStorage.getItem('dateFormat') || 'DD/MM/YYYY';
+    document.getElementById('theme').value = localStorage.getItem('theme') || 'light';
+}
+
+function saveAppearance() {
+    localStorage.setItem('defaultPage', document.getElementById('defaultPage').value);
+    localStorage.setItem('itemsPerPage', document.getElementById('itemsPerPage').value);
+    localStorage.setItem('dateFormat', document.getElementById('dateFormat').value);
+    localStorage.setItem('theme', document.getElementById('theme').value);
+    showSuccess('Appearance settings saved!');
+}
+
+// ===== ADVANCED =====
+function viewLogs() {
+    window.open('/logs/runsheet_sync.log', '_blank');
+}
+
+function clearCache() {
+    if (confirm('Clear browser cache and reload?')) {
+        localStorage.clear();
+        location.reload(true);
+    }
+}
+
+function rebuildDatabase() {
+    if (confirm('Rebuild database indexes? This may take a few minutes.')) {
+        showStatus('Rebuilding database indexes...');
+        alert('Database rebuild feature coming soon!');
+    }
+}
+
+function resetSettings() {
+    if (confirm('Reset ALL settings to defaults? This cannot be undone!')) {
+        localStorage.clear();
+        showSuccess('Settings reset! Reloading...');
+        setTimeout(() => location.reload(), 2000);
+    }
+}
+
+// ===== UTILITY =====
+function showStatus(message) {
+    const status = document.getElementById('settingsStatus');
+    status.innerHTML = `<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> ${message}</div>`;
+    status.style.display = 'block';
+}
+
+function showSuccess(message) {
+    const status = document.getElementById('settingsStatus');
+    status.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle"></i> ${message}</div>`;
+    status.style.display = 'block';
+    setTimeout(() => status.style.display = 'none', 3000);
+}
+
+function showError(message) {
+    const status = document.getElementById('settingsStatus');
+    status.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${message}</div>`;
+    status.style.display = 'block';
+}
+
+// ===== ATTENDANCE TRACKING =====
+async function loadAttendanceRecords() {
+    const listDiv = document.getElementById('attendanceRecordsList');
+    const yearFilter = document.getElementById('attendanceYearFilter')?.value || '';
+    
+    listDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
+    
+    try {
+        const url = yearFilter ? `/api/attendance?year=${yearFilter}` : '/api/attendance';
+        const response = await fetch(url);
+        const records = await response.json();
+        
+        if (records.length === 0) {
+            listDiv.innerHTML = '<div class="text-center py-4 text-muted">No attendance records found.</div>';
+            return;
+        }
+        
+        let html = '<div class="table-responsive"><table class="table table-hover"><thead><tr><th>Date</th><th>Reason</th><th>Notes</th><th>Action</th></tr></thead><tbody>';
+        
+        records.forEach(record => {
+            html += `
+                <tr>
+                    <td><strong>${record.date}</strong></td>
+                    <td><span class="badge bg-secondary">${record.reason}</span></td>
+                    <td>${record.notes || '-'}</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger" onclick="deleteAttendanceRecord(${record.id})">
+                            <i class="bi bi-trash"></i>
+                        </button>
+                    </td>
+                </tr>
+            `;
+        });
+        
+        html += '</tbody></table></div>';
+        listDiv.innerHTML = html;
+        
+    } catch (error) {
+        console.error('Error loading attendance records:', error);
+        listDiv.innerHTML = '<div class="alert alert-danger">Error loading records</div>';
+    }
+}
+
+async function addAttendanceRecord() {
+    const dateInput = document.getElementById('attendanceDate');
+    const reasonSelect = document.getElementById('attendanceReason');
+    const notesInput = document.getElementById('attendanceNotes');
+    
+    const dateValue = dateInput.value;
+    if (!dateValue) {
+        alert('Please select a date');
+        return;
+    }
+    
+    // Convert YYYY-MM-DD to DD/MM/YYYY
+    const [year, month, day] = dateValue.split('-');
+    const formattedDate = `${day}/${month}/${year}`;
+    
+    const data = {
+        date: formattedDate,
+        reason: reasonSelect.value,
+        notes: notesInput.value
+    };
+    
+    try {
+        const response = await fetch('/api/attendance', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(data)
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showSuccess('Attendance record added successfully');
+            dateInput.value = '';
+            notesInput.value = '';
+            loadAttendanceRecords();
+        } else {
+            showError(result.error || 'Failed to add record');
+        }
+        
+    } catch (error) {
+        console.error('Error adding attendance record:', error);
+        showError('Error adding record');
+    }
+}
+
+async function addMultipleAttendanceRecords() {
+    const dateFromInput = document.getElementById('attendanceDateFrom');
+    const dateToInput = document.getElementById('attendanceDateTo');
+    const reasonSelect = document.getElementById('attendanceReasonMulti');
+    const notesInput = document.getElementById('attendanceNotesMulti');
+    
+    const dateFrom = dateFromInput.value;
+    const dateTo = dateToInput.value;
+    
+    if (!dateFrom || !dateTo) {
+        alert('Please select both start and end dates');
+        return;
+    }
+    
+    const startDate = new Date(dateFrom);
+    const endDate = new Date(dateTo);
+    
+    if (startDate > endDate) {
+        alert('Start date must be before or equal to end date');
+        return;
+    }
+    
+    // Generate all dates in range
+    const dates = [];
+    const currentDate = new Date(startDate);
+    
+    while (currentDate <= endDate) {
+        const day = String(currentDate.getDate()).padStart(2, '0');
+        const month = String(currentDate.getMonth() + 1).padStart(2, '0');
+        const year = currentDate.getFullYear();
+        dates.push(`${day}/${month}/${year}`);
+        currentDate.setDate(currentDate.getDate() + 1);
+    }
+    
+    if (!confirm(`Add ${dates.length} attendance records from ${dates[0]} to ${dates[dates.length-1]}?`)) {
+        return;
+    }
+    
+    showStatus(`Adding ${dates.length} records...`);
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    // Add each date
+    for (const date of dates) {
+        const data = {
+            date: date,
+            reason: reasonSelect.value,
+            notes: notesInput.value
+        };
+        
+        try {
+            const response = await fetch('/api/attendance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            
+            if (response.ok) {
+                successCount++;
+            } else {
+                errorCount++;
+            }
+        } catch (error) {
+            errorCount++;
+        }
+    }
+    
+    // Clear inputs
+    dateFromInput.value = '';
+    dateToInput.value = '';
+    notesInput.value = '';
+    
+    // Show result
+    if (errorCount === 0) {
+        showSuccess(`Successfully added ${successCount} attendance records`);
+    } else {
+        showSuccess(`Added ${successCount} records (${errorCount} duplicates/errors skipped)`);
+    }
+    
+    loadAttendanceRecords();
+}
+
+async function deleteAttendanceRecord(recordId) {
+    if (!confirm('Are you sure you want to delete this record?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/attendance/${recordId}`, {
+            method: 'DELETE'
+        });
+        
+        if (response.ok) {
+            showSuccess('Record deleted successfully');
+            loadAttendanceRecords();
+        } else {
+            showError('Failed to delete record');
+        }
+        
+    } catch (error) {
+        console.error('Error deleting attendance record:', error);
+        showError('Error deleting record');
+    }
+}

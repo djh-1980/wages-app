@@ -1,0 +1,40 @@
+.chart-container {
+    position: relative;
+    height: 400px;
+}
+
+.table-card {
+    background: white;
+}
+
+.section-title {
+    font-weight: 600;
+    color: #2d3748;
+    margin-bottom: 1.5rem;
+}
+
+.tab-content {
+    padding-top: 2rem;
+}
+
+.nav-pills .nav-link {
+    border-radius: 10px;
+    font-weight: 500;
+    transition: all 0.3s;
+}
+
+.nav-pills .nav-link.active {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+}
+
+/* Payslips table - compact spacing */
+#payslips table th,
+#payslips table td {
+    white-space: nowrap;
+    padding: 0.5rem 0.75rem;
+}
+
+#payslips table th:nth-child(3),
+#payslips table td:nth-child(3) {
+    width: 1%;
+}

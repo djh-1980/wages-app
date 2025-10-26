@@ -7,6 +7,7 @@ from flask import Flask, render_template, jsonify, request
 from werkzeug.utils import secure_filename
 import sqlite3
 from datetime import datetime
+from pathlib import Path
 import json
 import os
 import subprocess
@@ -18,6 +19,23 @@ app.config['UPLOAD_FOLDER'] = 'PaySlips'
 ALLOWED_EXTENSIONS = {'pdf'}
 
 DB_PATH = "data/payslips.db"
+
+
+def init_attendance_table():
+    """Initialize attendance tracking table."""
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS attendance (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            date TEXT NOT NULL UNIQUE,
+            reason TEXT NOT NULL,
+            notes TEXT,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
 
 
 def get_db():
@@ -1330,7 +1348,396 @@ def mark_runsheet_notifications_read():
     return jsonify({'success': True})
 
 
+@app.route('/api/settings/test-gmail')
+def api_test_gmail():
+    """Test Gmail OAuth connection."""
+    import os
+    from pathlib import Path
+    
+    token_path = Path('token.json')
+    creds_path = Path('credentials.json')
+    
+    result = {
+        'token_exists': token_path.exists(),
+        'credentials_exists': creds_path.exists(),
+        'connected': False,
+        'message': ''
+    }
+    
+    if not creds_path.exists():
+        result['message'] = 'credentials.json not found. Please set up Gmail OAuth first.'
+        return jsonify(result)
+    
+    if not token_path.exists():
+        result['message'] = 'token.json not found. Please authorize Gmail access first.'
+        return jsonify(result)
+    
+    try:
+        from google.oauth2.credentials import Credentials
+        from google.auth.transport.requests import Request
+        
+        creds = Credentials.from_authorized_user_file('token.json')
+        
+        if creds and creds.valid:
+            result['connected'] = True
+            result['message'] = 'Gmail connection successful! OAuth token is valid.'
+        elif creds and creds.expired and creds.refresh_token:
+            creds.refresh(Request())
+            result['connected'] = True
+            result['message'] = 'Gmail connection successful! Token was refreshed.'
+        else:
+            result['message'] = 'OAuth token is invalid. Please re-authorize.'
+    except Exception as e:
+        result['message'] = f'Error testing connection: {str(e)}'
+    
+    return jsonify(result)
+
+
+@app.route('/api/settings/sync-status')
+def api_sync_status():
+    """Get auto-sync status."""
+    import os
+    from pathlib import Path
+    from datetime import datetime
+    
+    log_path = Path('logs/runsheet_sync.log')
+    
+    result = {
+        'active': False,
+        'last_sync': None,
+        'log_exists': log_path.exists()
+    }
+    
+    if log_path.exists():
+        result['active'] = True
+        # Get last modified time of log
+        mtime = os.path.getmtime(log_path)
+        result['last_sync'] = datetime.fromtimestamp(mtime).isoformat()
+    
+    return jsonify(result)
+
+
+@app.route('/api/reports/discrepancies')
+def api_reports_discrepancies():
+    """Get all job numbers from payslips and run sheets for discrepancy analysis."""
+    print("\n=== DISCREPANCY REPORT API CALLED ===")
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    # Get filter parameters
+    year = request.args.get('year', '')
+    month = request.args.get('month', '')
+    print(f"Received parameters: year={year}, month={month}")
+    
+    try:
+        # Build WHERE clause for payslips (filter by date field in job_items)
+        payslip_where = "WHERE ji.job_number IS NOT NULL AND ji.job_number != ''"
+        payslip_params = []
+        
+        if year and month:
+            # Filter by specific month and year (date format: DD/MM/YY in job_items - 2 digit year!)
+            year_2digit = year[-2:]  # Get last 2 digits of year (2025 -> 25)
+            payslip_where += " AND ji.date LIKE ?"
+            payslip_params.append(f"%/{month}/{year_2digit}")
+        elif year:
+            # Filter by year only (2 digit year)
+            year_2digit = year[-2:]
+            payslip_where += " AND ji.date LIKE ?"
+            payslip_params.append(f"%/{year_2digit}")
+        
+        print(f"DEBUG: Payslip filter - year={year}, month={month}, pattern={payslip_params}")
+        
+        # Get all job numbers from payslips
+        cursor.execute(f"""
+            SELECT DISTINCT ji.job_number, ji.description, ji.client
+            FROM job_items ji
+            {payslip_where}
+        """, payslip_params)
+        payslip_jobs = {}
+        for row in cursor.fetchall():
+            payslip_jobs[row[0]] = {
+                'description': row[1],
+                'client': row[2]
+            }
+        
+        print(f"DEBUG: Found {len(payslip_jobs)} payslip jobs")
+        
+        # Build WHERE clause for run sheets (dates are in DD/MM/YYYY format)
+        runsheet_where = "WHERE job_number IS NOT NULL AND job_number != ''"
+        runsheet_params = []
+        if year or month:
+            if year and month:
+                # Match DD/MM/YYYY format (e.g., %/09/2025)
+                runsheet_where += " AND date LIKE ?"
+                runsheet_params.append(f"%/{month}/{year}")
+            elif year:
+                # Match any month in the year (e.g., %/2025)
+                runsheet_where += " AND date LIKE ?"
+                runsheet_params.append(f"%/{year}")
+        
+        print(f"DEBUG: Runsheet filter - year={year}, month={month}, pattern={runsheet_params}")
+        
+        # Get all job numbers from run sheets
+        cursor.execute(f"""
+            SELECT DISTINCT job_number, customer, date
+            FROM run_sheet_jobs
+            {runsheet_where}
+        """, runsheet_params)
+        runsheet_jobs = {}
+        for row in cursor.fetchall():
+            runsheet_jobs[row[0]] = {
+                'customer': row[1],
+                'date': row[2]
+            }
+        
+        print(f"DEBUG: Found {len(runsheet_jobs)} runsheet jobs")
+        
+        return jsonify({
+            'payslip_jobs': payslip_jobs,
+            'runsheet_jobs': runsheet_jobs
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/search/job/<job_number>')
+def api_search_job(job_number):
+    """Search for a job number across run sheets and payslips."""
+    print(f"\n=== SEARCH REQUEST for job number: {job_number} ===")
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    results = {
+        'found': False,
+        'job_number': job_number,
+        'runsheets': [],
+        'payslips': []
+    }
+    
+    try:
+        # Search in run sheets (try both exact match and LIKE for flexibility)
+        print("Searching run_sheet_jobs table...")
+        cursor.execute("""
+            SELECT date, customer, job_address, job_number, activity
+            FROM run_sheet_jobs
+            WHERE job_number = ? OR job_number LIKE ? OR CAST(job_number AS TEXT) = ?
+            ORDER BY date DESC
+        """, (job_number, f'%{job_number}%', job_number))
+        print(f"Query executed")
+        
+        runsheets = cursor.fetchall()
+        print(f"Found {len(runsheets)} run sheet results")
+        if runsheets:
+            results['found'] = True
+            results['runsheets'] = [
+                {
+                    'date': row[0],
+                    'customer': row[1],
+                    'address': row[2],
+                    'job_number': row[3],
+                    'status': row[4]  # activity
+                }
+                for row in runsheets
+            ]
+        
+        # Search in payslip jobs
+        print("Searching job_items table...")
+        cursor.execute("""
+            SELECT ji.*, p.tax_year, p.week_number
+            FROM job_items ji
+            JOIN payslips p ON ji.payslip_id = p.id
+            WHERE ji.job_number = ? OR ji.job_number LIKE ? OR CAST(ji.job_number AS TEXT) = ?
+            ORDER BY p.tax_year DESC, p.week_number DESC
+        """, (job_number, f'%{job_number}%', job_number))
+        print(f"Query executed")
+        
+        payslips = cursor.fetchall()
+        print(f"Found {len(payslips)} payslip results")
+        if payslips:
+            results['found'] = True
+            results['payslips'] = [
+                {
+                    'job_number': row[6],  # job_number is column 6
+                    'description': row[5],  # description is column 5
+                    'client': row[7],  # client is column 7
+                    'amount': row[4],  # amount is column 4
+                    'tax_year': row[-2],
+                    'week_number': row[-1]
+                }
+                for row in payslips
+            ]
+        
+        return jsonify(results)
+        
+    except Exception as e:
+        return jsonify({'error': str(e), 'found': False}), 500
+
+
+@app.route('/api/attendance', methods=['GET'])
+def api_get_attendance():
+    """Get all attendance records."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    year = request.args.get('year', '')
+    
+    try:
+        if year:
+            cursor.execute("""
+                SELECT id, date, reason, notes, created_at
+                FROM attendance
+                WHERE date LIKE ?
+                ORDER BY date DESC
+            """, (f'%/{year}',))
+        else:
+            cursor.execute("""
+                SELECT id, date, reason, notes, created_at
+                FROM attendance
+                ORDER BY date DESC
+            """)
+        
+        records = []
+        for row in cursor.fetchall():
+            records.append({
+                'id': row[0],
+                'date': row[1],
+                'reason': row[2],
+                'notes': row[3],
+                'created_at': row[4]
+            })
+        
+        return jsonify(records)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/attendance', methods=['POST'])
+def api_add_attendance():
+    """Add attendance record."""
+    data = request.json
+    date = data.get('date')
+    reason = data.get('reason')
+    notes = data.get('notes', '')
+    
+    if not date or not reason:
+        return jsonify({'error': 'Date and reason are required'}), 400
+    
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("""
+            INSERT INTO attendance (date, reason, notes)
+            VALUES (?, ?, ?)
+        """, (date, reason, notes))
+        conn.commit()
+        
+        return jsonify({'success': True, 'id': cursor.lastrowid})
+        
+    except sqlite3.IntegrityError:
+        return jsonify({'error': 'Record already exists for this date'}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/attendance/<int:record_id>', methods=['DELETE'])
+def api_delete_attendance(record_id):
+    """Delete attendance record."""
+    conn = get_db()
+    cursor = conn.cursor()
+    
+    try:
+        cursor.execute("DELETE FROM attendance WHERE id = ?", (record_id,))
+        conn.commit()
+        
+        if cursor.rowcount == 0:
+            return jsonify({'error': 'Record not found'}), 404
+        
+        return jsonify({'success': True})
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@app.route('/api/gmail/download', methods=['POST'])
+def api_gmail_download():
+    """Trigger Gmail download for run sheets and/or payslips."""
+    data = request.json
+    mode = data.get('mode', 'all')  # all, runsheets, payslips
+    after_date = data.get('after_date', '2025/01/01')
+    
+    try:
+        import subprocess
+        import sys
+        
+        # Build command
+        cmd = [sys.executable, 'scripts/download_runsheets_gmail.py']
+        
+        if mode == 'runsheets':
+            cmd.append('--runsheets')
+        elif mode == 'payslips':
+            cmd.append('--payslips')
+        # 'all' doesn't need a flag
+        
+        cmd.append(f'--date={after_date}')
+        
+        # Run in background
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Wait for completion (with timeout)
+        stdout, stderr = process.communicate(timeout=300)  # 5 minute timeout
+        
+        if process.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Download completed successfully',
+                'output': stdout
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': stderr or 'Download failed',
+                'output': stdout
+            }), 500
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'error': 'Download timed out (took longer than 5 minutes)'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/gmail/status', methods=['GET'])
+def api_gmail_status():
+    """Check if Gmail credentials are configured."""
+    from pathlib import Path
+    
+    credentials_exist = Path('credentials.json').exists()
+    token_exist = Path('token.json').exists()
+    
+    return jsonify({
+        'configured': credentials_exist,
+        'authenticated': token_exist,
+        'credentials_path': 'credentials.json',
+        'token_path': 'token.json'
+    })
+
+
 if __name__ == '__main__':
+    # Initialize attendance table on startup
+    init_attendance_table()
     print("\n" + "="*80)
     print("WAGES APP - WEB INTERFACE")
     print("="*80)

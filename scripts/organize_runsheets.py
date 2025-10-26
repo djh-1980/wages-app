@@ -41,11 +41,13 @@ def extract_date_from_pdf(pdf_path: Path) -> str:
 
 
 def parse_date(date_str: str) -> tuple:
-    """Parse DD/MM/YYYY date string and return (year, month, date_str)."""
+    """Parse DD/MM/YYYY date string and return (year, month_name, filename)."""
     try:
         # Parse DD/MM/YYYY
         dt = datetime.strptime(date_str, '%d/%m/%Y')
-        return (dt.year, dt.month, date_str)
+        month_name = dt.strftime('%B')  # Full month name (e.g., "October")
+        filename = dt.strftime('%Y-%m-%d.pdf')  # ISO date format
+        return (dt.year, month_name, filename)
     except:
         return None
 
@@ -65,11 +67,11 @@ def organize_runsheets(source_dir: str = "RunSheets", dry_run: bool = False):
     print(f"Mode: {'DRY RUN (no files will be moved)' if dry_run else 'LIVE (files will be moved)'}")
     print()
     
-    # Find all PDF files in root directory only (not subdirectories)
-    pdf_files = list(source_path.glob('*.pdf')) + list(source_path.glob('*.PDF'))
+    # Find all PDF files recursively (including subdirectories)
+    pdf_files = list(source_path.rglob('*.pdf')) + list(source_path.rglob('*.PDF'))
     
     if not pdf_files:
-        print("ℹ️  No PDF files found in root directory")
+        print("ℹ️  No PDF files found in directory or subdirectories")
         return
     
     print(f"Found {len(pdf_files)} PDF files to organize")
@@ -102,13 +104,13 @@ def organize_runsheets(source_dir: str = "RunSheets", dry_run: bool = False):
             print()
             continue
         
-        year, month, _ = parsed
+        year, month_name, new_filename = parsed
         
-        # Create target directory structure: RunSheets/2025/10/
-        target_dir = source_path / str(year) / f"{month:02d}"
-        target_file = target_dir / pdf_file.name
+        # Create target directory structure: RunSheets/2025/October/
+        target_dir = source_path / str(year) / month_name
+        target_file = target_dir / new_filename
         
-        print(f"  📁 Target: {target_dir.relative_to(source_path)}/{pdf_file.name}")
+        print(f"  📁 Target: {target_dir.relative_to(source_path)}/{new_filename}")
         
         # Check if file already exists in target
         if target_file.exists():
