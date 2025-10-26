@@ -687,8 +687,8 @@ def api_process_payslips():
 
 
 @app.route('/api/backup_database')
-def api_backup_database():
-    """Download database backup."""
+def api_download_database():
+    """Download database backup (legacy endpoint)."""
     from flask import send_file
     
     # Create backup filename with timestamp
