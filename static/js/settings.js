@@ -434,19 +434,145 @@ function validateData() {
     }, 1500);
 }
 
-function exportDatabase() {
-    showStatus('Exporting database...');
-    alert('Database export will create a backup of payslips.db\n\nFeature coming soon!');
+async function backupDatabase() {
+    const statusDiv = document.getElementById('backupStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Creating backup...</div>';
+    
+    try {
+        const response = await fetch('/api/data/backup', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> ${result.message}
+                    <ul class="mt-2 mb-0">
+                        <li><strong>File:</strong> ${result.filename}</li>
+                        <li><strong>Size:</strong> ${result.size_mb} MB</li>
+                        <li><strong>Location:</strong> ${result.path}</li>
+                    </ul>
+                </div>
+            `;
+            showSuccess('Backup created successfully');
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Backup failed: ${result.error}</div>`;
+            showError('Backup failed');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error creating backup');
+    }
+}
+
+function restoreDatabase() {
+    alert('To restore from backup:\n\n1. Stop the web app\n2. Replace data/payslips.db with your backup file\n3. Restart the web app\n\nBackup files are in the Backups/ folder');
 }
 
 function exportRunSheets() {
     showStatus('Exporting run sheets...');
-    alert('Export run sheets to CSV file.\n\nFeature coming soon!');
+    window.location.href = '/api/data/export-runsheets';
+    setTimeout(() => showSuccess('Run sheets exported to CSV'), 1000);
 }
 
 function exportPayslips() {
     showStatus('Exporting payslips...');
-    alert('Export payslips to CSV file.\n\nFeature coming soon!');
+    window.location.href = '/api/data/export-payslips';
+    setTimeout(() => showSuccess('Payslips exported to CSV'), 1000);
+}
+
+async function clearRunSheets() {
+    if (!confirm('⚠️ WARNING: This will delete ALL run sheet data!\n\nThis action cannot be undone.\n\nCreate a backup first!\n\nAre you absolutely sure?')) {
+        return;
+    }
+    
+    const statusDiv = document.getElementById('dangerZoneStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Clearing run sheets...</div>';
+    
+    try {
+        const response = await fetch('/api/data/clear-runsheets', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle"></i> ${result.message}</div>`;
+            showSuccess('Run sheets cleared');
+            loadDatabaseInfo();
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${result.error}</div>`;
+            showError('Failed to clear run sheets');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error clearing run sheets');
+    }
+}
+
+async function clearPayslips() {
+    if (!confirm('⚠️ WARNING: This will delete ALL payslip and job data!\n\nThis action cannot be undone.\n\nCreate a backup first!\n\nAre you absolutely sure?')) {
+        return;
+    }
+    
+    const statusDiv = document.getElementById('dangerZoneStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Clearing payslips...</div>';
+    
+    try {
+        const response = await fetch('/api/data/clear-payslips', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle"></i> ${result.message}</div>`;
+            showSuccess('Payslips cleared');
+            loadDatabaseInfo();
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${result.error}</div>`;
+            showError('Failed to clear payslips');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error clearing payslips');
+    }
+}
+
+async function clearDatabase() {
+    if (!confirm('🚨 DANGER: This will delete EVERYTHING!\n\n- All payslips\n- All job items\n- All run sheets\n- All attendance records\n\nThis action CANNOT be undone!\n\nCreate a backup first!\n\nType "DELETE" to confirm:') || 
+        prompt('Type DELETE to confirm:') !== 'DELETE') {
+        return;
+    }
+    
+    const statusDiv = document.getElementById('dangerZoneStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-hourglass-split"></i> Clearing entire database...</div>';
+    
+    try {
+        const response = await fetch('/api/data/clear-all', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle"></i> ${result.message}</div>`;
+            showSuccess('Database cleared');
+            loadDatabaseInfo();
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${result.error}</div>`;
+            showError('Failed to clear database');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error clearing database');
+    }
 }
 
 // ===== APPEARANCE =====

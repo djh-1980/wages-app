@@ -1866,6 +1866,217 @@ def api_reorganize_runsheets():
         }), 500
 
 
+@app.route('/api/data/backup', methods=['POST'])
+def api_backup_database():
+    """Create a backup of the database."""
+    try:
+        import shutil
+        from datetime import datetime
+        from pathlib import Path
+        
+        # Create Backups directory if it doesn't exist
+        backup_dir = Path('Backups')
+        backup_dir.mkdir(exist_ok=True)
+        
+        # Create backup filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        backup_file = backup_dir / f'payslips_backup_{timestamp}.db'
+        
+        # Copy database
+        shutil.copy2('data/payslips.db', backup_file)
+        
+        # Get file size
+        size_mb = backup_file.stat().st_size / (1024 * 1024)
+        
+        return jsonify({
+            'success': True,
+            'message': f'Backup created successfully',
+            'filename': backup_file.name,
+            'size_mb': round(size_mb, 2),
+            'path': str(backup_file)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/data/export-runsheets', methods=['GET'])
+def api_export_runsheets():
+    """Export run sheets to CSV."""
+    try:
+        import csv
+        import io
+        from flask import make_response
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT date, driver, jobs_on_run, job_number, customer, activity, 
+                   priority, job_address, postcode, notes, source_file
+            FROM run_sheet_jobs
+            ORDER BY date DESC, job_number
+        """)
+        
+        rows = cursor.fetchall()
+        
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['Date', 'Driver', 'Jobs on Run', 'Job Number', 'Customer', 
+                        'Activity', 'Priority', 'Address', 'Postcode', 'Notes', 'Source File'])
+        
+        # Write data
+        writer.writerows(rows)
+        
+        # Create response
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = 'attachment; filename=runsheets_export.csv'
+        
+        return response
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/data/export-payslips', methods=['GET'])
+def api_export_payslips():
+    """Export payslips to CSV."""
+    try:
+        import csv
+        import io
+        from flask import make_response
+        
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("""
+            SELECT week_ending, week_number, tax_year, gross_pay, tax, ni, 
+                   pension, net_pay, hours, hourly_rate
+            FROM payslips
+            ORDER BY week_ending DESC
+        """)
+        
+        rows = cursor.fetchall()
+        
+        # Create CSV in memory
+        output = io.StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow(['Week Ending', 'Week Number', 'Tax Year', 'Gross Pay', 'Tax', 
+                        'NI', 'Pension', 'Net Pay', 'Hours', 'Hourly Rate'])
+        
+        # Write data
+        writer.writerows(rows)
+        
+        # Create response
+        response = make_response(output.getvalue())
+        response.headers['Content-Type'] = 'text/csv'
+        response.headers['Content-Disposition'] = 'attachment; filename=payslips_export.csv'
+        
+        return response
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/data/clear-runsheets', methods=['POST'])
+def api_clear_runsheets():
+    """Clear all run sheet data."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM run_sheet_jobs")
+        deleted = cursor.rowcount
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Deleted {deleted} run sheet records'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/data/clear-payslips', methods=['POST'])
+def api_clear_payslips():
+    """Clear all payslip data."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        cursor.execute("DELETE FROM payslips")
+        deleted_payslips = cursor.rowcount
+        
+        cursor.execute("DELETE FROM job_items")
+        deleted_jobs = cursor.rowcount
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Deleted {deleted_payslips} payslips and {deleted_jobs} job items'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/data/clear-all', methods=['POST'])
+def api_clear_all():
+    """Clear entire database."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Clear all tables
+        cursor.execute("DELETE FROM run_sheet_jobs")
+        deleted_runsheets = cursor.rowcount
+        
+        cursor.execute("DELETE FROM payslips")
+        deleted_payslips = cursor.rowcount
+        
+        cursor.execute("DELETE FROM job_items")
+        deleted_jobs = cursor.rowcount
+        
+        cursor.execute("DELETE FROM attendance")
+        deleted_attendance = cursor.rowcount
+        
+        conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'message': f'Database cleared: {deleted_payslips} payslips, {deleted_jobs} jobs, {deleted_runsheets} run sheets, {deleted_attendance} attendance records'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 if __name__ == '__main__':
     # Initialize attendance table on startup
     init_attendance_table()
