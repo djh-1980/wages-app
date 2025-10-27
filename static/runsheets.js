@@ -190,14 +190,39 @@ async function loadRunSheetsList(page = 1) {
     if (currentFilters.day) queryParams += `&day=${currentFilters.day}`;
     
     try {
-        const response = await fetch(`/api/runsheets/list?${queryParams}`);
-        const data = await response.json();
+        // Load both run sheets list and completion status
+        const [listResponse, statusResponse] = await Promise.all([
+            fetch(`/api/runsheets/list?${queryParams}`),
+            fetch('/api/runsheets/completion-status')
+        ]);
+        
+        const data = await listResponse.json();
+        const statusData = await statusResponse.json();
         
         const tbody = document.getElementById('runsheetsList');
         
         if (data.runsheets && data.runsheets.length > 0) {
             tbody.innerHTML = data.runsheets.map(rs => {
                 const activities = rs.activities ? rs.activities.split(',').slice(0, 3).join(', ') : 'N/A';
+                
+                // Get completion status for this date
+                const status = statusData[rs.date];
+                let statusBadge = '';
+                
+                if (status) {
+                    switch (status.status) {
+                        case 'completed':
+                            statusBadge = '<span class="badge bg-success me-2" title="All jobs completed with mileage"><i class="bi bi-check-circle"></i> Complete</span>';
+                            break;
+                        case 'in_progress':
+                            statusBadge = '<span class="badge bg-warning me-2" title="Some jobs completed or in progress"><i class="bi bi-clock"></i> In Progress</span>';
+                            break;
+                        case 'not_started':
+                            statusBadge = '<span class="badge bg-secondary me-2" title="No jobs completed yet"><i class="bi bi-circle"></i> Not Started</span>';
+                            break;
+                    }
+                }
+                
                 return `
                     <tr>
                         <td><strong>${rs.date}</strong></td>
@@ -206,6 +231,7 @@ async function loadRunSheetsList(page = 1) {
                         </td>
                         <td><small>${activities}</small></td>
                         <td class="text-end">
+                            ${statusBadge}
                             <button class="btn btn-sm btn-outline-primary" onclick="viewRunSheetJobs('${rs.date}')">
                                 <i class="bi bi-eye"></i> View
                             </button>

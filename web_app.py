@@ -1304,6 +1304,56 @@ def api_add_extra_job():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/runsheets/completion-status')
+def api_runsheets_completion_status():
+    """Get completion status for all run sheet dates."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Get completion status for each date
+        # Check if jobs have status, mileage, or completion indicators
+        cursor.execute("""
+            SELECT 
+                date,
+                COUNT(*) as total_jobs,
+                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_jobs,
+                COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as in_progress_jobs,
+                COUNT(CASE WHEN mileage IS NOT NULL AND mileage > 0 THEN 1 END) as jobs_with_mileage
+            FROM run_sheet_jobs
+            GROUP BY date
+            ORDER BY date DESC
+        """)
+        
+        results = cursor.fetchall()
+        status_map = {}
+        
+        for row in results:
+            date, total, completed, in_progress, with_mileage = row
+            
+            # Determine status based on completion and mileage
+            if completed == total and with_mileage > 0:
+                status = 'completed'  # All jobs done + mileage recorded
+            elif completed > 0 or in_progress > 0 or with_mileage > 0:
+                status = 'in_progress'  # Some work done
+            else:
+                status = 'not_started'  # Nothing done
+            
+            status_map[date] = {
+                'status': status,
+                'total_jobs': total,
+                'completed_jobs': completed,
+                'in_progress_jobs': in_progress,
+                'jobs_with_mileage': with_mileage
+            }
+        
+        conn.close()
+        return jsonify(status_map)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/notifications/runsheets')
 def get_runsheet_notifications():
     """Get new run sheet notifications."""
