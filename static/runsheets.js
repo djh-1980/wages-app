@@ -1,4 +1,5 @@
 // Run Sheets Tab JavaScript
+console.log('📄 runsheets.js loaded successfully');
 
 let activityChart = null;
 let currentRSPage = 1;
@@ -179,6 +180,7 @@ function createActivityChart(activities) {
 
 // Load Run Sheets list
 async function loadRunSheetsList(page = 1) {
+    console.log('🚀 loadRunSheetsList called with page:', page);
     currentRSPage = page;
     
     // Build query string with filters
@@ -189,6 +191,7 @@ async function loadRunSheetsList(page = 1) {
     if (currentFilters.week) queryParams += `&week=${currentFilters.week}`;
     if (currentFilters.day) queryParams += `&day=${currentFilters.day}`;
     
+    console.log('📡 Making API calls...');
     try {
         // Load both run sheets list and completion status
         const [listResponse, statusResponse] = await Promise.all([

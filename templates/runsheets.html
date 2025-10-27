@@ -246,12 +246,16 @@
 {% endblock %}
 
 {% block extra_js %}
-<script src="{{ url_for('static', filename='runsheets.js') }}"></script>
+<script src="{{ url_for('static', filename='runsheets.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script>
     // Load data on page load
     document.addEventListener('DOMContentLoaded', function() {
+        console.log('🎯 DOMContentLoaded event fired');
+        console.log('🔧 Calling populateYearFilter...');
         populateYearFilter();
+        console.log('📊 Calling loadRunSheetsSummary...');
         loadRunSheetsSummary();
+        console.log('📋 Calling loadRunSheetsList...');
         loadRunSheetsList(1);
     });
 </script>
