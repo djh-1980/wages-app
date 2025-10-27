@@ -212,13 +212,13 @@ async function loadRunSheetsList(page = 1) {
                 if (status) {
                     switch (status.status) {
                         case 'completed':
-                            statusBadge = '<span class="badge bg-success me-2" title="All jobs completed with mileage"><i class="bi bi-check-circle"></i> Complete</span>';
+                            statusBadge = '<span class="badge bg-success px-3 py-2" title="All jobs completed with mileage"><i class="bi bi-check-circle me-1"></i>Complete</span>';
                             break;
                         case 'in_progress':
-                            statusBadge = '<span class="badge bg-warning me-2" title="Some jobs completed or in progress"><i class="bi bi-clock"></i> In Progress</span>';
+                            statusBadge = '<span class="badge bg-warning px-3 py-2" title="Some jobs completed or in progress"><i class="bi bi-clock me-1"></i>In Progress</span>';
                             break;
                         case 'not_started':
-                            statusBadge = '<span class="badge bg-danger me-2" title="No jobs completed yet"><i class="bi bi-circle"></i> Not Started</span>';
+                            statusBadge = '<span class="badge bg-danger px-3 py-2" title="No jobs completed yet"><i class="bi bi-circle me-1"></i>Not Started</span>';
                             break;
                     }
                 }
