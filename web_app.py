@@ -1312,29 +1312,30 @@ def api_runsheets_completion_status():
         cursor = conn.cursor()
         
         # Get completion status for each date
-        # Check if jobs have status, mileage, or completion indicators
+        # Check job status and mileage from separate table
         cursor.execute("""
             SELECT 
-                date,
+                r.date,
                 COUNT(*) as total_jobs,
-                COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_jobs,
-                COUNT(CASE WHEN status = 'in_progress' THEN 1 END) as in_progress_jobs,
-                COUNT(CASE WHEN mileage IS NOT NULL AND mileage > 0 THEN 1 END) as jobs_with_mileage
-            FROM run_sheet_jobs
-            GROUP BY date
-            ORDER BY date DESC
+                COUNT(CASE WHEN r.status = 'completed' THEN 1 END) as completed_jobs,
+                COUNT(CASE WHEN r.status = 'in_progress' THEN 1 END) as in_progress_jobs,
+                CASE WHEN d.mileage IS NOT NULL AND d.mileage > 0 THEN 1 ELSE 0 END as has_mileage
+            FROM run_sheet_jobs r
+            LEFT JOIN runsheet_daily_data d ON r.date = d.date
+            GROUP BY r.date, d.mileage
+            ORDER BY r.date DESC
         """)
         
         results = cursor.fetchall()
         status_map = {}
         
         for row in results:
-            date, total, completed, in_progress, with_mileage = row
+            date, total, completed, in_progress, has_mileage = row
             
             # Determine status based on completion and mileage
-            if completed == total and with_mileage > 0:
+            if completed == total and has_mileage:
                 status = 'completed'  # All jobs done + mileage recorded
-            elif completed > 0 or in_progress > 0 or with_mileage > 0:
+            elif completed > 0 or in_progress > 0 or has_mileage:
                 status = 'in_progress'  # Some work done
             else:
                 status = 'not_started'  # Nothing done
@@ -1344,7 +1345,7 @@ def api_runsheets_completion_status():
                 'total_jobs': total,
                 'completed_jobs': completed,
                 'in_progress_jobs': in_progress,
-                'jobs_with_mileage': with_mileage
+                'has_mileage': has_mileage
             }
         
         conn.close()
