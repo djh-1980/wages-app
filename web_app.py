@@ -1304,6 +1304,65 @@ def api_add_extra_job():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@app.route('/api/runsheets/delete-job/<int:job_id>', methods=['DELETE'])
+def api_delete_job(job_id):
+    """Delete a job from run sheets."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Check if job exists
+        cursor.execute("SELECT id FROM run_sheet_jobs WHERE id = ?", (job_id,))
+        if not cursor.fetchone():
+            return jsonify({'success': False, 'error': 'Job not found'}), 404
+        
+        # Delete the job
+        cursor.execute("DELETE FROM run_sheet_jobs WHERE id = ?", (job_id,))
+        conn.commit()
+        conn.close()
+        
+        return jsonify({'success': True, 'message': 'Job deleted successfully'})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@app.route('/api/runsheets/autocomplete-data')
+def api_runsheets_autocomplete_data():
+    """Get unique customers and activities for autocomplete."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Get unique customers
+        cursor.execute("""
+            SELECT DISTINCT customer 
+            FROM run_sheet_jobs 
+            WHERE customer IS NOT NULL AND customer != ''
+            ORDER BY customer
+        """)
+        customers = [row[0] for row in cursor.fetchall()]
+        
+        # Get unique activities
+        cursor.execute("""
+            SELECT DISTINCT activity 
+            FROM run_sheet_jobs 
+            WHERE activity IS NOT NULL AND activity != ''
+            ORDER BY activity
+        """)
+        activities = [row[0] for row in cursor.fetchall()]
+        
+        conn.close()
+        
+        return jsonify({
+            'customers': customers,
+            'activities': activities
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/runsheets/completion-status')
 def api_runsheets_completion_status():
     """Get completion status for all run sheet dates."""
@@ -1317,8 +1376,7 @@ def api_runsheets_completion_status():
             SELECT 
                 r.date,
                 COUNT(*) as total_jobs,
-                COUNT(CASE WHEN r.status = 'completed' THEN 1 END) as completed_jobs,
-                COUNT(CASE WHEN r.status = 'in_progress' THEN 1 END) as in_progress_jobs,
+                COUNT(CASE WHEN r.status IS NOT NULL AND r.status != 'pending' THEN 1 END) as jobs_with_actions,
                 CASE WHEN d.mileage IS NOT NULL AND d.mileage > 0 THEN 1 ELSE 0 END as has_mileage
             FROM run_sheet_jobs r
             LEFT JOIN runsheet_daily_data d ON r.date = d.date
@@ -1330,21 +1388,20 @@ def api_runsheets_completion_status():
         status_map = {}
         
         for row in results:
-            date, total, completed, in_progress, has_mileage = row
+            date, total, jobs_with_actions, has_mileage = row
             
-            # Determine status based on completion and mileage
-            if completed == total and has_mileage:
-                status = 'completed'  # All jobs done + mileage recorded
-            elif completed > 0 or in_progress > 0 or has_mileage:
-                status = 'in_progress'  # Some work done
+            # Determine status based on action selections and mileage
+            if jobs_with_actions == total and has_mileage:
+                status = 'completed'  # All jobs have actions selected + mileage recorded
+            elif jobs_with_actions > 0 or has_mileage:
+                status = 'in_progress'  # Some jobs have actions selected OR mileage recorded
             else:
-                status = 'not_started'  # Nothing done
+                status = 'not_started'  # No actions selected AND no mileage
             
             status_map[date] = {
                 'status': status,
                 'total_jobs': total,
-                'completed_jobs': completed,
-                'in_progress_jobs': in_progress,
+                'jobs_with_actions': jobs_with_actions,
                 'has_mileage': has_mileage
             }
         

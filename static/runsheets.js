@@ -371,6 +371,9 @@ async function viewRunSheetJobs(date) {
                                                             <button class="btn btn-outline-info" onclick="updateJobStatus(${job.id}, 'extra')" title="Extra">
                                                                 <i class="bi bi-plus-circle"></i>
                                                             </button>
+                                                            <button class="btn btn-outline-secondary" onclick="deleteJob(${job.id}, '${date}')" title="Delete Job">
+                                                                <i class="bi bi-trash"></i>
+                                                            </button>
                                                         </div>
                                                     </td>
                                                 </tr>
@@ -403,19 +406,24 @@ async function viewRunSheetJobs(date) {
                                                         <i class="bi bi-check-circle"></i> Completed
                                                     </button>
                                                     <div class="row g-2">
-                                                        <div class="col-4">
+                                                        <div class="col-3">
                                                             <button class="btn btn-danger w-100" onclick="updateJobStatus(${job.id}, 'missed')">
                                                                 <i class="bi bi-x-circle"></i> Missed
                                                             </button>
                                                         </div>
-                                                        <div class="col-4">
+                                                        <div class="col-3">
                                                             <button class="btn btn-warning w-100" onclick="updateJobStatus(${job.id}, 'dnco')">
                                                                 <i class="bi bi-exclamation-circle"></i> DNCO
                                                             </button>
                                                         </div>
-                                                        <div class="col-4">
+                                                        <div class="col-3">
                                                             <button class="btn btn-info w-100" onclick="updateJobStatus(${job.id}, 'extra')">
                                                                 <i class="bi bi-plus-circle"></i> Extra
+                                                            </button>
+                                                        </div>
+                                                        <div class="col-3">
+                                                            <button class="btn btn-secondary w-100" onclick="deleteJob(${job.id}, '${date}')">
+                                                                <i class="bi bi-trash"></i> Delete
                                                             </button>
                                                         </div>
                                                     </div>
@@ -440,11 +448,15 @@ async function viewRunSheetJobs(date) {
                                         </div>
                                         <div class="col-md-3">
                                             <label class="form-label small mb-1">Customer *</label>
-                                            <input type="text" class="form-control" id="newCustomer-${date}" placeholder="Customer name" required>
+                                            <select class="form-select" id="newCustomer-${date}" required>
+                                                <option value="">Select customer...</option>
+                                            </select>
                                         </div>
                                         <div class="col-md-3">
                                             <label class="form-label small mb-1">Activity</label>
-                                            <input type="text" class="form-control" id="newActivity-${date}" placeholder="e.g. REPAIR">
+                                            <select class="form-select" id="newActivity-${date}">
+                                                <option value="">Select activity...</option>
+                                            </select>
                                         </div>
                                         <div class="col-md-3">
                                             <label class="form-label small mb-1">Address</label>
@@ -630,8 +642,45 @@ function updateStatusCounts() {
 }
 
 // Show add job form
-function showAddJobForm(date) {
+async function showAddJobForm(date) {
     document.getElementById(`addJobForm-${date}`).style.display = 'block';
+    
+    // Load autocomplete data
+    try {
+        console.log('Loading autocomplete data...');
+        const response = await fetch('/api/runsheets/autocomplete-data');
+        const data = await response.json();
+        
+        console.log('Autocomplete data received:', data);
+        
+        if (data.customers && data.activities) {
+            // Populate customers select
+            const customersSelect = document.getElementById(`newCustomer-${date}`);
+            console.log('Found customers select:', customersSelect);
+            
+            if (customersSelect) {
+                customersSelect.innerHTML = '<option value="">Select customer...</option>' + 
+                    data.customers.map(customer => 
+                        `<option value="${customer}">${customer}</option>`
+                    ).join('');
+                console.log('Populated customers:', data.customers.length, 'options');
+            }
+            
+            // Populate activities select
+            const activitiesSelect = document.getElementById(`newActivity-${date}`);
+            console.log('Found activities select:', activitiesSelect);
+            
+            if (activitiesSelect) {
+                activitiesSelect.innerHTML = '<option value="">Select activity...</option>' + 
+                    data.activities.map(activity => 
+                        `<option value="${activity}">${activity}</option>`
+                    ).join('');
+                console.log('Populated activities:', data.activities.length, 'options');
+            }
+        }
+    } catch (error) {
+        console.error('Error loading autocomplete data:', error);
+    }
 }
 
 // Hide add job form
@@ -757,6 +806,8 @@ async function saveAllJobStatuses(date) {
                 message += 'Saved mileage and fuel cost.';
             }
             alert(message || 'Changes saved successfully!');
+            // Refresh the run sheets list to update status badges
+            loadRunSheetsList(currentRSPage);
             // Close modal
             bootstrap.Modal.getInstance(document.getElementById('runsheetJobsModal')).hide();
         } else {
@@ -765,5 +816,39 @@ async function saveAllJobStatuses(date) {
     } catch (error) {
         console.error('Error saving changes:', error);
         alert('Error saving changes');
+    }
+}
+
+// Delete a job
+async function deleteJob(jobId, date) {
+    if (!confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/runsheets/delete-job/${jobId}`, {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Remove the job row from both desktop and mobile views
+            const jobRows = document.querySelectorAll(`[id="job-row-${jobId}"]`);
+            jobRows.forEach(row => row.remove());
+            
+            // Update status counts
+            updateStatusCounts();
+            
+            // Refresh the run sheets list to update job counts and status
+            loadRunSheetsList(currentRSPage);
+            
+            alert('Job deleted successfully');
+        } else {
+            alert('Error deleting job: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error deleting job:', error);
+        alert('Error deleting job');
     }
 }
