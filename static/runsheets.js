@@ -1,18 +1,4 @@
 // Run Sheets Tab JavaScript
-console.log('📄 runsheets.js loaded successfully');
-
-// Visual debug function for mobile
-function debugLog(message) {
-    console.log(message);
-    const debugMessages = document.getElementById('debugMessages');
-    if (debugMessages) {
-        const timestamp = new Date().toLocaleTimeString();
-        debugMessages.innerHTML += `<div>${timestamp}: ${message}</div>`;
-        debugMessages.scrollTop = debugMessages.scrollHeight;
-    }
-}
-
-debugLog('📄 runsheets.js loaded successfully');
 
 let activityChart = null;
 let currentRSPage = 1;
@@ -193,7 +179,6 @@ function createActivityChart(activities) {
 
 // Load Run Sheets list
 async function loadRunSheetsList(page = 1) {
-    debugLog(`🚀 loadRunSheetsList called with page: ${page}`);
     currentRSPage = page;
     
     // Build query string with filters
@@ -204,7 +189,6 @@ async function loadRunSheetsList(page = 1) {
     if (currentFilters.week) queryParams += `&week=${currentFilters.week}`;
     if (currentFilters.day) queryParams += `&day=${currentFilters.day}`;
     
-    debugLog('📡 Making API calls...');
     try {
         // Load both run sheets list and completion status
         const [listResponse, statusResponse] = await Promise.all([
@@ -212,15 +196,11 @@ async function loadRunSheetsList(page = 1) {
             fetch('/api/runsheets/completion-status')
         ]);
         
-        debugLog('✅ API calls completed');
         const data = await listResponse.json();
         const statusData = await statusResponse.json();
         
         const tbody = document.getElementById('runsheetsList');
         const mobileCards = document.getElementById('runsheetsCardsList');
-        
-        debugLog(`📋 Elements found - tbody: ${!!tbody}, mobileCards: ${!!mobileCards}`);
-        debugLog(`📊 Data received - runsheets: ${data.runsheets ? data.runsheets.length : 0} items`);
         
         if (data.runsheets && data.runsheets.length > 0) {
             // Desktop table content
@@ -266,7 +246,6 @@ async function loadRunSheetsList(page = 1) {
             
             // Mobile cards content
             if (mobileCards) {
-                debugLog('📱 Populating mobile cards...');
                 mobileCards.innerHTML = data.runsheets.map(rs => {
                 const activities = rs.activities ? rs.activities.split(',').slice(0, 2).join(', ') : 'N/A';
                 
@@ -310,9 +289,6 @@ async function loadRunSheetsList(page = 1) {
                     </div>
                 `;
                 }).join('');
-                debugLog('✅ Mobile cards populated successfully');
-            } else {
-                debugLog('❌ Mobile cards element not found!');
             }
             
             // Update pagination
