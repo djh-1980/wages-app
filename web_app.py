@@ -1735,12 +1735,44 @@ def api_gmail_status():
     })
 
 
+def log_settings_action(action, message, level='INFO'):
+    """Log settings actions to dedicated log file."""
+    import logging
+    from pathlib import Path
+    
+    # Create logs directory if it doesn't exist
+    log_dir = Path('logs')
+    log_dir.mkdir(exist_ok=True)
+    
+    # Setup logger
+    logger = logging.getLogger('settings')
+    if not logger.handlers:
+        handler = logging.FileHandler('logs/settings.log')
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(action)s] - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    
+    # Log with action context
+    extra = {'action': action}
+    if level == 'ERROR':
+        logger.error(message, extra=extra)
+    elif level == 'WARNING':
+        logger.warning(message, extra=extra)
+    else:
+        logger.info(message, extra=extra)
+
+
 @app.route('/api/data/sync-payslips', methods=['POST'])
 def api_sync_payslips():
     """Sync payslips from PaySlips folder."""
+    log_settings_action('SYNC_PAYSLIPS', 'Starting payslip sync')
+    
     try:
         import subprocess
         import sys
+        
+        log_settings_action('SYNC_PAYSLIPS', f'Running: {sys.executable} scripts/extract_payslips.py')
         
         process = subprocess.Popen(
             [sys.executable, 'scripts/extract_payslips.py'],
@@ -1752,12 +1784,14 @@ def api_sync_payslips():
         stdout, stderr = process.communicate(timeout=180)
         
         if process.returncode == 0:
+            log_settings_action('SYNC_PAYSLIPS', f'Success - Output: {stdout[:200]}...')
             return jsonify({
                 'success': True,
                 'message': 'Payslips synced successfully',
                 'output': stdout
             })
         else:
+            log_settings_action('SYNC_PAYSLIPS', f'Failed - Return code: {process.returncode}, Error: {stderr}', 'ERROR')
             return jsonify({
                 'success': False,
                 'error': stderr or 'Sync failed',
@@ -1765,11 +1799,15 @@ def api_sync_payslips():
             }), 500
             
     except subprocess.TimeoutExpired:
+        log_settings_action('SYNC_PAYSLIPS', 'Sync timed out after 3 minutes', 'ERROR')
         return jsonify({
             'success': False,
             'error': 'Sync timed out (took longer than 3 minutes)'
         }), 500
     except Exception as e:
+        log_settings_action('SYNC_PAYSLIPS', f'Exception: {str(e)}', 'ERROR')
+        import traceback
+        log_settings_action('SYNC_PAYSLIPS', f'Traceback: {traceback.format_exc()}', 'ERROR')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1779,26 +1817,83 @@ def api_sync_payslips():
 @app.route('/api/data/sync-runsheets', methods=['POST'])
 def api_sync_runsheets():
     """Sync run sheets from RunSheets folder."""
+    log_settings_action('SYNC_RUNSHEETS', 'Starting run sheets sync')
+    
     try:
         import subprocess
         import sys
+        from pathlib import Path
         
-        process = subprocess.Popen(
-            [sys.executable, 'scripts/import_run_sheets.py'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
-        )
+        # Check if script exists
+        script_path = Path('scripts/import_run_sheets.py')
+        if not script_path.exists():
+            log_settings_action('SYNC_RUNSHEETS', f'Script not found: {script_path}', 'ERROR')
+            return jsonify({
+                'success': False,
+                'error': f'Script not found: {script_path}'
+            }), 500
         
-        stdout, stderr = process.communicate(timeout=300)
+        # Check if RunSheets directory exists
+        runsheets_dir = Path('RunSheets')
+        if not runsheets_dir.exists():
+            log_settings_action('SYNC_RUNSHEETS', f'RunSheets directory not found: {runsheets_dir}', 'ERROR')
+            return jsonify({
+                'success': False,
+                'error': f'RunSheets directory not found: {runsheets_dir}'
+            }), 500
+        
+        log_settings_action('SYNC_RUNSHEETS', f'Running: {sys.executable} {script_path}')
+        log_settings_action('SYNC_RUNSHEETS', f'Python version: {sys.version}')
+        log_settings_action('SYNC_RUNSHEETS', f'Working directory: {Path.cwd()}')
+        
+        # Create progress log file
+        progress_log = Path('logs/runsheet_sync_progress.log')
+        progress_log.parent.mkdir(exist_ok=True)
+        
+        # Clear previous progress log
+        with open(progress_log, 'w') as f:
+            f.write(f"Starting sync at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+        
+        # Run process with output redirected to log file
+        with open(progress_log, 'a') as log_file:
+            process = subprocess.Popen(
+                [sys.executable, str(script_path)],
+                stdout=log_file,
+                stderr=subprocess.STDOUT,
+                text=True,
+                cwd=str(Path.cwd())
+            )
+        
+        log_settings_action('SYNC_RUNSHEETS', f'Process started with PID: {process.pid}')
+        log_settings_action('SYNC_RUNSHEETS', f'Progress log: {progress_log}')
+        
+        # Wait for process with increased timeout (30 minutes for large imports)
+        try:
+            process.wait(timeout=1800)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            raise
+        
+        # Read the output from log file
+        with open(progress_log, 'r') as f:
+            stdout = f.read()
+        stderr = ''
+        
+        log_settings_action('SYNC_RUNSHEETS', f'Process completed with return code: {process.returncode}')
+        log_settings_action('SYNC_RUNSHEETS', f'STDOUT length: {len(stdout)} chars')
+        log_settings_action('SYNC_RUNSHEETS', f'STDERR length: {len(stderr)} chars')
         
         if process.returncode == 0:
+            log_settings_action('SYNC_RUNSHEETS', f'Success - Output preview: {stdout[:500]}...')
             return jsonify({
                 'success': True,
                 'message': 'Run sheets synced successfully',
                 'output': stdout
             })
         else:
+            log_settings_action('SYNC_RUNSHEETS', f'Failed - Return code: {process.returncode}', 'ERROR')
+            log_settings_action('SYNC_RUNSHEETS', f'STDERR: {stderr}', 'ERROR')
+            log_settings_action('SYNC_RUNSHEETS', f'STDOUT: {stdout}', 'ERROR')
             return jsonify({
                 'success': False,
                 'error': stderr or 'Sync failed',
@@ -1806,10 +1901,79 @@ def api_sync_runsheets():
             }), 500
             
     except subprocess.TimeoutExpired:
+        log_settings_action('SYNC_RUNSHEETS', 'Sync timed out after 30 minutes', 'ERROR')
         return jsonify({
             'success': False,
-            'error': 'Sync timed out (took longer than 5 minutes)'
+            'error': 'Sync timed out (took longer than 30 minutes). This may indicate a problem with the import script.'
         }), 500
+    except Exception as e:
+        log_settings_action('SYNC_RUNSHEETS', f'Exception: {str(e)}', 'ERROR')
+        import traceback
+        log_settings_action('SYNC_RUNSHEETS', f'Traceback: {traceback.format_exc()}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'traceback': traceback.format_exc()
+        }), 500
+
+
+@app.route('/api/settings/logs', methods=['GET'])
+def api_get_settings_logs():
+    """Get recent settings logs."""
+    try:
+        from pathlib import Path
+        
+        log_file = Path('logs/settings.log')
+        if not log_file.exists():
+            return jsonify({
+                'success': True,
+                'logs': [],
+                'message': 'No logs yet'
+            })
+        
+        # Read last 100 lines
+        with open(log_file, 'r') as f:
+            lines = f.readlines()
+            recent_lines = lines[-100:] if len(lines) > 100 else lines
+        
+        return jsonify({
+            'success': True,
+            'logs': recent_lines,
+            'total_lines': len(lines)
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@app.route('/api/data/sync-progress', methods=['GET'])
+def api_get_sync_progress():
+    """Get current sync progress from log file."""
+    try:
+        from pathlib import Path
+        
+        progress_log = Path('logs/runsheet_sync_progress.log')
+        if not progress_log.exists():
+            return jsonify({
+                'success': True,
+                'progress': '',
+                'lines': 0
+            })
+        
+        # Read all lines
+        with open(progress_log, 'r') as f:
+            content = f.read()
+            lines = content.split('\n')
+        
+        return jsonify({
+            'success': True,
+            'progress': content,
+            'lines': len(lines)
+        })
+        
     except Exception as e:
         return jsonify({
             'success': False,
@@ -1822,6 +1986,8 @@ def api_reorganize_runsheets():
     """Reorganize run sheets by date and driver."""
     data = request.json
     dry_run = data.get('dry_run', False)
+    
+    log_settings_action('REORGANIZE', f'Starting reorganization (dry_run={dry_run})')
     
     try:
         import subprocess

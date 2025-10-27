@@ -333,13 +333,25 @@
                         </div>
                     </a>
                     
+                    <a href="#" class="list-group-item list-group-item-action list-group-item-primary" onclick="downloadAndSyncRunSheets(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-cloud-download text-primary"></i>
+                                <strong>Download & Sync Run Sheets</strong>
+                                <br>
+                                <small class="text-muted">Download from Gmail, then import to database (recommended)</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                    
                     <a href="#" class="list-group-item list-group-item-action" onclick="syncRunSheets(); return false;">
                         <div class="d-flex justify-content-between align-items-center">
                             <div>
                                 <i class="bi bi-calendar-check text-success"></i>
-                                <strong>Sync Run Sheets</strong>
+                                <strong>Sync Run Sheets Only</strong>
                                 <br>
-                                <small class="text-muted">Import new run sheets from RunSheets folder</small>
+                                <small class="text-muted">Import existing run sheets from RunSheets folder</small>
                             </div>
                             <i class="bi bi-chevron-right"></i>
                         </div>
@@ -371,6 +383,12 @@
                 </div>
                 
                 <div id="dataManagementStatus" class="mt-3" style="display: none;"></div>
+                
+                <div class="mt-3">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="viewSettingsLogs()">
+                        <i class="bi bi-file-text"></i> View Operation Logs
+                    </button>
+                </div>
             </div>
         </div>
         

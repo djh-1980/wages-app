@@ -345,6 +345,15 @@ class RunSheetImporter:
     
     def import_run_sheet(self, file_path: Path, base_path: Path = None) -> int:
         """Import a single run sheet file."""
+        # Check if this file has already been imported
+        cursor = self.conn.cursor()
+        cursor.execute("SELECT COUNT(*) FROM run_sheet_jobs WHERE source_file = ?", (file_path.name,))
+        already_imported = cursor.fetchone()[0] > 0
+        
+        if already_imported:
+            # Skip already imported files
+            return 0
+        
         if base_path:
             relative_path = file_path.relative_to(base_path)
             print(f"Processing: {relative_path}")
@@ -464,6 +473,12 @@ class RunSheetImporter:
                 files_by_folder['root'].append(file_path)
         
         total_imported = 0
+        files_processed = 0
+        files_skipped = 0
+        total_files = len(files)
+        
+        print(f"\n🔍 Checking {total_files} files for new data...")
+        print()
         
         # Process organized folders first
         for folder in sorted(files_by_folder.keys()):
@@ -479,7 +494,15 @@ class RunSheetImporter:
             print("-" * 60)
             
             for file_path in files_by_folder[folder]:
-                total_imported += self.import_run_sheet(file_path, run_sheets_path)
+                imported = self.import_run_sheet(file_path, run_sheets_path)
+                total_imported += imported
+                files_processed += 1
+                if imported == 0:
+                    files_skipped += 1
+                
+                # Show progress every 50 files
+                if files_processed % 50 == 0:
+                    print(f"Progress: {files_processed}/{total_files} files ({int(files_processed/total_files*100)}%) - {files_skipped} skipped, {total_imported} jobs imported")
             
             print()
         
@@ -489,13 +512,25 @@ class RunSheetImporter:
             print("-" * 60)
             
             for file_path in files_by_folder['root']:
-                total_imported += self.import_run_sheet(file_path, run_sheets_path)
+                imported = self.import_run_sheet(file_path, run_sheets_path)
+                total_imported += imported
+                files_processed += 1
+                if imported == 0:
+                    files_skipped += 1
+                
+                # Show progress every 50 files
+                if files_processed % 50 == 0:
+                    print(f"Progress: {files_processed}/{total_files} files ({int(files_processed/total_files*100)}%) - {files_skipped} skipped, {total_imported} jobs imported")
             
             print()
         
         print()
         print("=" * 60)
-        print(f"Import complete: {total_imported} jobs imported")
+        print(f"Import complete!")
+        print(f"  Files processed: {files_processed}")
+        print(f"  Files skipped (already imported): {files_skipped}")
+        print(f"  New jobs imported: {total_imported}")
+        print("=" * 60)
         
         # Show summary
         cursor = self.conn.cursor()

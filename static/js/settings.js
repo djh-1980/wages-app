@@ -261,17 +261,102 @@ async function syncPayslips() {
     }
 }
 
+let syncProgressInterval = null;
+
+async function downloadAndSyncRunSheets() {
+    const statusDiv = document.getElementById('dataManagementStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = `
+        <div class="alert alert-info">
+            <i class="bi bi-cloud-download"></i> <strong>Step 1/2: Downloading from Gmail...</strong>
+            <p class="mb-0 mt-2 small">Checking for new run sheets in Gmail...</p>
+        </div>
+    `;
+    
+    showStatus('Downloading from Gmail...');
+    
+    try {
+        // Step 1: Download from Gmail (today's run sheet only)
+        const today = new Date();
+        const todayStr = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
+        
+        const downloadResponse = await fetch('/api/gmail/download-runsheets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                after_date: todayStr
+            })
+        });
+        
+        const downloadResult = await downloadResponse.json();
+        
+        if (!downloadResult.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle"></i> Download failed: ${downloadResult.error}
+                    <p class="mb-0 mt-2 small">You may need to authorize Gmail access in the Gmail tab.</p>
+                </div>
+            `;
+            showError('Gmail download failed');
+            return;
+        }
+        
+        // Show download results
+        statusDiv.innerHTML = `
+            <div class="alert alert-success">
+                <i class="bi bi-check-circle"></i> <strong>Step 1/2: Download complete!</strong>
+                <p class="mb-0 mt-2">${downloadResult.message || 'Files downloaded from Gmail'}</p>
+            </div>
+            <div class="alert alert-info mt-2">
+                <i class="bi bi-hourglass-split"></i> <strong>Step 2/2: Starting import...</strong>
+            </div>
+        `;
+        
+        // Wait a moment to show the success message
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        // Step 2: Sync run sheets
+        await syncRunSheets();
+        
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Download & sync failed');
+    }
+}
+
 async function syncRunSheets() {
     const statusDiv = document.getElementById('dataManagementStatus');
     statusDiv.style.display = 'block';
-    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Syncing run sheets from RunSheets folder... This may take several minutes.</div>';
+    statusDiv.innerHTML = `
+        <div class="alert alert-warning">
+            <i class="bi bi-hourglass-split"></i> <strong>Syncing run sheets from RunSheets folder...</strong>
+            <p class="mb-0 mt-2 small">
+                ⚠️ This may take 10-30 minutes for large imports (1000+ files).<br>
+                Progress will update below. Please be patient and do not refresh.
+            </p>
+            <div id="syncProgress" class="mt-3">
+                <pre class="small" style="max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 5px;">Initializing...</pre>
+            </div>
+        </div>
+    `;
     
-    showStatus('Importing run sheets...');
+    showStatus('Importing run sheets (this may take a while)...');
+    
+    // Start polling for progress
+    syncProgressInterval = setInterval(updateSyncProgress, 2000);
     
     try {
         const response = await fetch('/api/data/sync-runsheets', {
             method: 'POST'
         });
+        
+        // Stop polling
+        if (syncProgressInterval) {
+            clearInterval(syncProgressInterval);
+            syncProgressInterval = null;
+        }
         
         const result = await response.json();
         
@@ -281,7 +366,7 @@ async function syncRunSheets() {
                     <i class="bi bi-check-circle"></i> ${result.message}
                     <details class="mt-2">
                         <summary>View Details</summary>
-                        <pre class="mt-2 small">${result.output}</pre>
+                        <pre class="mt-2 small" style="max-height: 400px; overflow-y: auto;">${result.output}</pre>
                     </details>
                 </div>
             `;
@@ -297,8 +382,35 @@ async function syncRunSheets() {
             showError('Run sheet sync failed');
         }
     } catch (error) {
+        // Stop polling
+        if (syncProgressInterval) {
+            clearInterval(syncProgressInterval);
+            syncProgressInterval = null;
+        }
+        
         statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
         showError('Error syncing run sheets');
+    }
+}
+
+async function updateSyncProgress() {
+    try {
+        const response = await fetch('/api/data/sync-progress');
+        const result = await response.json();
+        
+        if (result.success && result.progress) {
+            const progressDiv = document.getElementById('syncProgress');
+            if (progressDiv) {
+                progressDiv.innerHTML = `<pre class="small" style="max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 5px;">${result.progress}</pre>`;
+                // Auto-scroll to bottom
+                const pre = progressDiv.querySelector('pre');
+                if (pre) {
+                    pre.scrollTop = pre.scrollHeight;
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Error fetching progress:', error);
     }
 }
 
@@ -432,6 +544,42 @@ function validateData() {
         `;
         showSuccess('Data validation complete');
     }, 1500);
+}
+
+async function viewSettingsLogs() {
+    const statusDiv = document.getElementById('dataManagementStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Loading logs...</div>';
+    
+    try {
+        const response = await fetch('/api/settings/logs');
+        const result = await response.json();
+        
+        if (result.success) {
+            const logs = result.logs || [];
+            const logsHtml = logs.length > 0 
+                ? `<pre class="small" style="max-height: 400px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 5px;">${logs.join('')}</pre>`
+                : '<p class="text-muted">No logs yet</p>';
+            
+            statusDiv.innerHTML = `
+                <div class="alert alert-info">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong><i class="bi bi-file-text"></i> Operation Logs</strong>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('dataManagementStatus').style.display='none'">
+                            <i class="bi bi-x"></i> Close
+                        </button>
+                    </div>
+                    <p class="small mb-2">Showing last ${logs.length} lines (Total: ${result.total_lines || 0})</p>
+                    ${logsHtml}
+                    <p class="small mt-2 mb-0">Log file: <code>logs/settings.log</code></p>
+                </div>
+            `;
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Failed to load logs: ${result.error}</div>`;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+    }
 }
 
 async function backupDatabase() {
