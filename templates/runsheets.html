@@ -159,7 +159,8 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="table-responsive">
+                        <!-- Desktop Table View -->
+                        <div class="table-responsive d-none d-md-block">
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
@@ -178,6 +179,16 @@
                                     <tr><td colspan="5" class="text-center">Loading...</td></tr>
                                 </tbody>
                             </table>
+                        </div>
+                        
+                        <!-- Mobile Card View -->
+                        <div class="d-md-none" id="runsheetsCardsList">
+                            <div class="text-center p-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Loading run sheets...</p>
+                            </div>
                         </div>
                         
                         <!-- Pagination -->

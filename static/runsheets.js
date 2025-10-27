@@ -200,8 +200,10 @@ async function loadRunSheetsList(page = 1) {
         const statusData = await statusResponse.json();
         
         const tbody = document.getElementById('runsheetsList');
+        const mobileCards = document.getElementById('runsheetsCardsList');
         
         if (data.runsheets && data.runsheets.length > 0) {
+            // Desktop table content
             tbody.innerHTML = data.runsheets.map(rs => {
                 const activities = rs.activities ? rs.activities.split(',').slice(0, 3).join(', ') : 'N/A';
                 
@@ -242,16 +244,64 @@ async function loadRunSheetsList(page = 1) {
                 `;
             }).join('');
             
+            // Mobile cards content
+            mobileCards.innerHTML = data.runsheets.map(rs => {
+                const activities = rs.activities ? rs.activities.split(',').slice(0, 2).join(', ') : 'N/A';
+                
+                // Get completion status for this date
+                const status = statusData[rs.date];
+                let statusBadge = '';
+                
+                if (status) {
+                    switch (status.status) {
+                        case 'completed':
+                            statusBadge = '<span class="badge bg-success" title="All jobs completed with mileage"><i class="bi bi-check-circle me-1"></i>Complete</span>';
+                            break;
+                        case 'in_progress':
+                            statusBadge = '<span class="badge bg-warning" title="Some jobs completed or in progress"><i class="bi bi-clock me-1"></i>In Progress</span>';
+                            break;
+                        case 'not_started':
+                            statusBadge = '<span class="badge bg-danger" title="No jobs completed yet"><i class="bi bi-circle me-1"></i>Not Started</span>';
+                            break;
+                    }
+                }
+                
+                return `
+                    <div class="card mb-3 shadow-sm" style="border-radius: 12px;">
+                        <div class="card-body p-3">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <div>
+                                    <h6 class="mb-1 fw-bold" style="font-size: 1.1rem;">${rs.date}</h6>
+                                    <span class="badge bg-primary">${rs.job_count} jobs</span>
+                                </div>
+                                <div>
+                                    ${statusBadge || '<span class="badge bg-secondary">Unknown</span>'}
+                                </div>
+                            </div>
+                            <p class="mb-3 small text-muted" style="font-size: 0.85rem;">${activities}</p>
+                            <div class="d-grid">
+                                <button class="btn btn-primary py-2" onclick="viewRunSheetJobs('${rs.date}')" style="font-size: 1rem;">
+                                    <i class="bi bi-eye me-2"></i>View Jobs
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+            
             // Update pagination
             updateRSPagination(data.page, data.total_pages);
         } else {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center">No run sheets found</td></tr>';
+            mobileCards.innerHTML = '<div class="text-center p-4"><p class="text-muted">No run sheets found</p></div>';
         }
         
     } catch (error) {
         console.error('Error loading run sheets list:', error);
         document.getElementById('runsheetsList').innerHTML = 
             '<tr><td colspan="5" class="text-center text-danger">Error loading data</td></tr>';
+        document.getElementById('runsheetsCardsList').innerHTML = 
+            '<div class="text-center p-4"><p class="text-danger">Error loading data</p></div>';
     }
 }
 
