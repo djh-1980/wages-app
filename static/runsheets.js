@@ -230,8 +230,10 @@ async function loadRunSheetsList(page = 1) {
                             <span class="badge bg-primary">${rs.job_count} jobs</span>
                         </td>
                         <td><small>${activities}</small></td>
+                        <td class="text-center">
+                            ${statusBadge || '<span class="badge bg-secondary">Unknown</span>'}
+                        </td>
                         <td class="text-end">
-                            ${statusBadge}
                             <button class="btn btn-sm btn-outline-primary" onclick="viewRunSheetJobs('${rs.date}')">
                                 <i class="bi bi-eye"></i> View
                             </button>
@@ -243,13 +245,13 @@ async function loadRunSheetsList(page = 1) {
             // Update pagination
             updateRSPagination(data.page, data.total_pages);
         } else {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center">No run sheets found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="5" class="text-center">No run sheets found</td></tr>';
         }
         
     } catch (error) {
         console.error('Error loading run sheets list:', error);
         document.getElementById('runsheetsList').innerHTML = 
-            '<tr><td colspan="4" class="text-center text-danger">Error loading data</td></tr>';
+            '<tr><td colspan="5" class="text-center text-danger">Error loading data</td></tr>';
     }
 }
 
