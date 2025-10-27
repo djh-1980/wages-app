@@ -218,7 +218,7 @@ async function loadRunSheetsList(page = 1) {
                             statusBadge = '<span class="badge bg-warning me-2" title="Some jobs completed or in progress"><i class="bi bi-clock"></i> In Progress</span>';
                             break;
                         case 'not_started':
-                            statusBadge = '<span class="badge bg-secondary me-2" title="No jobs completed yet"><i class="bi bi-circle"></i> Not Started</span>';
+                            statusBadge = '<span class="badge bg-danger me-2" title="No jobs completed yet"><i class="bi bi-circle"></i> Not Started</span>';
                             break;
                     }
                 }
