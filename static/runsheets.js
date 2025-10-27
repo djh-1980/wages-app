@@ -202,6 +202,10 @@ async function loadRunSheetsList(page = 1) {
         const tbody = document.getElementById('runsheetsList');
         const mobileCards = document.getElementById('runsheetsCardsList');
         
+        console.log('Desktop tbody element:', tbody);
+        console.log('Mobile cards element:', mobileCards);
+        console.log('Run sheets data:', data.runsheets);
+        
         if (data.runsheets && data.runsheets.length > 0) {
             // Desktop table content
             tbody.innerHTML = data.runsheets.map(rs => {
@@ -245,7 +249,9 @@ async function loadRunSheetsList(page = 1) {
             }).join('');
             
             // Mobile cards content
-            mobileCards.innerHTML = data.runsheets.map(rs => {
+            if (mobileCards) {
+                console.log('Populating mobile cards...');
+                mobileCards.innerHTML = data.runsheets.map(rs => {
                 const activities = rs.activities ? rs.activities.split(',').slice(0, 2).join(', ') : 'N/A';
                 
                 // Get completion status for this date
@@ -287,21 +293,28 @@ async function loadRunSheetsList(page = 1) {
                         </div>
                     </div>
                 `;
-            }).join('');
+                }).join('');
+            } else {
+                console.log('Mobile cards element not found!');
+            }
             
             // Update pagination
             updateRSPagination(data.page, data.total_pages);
         } else {
             tbody.innerHTML = '<tr><td colspan="5" class="text-center">No run sheets found</td></tr>';
-            mobileCards.innerHTML = '<div class="text-center p-4"><p class="text-muted">No run sheets found</p></div>';
+            if (mobileCards) {
+                mobileCards.innerHTML = '<div class="text-center p-4"><p class="text-muted">No run sheets found</p></div>';
+            }
         }
         
     } catch (error) {
         console.error('Error loading run sheets list:', error);
         document.getElementById('runsheetsList').innerHTML = 
             '<tr><td colspan="5" class="text-center text-danger">Error loading data</td></tr>';
-        document.getElementById('runsheetsCardsList').innerHTML = 
-            '<div class="text-center p-4"><p class="text-danger">Error loading data</p></div>';
+        const mobileCardsError = document.getElementById('runsheetsCardsList');
+        if (mobileCardsError) {
+            mobileCardsError.innerHTML = '<div class="text-center p-4"><p class="text-danger">Error loading data</p></div>';
+        }
     }
 }
 
