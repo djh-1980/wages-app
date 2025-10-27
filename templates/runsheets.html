@@ -181,6 +181,12 @@
                             </table>
                         </div>
                         
+                        <!-- Debug Panel (temporary) -->
+                        <div id="debugPanel" class="alert alert-info d-md-none mb-3" style="font-size: 12px; max-height: 200px; overflow-y: auto;">
+                            <strong>Debug Info:</strong>
+                            <div id="debugMessages"></div>
+                        </div>
+                        
                         <!-- Mobile Card View -->
                         <div class="d-md-none" id="runsheetsCardsList">
                             <div class="text-center p-4">
@@ -250,12 +256,12 @@
 <script>
     // Load data on page load
     document.addEventListener('DOMContentLoaded', function() {
-        console.log('🎯 DOMContentLoaded event fired');
-        console.log('🔧 Calling populateYearFilter...');
+        debugLog('🎯 DOMContentLoaded event fired');
+        debugLog('🔧 Calling populateYearFilter...');
         populateYearFilter();
-        console.log('📊 Calling loadRunSheetsSummary...');
+        debugLog('📊 Calling loadRunSheetsSummary...');
         loadRunSheetsSummary();
-        console.log('📋 Calling loadRunSheetsList...');
+        debugLog('📋 Calling loadRunSheetsList...');
         loadRunSheetsList(1);
     });
 </script>
