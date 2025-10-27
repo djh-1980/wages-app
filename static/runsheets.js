@@ -388,42 +388,44 @@ async function viewRunSheetJobs(date) {
                                         const status = job.status || 'pending';
                                         const statusBadge = getStatusBadge(status);
                                         return `
-                                        <div class="card mb-3 job-card" id="job-row-${job.id}" data-status="${status}" data-job-id="${job.id}">
-                                            <div class="card-body">
-                                                <div class="d-flex justify-content-between align-items-start mb-2">
-                                                    <div>
-                                                        <h6 class="mb-1"><strong>#${job.job_number}</strong></h6>
-                                                        <p class="mb-1 text-muted">${job.customer || 'N/A'}</p>
+                                        <div class="card mb-3 job-card shadow-sm" id="job-row-${job.id}" data-status="${status}" data-job-id="${job.id}" style="border-radius: 12px;">
+                                            <div class="card-body p-3">
+                                                <div class="d-flex justify-content-between align-items-start mb-3">
+                                                    <div class="flex-grow-1">
+                                                        <h6 class="mb-1 fw-bold" style="font-size: 1.1rem;">#${job.job_number}</h6>
+                                                        <p class="mb-1 text-muted" style="font-size: 0.9rem; line-height: 1.3;">${job.customer || 'N/A'}</p>
                                                     </div>
-                                                    <div class="status-badge-container" id="status-${job.id}">${statusBadge}</div>
+                                                    <div class="status-badge-container ms-2" id="status-${job.id}">${statusBadge}</div>
                                                 </div>
-                                                <div class="mb-2">
-                                                    <span class="badge bg-info">${job.activity || 'N/A'}</span>
+                                                <div class="mb-3">
+                                                    <span class="badge bg-info px-3 py-2" style="font-size: 0.8rem;">${job.activity || 'N/A'}</span>
                                                 </div>
-                                                <p class="mb-3 small text-muted">${job.job_address || 'N/A'}${job.postcode ? ', ' + job.postcode : ''}</p>
-                                                <div class="d-grid gap-2">
-                                                    <button class="btn btn-success" onclick="updateJobStatus(${job.id}, 'completed')">
-                                                        <i class="bi bi-check-circle"></i> Completed
+                                                <p class="mb-3 small text-muted" style="font-size: 0.85rem; line-height: 1.4;">${job.job_address || 'N/A'}${job.postcode ? ', ' + job.postcode : ''}</p>
+                                                <div class="d-grid gap-3">
+                                                    <button class="btn btn-success py-3" onclick="updateJobStatus(${job.id}, 'completed')" style="font-size: 1rem; font-weight: 500;">
+                                                        <i class="bi bi-check-circle me-2"></i>Completed
                                                     </button>
                                                     <div class="row g-2">
-                                                        <div class="col-3">
-                                                            <button class="btn btn-danger w-100" onclick="updateJobStatus(${job.id}, 'missed')">
-                                                                <i class="bi bi-x-circle"></i> Missed
+                                                        <div class="col-6">
+                                                            <button class="btn btn-danger w-100 py-2" onclick="updateJobStatus(${job.id}, 'missed')" style="font-size: 0.9rem;">
+                                                                <i class="bi bi-x-circle me-1"></i>Missed
                                                             </button>
                                                         </div>
-                                                        <div class="col-3">
-                                                            <button class="btn btn-warning w-100" onclick="updateJobStatus(${job.id}, 'dnco')">
-                                                                <i class="bi bi-exclamation-circle"></i> DNCO
+                                                        <div class="col-6">
+                                                            <button class="btn btn-warning w-100 py-2" onclick="updateJobStatus(${job.id}, 'dnco')" style="font-size: 0.9rem;">
+                                                                <i class="bi bi-exclamation-circle me-1"></i>DNCO
                                                             </button>
                                                         </div>
-                                                        <div class="col-3">
-                                                            <button class="btn btn-info w-100" onclick="updateJobStatus(${job.id}, 'extra')">
-                                                                <i class="bi bi-plus-circle"></i> Extra
+                                                    </div>
+                                                    <div class="row g-2">
+                                                        <div class="col-6">
+                                                            <button class="btn btn-info w-100 py-2" onclick="updateJobStatus(${job.id}, 'extra')" style="font-size: 0.9rem;">
+                                                                <i class="bi bi-plus-circle me-1"></i>Extra
                                                             </button>
                                                         </div>
-                                                        <div class="col-3">
-                                                            <button class="btn btn-secondary w-100" onclick="deleteJob(${job.id}, '${date}')">
-                                                                <i class="bi bi-trash"></i> Delete
+                                                        <div class="col-6">
+                                                            <button class="btn btn-secondary w-100 py-2" onclick="deleteJob(${job.id}, '${date}')" style="font-size: 0.9rem;">
+                                                                <i class="bi bi-trash me-1"></i>Delete
                                                             </button>
                                                         </div>
                                                     </div>
@@ -434,60 +436,60 @@ async function viewRunSheetJobs(date) {
                                 </div>
                                 
                                 <!-- Add Job Form (hidden by default) -->
-                                <div id="addJobForm-${date}" class="alert alert-success border-success mb-3 mt-3" style="display: none; border-left: 4px solid #198754;">
-                                    <div class="d-flex justify-content-between align-items-center mb-2">
-                                        <h6 class="mb-0">
-                                            <i class="bi bi-plus-circle-fill text-success"></i> Add Extra Job
+                                <div id="addJobForm-${date}" class="alert alert-success border-success mb-3 mt-3 shadow-sm" style="display: none; border-left: 4px solid #198754; border-radius: 12px;">
+                                    <div class="d-flex justify-content-between align-items-center mb-3">
+                                        <h6 class="mb-0 fw-bold">
+                                            <i class="bi bi-plus-circle-fill text-success me-2"></i>Add Extra Job
                                         </h6>
                                         <button type="button" class="btn-close" onclick="hideAddJobForm('${date}')"></button>
                                     </div>
                                     <div class="row g-3 mt-1">
-                                        <div class="col-md-3">
-                                            <label class="form-label small mb-1">Job Number *</label>
-                                            <input type="text" class="form-control" id="newJobNumber-${date}" placeholder="e.g. 12345" required>
+                                        <div class="col-md-3 col-12">
+                                            <label class="form-label mb-2 fw-semibold" style="font-size: 0.9rem;">Job Number *</label>
+                                            <input type="text" class="form-control py-3" id="newJobNumber-${date}" placeholder="e.g. 12345" required style="font-size: 1rem;">
                                         </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label small mb-1">Customer *</label>
-                                            <select class="form-select" id="newCustomer-${date}" required>
+                                        <div class="col-md-3 col-12">
+                                            <label class="form-label mb-2 fw-semibold" style="font-size: 0.9rem;">Customer *</label>
+                                            <select class="form-select py-3" id="newCustomer-${date}" required style="font-size: 1rem;">
                                                 <option value="">Select customer...</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label small mb-1">Activity</label>
-                                            <select class="form-select" id="newActivity-${date}">
+                                        <div class="col-md-3 col-12">
+                                            <label class="form-label mb-2 fw-semibold" style="font-size: 0.9rem;">Activity</label>
+                                            <select class="form-select py-3" id="newActivity-${date}" style="font-size: 1rem;">
                                                 <option value="">Select activity...</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-3">
-                                            <label class="form-label small mb-1">Address</label>
-                                            <input type="text" class="form-control" id="newAddress-${date}" placeholder="Job address">
+                                        <div class="col-md-3 col-12">
+                                            <label class="form-label mb-2 fw-semibold" style="font-size: 0.9rem;">Address</label>
+                                            <input type="text" class="form-control py-3" id="newAddress-${date}" placeholder="Job address" style="font-size: 1rem;">
                                         </div>
                                     </div>
-                                    <div class="mt-3">
-                                        <button class="btn btn-success" onclick="addExtraJob('${date}')">
-                                            <i class="bi bi-check-circle"></i> Add Job
+                                    <div class="mt-4 d-grid gap-2 d-md-flex">
+                                        <button class="btn btn-success py-3 px-4" onclick="addExtraJob('${date}')" style="font-size: 1rem; font-weight: 500;">
+                                            <i class="bi bi-check-circle me-2"></i>Add Job
                                         </button>
-                                        <button class="btn btn-outline-secondary ms-2" onclick="hideAddJobForm('${date}')">
+                                        <button class="btn btn-outline-secondary py-3 px-4" onclick="hideAddJobForm('${date}')" style="font-size: 1rem;">
                                             Cancel
                                         </button>
                                     </div>
                                 </div>
                                 
                                 <!-- Mileage and Fuel Cost -->
-                                <div class="row mt-4">
-                                    <div class="col-md-6">
-                                        <label for="mileage-${date}" class="form-label">
-                                            <i class="bi bi-speedometer2"></i> Mileage (miles)
+                                <div class="row mt-4 g-3">
+                                    <div class="col-md-6 col-12">
+                                        <label for="mileage-${date}" class="form-label fw-semibold mb-2" style="font-size: 1rem;">
+                                            <i class="bi bi-speedometer2 me-2"></i>Mileage (miles)
                                         </label>
-                                        <input type="number" class="form-control" id="mileage-${date}" 
-                                               placeholder="Enter total mileage for this day" step="0.1" min="0">
+                                        <input type="number" class="form-control py-3" id="mileage-${date}" 
+                                               placeholder="Enter total mileage" step="0.1" min="0" style="font-size: 1rem;">
                                     </div>
-                                    <div class="col-md-6">
-                                        <label for="fuelCost-${date}" class="form-label">
-                                            <i class="bi bi-fuel-pump"></i> Fuel Cost (£)
+                                    <div class="col-md-6 col-12">
+                                        <label for="fuelCost-${date}" class="form-label fw-semibold mb-2" style="font-size: 1rem;">
+                                            <i class="bi bi-fuel-pump me-2"></i>Fuel Cost (£)
                                         </label>
-                                        <input type="number" class="form-control" id="fuelCost-${date}" 
-                                               placeholder="Enter fuel cost" step="0.01" min="0">
+                                        <input type="number" class="form-control py-3" id="fuelCost-${date}" 
+                                               placeholder="Enter fuel cost" step="0.01" min="0" style="font-size: 1rem;">
                                     </div>
                                 </div>
                             </div>
