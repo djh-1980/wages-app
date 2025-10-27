@@ -26,8 +26,8 @@ def main():
     try:
         # Step 1: Download from Gmail
         result = subprocess.run(
-            [sys.executable, 'scripts/download_gmail_attachments.py', 
-             '--after-date', date_str, '--type', 'runsheets'],
+            [sys.executable, 'scripts/download_runsheets_gmail.py', 
+             '--after-date', date_str],
             capture_output=True,
             text=True,
             timeout=300

@@ -27,7 +27,7 @@ if [ -f "token.json" ]; then
 else
     echo "   ✗ token.json NOT found"
     echo "   You need to authorize Gmail. Run:"
-    echo "   python3 scripts/download_gmail_attachments.py"
+    echo "   python3 scripts/download_runsheets_gmail.py"
 fi
 
 # Setup cron job
@@ -52,6 +52,7 @@ fi
 # Restart web app
 echo ""
 echo "5. Restarting web app..."
+mkdir -p logs
 pkill -f web_app.py
 sleep 2
 nohup python3 web_app.py > logs/web_app.log 2>&1 &
