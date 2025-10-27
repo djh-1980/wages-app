@@ -1855,9 +1855,10 @@ def api_sync_runsheets():
             f.write(f"Starting sync at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
         
         # Run process with output redirected to log file
+        # Use --recent 7 to only import files from last 7 days (much faster)
         with open(progress_log, 'a') as log_file:
             process = subprocess.Popen(
-                [sys.executable, str(script_path)],
+                [sys.executable, str(script_path), '--recent', '7'],
                 stdout=log_file,
                 stderr=subprocess.STDOUT,
                 text=True,
@@ -1867,9 +1868,9 @@ def api_sync_runsheets():
         log_settings_action('SYNC_RUNSHEETS', f'Process started with PID: {process.pid}')
         log_settings_action('SYNC_RUNSHEETS', f'Progress log: {progress_log}')
         
-        # Wait for process with increased timeout (30 minutes for large imports)
+        # Wait for process (5 minutes should be plenty for recent files only)
         try:
-            process.wait(timeout=1800)
+            process.wait(timeout=300)
         except subprocess.TimeoutExpired:
             process.kill()
             raise
@@ -1901,10 +1902,10 @@ def api_sync_runsheets():
             }), 500
             
     except subprocess.TimeoutExpired:
-        log_settings_action('SYNC_RUNSHEETS', 'Sync timed out after 30 minutes', 'ERROR')
+        log_settings_action('SYNC_RUNSHEETS', 'Sync timed out after 5 minutes', 'ERROR')
         return jsonify({
             'success': False,
-            'error': 'Sync timed out (took longer than 30 minutes). This may indicate a problem with the import script.'
+            'error': 'Sync timed out (took longer than 5 minutes). This may indicate a problem with the import script.'
         }), 500
     except Exception as e:
         log_settings_action('SYNC_RUNSHEETS', f'Exception: {str(e)}', 'ERROR')

@@ -331,10 +331,10 @@ async function syncRunSheets() {
     statusDiv.style.display = 'block';
     statusDiv.innerHTML = `
         <div class="alert alert-warning">
-            <i class="bi bi-hourglass-split"></i> <strong>Syncing run sheets from RunSheets folder...</strong>
+            <i class="bi bi-hourglass-split"></i> <strong>Syncing recent run sheets...</strong>
             <p class="mb-0 mt-2 small">
-                ⚠️ This may take 10-30 minutes for large imports (1000+ files).<br>
-                Progress will update below. Please be patient and do not refresh.
+                Importing files from the last 7 days. This should take less than a minute.<br>
+                Progress will update below.
             </p>
             <div id="syncProgress" class="mt-3">
                 <pre class="small" style="max-height: 300px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 5px;">Initializing...</pre>

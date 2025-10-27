@@ -39,13 +39,13 @@ def main():
             log(f"Download failed: {result.stderr}")
             return 1
         
-        # Step 2: Import run sheets
-        log("Importing run sheets to database...")
+        # Step 2: Import run sheets (only recent files)
+        log("Importing recent run sheets to database...")
         result = subprocess.run(
-            [sys.executable, 'scripts/import_run_sheets.py'],
+            [sys.executable, 'scripts/import_run_sheets.py', '--recent', '7'],
             capture_output=True,
             text=True,
-            timeout=1800
+            timeout=300
         )
         
         if result.returncode == 0:

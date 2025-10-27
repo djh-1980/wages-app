@@ -596,14 +596,41 @@ class RunSheetImporter:
 def main():
     """Run import."""
     import sys
+    import argparse
     
-    # Check for custom name argument
-    name = sys.argv[1] if len(sys.argv) > 1 else "Daniel Hanson"
+    parser = argparse.ArgumentParser(description='Import run sheets from PDFs')
+    parser.add_argument('--name', default='Daniel Hanson', help='Driver name to search for')
+    parser.add_argument('--recent', type=int, help='Only import files modified in last N days')
+    args = parser.parse_args()
     
-    importer = RunSheetImporter(name=name)
+    importer = RunSheetImporter(name=args.name)
     
     try:
-        importer.import_all_run_sheets()
+        if args.recent:
+            # Only import recent files
+            from datetime import datetime, timedelta
+            cutoff_date = datetime.now() - timedelta(days=args.recent)
+            
+            print(f"Only importing files modified after {cutoff_date.strftime('%Y-%m-%d')}")
+            
+            # Filter files by modification time
+            run_sheets_path = Path('RunSheets')
+            files = []
+            for ext in ['*.pdf', '*.PDF']:
+                for file_path in run_sheets_path.rglob(ext):
+                    if datetime.fromtimestamp(file_path.stat().st_mtime) > cutoff_date:
+                        files.append(file_path)
+            
+            print(f"Found {len(files)} recent files")
+            
+            imported = 0
+            for file_path in files:
+                imported += importer.import_run_sheet(file_path, run_sheets_path)
+            
+            print(f"\nImported {imported} jobs from {len(files)} files")
+        else:
+            importer.import_all_run_sheets()
+        
         importer.show_summary()
     finally:
         importer.close()
