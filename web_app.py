@@ -1412,6 +1412,60 @@ def api_runsheets_completion_status():
         return jsonify({'error': str(e)}), 500
 
 
+@app.route('/api/runsheets/debug-status')
+def api_debug_completion_status():
+    """Debug endpoint to check completion status data."""
+    try:
+        conn = get_db()
+        cursor = conn.cursor()
+        
+        # Get detailed status for debugging
+        cursor.execute("""
+            SELECT 
+                r.date,
+                COUNT(*) as total_jobs,
+                COUNT(CASE WHEN r.status IS NOT NULL AND r.status != 'pending' THEN 1 END) as jobs_with_actions,
+                GROUP_CONCAT(r.status) as all_statuses,
+                d.mileage,
+                CASE WHEN d.mileage IS NOT NULL AND d.mileage > 0 THEN 1 ELSE 0 END as has_mileage
+            FROM run_sheet_jobs r
+            LEFT JOIN runsheet_daily_data d ON r.date = d.date
+            GROUP BY r.date, d.mileage
+            ORDER BY r.date DESC
+            LIMIT 10
+        """)
+        
+        results = cursor.fetchall()
+        debug_data = []
+        
+        for row in results:
+            date, total, jobs_with_actions, all_statuses, mileage, has_mileage = row
+            
+            # Determine status
+            if jobs_with_actions == total and has_mileage:
+                status = 'completed'
+            elif jobs_with_actions > 0 or has_mileage:
+                status = 'in_progress'
+            else:
+                status = 'not_started'
+            
+            debug_data.append({
+                'date': date,
+                'total_jobs': total,
+                'jobs_with_actions': jobs_with_actions,
+                'all_statuses': all_statuses,
+                'mileage': mileage,
+                'has_mileage': has_mileage,
+                'calculated_status': status
+            })
+        
+        conn.close()
+        return jsonify(debug_data)
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @app.route('/api/notifications/runsheets')
 def get_runsheet_notifications():
     """Get new run sheet notifications."""
@@ -1873,17 +1927,41 @@ def log_settings_action(action, message, level='INFO'):
 
 @app.route('/api/data/sync-payslips', methods=['POST'])
 def api_sync_payslips():
-    """Sync payslips from PaySlips folder."""
-    log_settings_action('SYNC_PAYSLIPS', 'Starting payslip sync')
+    """Download payslips from Gmail and sync to database."""
+    log_settings_action('SYNC_PAYSLIPS', 'Starting payslip sync with Gmail download')
     
     try:
         import subprocess
         import sys
+        from datetime import datetime, timedelta
         
-        log_settings_action('SYNC_PAYSLIPS', f'Running: {sys.executable} scripts/extract_payslips.py')
+        # Step 1: Download payslips from Gmail
+        log_settings_action('SYNC_PAYSLIPS', 'Step 1: Downloading payslips from Gmail...')
+        
+        download_process = subprocess.Popen(
+            [sys.executable, 'scripts/download_runsheets_gmail.py', '--payslips', '--recent', '7'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        download_stdout, download_stderr = download_process.communicate(timeout=300)
+        
+        if download_process.returncode != 0:
+            log_settings_action('SYNC_PAYSLIPS', f'Gmail download failed: {download_stderr}', 'ERROR')
+            return jsonify({
+                'success': False,
+                'error': f'Gmail download failed: {download_stderr}',
+                'output': download_stdout
+            }), 500
+        
+        log_settings_action('SYNC_PAYSLIPS', f'Gmail download complete: {download_stdout[:200]}...')
+        
+        # Step 2: Extract payslips to database
+        log_settings_action('SYNC_PAYSLIPS', 'Step 2: Extracting payslips to database...')
         
         process = subprocess.Popen(
-            [sys.executable, 'scripts/extract_payslips.py'],
+            [sys.executable, 'scripts/extract_payslips.py', '--recent', '7'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -1893,10 +1971,11 @@ def api_sync_payslips():
         
         if process.returncode == 0:
             log_settings_action('SYNC_PAYSLIPS', f'Success - Output: {stdout[:200]}...')
+            combined_output = f"=== Gmail Download ===\n{download_stdout}\n\n=== Payslip Extraction ===\n{stdout}"
             return jsonify({
                 'success': True,
-                'message': 'Payslips synced successfully',
-                'output': stdout
+                'message': 'Payslips downloaded from Gmail and synced successfully',
+                'output': combined_output
             })
         else:
             log_settings_action('SYNC_PAYSLIPS', f'Failed - Return code: {process.returncode}, Error: {stderr}', 'ERROR')
@@ -1924,13 +2003,40 @@ def api_sync_payslips():
 
 @app.route('/api/data/sync-runsheets', methods=['POST'])
 def api_sync_runsheets():
-    """Sync run sheets from RunSheets folder."""
-    log_settings_action('SYNC_RUNSHEETS', 'Starting run sheets sync')
+    """Download run sheets from Gmail and sync to database."""
+    log_settings_action('SYNC_RUNSHEETS', 'Starting run sheets sync with Gmail download')
     
     try:
         import subprocess
         import sys
         from pathlib import Path
+        from datetime import datetime, timedelta
+        
+        # Step 1: Download run sheets from Gmail
+        log_settings_action('SYNC_RUNSHEETS', 'Step 1: Downloading run sheets from Gmail...')
+        
+        # Get yesterday's date (run sheets usually arrive next day)
+        yesterday = datetime.now() - timedelta(days=1)
+        date_str = yesterday.strftime('%Y/%m/%d')
+        
+        download_process = subprocess.Popen(
+            [sys.executable, 'scripts/download_runsheets_gmail.py', '--after-date', date_str],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        download_stdout, download_stderr = download_process.communicate(timeout=300)
+        
+        if download_process.returncode != 0:
+            log_settings_action('SYNC_RUNSHEETS', f'Gmail download failed: {download_stderr}', 'ERROR')
+            return jsonify({
+                'success': False,
+                'error': f'Gmail download failed: {download_stderr}',
+                'output': download_stdout
+            }), 500
+        
+        log_settings_action('SYNC_RUNSHEETS', f'Gmail download complete: {download_stdout[:200]}...')
         
         # Check if script exists
         script_path = Path('scripts/import_run_sheets.py')
@@ -1939,15 +2045,6 @@ def api_sync_runsheets():
             return jsonify({
                 'success': False,
                 'error': f'Script not found: {script_path}'
-            }), 500
-        
-        # Check if RunSheets directory exists
-        runsheets_dir = Path('RunSheets')
-        if not runsheets_dir.exists():
-            log_settings_action('SYNC_RUNSHEETS', f'RunSheets directory not found: {runsheets_dir}', 'ERROR')
-            return jsonify({
-                'success': False,
-                'error': f'RunSheets directory not found: {runsheets_dir}'
             }), 500
         
         log_settings_action('SYNC_RUNSHEETS', f'Running: {sys.executable} {script_path}')
@@ -1960,7 +2057,9 @@ def api_sync_runsheets():
         
         # Clear previous progress log
         with open(progress_log, 'w') as f:
-            f.write(f"Starting sync at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Starting run sheets sync at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
+            f.write(f"Step 1: Gmail download completed\n")
+            f.write(f"Step 2: Starting import to database...\n")
         
         # Run process with output redirected to log file
         # Use --recent 7 to only import files from last 7 days (much faster)
@@ -1994,10 +2093,11 @@ def api_sync_runsheets():
         
         if process.returncode == 0:
             log_settings_action('SYNC_RUNSHEETS', f'Success - Output preview: {stdout[:500]}...')
+            combined_output = f"=== Gmail Download ===\n{download_stdout}\n\n=== Run Sheets Import ===\n{stdout}"
             return jsonify({
                 'success': True,
-                'message': 'Run sheets synced successfully',
-                'output': stdout
+                'message': 'Run sheets downloaded from Gmail and synced successfully',
+                'output': combined_output
             })
         else:
             log_settings_action('SYNC_RUNSHEETS', f'Failed - Return code: {process.returncode}', 'ERROR')
