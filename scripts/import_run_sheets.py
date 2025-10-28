@@ -40,10 +40,18 @@ class RunSheetImporter:
                 postcode TEXT,
                 notes TEXT,
                 source_file TEXT,
+                status TEXT DEFAULT 'pending',
                 imported_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(date, job_number)
             )
         """)
+        
+        # Add status column if it doesn't exist (for existing databases)
+        try:
+            cursor.execute("ALTER TABLE run_sheet_jobs ADD COLUMN status TEXT DEFAULT 'pending'")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
         
         self.conn.commit()
     
@@ -380,24 +388,58 @@ class RunSheetImporter:
             
             for job in jobs:
                 try:
+                    # Check if job already exists
                     cursor.execute("""
-                        INSERT OR REPLACE INTO run_sheet_jobs (
-                            date, driver, jobs_on_run, job_number, customer, activity, 
-                            priority, job_address, postcode, notes, source_file
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    """, (
-                        job.get('date'),
-                        job.get('driver'),
-                        job.get('jobs_on_run'),
-                        job.get('job_number'),
-                        job.get('customer'),
-                        job.get('activity'),
-                        job.get('priority'),
-                        job.get('job_address'),
-                        job.get('postcode'),
-                        job.get('notes'),
-                        file_path.name
-                    ))
+                        SELECT id, status FROM run_sheet_jobs 
+                        WHERE date = ? AND job_number = ?
+                    """, (job.get('date'), job.get('job_number')))
+                    
+                    existing_job = cursor.fetchone()
+                    
+                    if existing_job:
+                        # Job exists - update only basic fields, preserve status
+                        job_id, existing_status = existing_job
+                        cursor.execute("""
+                            UPDATE run_sheet_jobs SET
+                                driver = ?, jobs_on_run = ?, customer = ?, activity = ?, 
+                                priority = ?, job_address = ?, postcode = ?, notes = ?, 
+                                source_file = ?, imported_at = CURRENT_TIMESTAMP
+                            WHERE id = ?
+                        """, (
+                            job.get('driver'),
+                            job.get('jobs_on_run'),
+                            job.get('customer'),
+                            job.get('activity'),
+                            job.get('priority'),
+                            job.get('job_address'),
+                            job.get('postcode'),
+                            job.get('notes'),
+                            file_path.name,
+                            job_id
+                        ))
+                        print(f"  Updated job {job.get('job_number')} (preserved status: {existing_status})")
+                    else:
+                        # New job - insert with default pending status
+                        cursor.execute("""
+                            INSERT INTO run_sheet_jobs (
+                                date, driver, jobs_on_run, job_number, customer, activity, 
+                                priority, job_address, postcode, notes, source_file, status
+                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                        """, (
+                            job.get('date'),
+                            job.get('driver'),
+                            job.get('jobs_on_run'),
+                            job.get('job_number'),
+                            job.get('customer'),
+                            job.get('activity'),
+                            job.get('priority'),
+                            job.get('job_address'),
+                            job.get('postcode'),
+                            job.get('notes'),
+                            file_path.name
+                        ))
+                        print(f"  Added new job {job.get('job_number')} (status: pending)")
+                    
                     imported += 1
                 except sqlite3.IntegrityError:
                     # Duplicate - skip
