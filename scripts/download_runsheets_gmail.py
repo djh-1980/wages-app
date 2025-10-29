@@ -144,7 +144,7 @@ class GmailRunSheetDownloader:
         self.service = build('gmail', 'v1', credentials=creds)
         return True
     
-    def search_run_sheet_emails(self, after_date='2025/01/01'):
+    def search_run_sheet_emails(self, after_date='2025/01/01', recent_only=False):
         """Search for emails with run sheet attachments."""
         if not self.service:
             return []
@@ -152,7 +152,13 @@ class GmailRunSheetDownloader:
         # Search query for run sheets
         # Adjust these search terms based on your email patterns
         # Searches for PDFs with "RUN SHEETS" in subject or "runsheet" in filename
-        query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR filename:runsheet OR subject:runsheet) after:{after_date}'
+        
+        if recent_only:
+            # Search recent emails without date restriction (includes future dates)
+            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR filename:runsheet OR subject:runsheet) newer_than:7d'
+        else:
+            # Use original date-based search
+            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR filename:runsheet OR subject:runsheet) after:{after_date}'
         
         try:
             results = self.service.users().messages().list(
@@ -291,7 +297,7 @@ class GmailRunSheetDownloader:
             print(f"  ✗ Error downloading attachments: {e}")
             return []
     
-    def download_all_run_sheets(self, after_date='2025/01/01', organize=True, auto_import=True):
+    def download_all_run_sheets(self, after_date='2025/01/01', organize=True, auto_import=True, recent_only=False):
         """Download all run sheets from Gmail."""
         print("=" * 70)
         print("GMAIL RUN SHEET DOWNLOADER")
@@ -307,8 +313,11 @@ class GmailRunSheetDownloader:
         print()
         
         # Search for emails
-        print(f"🔍 Searching for run sheet emails after {after_date}...")
-        messages = self.search_run_sheet_emails(after_date)
+        if recent_only:
+            print("🔍 Searching for recent run sheet emails (last 7 days, including future dates)...")
+        else:
+            print(f"🔍 Searching for run sheet emails after {after_date}...")
+        messages = self.search_run_sheet_emails(after_date, recent_only=recent_only)
         
         if not messages:
             print("No run sheet emails found")
@@ -539,6 +548,7 @@ def main():
     # Parse arguments
     after_date = '2025/01/01'
     mode = 'all'  # all, runsheets, payslips
+    recent_only = False
     
     for arg in sys.argv[1:]:
         if arg.startswith('--date='):
@@ -547,6 +557,8 @@ def main():
             mode = 'runsheets'
         elif arg == '--payslips':
             mode = 'payslips'
+        elif arg == '--recent':
+            recent_only = True
         elif arg in ['--help', '-h']:
             print("Usage: python download_runsheets_gmail.py [options]")
             print()
@@ -554,12 +566,14 @@ def main():
             print("  --date=YYYY/MM/DD   Download emails after this date (default: 2025/01/01)")
             print("  --runsheets         Download only run sheets")
             print("  --payslips          Download only payslips")
+            print("  --recent            Search recent emails (last 7 days, includes future dates)")
             print("  --help, -h          Show this help")
             print()
             print("Examples:")
             print("  python download_runsheets_gmail.py")
             print("  python download_runsheets_gmail.py --date=2024/01/01")
             print("  python download_runsheets_gmail.py --payslips")
+            print("  python download_runsheets_gmail.py --runsheets --recent")
             return
         else:
             # Assume it's a date
@@ -570,7 +584,7 @@ def main():
     if mode == 'all':
         downloader.download_all(after_date)
     elif mode == 'runsheets':
-        downloader.download_all_run_sheets(after_date)
+        downloader.download_all_run_sheets(after_date, recent_only=recent_only)
     elif mode == 'payslips':
         downloader.download_all_payslips(after_date)
 

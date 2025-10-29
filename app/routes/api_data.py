@@ -175,7 +175,7 @@ def api_sync_runsheets():
         log_settings_action('SYNC_RUNSHEETS', f'Searching for run sheets after: {search_date}')
         
         download_process = subprocess.Popen(
-            [sys.executable, 'scripts/download_runsheets_gmail.py', '--runsheets', f'--date={search_date}'],
+            [sys.executable, 'scripts/download_runsheets_gmail.py', '--runsheets', '--recent'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
