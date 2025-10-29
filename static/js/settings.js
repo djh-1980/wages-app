@@ -4,7 +4,12 @@ document.addEventListener('DOMContentLoaded', function() {
     loadProfile();
     loadAppearance();
     
-    // Load attendance records when tab is shown
+    // Load attendance records immediately if on settings page
+    if (document.getElementById('attendanceRecordsList')) {
+        loadAttendanceRecords();
+    }
+    
+    // Also load when attendance tab is shown (if using tabs)
     const attendanceTab = document.getElementById('attendance-tab');
     if (attendanceTab) {
         attendanceTab.addEventListener('shown.bs.tab', function() {
@@ -900,14 +905,88 @@ function showError(message) {
 }
 
 // ===== ATTENDANCE TRACKING =====
+
+// Group consecutive dates with same reason and notes
+function groupConsecutiveDates(records) {
+    if (records.length === 0) return [];
+    
+    // Sort records by date
+    const sortedRecords = records.sort((a, b) => {
+        const dateA = convertDateForSorting(a.date);
+        const dateB = convertDateForSorting(b.date);
+        return dateA.localeCompare(dateB);
+    });
+    
+    const groups = [];
+    let currentGroup = {
+        dates: [sortedRecords[0].date],
+        reason: sortedRecords[0].reason,
+        notes: sortedRecords[0].notes,
+        recordIds: [sortedRecords[0].id]
+    };
+    
+    for (let i = 1; i < sortedRecords.length; i++) {
+        const current = sortedRecords[i];
+        const previous = sortedRecords[i - 1];
+        
+        // Check if current record can be grouped with previous
+        if (current.reason === currentGroup.reason && 
+            current.notes === currentGroup.notes &&
+            isConsecutiveDate(previous.date, current.date)) {
+            
+            currentGroup.dates.push(current.date);
+            currentGroup.recordIds.push(current.id);
+        } else {
+            // Start new group
+            groups.push(currentGroup);
+            currentGroup = {
+                dates: [current.date],
+                reason: current.reason,
+                notes: current.notes,
+                recordIds: [current.id]
+            };
+        }
+    }
+    
+    // Add the last group
+    groups.push(currentGroup);
+    
+    return groups;
+}
+
+// Convert DD/MM/YYYY to YYYY-MM-DD for sorting
+function convertDateForSorting(dateStr) {
+    const [day, month, year] = dateStr.split('/');
+    return `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+}
+
+// Check if two dates are consecutive
+function isConsecutiveDate(date1, date2) {
+    const d1 = new Date(convertDateForSorting(date1));
+    const d2 = new Date(convertDateForSorting(date2));
+    const diffTime = Math.abs(d2 - d1);
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays === 1;
+}
+
 async function loadAttendanceRecords() {
     const listDiv = document.getElementById('attendanceRecordsList');
-    const yearFilter = document.getElementById('attendanceYearFilter')?.value || '';
+    const fromDate = document.getElementById('attendanceFromDate')?.value || '';
+    const toDate = document.getElementById('attendanceToDate')?.value || '';
     
     listDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div></div>';
     
     try {
-        const url = yearFilter ? `/api/attendance?year=${yearFilter}` : '/api/attendance';
+        let url = '/api/attendance';
+        const params = new URLSearchParams();
+        
+        if (fromDate) params.append('from_date', fromDate);
+        if (toDate) params.append('to_date', toDate);
+        
+        if (params.toString()) {
+            url += '?' + params.toString();
+        }
+        
         const response = await fetch(url);
         const records = await response.json();
         
@@ -916,18 +995,38 @@ async function loadAttendanceRecords() {
             return;
         }
         
-        let html = '<div class="table-responsive"><table class="table table-hover"><thead><tr><th>Date</th><th>Reason</th><th>Notes</th><th>Action</th></tr></thead><tbody>';
+        // Group consecutive dates with same reason and notes
+        const groupedRecords = groupConsecutiveDates(records);
         
-        records.forEach(record => {
+        let html = '<div class="table-responsive"><table class="table table-hover"><thead><tr><th>Date(s)</th><th>Reason</th><th>Notes</th><th>Action</th></tr></thead><tbody>';
+        
+        groupedRecords.forEach(group => {
+            const dateDisplay = group.dates.length === 1 ? 
+                group.dates[0] : 
+                `${group.dates[0]} to ${group.dates[group.dates.length - 1]} (${group.dates.length} days)`;
+            
             html += `
                 <tr>
-                    <td><strong>${record.date}</strong></td>
-                    <td><span class="badge bg-secondary">${record.reason}</span></td>
-                    <td>${record.notes || '-'}</td>
+                    <td><strong>${dateDisplay}</strong></td>
+                    <td><span class="badge bg-secondary">${group.reason}</span></td>
+                    <td>${group.notes || '-'}</td>
                     <td>
-                        <button class="btn btn-sm btn-outline-danger" onclick="deleteAttendanceRecord(${record.id})">
-                            <i class="bi bi-trash"></i>
-                        </button>
+                        ${group.recordIds.length === 1 ? 
+                            // Single record - show edit and delete
+                            `<button class="btn btn-sm btn-outline-primary me-1" onclick="editAttendanceRecord(${group.recordIds[0]}, '${group.dates[0]}', '${group.reason}', '${group.notes || ''}')" title="Edit record">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteAttendanceRecord(${group.recordIds[0]})" title="Delete record">
+                                <i class="bi bi-trash"></i>
+                            </button>` :
+                            // Grouped records - show edit group and delete group
+                            `<button class="btn btn-sm btn-outline-primary me-1" onclick="editAttendanceGroup([${group.recordIds.join(',')}], '${group.dates[0]}', '${group.dates[group.dates.length - 1]}', '${group.reason}', '${group.notes || ''}')" title="Edit group">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-danger" onclick="deleteAttendanceGroup([${group.recordIds.join(',')}])" title="Delete entire group">
+                                <i class="bi bi-trash"></i>
+                            </button>`
+                        }
                     </td>
                 </tr>
             `;
@@ -943,49 +1042,124 @@ async function loadAttendanceRecords() {
 }
 
 async function addAttendanceRecord() {
-    const dateInput = document.getElementById('attendanceDate');
+    const fromDateInput = document.getElementById('attendanceFromDateAdd');
+    const toDateInput = document.getElementById('attendanceToDateAdd');
     const reasonSelect = document.getElementById('attendanceReason');
     const notesInput = document.getElementById('attendanceNotes');
     
-    const dateValue = dateInput.value;
-    if (!dateValue) {
-        alert('Please select a date');
+    const fromDate = fromDateInput.value;
+    const toDate = toDateInput.value;
+    
+    if (!fromDate) {
+        showError('Please select a from date');
         return;
     }
     
+    // Validate date range
+    if (toDate && fromDate > toDate) {
+        showError('From date cannot be later than To date');
+        return;
+    }
+    
+    const reason = reasonSelect.value;
+    const notes = notesInput.value;
+    
+    try {
+        // If no to date, just add single record
+        if (!toDate) {
+            await addSingleAttendanceRecord(fromDate, reason, notes);
+        } else {
+            // Add records for date range
+            await addAttendanceRecordRange(fromDate, toDate, reason, notes);
+        }
+        
+        // Clear form
+        fromDateInput.value = '';
+        toDateInput.value = '';
+        notesInput.value = '';
+        loadAttendanceRecords();
+        
+    } catch (error) {
+        console.error('Error adding attendance record:', error);
+        showError('Error adding record');
+    }
+}
+
+async function addSingleAttendanceRecord(dateValue, reason, notes) {
     // Convert YYYY-MM-DD to DD/MM/YYYY
     const [year, month, day] = dateValue.split('-');
     const formattedDate = `${day}/${month}/${year}`;
     
     const data = {
         date: formattedDate,
-        reason: reasonSelect.value,
-        notes: notesInput.value
+        reason: reason,
+        notes: notes
     };
     
-    try {
-        const response = await fetch('/api/attendance', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(data)
+    const response = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(data)
+    });
+    
+    const result = await response.json();
+    
+    if (response.ok) {
+        showSuccess('Attendance record added successfully');
+    } else {
+        showError(result.error || 'Failed to add record');
+    }
+}
+
+async function addAttendanceRecordRange(fromDate, toDate, reason, notes) {
+    const startDate = new Date(fromDate);
+    const endDate = new Date(toDate);
+    const records = [];
+    
+    // Generate all dates in the range
+    for (let date = new Date(startDate); date <= endDate; date.setDate(date.getDate() + 1)) {
+        const day = String(date.getDate()).padStart(2, '0');
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const year = date.getFullYear();
+        const formattedDate = `${day}/${month}/${year}`;
+        
+        records.push({
+            date: formattedDate,
+            reason: reason,
+            notes: notes
         });
-        
-        const result = await response.json();
-        
-        if (response.ok) {
-            showSuccess('Attendance record added successfully');
-            dateInput.value = '';
-            notesInput.value = '';
-            loadAttendanceRecords();
-        } else {
-            showError(result.error || 'Failed to add record');
+    }
+    
+    // Add all records
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const record of records) {
+        try {
+            const response = await fetch('/api/attendance', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(record)
+            });
+            
+            if (response.ok) {
+                successCount++;
+            } else {
+                errorCount++;
+            }
+        } catch (error) {
+            errorCount++;
         }
-        
-    } catch (error) {
-        console.error('Error adding attendance record:', error);
-        showError('Error adding record');
+    }
+    
+    if (errorCount === 0) {
+        showSuccess(`Successfully added ${successCount} attendance records for date range`);
+    } else {
+        showSuccess(`Added ${successCount} records (${errorCount} duplicates/errors skipped)`);
     }
 }
 
@@ -1075,7 +1249,7 @@ async function addMultipleAttendanceRecords() {
 }
 
 async function deleteAttendanceRecord(recordId) {
-    if (!confirm('Are you sure you want to delete this record?')) {
+    if (!confirm('Are you sure you want to delete this attendance record?')) {
         return;
     }
     
@@ -1084,15 +1258,297 @@ async function deleteAttendanceRecord(recordId) {
             method: 'DELETE'
         });
         
+        const result = await response.json();
+        
         if (response.ok) {
-            showSuccess('Record deleted successfully');
+            showSuccess('Attendance record deleted successfully');
             loadAttendanceRecords();
         } else {
-            showError('Failed to delete record');
+            showError(result.error || 'Failed to delete record');
         }
-        
     } catch (error) {
         console.error('Error deleting attendance record:', error);
         showError('Error deleting record');
+    }
+}
+
+// Filter attendance records by date range
+function filterAttendanceRecords() {
+    const fromDate = document.getElementById('attendanceFromDate').value;
+    const toDate = document.getElementById('attendanceToDate').value;
+    
+    // Validate date range
+    if (fromDate && toDate && fromDate > toDate) {
+        showError('From date cannot be later than To date');
+        return;
+    }
+    
+    loadAttendanceRecords();
+}
+
+// Clear attendance filters
+function clearAttendanceFilter() {
+    document.getElementById('attendanceFromDate').value = '';
+    document.getElementById('attendanceToDate').value = '';
+    loadAttendanceRecords();
+}
+
+// Set attendance date range presets
+function setAttendanceDateRange(period) {
+    const fromDateInput = document.getElementById('attendanceFromDate');
+    const toDateInput = document.getElementById('attendanceToDate');
+    const today = new Date();
+    let fromDate, toDate;
+    
+    switch (period) {
+        case 'thisMonth':
+            fromDate = new Date(today.getFullYear(), today.getMonth(), 1);
+            toDate = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+            break;
+        case 'lastMonth':
+            fromDate = new Date(today.getFullYear(), today.getMonth() - 1, 1);
+            toDate = new Date(today.getFullYear(), today.getMonth(), 0);
+            break;
+        case 'thisYear':
+            fromDate = new Date(today.getFullYear(), 0, 1);
+            toDate = new Date(today.getFullYear(), 11, 31);
+            break;
+        case 'lastYear':
+            fromDate = new Date(today.getFullYear() - 1, 0, 1);
+            toDate = new Date(today.getFullYear() - 1, 11, 31);
+            break;
+        default:
+            return;
+    }
+    
+    // Format dates as YYYY-MM-DD for HTML date inputs
+    fromDateInput.value = fromDate.toISOString().split('T')[0];
+    toDateInput.value = toDate.toISOString().split('T')[0];
+    
+    // Automatically apply the filter
+    filterAttendanceRecords();
+}
+
+// Toggle attendance filter visibility
+function toggleAttendanceFilter() {
+    const filterPanel = document.getElementById('attendanceFilterPanel');
+    const toggleButton = document.querySelector('button[onclick="toggleAttendanceFilter()"]');
+    
+    if (filterPanel.style.display === 'none') {
+        filterPanel.style.display = 'block';
+        toggleButton.innerHTML = '<i class="bi bi-funnel me-1"></i>Hide Filters';
+    } else {
+        filterPanel.style.display = 'none';
+        toggleButton.innerHTML = '<i class="bi bi-funnel me-1"></i>Show Filters';
+    }
+}
+
+// Edit attendance record
+let currentEditingRecordId = null;
+
+function editAttendanceRecord(recordId, date, reason, notes) {
+    currentEditingRecordId = recordId;
+    
+    // Convert DD/MM/YYYY to YYYY-MM-DD for HTML date input
+    const [day, month, year] = date.split('/');
+    const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+    
+    // Populate modal fields
+    document.getElementById('editAttendanceDate').value = formattedDate;
+    document.getElementById('editAttendanceReason').value = reason;
+    document.getElementById('editAttendanceNotes').value = notes;
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('editAttendanceModal'));
+    modal.show();
+}
+
+async function saveAttendanceEdit() {
+    if (!currentEditingRecordId) return;
+    
+    const dateInput = document.getElementById('editAttendanceDate');
+    const reasonSelect = document.getElementById('editAttendanceReason');
+    const notesInput = document.getElementById('editAttendanceNotes');
+    
+    const reasonValue = reasonSelect.value;
+    const notesValue = notesInput.value;
+    
+    try {
+        // Check if editing single record or group
+        if (Array.isArray(currentEditingRecordId)) {
+            // Group editing - update reason and notes for all records
+            let successCount = 0;
+            let errorCount = 0;
+            
+            for (const recordId of currentEditingRecordId) {
+                try {
+                    const response = await fetch(`/api/attendance/${recordId}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            reason: reasonValue,
+                            notes: notesValue
+                        })
+                    });
+                    
+                    if (response.ok) {
+                        successCount++;
+                    } else {
+                        errorCount++;
+                    }
+                } catch (error) {
+                    errorCount++;
+                }
+            }
+            
+            if (errorCount === 0) {
+                showSuccess(`Successfully updated ${successCount} attendance records`);
+            } else {
+                showSuccess(`Updated ${successCount} records (${errorCount} errors)`);
+            }
+        } else {
+            // Single record editing
+            const dateValue = dateInput.value;
+            if (!dateValue) {
+                showError('Please select a date');
+                return;
+            }
+            
+            // Convert YYYY-MM-DD to DD/MM/YYYY
+            const [year, month, day] = dateValue.split('-');
+            const formattedDate = `${day}/${month}/${year}`;
+            
+            const data = {
+                date: formattedDate,
+                reason: reasonValue,
+                notes: notesValue
+            };
+            
+            const response = await fetch(`/api/attendance/${currentEditingRecordId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(data)
+            });
+            
+            const result = await response.json();
+            
+            if (response.ok) {
+                showSuccess('Attendance record updated successfully');
+            } else {
+                showError(result.error || 'Failed to update record');
+            }
+        }
+        
+        // Close modal and reset
+        const modal = bootstrap.Modal.getInstance(document.getElementById('editAttendanceModal'));
+        modal.hide();
+        
+        // Reset modal state
+        document.getElementById('editAttendanceDate').disabled = false;
+        document.querySelector('#editAttendanceModal .modal-title').innerHTML = 
+            '<i class="bi bi-pencil me-2"></i>Edit Attendance Record';
+        
+        // Reload records
+        loadAttendanceRecords();
+        
+    } catch (error) {
+        console.error('Error updating attendance record:', error);
+        showError('Error updating record');
+    }
+}
+
+// Edit attendance group (multiple records)
+function editAttendanceGroup(recordIds, fromDate, toDate, reason, notes) {
+    // For now, just edit the reason and notes for all records in the group
+    // We'll use a simpler approach - edit all records with same reason/notes
+    const confirmed = confirm(`Edit all ${recordIds.length} records in this group?\n\nThis will update the reason and notes for all days from ${fromDate} to ${toDate}.`);
+    
+    if (confirmed) {
+        // Use the single record edit modal but indicate it's for a group
+        currentEditingRecordId = recordIds; // Store array for group editing
+        
+        // Convert DD/MM/YYYY to YYYY-MM-DD for HTML date input (use from date)
+        const [day, month, year] = fromDate.split('/');
+        const formattedDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+        
+        // Populate modal fields
+        document.getElementById('editAttendanceDate').value = formattedDate;
+        document.getElementById('editAttendanceDate').disabled = true; // Disable date editing for groups
+        document.getElementById('editAttendanceReason').value = reason;
+        document.getElementById('editAttendanceNotes').value = notes;
+        
+        // Show modal with group indicator
+        const modal = new bootstrap.Modal(document.getElementById('editAttendanceModal'));
+        document.querySelector('#editAttendanceModal .modal-title').innerHTML = 
+            `<i class="bi bi-pencil me-2"></i>Edit Group (${recordIds.length} days)`;
+        modal.show();
+    }
+}
+
+// Delete attendance group (multiple records)
+async function deleteAttendanceGroup(recordIds) {
+    if (!confirm(`Are you sure you want to delete all ${recordIds.length} records in this group? This action cannot be undone.`)) {
+        return;
+    }
+    
+    let successCount = 0;
+    let errorCount = 0;
+    
+    for (const recordId of recordIds) {
+        try {
+            const response = await fetch(`/api/attendance/${recordId}`, {
+                method: 'DELETE'
+            });
+            
+            if (response.ok) {
+                successCount++;
+            } else {
+                errorCount++;
+            }
+        } catch (error) {
+            errorCount++;
+        }
+    }
+    
+    if (errorCount === 0) {
+        showSuccess(`Successfully deleted ${successCount} attendance records`);
+    } else {
+        showSuccess(`Deleted ${successCount} records (${errorCount} errors)`);
+    }
+    
+    loadAttendanceRecords();
+}
+
+// Clear all attendance records
+async function clearAllAttendanceRecords() {
+    if (!confirm('Are you sure you want to delete ALL attendance records? This action cannot be undone.')) {
+        return;
+    }
+    
+    // Double confirmation for safety
+    if (!confirm('This will permanently delete all attendance records. Are you absolutely sure?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/attendance/clear-all', {
+            method: 'DELETE'
+        });
+        
+        const result = await response.json();
+        
+        if (response.ok) {
+            showSuccess(`Successfully deleted ${result.deleted_count} attendance records`);
+            loadAttendanceRecords();
+        } else {
+            showError(result.error || 'Failed to clear records');
+        }
+    } catch (error) {
+        console.error('Error clearing attendance records:', error);
+        showError('Error clearing records');
     }
 }

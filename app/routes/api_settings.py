@@ -133,10 +133,17 @@ def api_get_settings_logs():
 # Attendance API endpoints
 @settings_bp.route('/attendance', methods=['GET'])
 def api_get_attendance():
-    """Get all attendance records."""
+    """Get all attendance records with optional date range filtering."""
     try:
         year = request.args.get('year', '')
-        records = AttendanceModel.get_all_records(year=year)
+        from_date = request.args.get('from_date', '')
+        to_date = request.args.get('to_date', '')
+        
+        records = AttendanceModel.get_all_records(
+            year=year, 
+            from_date=from_date, 
+            to_date=to_date
+        )
         return jsonify(records)
     except Exception as e:
         return jsonify({'error': str(e)}), 500

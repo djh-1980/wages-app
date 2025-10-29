@@ -278,11 +278,16 @@
             </div>
 
             <div class="row g-3">
-                <div class="col-md-4">
-                    <label class="form-label fw-semibold">Date</label>
-                    <input type="date" class="form-control" id="attendanceDate">
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">From Date</label>
+                    <input type="date" class="form-control" id="attendanceFromDateAdd">
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
+                    <label class="form-label fw-semibold">To Date</label>
+                    <input type="date" class="form-control" id="attendanceToDateAdd">
+                    <small class="text-muted">Leave blank for single day</small>
+                </div>
+                <div class="col-md-3">
                     <label class="form-label fw-semibold">Reason</label>
                     <select class="form-select" id="attendanceReason">
                         <option value="Holiday">Holiday</option>
@@ -291,7 +296,7 @@
                         <option value="Vacation">Vacation</option>
                     </select>
                 </div>
-                <div class="col-md-4">
+                <div class="col-md-3">
                     <label class="form-label fw-semibold">Notes</label>
                     <input type="text" class="form-control" id="attendanceNotes" placeholder="Optional notes">
                 </div>
@@ -299,13 +304,94 @@
 
             <div class="mt-3">
                 <button class="btn btn-primary" onclick="addAttendanceRecord()">
-                    <i class="bi bi-plus-circle me-1"></i>Add Record
+                    <i class="bi bi-plus-circle me-1"></i>Add Record(s)
                 </button>
+                <button class="btn btn-outline-danger ms-2" onclick="clearAllAttendanceRecords()">
+                    <i class="bi bi-trash me-1"></i>Clear All
+                </button>
+                <small class="text-muted ms-2">Add single day or date range</small>
+            </div>
+
+            <!-- Filter Toggle -->
+            <div class="mt-4">
+                <button class="btn btn-outline-secondary btn-sm" onclick="toggleAttendanceFilter()">
+                    <i class="bi bi-funnel me-1"></i>Show Filters
+                </button>
+            </div>
+
+            <!-- Date Range Filter (Hidden by default) -->
+            <div id="attendanceFilterPanel" class="mt-3 p-3 bg-light rounded" style="display: none;">
+                <h6 class="mb-3"><i class="bi bi-funnel me-1"></i>Filter Records</h6>
+                <div class="row g-3">
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">From Date</label>
+                        <input type="date" class="form-control" id="attendanceFromDate">
+                    </div>
+                    <div class="col-md-4">
+                        <label class="form-label fw-semibold">To Date</label>
+                        <input type="date" class="form-control" id="attendanceToDate">
+                    </div>
+                    <div class="col-md-4 d-flex align-items-end">
+                        <button class="btn btn-outline-primary me-2" onclick="filterAttendanceRecords()">
+                            <i class="bi bi-search me-1"></i>Filter
+                        </button>
+                        <button class="btn btn-outline-secondary" onclick="clearAttendanceFilter()">
+                            <i class="bi bi-x-circle me-1"></i>Clear
+                        </button>
+                    </div>
+                </div>
+                <!-- Quick Date Presets -->
+                <div class="mt-3">
+                    <small class="text-muted me-2">Quick filters:</small>
+                    <button class="btn btn-sm btn-outline-info me-1" onclick="setAttendanceDateRange('thisMonth')">This Month</button>
+                    <button class="btn btn-sm btn-outline-info me-1" onclick="setAttendanceDateRange('lastMonth')">Last Month</button>
+                    <button class="btn btn-sm btn-outline-info me-1" onclick="setAttendanceDateRange('thisYear')">This Year</button>
+                    <button class="btn btn-sm btn-outline-info me-1" onclick="setAttendanceDateRange('lastYear')">Last Year</button>
+                </div>
             </div>
 
             <div id="attendanceRecordsList" class="mt-4">
                 <div class="text-center py-3">
                     <small class="text-muted">Loading attendance records...</small>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Attendance Modal -->
+    <div class="modal fade" id="editAttendanceModal" tabindex="-1">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="bi bi-pencil me-2"></i>Edit Attendance Record</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="row g-3">
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Date</label>
+                            <input type="date" class="form-control" id="editAttendanceDate">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label fw-semibold">Reason</label>
+                            <select class="form-select" id="editAttendanceReason">
+                                <option value="Holiday">Holiday</option>
+                                <option value="Sick">Sick Day</option>
+                                <option value="Personal">Personal Day</option>
+                                <option value="Vacation">Vacation</option>
+                            </select>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label fw-semibold">Notes</label>
+                            <input type="text" class="form-control" id="editAttendanceNotes" placeholder="Optional notes">
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                    <button type="button" class="btn btn-primary" onclick="saveAttendanceEdit()">
+                        <i class="bi bi-check-circle me-1"></i>Save Changes
+                    </button>
                 </div>
             </div>
         </div>
