@@ -44,6 +44,33 @@ def get_db():
     conn.row_factory = sqlite3.Row
     return conn
 
+def log_settings_action(action, message, level='INFO'):
+    """Log settings actions with timestamp."""
+    import logging
+    from pathlib import Path
+    
+    # Create logs directory if it doesn't exist
+    log_dir = Path('logs')
+    log_dir.mkdir(exist_ok=True)
+    
+    # Setup logger
+    logger = logging.getLogger('settings')
+    if not logger.handlers:
+        handler = logging.FileHandler('logs/settings.log')
+        formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(action)s] - %(message)s')
+        handler.setFormatter(formatter)
+        logger.addHandler(handler)
+        logger.setLevel(logging.INFO)
+    
+    # Log with action context
+    extra = {'action': action}
+    if level == 'ERROR':
+        logger.error(message, extra=extra)
+    elif level == 'WARNING':
+        logger.warning(message, extra=extra)
+    else:
+        logger.info(message, extra=extra)
+
 
 @app.route('/')
 def index():
@@ -1886,43 +1913,71 @@ def api_gmail_status():
     """Check if Gmail credentials are configured."""
     from pathlib import Path
     
-    credentials_exist = Path('credentials.json').exists()
-    token_exist = Path('token.json').exists()
+    credentials_path = Path('credentials.json')
+    token_path = Path('token.json')
     
     return jsonify({
-        'configured': credentials_exist,
-        'authenticated': token_exist,
-        'credentials_path': 'credentials.json',
-        'token_path': 'token.json'
+        'configured': credentials_path.exists(),
+        'authenticated': token_path.exists(),
+        'credentials_path': str(credentials_path),
+        'token_path': str(token_path)
     })
 
-
-def log_settings_action(action, message, level='INFO'):
-    """Log settings actions to dedicated log file."""
-    import logging
-    from pathlib import Path
-    
-    # Create logs directory if it doesn't exist
-    log_dir = Path('logs')
-    log_dir.mkdir(exist_ok=True)
-    
-    # Setup logger
-    logger = logging.getLogger('settings')
-    if not logger.handlers:
-        handler = logging.FileHandler('logs/settings.log')
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - [%(action)s] - %(message)s')
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-        logger.setLevel(logging.INFO)
-    
-    # Log with action context
-    extra = {'action': action}
-    if level == 'ERROR':
-        logger.error(message, extra=extra)
-    elif level == 'WARNING':
-        logger.warning(message, extra=extra)
+@app.route('/api/gmail/test-connection', methods=['POST'])
+def api_test_gmail_connection():
+    """Test Gmail API connection."""
+    try:
+        import subprocess
+        import sys
+        from pathlib import Path
+        
+        # Simple test - try to run the Gmail downloader with a quick test
+        result = subprocess.run(
+            [sys.executable, '-c', '''
+import sys
+sys.path.append(".")
+try:
+    from scripts.download_runsheets_gmail import GmailRunSheetDownloader
+    downloader = GmailRunSheetDownloader()
+    if downloader.authenticate():
+        profile = downloader.service.users().getProfile(userId="me").execute()
+        print(f"SUCCESS:{profile.get('emailAddress', 'Connected')}")
     else:
-        logger.info(message, extra=extra)
+        print("ERROR:Authentication failed")
+except Exception as e:
+    print(f"ERROR:{str(e)}")
+'''],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        output = result.stdout.strip()
+        if output.startswith('SUCCESS:'):
+            email = output.split(':', 1)[1] if ':' in output else 'Connected'
+            return jsonify({
+                'success': True,
+                'email': email,
+                'message': 'Gmail API connection successful'
+            })
+        else:
+            error_msg = output.split(':', 1)[1] if ':' in output else output
+            return jsonify({
+                'success': False,
+                'error': error_msg or 'Gmail connection failed'
+            })
+            
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'error': 'Gmail connection test timed out after 30 seconds'
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': f'Test failed: {str(e)}'
+        })
+
 
 
 @app.route('/api/data/sync-payslips', methods=['POST'])
@@ -1934,26 +1989,74 @@ def api_sync_payslips():
         import subprocess
         import sys
         from datetime import datetime, timedelta
+        from pathlib import Path
         
-        # Step 1: Download payslips from Gmail
-        log_settings_action('SYNC_PAYSLIPS', 'Step 1: Downloading payslips from Gmail...')
+        # Create progress file for real-time updates
+        progress_file = Path('logs/payslip_sync_progress.log')
+        progress_file.parent.mkdir(exist_ok=True)
+        
+        def write_progress(message):
+            with open(progress_file, 'a') as f:
+                f.write(f"{datetime.now().strftime('%H:%M:%S')} - {message}\n")
+            log_settings_action('SYNC_PAYSLIPS', message)
+        
+        # Clear previous progress
+        with open(progress_file, 'w') as f:
+            f.write(f"{datetime.now().strftime('%H:%M:%S')} - Starting payslip sync\n")
+        
+        # Step 1: Check last payslip date and download only newer ones
+        write_progress('Step 1: Checking database for last payslip date...')
+        
+        # Get the most recent payslip date from database
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT MAX(pay_date) FROM payslips WHERE pay_date IS NOT NULL AND pay_date != ''")
+        last_payslip_result = cursor.fetchone()
+        conn.close()
+        
+        # Determine the date to search from
+        if last_payslip_result and last_payslip_result[0]:
+            # Convert DD/MM/YYYY to YYYY/MM/DD for Gmail search
+            last_date_parts = last_payslip_result[0].split('/')
+            if len(last_date_parts) == 3:
+                search_date = f"{last_date_parts[2]}/{last_date_parts[1]}/{last_date_parts[0]}"
+                write_progress(f'Last payslip found: {last_payslip_result[0]}')
+            else:
+                search_date = "2025/01/01"  # Fallback
+                write_progress('Using fallback date (invalid date format found)')
+        else:
+            search_date = "2025/01/01"  # No payslips yet, start from beginning of year
+            write_progress('No payslips found in database - starting from 2025/01/01')
+        
+        write_progress(f'Searching Gmail for payslips after: {search_date}')
+        
+        write_progress('Step 2: Connecting to Gmail API...')
         
         download_process = subprocess.Popen(
-            [sys.executable, 'scripts/download_runsheets_gmail.py', '--payslips', '--recent', '7'],
+            [sys.executable, 'scripts/download_runsheets_gmail.py', '--payslips', f'--date={search_date}'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
         )
         
-        download_stdout, download_stderr = download_process.communicate(timeout=300)
+        write_progress('Step 3: Downloading payslips from Gmail (this may take up to 2 minutes)...')
         
-        if download_process.returncode != 0:
-            log_settings_action('SYNC_PAYSLIPS', f'Gmail download failed: {download_stderr}', 'ERROR')
+        try:
+            download_stdout, download_stderr = download_process.communicate(timeout=300)  # Increased to 5 minutes
+        except subprocess.TimeoutExpired:
+            download_process.kill()
+            write_progress('ERROR: Gmail download timed out after 2 minutes')
             return jsonify({
                 'success': False,
-                'error': f'Gmail download failed: {download_stderr}',
-                'output': download_stdout
+                'error': 'Gmail download timed out after 2 minutes. Check Gmail credentials and network connection.',
+                'output': 'Timeout occurred during Gmail download'
             }), 500
+        
+        if download_process.returncode != 0:
+            log_settings_action('SYNC_PAYSLIPS', f'Gmail download failed: {download_stderr}', 'WARNING')
+            log_settings_action('SYNC_PAYSLIPS', 'Falling back to processing local payslips only')
+            download_stdout = "Gmail download failed - processing local files only"
+            # Continue to Step 2 instead of failing
         
         log_settings_action('SYNC_PAYSLIPS', f'Gmail download complete: {download_stdout[:200]}...')
         
@@ -2012,15 +2115,34 @@ def api_sync_runsheets():
         from pathlib import Path
         from datetime import datetime, timedelta
         
-        # Step 1: Download run sheets from Gmail
-        log_settings_action('SYNC_RUNSHEETS', 'Step 1: Downloading run sheets from Gmail...')
+        # Step 1: Check last run sheet date and download only newer ones
+        log_settings_action('SYNC_RUNSHEETS', 'Step 1: Checking for new run sheets since last download...')
         
-        # Get yesterday's date (run sheets usually arrive next day)
-        yesterday = datetime.now() - timedelta(days=1)
-        date_str = yesterday.strftime('%Y/%m/%d')
+        # Get the most recent run sheet date from database
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("SELECT MAX(date) FROM run_sheet_jobs WHERE date IS NOT NULL AND date != ''")
+        last_runsheet_result = cursor.fetchone()
+        conn.close()
+        
+        # Determine the date to search from
+        if last_runsheet_result and last_runsheet_result[0]:
+            # Convert DD/MM/YYYY to YYYY/MM/DD for Gmail search
+            last_date_parts = last_runsheet_result[0].split('/')
+            if len(last_date_parts) == 3:
+                search_date = f"{last_date_parts[2]}/{last_date_parts[1]}/{last_date_parts[0]}"
+            else:
+                # Fallback to yesterday
+                yesterday = datetime.now() - timedelta(days=1)
+                search_date = yesterday.strftime('%Y/%m/%d')
+        else:
+            # No run sheets yet, start from beginning of year
+            search_date = "2025/01/01"
+        
+        log_settings_action('SYNC_RUNSHEETS', f'Searching for run sheets after: {search_date}')
         
         download_process = subprocess.Popen(
-            [sys.executable, 'scripts/download_runsheets_gmail.py', '--after-date', date_str],
+            [sys.executable, 'scripts/download_runsheets_gmail.py', '--runsheets', f'--date={search_date}'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -2157,6 +2279,29 @@ def api_get_settings_logs():
             'error': str(e)
         }), 500
 
+
+@app.route('/api/data/payslip-sync-progress', methods=['GET'])
+def api_get_payslip_sync_progress():
+    """Get current payslip sync progress from log file."""
+    try:
+        progress_file = Path('logs/payslip_sync_progress.log')
+        if progress_file.exists():
+            with open(progress_file, 'r') as f:
+                lines = f.readlines()
+            return jsonify({
+                'success': True,
+                'progress': ''.join(lines[-10:])  # Last 10 lines
+            })
+        else:
+            return jsonify({
+                'success': True,
+                'progress': 'No progress available'
+            })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 @app.route('/api/data/sync-progress', methods=['GET'])
 def api_get_sync_progress():

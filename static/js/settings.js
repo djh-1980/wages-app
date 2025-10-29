@@ -129,6 +129,52 @@ async function checkGmailStatus() {
     }
 }
 
+async function testGmailConnection() {
+    const statusDiv = document.getElementById('gmailStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Testing Gmail connection...</div>';
+    
+    try {
+        // Test basic Gmail API connection
+        const response = await fetch('/api/gmail/test-connection', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> <strong>Gmail Connection Successful!</strong>
+                    <div class="mt-2 small">
+                        <strong>Account:</strong> ${result.email || 'Connected'}<br>
+                        <strong>Response Time:</strong> ${result.response_time || 'N/A'}<br>
+                        <strong>API Access:</strong> Working
+                    </div>
+                </div>`;
+        } else {
+            statusDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-x-circle"></i> <strong>Gmail Connection Failed</strong>
+                    <div class="mt-2 small">
+                        <strong>Error:</strong> ${result.error}<br>
+                        <strong>Suggestion:</strong> Try re-authorizing Gmail or check your credentials.json file.
+                    </div>
+                </div>`;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-x-circle"></i> <strong>Connection Test Failed</strong>
+                <div class="mt-2 small">
+                    <strong>Error:</strong> ${error.message}<br>
+                    <strong>This could mean:</strong> Network issues, invalid credentials, or Gmail API is down.
+                </div>
+            </div>`;
+    }
+}
+
+
 async function downloadFromGmail() {
     const dateInput = document.getElementById('gmailDownloadDate');
     const modeSelect = document.getElementById('gmailDownloadMode');
@@ -221,17 +267,75 @@ function loadDatabaseInfo() {
 }
 
 async function syncPayslips() {
-    const statusDiv = document.getElementById('dataManagementStatus');
+    const statusDiv = document.getElementById('syncDataStatus');
     statusDiv.style.display = 'block';
-    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Syncing payslips from PaySlips folder...</div>';
     
-    showStatus('Importing payslips...');
+    // Show immediate progress steps
+    const showStep = (step, message, percent) => {
+        statusDiv.innerHTML = `
+            <div class="alert alert-info">
+                <i class="bi bi-hourglass-split"></i> <strong>Syncing Payslips</strong>
+                <div class="mt-3">
+                    <div class="progress mb-2">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" style="width: ${percent}%"></div>
+                    </div>
+                    <small><strong>Step ${step}:</strong> ${message}</small>
+                </div>
+                <div id="payslipProgressLog" class="mt-3">
+                    <small class="text-muted d-block mb-1"><strong>Live Progress Log:</strong></small>
+                    <pre class="small bg-dark text-light p-3 rounded" style="max-height: 200px; overflow-y: auto; font-family: 'Courier New', monospace;">Waiting for server logs...</pre>
+                </div>
+            </div>`;
+    };
     
     try {
+        showStep(1, 'Checking database for last payslip date...', 10);
+        
+        // Small delay to show the step
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        showStep(2, 'Connecting to Gmail API...', 25);
+        await new Promise(resolve => setTimeout(resolve, 500));
+        
+        showStep(3, 'Searching for new payslips in Gmail...', 50);
+        
+        // Start real-time progress polling
+        let progressInterval = setInterval(async () => {
+            try {
+                const progressResponse = await fetch('/api/data/payslip-sync-progress');
+                const progressData = await progressResponse.json();
+                if (progressData.success && progressData.progress && progressData.progress !== 'No progress available') {
+                    const logDiv = document.getElementById('payslipProgressLog');
+                    if (logDiv) {
+                        const preElement = logDiv.querySelector('pre');
+                        if (preElement) {
+                            preElement.textContent = progressData.progress;
+                            preElement.scrollTop = preElement.scrollHeight;
+                        }
+                    }
+                }
+            } catch (e) {
+                console.log('Progress polling error:', e);
+            }
+        }, 1000); // Poll every 1 second for more responsive updates
+        
+        // Add timeout to prevent hanging
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => {
+            controller.abort();
+            clearInterval(progressInterval);
+            showStep('X', 'Timeout - Gmail took too long to respond (6 minutes)', 0);
+        }, 360000); // 6 minutes (5 min server + 1 min buffer)
+        
         const response = await fetch('/api/data/sync-payslips', {
-            method: 'POST'
+            method: 'POST',
+            signal: controller.signal
         });
         
+        clearTimeout(timeoutId);
+        clearInterval(progressInterval);
+        
+        showStep(4, 'Processing response...', 90);
         const result = await response.json();
         
         if (result.success) {
@@ -253,11 +357,20 @@ async function syncPayslips() {
                     ${result.output ? `<details class="mt-2"><summary>View Details</summary><pre class="mt-2 small">${result.output}</pre></details>` : ''}
                 </div>
             `;
-            showError('Payslip sync failed');
+// Error already shown in statusDiv
         }
     } catch (error) {
-        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
-        showError('Error syncing payslips');
+        if (error.name === 'AbortError') {
+            statusDiv.innerHTML = `
+                <div class="alert alert-warning">
+                    <i class="bi bi-clock"></i> <strong>Sync timed out after 2.5 minutes</strong>
+                    <p class="mb-0 mt-2">This usually means Gmail is taking too long to respond. Try again later or check your internet connection.</p>
+                </div>`;
+// Timeout already shown in statusDiv
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+            // Error already shown in statusDiv
+        }
     }
 }
 
@@ -327,13 +440,13 @@ async function downloadAndSyncRunSheets() {
 }
 
 async function syncRunSheets() {
-    const statusDiv = document.getElementById('dataManagementStatus');
+    const statusDiv = document.getElementById('syncDataStatus');
     statusDiv.style.display = 'block';
     statusDiv.innerHTML = `
         <div class="alert alert-warning">
-            <i class="bi bi-hourglass-split"></i> <strong>Syncing recent run sheets...</strong>
+            <i class="bi bi-hourglass-split"></i> <strong>Checking Gmail for new run sheets...</strong>
             <p class="mb-0 mt-2 small">
-                Importing files from the last 7 days. This should take less than a minute.<br>
+                Downloading new files and importing to database. This may take a minute.<br>
                 Progress will update below.
             </p>
             <div id="syncProgress" class="mt-3">
@@ -345,7 +458,7 @@ async function syncRunSheets() {
     showStatus('Importing run sheets (this may take a while)...');
     
     // Start polling for progress
-    syncProgressInterval = setInterval(updateSyncProgress, 2000);
+    syncProgressInterval = setInterval(updateSyncProgress, 1000); // More frequent updates
     
     try {
         const response = await fetch('/api/data/sync-runsheets', {

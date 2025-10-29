@@ -185,8 +185,11 @@ class GmailRunSheetDownloader:
         if not self.service:
             return []
         
-        # Search query for payslips - looking for 'saser' filename
-        query = f'has:attachment filename:saser after:{after_date}'
+        # Search query for payslips - looking for SASER payroll emails
+        # Convert date format for Gmail (YYYY/MM/DD to YYYY-MM-DD)
+        gmail_date = after_date.replace('/', '-')
+        # Search for SASER emails with date filter
+        query = f'SASER after:{gmail_date}'
         
         try:
             results = self.service.users().messages().list(
@@ -225,8 +228,8 @@ class GmailRunSheetDownloader:
                     from email.utils import parsedate_to_datetime
                     email_date = parsedate_to_datetime(date_str)
                     
-                    # Check if Tuesday (weekday() == 1) and around 1300 (between 12:00 and 15:00)
-                    if email_date.weekday() == 1 and 12 <= email_date.hour <= 15:
+                    # Check if Tuesday (weekday() == 1) - removed strict time filtering
+                    if email_date.weekday() == 1:
                         filtered_messages.append(msg)
                 except:
                     # If we can't parse date, include it anyway
@@ -438,7 +441,18 @@ class GmailRunSheetDownloader:
                                 ).execute()
                                 
                                 file_data = base64.urlsafe_b64decode(attachment['data'])
-                                filepath = payslip_dir / filename
+                                
+                                # Extract year from filename (e.g., "Week30 2025.pdf" -> "2025")
+                                import re
+                                year_match = re.search(r'(\d{4})', filename)
+                                if year_match:
+                                    year = year_match.group(1)
+                                    year_dir = payslip_dir / year
+                                    year_dir.mkdir(exist_ok=True)
+                                    filepath = year_dir / filename
+                                else:
+                                    # Fallback to root PaySlips folder if no year found
+                                    filepath = payslip_dir / filename
                                 
                                 # Don't overwrite existing files
                                 if filepath.exists():
