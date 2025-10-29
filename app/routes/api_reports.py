@@ -594,8 +594,8 @@ def api_mileage_summary():
             params = []
             
             if year:
-                where_clause += " AND date LIKE ?"
-                params.append(f"%/{year}")
+                where_clause += " AND substr(date, 7, 4) = ?"
+                params.append(year)
             
             # Get summary statistics
             cursor.execute(f"""
@@ -615,12 +615,14 @@ def api_mileage_summary():
             if summary['total_miles'] > 0 and summary['total_fuel_cost'] > 0:
                 cost_per_mile = summary['total_fuel_cost'] / summary['total_miles']
             
-            # Get monthly breakdown
+            # Get monthly breakdown (date format is DD/MM/YYYY)
             cursor.execute(f"""
                 SELECT 
                     substr(date, 4, 7) as month,
                     SUM(mileage) as total_miles,
-                    SUM(fuel_cost) as total_fuel_cost
+                    SUM(fuel_cost) as total_fuel_cost,
+                    substr(date, 7, 4) as year,
+                    substr(date, 4, 2) as month_num
                 FROM runsheet_daily_data 
                 {where_clause}
                 GROUP BY substr(date, 4, 7)
@@ -683,7 +685,10 @@ def api_recent_mileage():
                 SELECT date, mileage, fuel_cost
                 FROM runsheet_daily_data 
                 WHERE mileage IS NOT NULL
-                ORDER BY date DESC
+                ORDER BY 
+                    substr(date, 7, 4) DESC,  -- Year
+                    substr(date, 4, 2) DESC,  -- Month  
+                    substr(date, 1, 2) DESC   -- Day
                 LIMIT 10
             """)
             
@@ -702,13 +707,59 @@ def api_recent_mileage():
 def api_generate_monthly_mileage_report():
     """Generate monthly mileage report."""
     try:
-        # This would generate a downloadable report
-        # For now, return success with placeholder
-        return jsonify({
-            'success': True,
-            'message': 'Monthly mileage report generated',
-            'download_url': '/api/reports/download/monthly-mileage.csv'
-        })
+        import csv
+        import io
+        from flask import make_response
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT 
+                    substr(date, 4, 7) as month,
+                    COUNT(*) as days_worked,
+                    SUM(mileage) as total_miles,
+                    AVG(mileage) as avg_miles_per_day,
+                    SUM(fuel_cost) as total_fuel_cost,
+                    AVG(fuel_cost) as avg_fuel_per_day
+                FROM runsheet_daily_data 
+                WHERE mileage IS NOT NULL
+                GROUP BY substr(date, 4, 7)
+                ORDER BY substr(date, 7, 4), substr(date, 4, 2)
+            """)
+            
+            data = cursor.fetchall()
+            
+            # Create CSV
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write header
+            writer.writerow(['Month', 'Days Worked', 'Total Miles', 'Avg Miles/Day', 'Total Fuel Cost', 'Avg Fuel/Day', 'Cost per Mile'])
+            
+            # Write data
+            for row in data:
+                cost_per_mile = 0
+                if row['total_miles'] > 0 and row['total_fuel_cost'] > 0:
+                    cost_per_mile = row['total_fuel_cost'] / row['total_miles']
+                
+                writer.writerow([
+                    row['month'],
+                    row['days_worked'],
+                    f"{row['total_miles']:.1f}",
+                    f"{row['avg_miles_per_day']:.1f}",
+                    f"£{row['total_fuel_cost']:.2f}",
+                    f"£{row['avg_fuel_per_day']:.2f}",
+                    f"£{cost_per_mile:.3f}"
+                ])
+            
+            # Create response
+            response = make_response(output.getvalue())
+            response.headers['Content-Type'] = 'text/csv'
+            response.headers['Content-Disposition'] = 'attachment; filename=monthly_mileage_report.csv'
+            
+            return response
+            
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -717,11 +768,49 @@ def api_generate_monthly_mileage_report():
 def api_generate_high_mileage_report():
     """Generate high mileage days report."""
     try:
-        return jsonify({
-            'success': True,
-            'message': 'High mileage days report generated',
-            'download_url': '/api/reports/download/high-mileage.csv'
-        })
+        import csv
+        import io
+        from flask import make_response
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT date, mileage, fuel_cost,
+                       CASE 
+                           WHEN fuel_cost > 0 AND mileage > 0 THEN fuel_cost / mileage
+                           ELSE 0
+                       END as cost_per_mile
+                FROM runsheet_daily_data 
+                WHERE mileage >= 200
+                ORDER BY mileage DESC
+            """)
+            
+            data = cursor.fetchall()
+            
+            # Create CSV
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write header
+            writer.writerow(['Date', 'Miles', 'Fuel Cost', 'Cost per Mile'])
+            
+            # Write data
+            for row in data:
+                writer.writerow([
+                    row['date'],
+                    f"{row['mileage']:.1f}",
+                    f"£{row['fuel_cost']:.2f}",
+                    f"£{row['cost_per_mile']:.3f}"
+                ])
+            
+            # Create response
+            response = make_response(output.getvalue())
+            response.headers['Content-Type'] = 'text/csv'
+            response.headers['Content-Disposition'] = 'attachment; filename=high_mileage_days.csv'
+            
+            return response
+            
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -730,10 +819,142 @@ def api_generate_high_mileage_report():
 def api_generate_fuel_efficiency_report():
     """Generate fuel efficiency report."""
     try:
-        return jsonify({
-            'success': True,
-            'message': 'Fuel efficiency report generated',
-            'download_url': '/api/reports/download/fuel-efficiency.csv'
-        })
+        import csv
+        import io
+        from flask import make_response
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT 
+                    substr(date, 4, 7) as month,
+                    COUNT(*) as days,
+                    SUM(mileage) as total_miles,
+                    SUM(fuel_cost) as total_fuel_cost,
+                    AVG(CASE WHEN fuel_cost > 0 AND mileage > 0 THEN fuel_cost / mileage ELSE NULL END) as avg_cost_per_mile,
+                    MIN(CASE WHEN fuel_cost > 0 AND mileage > 0 THEN fuel_cost / mileage ELSE NULL END) as best_efficiency,
+                    MAX(CASE WHEN fuel_cost > 0 AND mileage > 0 THEN fuel_cost / mileage ELSE NULL END) as worst_efficiency
+                FROM runsheet_daily_data 
+                WHERE mileage IS NOT NULL AND mileage > 0
+                GROUP BY substr(date, 4, 7)
+                ORDER BY substr(date, 7, 4), substr(date, 4, 2)
+            """)
+            
+            data = cursor.fetchall()
+            
+            # Create CSV
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write header
+            writer.writerow(['Month', 'Days', 'Total Miles', 'Total Fuel Cost', 'Avg Cost/Mile', 'Best Efficiency', 'Worst Efficiency'])
+            
+            # Write data
+            for row in data:
+                writer.writerow([
+                    row['month'],
+                    row['days'],
+                    f"{row['total_miles']:.1f}",
+                    f"£{row['total_fuel_cost']:.2f}",
+                    f"£{row['avg_cost_per_mile']:.3f}" if row['avg_cost_per_mile'] else 'N/A',
+                    f"£{row['best_efficiency']:.3f}" if row['best_efficiency'] else 'N/A',
+                    f"£{row['worst_efficiency']:.3f}" if row['worst_efficiency'] else 'N/A'
+                ])
+            
+            # Create response
+            response = make_response(output.getvalue())
+            response.headers['Content-Type'] = 'text/csv'
+            response.headers['Content-Disposition'] = 'attachment; filename=fuel_efficiency_report.csv'
+            
+            return response
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@reports_bp.route('/reports/missing-mileage-data', methods=['POST'])
+def api_generate_missing_mileage_report():
+    """Generate missing mileage data report."""
+    try:
+        import csv
+        import io
+        from flask import make_response
+        from datetime import datetime, timedelta
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get all run sheet dates (working days)
+            cursor.execute("""
+                SELECT DISTINCT date 
+                FROM run_sheet_jobs 
+                WHERE date IS NOT NULL AND date != ''
+                ORDER BY substr(date, 7, 4), substr(date, 4, 2), substr(date, 1, 2)
+            """)
+            
+            runsheet_dates = [row['date'] for row in cursor.fetchall()]
+            
+            # Get all mileage dates
+            cursor.execute("""
+                SELECT DISTINCT date 
+                FROM runsheet_daily_data 
+                WHERE mileage IS NOT NULL
+            """)
+            
+            mileage_dates = set(row['date'] for row in cursor.fetchall())
+            
+            # Find missing dates
+            missing_mileage = []
+            missing_fuel_cost = []
+            
+            for date in runsheet_dates:
+                if date not in mileage_dates:
+                    missing_mileage.append(date)
+            
+            # Find dates with mileage but no fuel cost
+            cursor.execute("""
+                SELECT date, mileage
+                FROM runsheet_daily_data 
+                WHERE mileage IS NOT NULL AND (fuel_cost IS NULL OR fuel_cost = 0)
+                ORDER BY substr(date, 7, 4), substr(date, 4, 2), substr(date, 1, 2)
+            """)
+            
+            missing_fuel_cost = [dict(row) for row in cursor.fetchall()]
+            
+            # Create CSV
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write missing mileage section
+            writer.writerow(['MISSING MILEAGE DATA'])
+            writer.writerow(['Date', 'Issue'])
+            
+            for date in missing_mileage:
+                writer.writerow([date, 'No mileage recorded'])
+            
+            writer.writerow([])  # Empty row
+            writer.writerow(['MISSING FUEL COST DATA'])
+            writer.writerow(['Date', 'Miles', 'Issue'])
+            
+            for row in missing_fuel_cost:
+                writer.writerow([row['date'], f"{row['mileage']:.1f}", 'No fuel cost recorded'])
+            
+            # Summary
+            writer.writerow([])
+            writer.writerow(['SUMMARY'])
+            writer.writerow(['Total working days', len(runsheet_dates)])
+            writer.writerow(['Days with mileage data', len(mileage_dates)])
+            writer.writerow(['Missing mileage data', len(missing_mileage)])
+            writer.writerow(['Missing fuel cost data', len(missing_fuel_cost)])
+            writer.writerow(['Data completeness', f"{(len(mileage_dates) / len(runsheet_dates) * 100):.1f}%" if runsheet_dates else '0%'])
+            
+            # Create response
+            response = make_response(output.getvalue())
+            response.headers['Content-Type'] = 'text/csv'
+            response.headers['Content-Disposition'] = 'attachment; filename=missing_mileage_data_report.csv'
+            
+            return response
+            
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500

@@ -679,21 +679,36 @@ async function loadMissingPayslips() {
 // ===== MILEAGE REPORTS =====
 
 async function loadMileageData() {
+    console.log('loadMileageData called');
     try {
         const year = document.getElementById('mileageYear')?.value || '';
+        console.log('Loading mileage data for year:', year);
+        
         const response = await fetch(`/api/reports/mileage-summary?year=${year}`);
         const data = await response.json();
         
+        console.log('Mileage data received:', data);
+        
         if (data.success) {
             // Update summary cards
-            document.getElementById('totalMiles').textContent = data.summary.total_miles.toLocaleString();
-            document.getElementById('totalFuelCost').textContent = `£${data.summary.total_fuel_cost.toFixed(2)}`;
-            document.getElementById('avgMilesPerDay').textContent = data.summary.avg_miles_per_day.toFixed(1);
-            document.getElementById('costPerMile').textContent = `£${data.summary.cost_per_mile.toFixed(3)}`;
+            const totalMilesEl = document.getElementById('totalMiles');
+            const totalFuelCostEl = document.getElementById('totalFuelCost');
+            const avgMilesPerDayEl = document.getElementById('avgMilesPerDay');
+            const costPerMileEl = document.getElementById('costPerMile');
+            
+            if (totalMilesEl) totalMilesEl.textContent = data.summary.total_miles.toLocaleString();
+            if (totalFuelCostEl) totalFuelCostEl.textContent = `£${data.summary.total_fuel_cost.toFixed(2)}`;
+            if (avgMilesPerDayEl) avgMilesPerDayEl.textContent = data.summary.avg_miles_per_day.toFixed(1);
+            if (costPerMileEl) costPerMileEl.textContent = `£${data.summary.cost_per_mile.toFixed(3)}`;
+            
+            console.log('Summary cards updated');
             
             // Update charts
+            console.log('Updating charts with data:', data.monthly_data.length, 'months');
             updateMileageTrendsChart(data.monthly_data);
             updateFuelCostChart(data.fuel_breakdown);
+        } else {
+            console.error('API returned error:', data.error);
         }
     } catch (error) {
         console.error('Error loading mileage data:', error);
@@ -701,17 +716,34 @@ async function loadMileageData() {
 }
 
 function updateMileageTrendsChart(monthlyData) {
+    console.log('updateMileageTrendsChart called with data:', monthlyData);
     const ctx = document.getElementById('mileageTrendsChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.error('mileageTrendsChart canvas not found');
+        return;
+    }
     
     // Destroy existing chart if it exists
-    if (window.mileageTrendsChart) {
+    if (window.mileageTrendsChart && typeof window.mileageTrendsChart.destroy === 'function') {
         window.mileageTrendsChart.destroy();
+    }
+    
+    if (!monthlyData || monthlyData.length === 0) {
+        console.warn('No monthly data provided for chart');
+        return;
     }
     
     const months = monthlyData.map(d => d.month);
     const miles = monthlyData.map(d => d.total_miles);
     const costs = monthlyData.map(d => d.total_fuel_cost);
+    
+    console.log('Chart data prepared:', { months, miles, costs });
+    
+    // Check if Chart.js is loaded
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js is not loaded');
+        return;
+    }
     
     window.mileageTrendsChart = new Chart(ctx, {
         type: 'line',
@@ -754,12 +786,27 @@ function updateMileageTrendsChart(monthlyData) {
 }
 
 function updateFuelCostChart(fuelBreakdown) {
+    console.log('updateFuelCostChart called with data:', fuelBreakdown);
     const ctx = document.getElementById('fuelCostChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.error('fuelCostChart canvas not found');
+        return;
+    }
     
     // Destroy existing chart if it exists
-    if (window.fuelCostChart) {
+    if (window.fuelCostChart && typeof window.fuelCostChart.destroy === 'function') {
         window.fuelCostChart.destroy();
+    }
+    
+    if (!fuelBreakdown || fuelBreakdown.length === 0) {
+        console.warn('No fuel breakdown data provided for chart');
+        return;
+    }
+    
+    // Check if Chart.js is loaded
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js is not loaded');
+        return;
     }
     
     window.fuelCostChart = new Chart(ctx, {
@@ -823,15 +870,28 @@ function generateMonthlyMileageReport() {
     showStatus('Generating monthly mileage report...');
     
     fetch('/api/reports/monthly-mileage', { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showSuccess('Monthly mileage report generated!');
-                if (data.download_url) {
-                    window.location.href = data.download_url;
-                }
+        .then(response => {
+            if (response.headers.get('content-type')?.includes('text/csv')) {
+                // Direct CSV download
+                return response.blob().then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'monthly_mileage_report.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    showSuccess('Monthly mileage report downloaded!');
+                });
             } else {
-                showError('Failed to generate report');
+                return response.json().then(data => {
+                    if (data.success) {
+                        showSuccess('Monthly mileage report generated!');
+                    } else {
+                        showError('Failed to generate report: ' + (data.error || 'Unknown error'));
+                    }
+                });
             }
         })
         .catch(error => {
@@ -844,15 +904,28 @@ function generateHighMileageDays() {
     showStatus('Analyzing high mileage days...');
     
     fetch('/api/reports/high-mileage-days', { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showSuccess('High mileage days report generated!');
-                if (data.download_url) {
-                    window.location.href = data.download_url;
-                }
+        .then(response => {
+            if (response.headers.get('content-type')?.includes('text/csv')) {
+                // Direct CSV download
+                return response.blob().then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'high_mileage_days.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    showSuccess('High mileage days report downloaded!');
+                });
             } else {
-                showError('Failed to generate report');
+                return response.json().then(data => {
+                    if (data.success) {
+                        showSuccess('High mileage days report generated!');
+                    } else {
+                        showError('Failed to generate report: ' + (data.error || 'Unknown error'));
+                    }
+                });
             }
         })
         .catch(error => {
@@ -865,15 +938,28 @@ function generateFuelEfficiencyReport() {
     showStatus('Calculating fuel efficiency metrics...');
     
     fetch('/api/reports/fuel-efficiency', { method: 'POST' })
-        .then(response => response.json())
-        .then(data => {
-            if (data.success) {
-                showSuccess('Fuel efficiency report generated!');
-                if (data.download_url) {
-                    window.location.href = data.download_url;
-                }
+        .then(response => {
+            if (response.headers.get('content-type')?.includes('text/csv')) {
+                // Direct CSV download
+                return response.blob().then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'fuel_efficiency_report.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    showSuccess('Fuel efficiency report downloaded!');
+                });
             } else {
-                showError('Failed to generate report');
+                return response.json().then(data => {
+                    if (data.success) {
+                        showSuccess('Fuel efficiency report generated!');
+                    } else {
+                        showError('Failed to generate report: ' + (data.error || 'Unknown error'));
+                    }
+                });
             }
         })
         .catch(error => {
@@ -882,14 +968,75 @@ function generateFuelEfficiencyReport() {
         });
 }
 
+function generateMissingMileageReport() {
+    showStatus('Analyzing missing mileage data...');
+    
+    fetch('/api/reports/missing-mileage-data', { method: 'POST' })
+        .then(response => {
+            if (response.headers.get('content-type')?.includes('text/csv')) {
+                // Direct CSV download
+                return response.blob().then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = 'missing_mileage_data_report.csv';
+                    document.body.appendChild(a);
+                    a.click();
+                    window.URL.revokeObjectURL(url);
+                    document.body.removeChild(a);
+                    showSuccess('Missing data report downloaded!');
+                });
+            } else {
+                return response.json().then(data => {
+                    if (data.success) {
+                        showSuccess('Missing data report generated!');
+                    } else {
+                        showError('Failed to generate report: ' + (data.error || 'Unknown error'));
+                    }
+                });
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error generating report');
+        });
+}
+
+// Manual trigger function for testing
+window.testMileageReports = function() {
+    console.log('Manual test triggered');
+    loadMileageData();
+    loadRecentMileage();
+};
+
 // Initialize mileage tab when it becomes active
 document.addEventListener('DOMContentLoaded', function() {
     // Load mileage data when tab is shown
     const mileageTab = document.getElementById('mileage-tab');
     if (mileageTab) {
         mileageTab.addEventListener('shown.bs.tab', function() {
+            console.log('Mileage tab activated, loading data...');
             loadMileageData();
             loadRecentMileage();
+        });
+        
+        // Also load data immediately if the mileage tab is already active
+        if (mileageTab.classList.contains('active')) {
+            console.log('Mileage tab already active, loading data...');
+            loadMileageData();
+            loadRecentMileage();
+        }
+    }
+    
+    // Add click handler as backup
+    const mileageTabButton = document.querySelector('[data-bs-target="#mileage"]');
+    if (mileageTabButton) {
+        mileageTabButton.addEventListener('click', function() {
+            console.log('Mileage tab clicked, loading data...');
+            setTimeout(() => {
+                loadMileageData();
+                loadRecentMileage();
+            }, 100);
         });
     }
 });
