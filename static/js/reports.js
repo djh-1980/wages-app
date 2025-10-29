@@ -866,28 +866,36 @@ async function loadRecentMileage() {
     }
 }
 
-function generateMonthlyMileageReport() {
-    showStatus('Generating monthly mileage report...');
+function generateMonthlyMileageReport(format = 'csv') {
+    const formatName = format.toUpperCase();
+    showStatus(`Generating monthly mileage ${formatName} report...`);
     
-    fetch('/api/reports/monthly-mileage', { method: 'POST' })
+    fetch('/api/reports/monthly-mileage', { 
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ format: format })
+    })
         .then(response => {
-            if (response.headers.get('content-type')?.includes('text/csv')) {
-                // Direct CSV download
+            if (response.headers.get('content-type')?.includes('text/csv') || 
+                response.headers.get('content-type')?.includes('application/pdf')) {
+                // Direct file download
                 return response.blob().then(blob => {
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'monthly_mileage_report.csv';
+                    a.download = format === 'pdf' ? 'monthly_mileage_report.pdf' : 'monthly_mileage_report.csv';
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
-                    showSuccess('Monthly mileage report downloaded!');
+                    showSuccess(`Monthly mileage ${formatName} report downloaded!`);
                 });
             } else {
                 return response.json().then(data => {
                     if (data.success) {
-                        showSuccess('Monthly mileage report generated!');
+                        showSuccess(`Monthly mileage ${formatName} report generated!`);
                     } else {
                         showError('Failed to generate report: ' + (data.error || 'Unknown error'));
                     }
@@ -900,28 +908,36 @@ function generateMonthlyMileageReport() {
         });
 }
 
-function generateHighMileageDays() {
-    showStatus('Analyzing high mileage days...');
+function generateHighMileageDays(format = 'csv') {
+    const formatName = format.toUpperCase();
+    showStatus(`Analyzing high mileage days for ${formatName} report...`);
     
-    fetch('/api/reports/high-mileage-days', { method: 'POST' })
+    fetch('/api/reports/high-mileage-days', { 
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ format: format })
+    })
         .then(response => {
-            if (response.headers.get('content-type')?.includes('text/csv')) {
-                // Direct CSV download
+            if (response.headers.get('content-type')?.includes('text/csv') || 
+                response.headers.get('content-type')?.includes('application/pdf')) {
+                // Direct file download
                 return response.blob().then(blob => {
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'high_mileage_days.csv';
+                    a.download = format === 'pdf' ? 'high_mileage_days.pdf' : 'high_mileage_days.csv';
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
-                    showSuccess('High mileage days report downloaded!');
+                    showSuccess(`High mileage days ${formatName} report downloaded!`);
                 });
             } else {
                 return response.json().then(data => {
                     if (data.success) {
-                        showSuccess('High mileage days report generated!');
+                        showSuccess(`High mileage days ${formatName} report generated!`);
                     } else {
                         showError('Failed to generate report: ' + (data.error || 'Unknown error'));
                     }
@@ -968,28 +984,36 @@ function generateFuelEfficiencyReport() {
         });
 }
 
-function generateMissingMileageReport() {
-    showStatus('Analyzing missing mileage data...');
+function generateMissingMileageReport(format = 'csv') {
+    const formatName = format.toUpperCase();
+    showStatus(`Analyzing missing mileage data for ${formatName} report...`);
     
-    fetch('/api/reports/missing-mileage-data', { method: 'POST' })
+    fetch('/api/reports/missing-mileage-data', { 
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ format: format })
+    })
         .then(response => {
-            if (response.headers.get('content-type')?.includes('text/csv')) {
-                // Direct CSV download
+            if (response.headers.get('content-type')?.includes('text/csv') || 
+                response.headers.get('content-type')?.includes('application/pdf')) {
+                // Direct file download
                 return response.blob().then(blob => {
                     const url = window.URL.createObjectURL(blob);
                     const a = document.createElement('a');
                     a.href = url;
-                    a.download = 'missing_mileage_data_report.csv';
+                    a.download = format === 'pdf' ? 'missing_mileage_data_report.pdf' : 'missing_mileage_data_report.csv';
                     document.body.appendChild(a);
                     a.click();
                     window.URL.revokeObjectURL(url);
                     document.body.removeChild(a);
-                    showSuccess('Missing data report downloaded!');
+                    showSuccess(`Missing data ${formatName} report downloaded!`);
                 });
             } else {
                 return response.json().then(data => {
                     if (data.success) {
-                        showSuccess('Missing data report generated!');
+                        showSuccess(`Missing data ${formatName} report generated!`);
                     } else {
                         showError('Failed to generate report: ' + (data.error || 'Unknown error'));
                     }

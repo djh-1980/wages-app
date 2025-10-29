@@ -707,9 +707,7 @@ def api_recent_mileage():
 def api_generate_monthly_mileage_report():
     """Generate monthly mileage report."""
     try:
-        import csv
-        import io
-        from flask import make_response
+        format_type = request.json.get('format', 'csv') if request.json else 'csv'
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -728,37 +726,53 @@ def api_generate_monthly_mileage_report():
                 ORDER BY substr(date, 7, 4), substr(date, 4, 2)
             """)
             
-            data = cursor.fetchall()
+            data = [dict(row) for row in cursor.fetchall()]
             
-            # Create CSV
-            output = io.StringIO()
-            writer = csv.writer(output)
-            
-            # Write header
-            writer.writerow(['Month', 'Days Worked', 'Total Miles', 'Avg Miles/Day', 'Total Fuel Cost', 'Avg Fuel/Day', 'Cost per Mile'])
-            
-            # Write data
-            for row in data:
-                cost_per_mile = 0
-                if row['total_miles'] > 0 and row['total_fuel_cost'] > 0:
-                    cost_per_mile = row['total_fuel_cost'] / row['total_miles']
+            if format_type.lower() == 'pdf':
+                # Generate PDF report
+                from ..services.pdf_report_service import MileagePDFReportService
+                from flask import send_file
                 
-                writer.writerow([
-                    row['month'],
-                    row['days_worked'],
-                    f"{row['total_miles']:.1f}",
-                    f"{row['avg_miles_per_day']:.1f}",
-                    f"£{row['total_fuel_cost']:.2f}",
-                    f"£{row['avg_fuel_per_day']:.2f}",
-                    f"£{cost_per_mile:.3f}"
-                ])
-            
-            # Create response
-            response = make_response(output.getvalue())
-            response.headers['Content-Type'] = 'text/csv'
-            response.headers['Content-Disposition'] = 'attachment; filename=monthly_mileage_report.csv'
-            
-            return response
+                pdf_service = MileagePDFReportService()
+                pdf_path = pdf_service.create_monthly_mileage_pdf(data)
+                
+                return send_file(pdf_path, as_attachment=True, 
+                               download_name='monthly_mileage_report.pdf',
+                               mimetype='application/pdf')
+            else:
+                # Generate CSV report
+                import csv
+                import io
+                from flask import make_response
+                
+                output = io.StringIO()
+                writer = csv.writer(output)
+                
+                # Write header
+                writer.writerow(['Month', 'Days Worked', 'Total Miles', 'Avg Miles/Day', 'Total Fuel Cost', 'Avg Fuel/Day', 'Cost per Mile'])
+                
+                # Write data
+                for row in data:
+                    cost_per_mile = 0
+                    if row['total_miles'] > 0 and row['total_fuel_cost'] > 0:
+                        cost_per_mile = row['total_fuel_cost'] / row['total_miles']
+                    
+                    writer.writerow([
+                        row['month'],
+                        row['days_worked'],
+                        f"{row['total_miles']:.1f}",
+                        f"{row['avg_miles_per_day']:.1f}",
+                        f"£{row['total_fuel_cost']:.2f}",
+                        f"£{row['avg_fuel_per_day']:.2f}",
+                        f"£{cost_per_mile:.3f}"
+                    ])
+                
+                # Create response
+                response = make_response(output.getvalue())
+                response.headers['Content-Type'] = 'text/csv'
+                response.headers['Content-Disposition'] = 'attachment; filename=monthly_mileage_report.csv'
+                
+                return response
             
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -768,9 +782,7 @@ def api_generate_monthly_mileage_report():
 def api_generate_high_mileage_report():
     """Generate high mileage days report."""
     try:
-        import csv
-        import io
-        from flask import make_response
+        format_type = request.json.get('format', 'csv') if request.json else 'csv'
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -786,30 +798,46 @@ def api_generate_high_mileage_report():
                 ORDER BY mileage DESC
             """)
             
-            data = cursor.fetchall()
+            data = [dict(row) for row in cursor.fetchall()]
             
-            # Create CSV
-            output = io.StringIO()
-            writer = csv.writer(output)
-            
-            # Write header
-            writer.writerow(['Date', 'Miles', 'Fuel Cost', 'Cost per Mile'])
-            
-            # Write data
-            for row in data:
-                writer.writerow([
-                    row['date'],
-                    f"{row['mileage']:.1f}",
-                    f"£{row['fuel_cost']:.2f}",
-                    f"£{row['cost_per_mile']:.3f}"
-                ])
-            
-            # Create response
-            response = make_response(output.getvalue())
-            response.headers['Content-Type'] = 'text/csv'
-            response.headers['Content-Disposition'] = 'attachment; filename=high_mileage_days.csv'
-            
-            return response
+            if format_type.lower() == 'pdf':
+                # Generate PDF report
+                from ..services.pdf_report_service import MileagePDFReportService
+                from flask import send_file
+                
+                pdf_service = MileagePDFReportService()
+                pdf_path = pdf_service.create_high_mileage_pdf(data)
+                
+                return send_file(pdf_path, as_attachment=True,
+                               download_name='high_mileage_days.pdf',
+                               mimetype='application/pdf')
+            else:
+                # Generate CSV report
+                import csv
+                import io
+                from flask import make_response
+                
+                output = io.StringIO()
+                writer = csv.writer(output)
+                
+                # Write header
+                writer.writerow(['Date', 'Miles', 'Fuel Cost', 'Cost per Mile'])
+                
+                # Write data
+                for row in data:
+                    writer.writerow([
+                        row['date'],
+                        f"{row['mileage']:.1f}",
+                        f"£{row['fuel_cost']:.2f}",
+                        f"£{row['cost_per_mile']:.3f}"
+                    ])
+                
+                # Create response
+                response = make_response(output.getvalue())
+                response.headers['Content-Type'] = 'text/csv'
+                response.headers['Content-Disposition'] = 'attachment; filename=high_mileage_days.csv'
+                
+                return response
             
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -877,10 +905,7 @@ def api_generate_fuel_efficiency_report():
 def api_generate_missing_mileage_report():
     """Generate missing mileage data report."""
     try:
-        import csv
-        import io
-        from flask import make_response
-        from datetime import datetime, timedelta
+        format_type = request.json.get('format', 'csv') if request.json else 'csv'
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -906,8 +931,6 @@ def api_generate_missing_mileage_report():
             
             # Find missing dates
             missing_mileage = []
-            missing_fuel_cost = []
-            
             for date in runsheet_dates:
                 if date not in mileage_dates:
                     missing_mileage.append(date)
@@ -922,39 +945,63 @@ def api_generate_missing_mileage_report():
             
             missing_fuel_cost = [dict(row) for row in cursor.fetchall()]
             
-            # Create CSV
-            output = io.StringIO()
-            writer = csv.writer(output)
+            # Summary statistics
+            summary_stats = {
+                'total_working_days': len(runsheet_dates),
+                'days_with_mileage': len(mileage_dates),
+                'missing_mileage': len(missing_mileage),
+                'missing_fuel_cost': len(missing_fuel_cost)
+            }
             
-            # Write missing mileage section
-            writer.writerow(['MISSING MILEAGE DATA'])
-            writer.writerow(['Date', 'Issue'])
-            
-            for date in missing_mileage:
-                writer.writerow([date, 'No mileage recorded'])
-            
-            writer.writerow([])  # Empty row
-            writer.writerow(['MISSING FUEL COST DATA'])
-            writer.writerow(['Date', 'Miles', 'Issue'])
-            
-            for row in missing_fuel_cost:
-                writer.writerow([row['date'], f"{row['mileage']:.1f}", 'No fuel cost recorded'])
-            
-            # Summary
-            writer.writerow([])
-            writer.writerow(['SUMMARY'])
-            writer.writerow(['Total working days', len(runsheet_dates)])
-            writer.writerow(['Days with mileage data', len(mileage_dates)])
-            writer.writerow(['Missing mileage data', len(missing_mileage)])
-            writer.writerow(['Missing fuel cost data', len(missing_fuel_cost)])
-            writer.writerow(['Data completeness', f"{(len(mileage_dates) / len(runsheet_dates) * 100):.1f}%" if runsheet_dates else '0%'])
-            
-            # Create response
-            response = make_response(output.getvalue())
-            response.headers['Content-Type'] = 'text/csv'
-            response.headers['Content-Disposition'] = 'attachment; filename=missing_mileage_data_report.csv'
-            
-            return response
+            if format_type.lower() == 'pdf':
+                # Generate PDF report
+                from ..services.pdf_report_service import MileagePDFReportService
+                from flask import send_file
+                
+                pdf_service = MileagePDFReportService()
+                pdf_path = pdf_service.create_missing_data_pdf(missing_mileage, missing_fuel_cost, summary_stats)
+                
+                return send_file(pdf_path, as_attachment=True,
+                               download_name='missing_mileage_data_report.pdf',
+                               mimetype='application/pdf')
+            else:
+                # Generate CSV report
+                import csv
+                import io
+                from flask import make_response
+                
+                output = io.StringIO()
+                writer = csv.writer(output)
+                
+                # Write missing mileage section
+                writer.writerow(['MISSING MILEAGE DATA'])
+                writer.writerow(['Date', 'Issue'])
+                
+                for date in missing_mileage:
+                    writer.writerow([date, 'No mileage recorded'])
+                
+                writer.writerow([])  # Empty row
+                writer.writerow(['MISSING FUEL COST DATA'])
+                writer.writerow(['Date', 'Miles', 'Issue'])
+                
+                for row in missing_fuel_cost:
+                    writer.writerow([row['date'], f"{row['mileage']:.1f}", 'No fuel cost recorded'])
+                
+                # Summary
+                writer.writerow([])
+                writer.writerow(['SUMMARY'])
+                writer.writerow(['Total working days', summary_stats['total_working_days']])
+                writer.writerow(['Days with mileage data', summary_stats['days_with_mileage']])
+                writer.writerow(['Missing mileage data', summary_stats['missing_mileage']])
+                writer.writerow(['Missing fuel cost data', summary_stats['missing_fuel_cost']])
+                writer.writerow(['Data completeness', f"{(summary_stats['days_with_mileage'] / summary_stats['total_working_days'] * 100):.1f}%" if summary_stats['total_working_days'] else '0%'])
+                
+                # Create response
+                response = make_response(output.getvalue())
+                response.headers['Content-Type'] = 'text/csv'
+                response.headers['Content-Disposition'] = 'attachment; filename=missing_mileage_data_report.csv'
+                
+                return response
             
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
