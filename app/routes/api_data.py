@@ -584,3 +584,53 @@ def api_optimize_database():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@data_bp.route('/database/info', methods=['GET'])
+def api_database_info():
+    """Get database information including size and statistics."""
+    try:
+        # Get database file size
+        db_path = Path(DB_PATH)
+        if db_path.exists():
+            size_bytes = db_path.stat().st_size
+        else:
+            size_bytes = 0
+        
+        # Get record counts
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Count payslips
+            cursor.execute("SELECT COUNT(*) FROM payslips")
+            payslips_count = cursor.fetchone()[0]
+            
+            # Count run sheets
+            cursor.execute("SELECT COUNT(*) FROM run_sheet_jobs")
+            runsheets_count = cursor.fetchone()[0]
+            
+            # Count unique jobs
+            cursor.execute("SELECT COUNT(DISTINCT job_number) FROM run_sheet_jobs WHERE job_number IS NOT NULL AND job_number != ''")
+            jobs_count = cursor.fetchone()[0]
+            
+            # Count attendance records
+            cursor.execute("SELECT COUNT(*) FROM attendance")
+            attendance_count = cursor.fetchone()[0]
+        
+        return jsonify({
+            'success': True,
+            'size_bytes': size_bytes,
+            'size_mb': round(size_bytes / (1024 * 1024), 2),
+            'records': {
+                'payslips': payslips_count,
+                'runsheets': runsheets_count,
+                'jobs': jobs_count,
+                'attendance': attendance_count
+            },
+            'database_path': str(db_path)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

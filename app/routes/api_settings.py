@@ -3,9 +3,13 @@ Settings API routes blueprint.
 Extracted from web_app.py to improve code organization.
 """
 
+import os
+import shutil
+import subprocess
+from datetime import datetime
 from flask import Blueprint, jsonify, request
-from ..models.settings import SettingsModel
 from ..models.attendance import AttendanceModel
+from ..models.settings import SettingsModel
 from ..utils.logging_utils import log_settings_action
 from pathlib import Path
 import json

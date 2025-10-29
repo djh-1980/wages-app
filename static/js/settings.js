@@ -250,25 +250,64 @@ function reauthorizeGmail() {
 
 // ===== DATA =====
 function loadDatabaseInfo() {
-    // Load payslips count
-    fetch('/api/summary')
-        .then(response => response.json())
-        .then(data => {
-            document.getElementById('dbPayslips').textContent = data.total_weeks || 0;
+    // Load all database info from single endpoint
+    fetch('/api/data/database/info')
+        .then(response => {
+            if (!response.ok) throw new Error('Failed to fetch database info');
+            return response.json();
         })
-        .catch(error => console.error('Error loading payslips:', error));
-    
-    // Load run sheets count
-    fetch('/api/runsheets/summary')
-        .then(response => response.json())
         .then(data => {
-            document.getElementById('dbRunSheets').textContent = data.total_days || 0;
-            document.getElementById('dbJobs').textContent = data.total_jobs || 0;
+            // Update all counts from the database info API
+            const payslipsElement = document.getElementById('dbPayslips');
+            const runsheetsElement = document.getElementById('dbRunSheets');
+            const jobsElement = document.getElementById('dbJobs');
+            const attendanceElement = document.getElementById('dbAttendance');
+            const sizeElement = document.getElementById('dbSize');
+            
+            if (payslipsElement) {
+                payslipsElement.textContent = data.records?.payslips || 0;
+            }
+            if (runsheetsElement) {
+                runsheetsElement.textContent = data.records?.runsheets || 0;
+            }
+            if (jobsElement) {
+                jobsElement.textContent = data.records?.jobs || 0;
+            }
+            if (attendanceElement) {
+                attendanceElement.textContent = data.records?.attendance || 0;
+            }
+            if (sizeElement) {
+                const sizeStr = formatFileSize(data.size_bytes || 0);
+                sizeElement.textContent = sizeStr;
+            }
         })
-        .catch(error => console.error('Error loading run sheets:', error));
-    
-    // Database size (placeholder)
-    document.getElementById('dbSize').textContent = '~5MB';
+        .catch(error => {
+            console.error('Error loading database info:', error);
+            // Set error states for all elements
+            const elements = [
+                { id: 'dbPayslips', fallback: 'Error' },
+                { id: 'dbRunSheets', fallback: 'Error' },
+                { id: 'dbJobs', fallback: 'Error' },
+                { id: 'dbAttendance', fallback: 'Error' },
+                { id: 'dbSize', fallback: 'Unknown' }
+            ];
+            
+            elements.forEach(({ id, fallback }) => {
+                const element = document.getElementById(id);
+                if (element) {
+                    element.textContent = fallback;
+                }
+            });
+        });
+}
+
+// Helper function to format file size
+function formatFileSize(bytes) {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
 }
 
 async function syncPayslips() {
