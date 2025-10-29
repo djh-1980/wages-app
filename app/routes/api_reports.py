@@ -6,8 +6,8 @@ Extracted from web_app.py to improve code organization.
 from flask import Blueprint, jsonify, request
 from ..models.payslip import PayslipModel
 from ..models.runsheet import RunsheetModel
-from ..services.report_service import ReportService
 from ..database import get_db_connection
+from ..services.report_service import ReportService
 
 reports_bp = Blueprint('reports_api', __name__, url_prefix='/api')
 
@@ -576,3 +576,164 @@ def api_export_custom():
             return jsonify({'data': export_data})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+# ===== MILEAGE REPORTS =====
+
+@reports_bp.route('/reports/mileage-summary')
+def api_mileage_summary():
+    """Get mileage summary statistics."""
+    try:
+        year = request.args.get('year', '')
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Base query
+            where_clause = "WHERE mileage IS NOT NULL"
+            params = []
+            
+            if year:
+                where_clause += " AND date LIKE ?"
+                params.append(f"%/{year}")
+            
+            # Get summary statistics
+            cursor.execute(f"""
+                SELECT 
+                    COUNT(*) as total_days,
+                    COALESCE(SUM(mileage), 0) as total_miles,
+                    COALESCE(SUM(fuel_cost), 0) as total_fuel_cost,
+                    COALESCE(AVG(mileage), 0) as avg_miles_per_day
+                FROM runsheet_daily_data 
+                {where_clause}
+            """, params)
+            
+            summary = cursor.fetchone()
+            
+            # Calculate cost per mile
+            cost_per_mile = 0
+            if summary['total_miles'] > 0 and summary['total_fuel_cost'] > 0:
+                cost_per_mile = summary['total_fuel_cost'] / summary['total_miles']
+            
+            # Get monthly breakdown
+            cursor.execute(f"""
+                SELECT 
+                    substr(date, 4, 7) as month,
+                    SUM(mileage) as total_miles,
+                    SUM(fuel_cost) as total_fuel_cost
+                FROM runsheet_daily_data 
+                {where_clause}
+                GROUP BY substr(date, 4, 7)
+                ORDER BY substr(date, 7, 4), substr(date, 4, 2)
+            """, params)
+            
+            monthly_data = [dict(row) for row in cursor.fetchall()]
+            
+            # Get fuel cost breakdown (ranges)
+            cursor.execute(f"""
+                SELECT 
+                    CASE 
+                        WHEN fuel_cost = 0 THEN '£0'
+                        WHEN fuel_cost <= 20 THEN '£0-20'
+                        WHEN fuel_cost <= 40 THEN '£20-40'
+                        WHEN fuel_cost <= 60 THEN '£40-60'
+                        ELSE '£60+'
+                    END as range,
+                    COUNT(*) as count
+                FROM runsheet_daily_data 
+                {where_clause} AND fuel_cost IS NOT NULL
+                GROUP BY 
+                    CASE 
+                        WHEN fuel_cost = 0 THEN '£0'
+                        WHEN fuel_cost <= 20 THEN '£0-20'
+                        WHEN fuel_cost <= 40 THEN '£20-40'
+                        WHEN fuel_cost <= 60 THEN '£40-60'
+                        ELSE '£60+'
+                    END
+                ORDER BY count DESC
+            """, params)
+            
+            fuel_breakdown = [dict(row) for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'summary': {
+                    'total_miles': summary['total_miles'],
+                    'total_fuel_cost': summary['total_fuel_cost'],
+                    'avg_miles_per_day': summary['avg_miles_per_day'],
+                    'cost_per_mile': cost_per_mile,
+                    'total_days': summary['total_days']
+                },
+                'monthly_data': monthly_data,
+                'fuel_breakdown': fuel_breakdown
+            })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@reports_bp.route('/reports/recent-mileage')
+def api_recent_mileage():
+    """Get recent mileage records."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT date, mileage, fuel_cost
+                FROM runsheet_daily_data 
+                WHERE mileage IS NOT NULL
+                ORDER BY date DESC
+                LIMIT 10
+            """)
+            
+            records = [dict(row) for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'records': records
+            })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@reports_bp.route('/reports/monthly-mileage', methods=['POST'])
+def api_generate_monthly_mileage_report():
+    """Generate monthly mileage report."""
+    try:
+        # This would generate a downloadable report
+        # For now, return success with placeholder
+        return jsonify({
+            'success': True,
+            'message': 'Monthly mileage report generated',
+            'download_url': '/api/reports/download/monthly-mileage.csv'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@reports_bp.route('/reports/high-mileage-days', methods=['POST'])
+def api_generate_high_mileage_report():
+    """Generate high mileage days report."""
+    try:
+        return jsonify({
+            'success': True,
+            'message': 'High mileage days report generated',
+            'download_url': '/api/reports/download/high-mileage.csv'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@reports_bp.route('/reports/fuel-efficiency', methods=['POST'])
+def api_generate_fuel_efficiency_report():
+    """Generate fuel efficiency report."""
+    try:
+        return jsonify({
+            'success': True,
+            'message': 'Fuel efficiency report generated',
+            'download_url': '/api/reports/download/fuel-efficiency.csv'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

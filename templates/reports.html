@@ -44,6 +44,11 @@
         </button>
     </li>
     <li class="nav-item" role="presentation">
+        <button class="nav-link" id="mileage-tab" data-bs-toggle="pill" data-bs-target="#mileage" type="button">
+            <i class="bi bi-speedometer"></i> Mileage
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
         <button class="nav-link" id="discrepancies-tab" data-bs-toggle="pill" data-bs-target="#discrepancies" type="button">
             <i class="bi bi-exclamation-triangle"></i> Discrepancies
         </button>
@@ -324,6 +329,163 @@
                         </h5>
                         <div class="chart-container">
                             <canvas id="jobCompletionChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Mileage Tab -->
+    <div class="tab-pane fade" id="mileage" role="tabpanel">
+        <div class="row g-4">
+            <!-- Mileage Summary Cards -->
+            <div class="col-12">
+                <div class="row g-3 mb-4">
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted mb-2">Total Miles</h6>
+                                <h3 class="mb-0" id="totalMiles">0</h3>
+                                <small class="text-primary"><i class="bi bi-speedometer"></i> All time</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted mb-2">Total Fuel Cost</h6>
+                                <h3 class="mb-0" id="totalFuelCost">£0.00</h3>
+                                <small class="text-danger"><i class="bi bi-fuel-pump"></i> All time</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted mb-2">Avg Miles/Day</h6>
+                                <h3 class="mb-0" id="avgMilesPerDay">0</h3>
+                                <small class="text-info"><i class="bi bi-calculator"></i> Working days</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="card stat-card">
+                            <div class="card-body text-center">
+                                <h6 class="text-muted mb-2">Cost per Mile</h6>
+                                <h3 class="mb-0" id="costPerMile">£0.00</h3>
+                                <small class="text-warning"><i class="bi bi-currency-pound"></i> Average</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mileage Charts -->
+            <div class="col-md-8">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-graph-up text-primary"></i> Monthly Mileage Trends
+                            </h5>
+                            <select class="form-select form-select-sm" id="mileageYear" style="width: auto;" onchange="loadMileageData()">
+                                <option value="">All Years</option>
+                                <option value="2025">2025</option>
+                                <option value="2024">2024</option>
+                                <option value="2023">2023</option>
+                                <option value="2022">2022</option>
+                            </select>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="mileageTrendsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-pie-chart text-success"></i> Fuel Cost Breakdown
+                        </h5>
+                        <div class="chart-container-small">
+                            <canvas id="fuelCostChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mileage Reports -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">
+                            <i class="bi bi-file-earmark-text text-info"></i> Mileage Reports
+                        </h5>
+                        <p class="card-text text-muted">Generate detailed mileage and fuel cost reports.</p>
+                        
+                        <div class="list-group list-group-flush">
+                            <a href="#" class="list-group-item list-group-item-action" onclick="generateMonthlyMileageReport(); return false;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-calendar-month text-primary"></i>
+                                        <strong>Monthly Summary</strong>
+                                        <br>
+                                        <small class="text-muted">Miles and costs by month</small>
+                                    </div>
+                                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            </a>
+                            
+                            <a href="#" class="list-group-item list-group-item-action" onclick="generateHighMileageDays(); return false;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-speedometer2 text-warning"></i>
+                                        <strong>High Mileage Days</strong>
+                                        <br>
+                                        <small class="text-muted">Days with 200+ miles</small>
+                                    </div>
+                                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            </a>
+                            
+                            <a href="#" class="list-group-item list-group-item-action" onclick="generateFuelEfficiencyReport(); return false;">
+                                <div class="d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="bi bi-fuel-pump text-success"></i>
+                                        <strong>Fuel Efficiency</strong>
+                                        <br>
+                                        <small class="text-muted">Cost per mile analysis</small>
+                                    </div>
+                                    <i class="bi bi-chevron-right"></i>
+                                </div>
+                            </a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Recent Mileage Data -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-clock-history text-secondary"></i> Recent Mileage
+                            </h5>
+                            <button class="btn btn-sm btn-outline-primary" onclick="loadRecentMileage()">
+                                <i class="bi bi-arrow-clockwise"></i> Refresh
+                            </button>
+                        </div>
+                        <div id="recentMileageData">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-2 text-muted">Loading recent data...</p>
+                            </div>
                         </div>
                     </div>
                 </div>

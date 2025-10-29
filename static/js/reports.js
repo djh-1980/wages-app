@@ -675,3 +675,221 @@ async function loadMissingPayslips() {
         contentDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error: ${error.message}</div>`;
     }
 }
+
+// ===== MILEAGE REPORTS =====
+
+async function loadMileageData() {
+    try {
+        const year = document.getElementById('mileageYear')?.value || '';
+        const response = await fetch(`/api/reports/mileage-summary?year=${year}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            // Update summary cards
+            document.getElementById('totalMiles').textContent = data.summary.total_miles.toLocaleString();
+            document.getElementById('totalFuelCost').textContent = `£${data.summary.total_fuel_cost.toFixed(2)}`;
+            document.getElementById('avgMilesPerDay').textContent = data.summary.avg_miles_per_day.toFixed(1);
+            document.getElementById('costPerMile').textContent = `£${data.summary.cost_per_mile.toFixed(3)}`;
+            
+            // Update charts
+            updateMileageTrendsChart(data.monthly_data);
+            updateFuelCostChart(data.fuel_breakdown);
+        }
+    } catch (error) {
+        console.error('Error loading mileage data:', error);
+    }
+}
+
+function updateMileageTrendsChart(monthlyData) {
+    const ctx = document.getElementById('mileageTrendsChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (window.mileageTrendsChart) {
+        window.mileageTrendsChart.destroy();
+    }
+    
+    const months = monthlyData.map(d => d.month);
+    const miles = monthlyData.map(d => d.total_miles);
+    const costs = monthlyData.map(d => d.total_fuel_cost);
+    
+    window.mileageTrendsChart = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: months,
+            datasets: [{
+                label: 'Miles',
+                data: miles,
+                borderColor: 'rgb(54, 162, 235)',
+                backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                yAxisID: 'y'
+            }, {
+                label: 'Fuel Cost (£)',
+                data: costs,
+                borderColor: 'rgb(255, 99, 132)',
+                backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    title: { display: true, text: 'Miles' }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    title: { display: true, text: 'Fuel Cost (£)' },
+                    grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+}
+
+function updateFuelCostChart(fuelBreakdown) {
+    const ctx = document.getElementById('fuelCostChart');
+    if (!ctx) return;
+    
+    // Destroy existing chart if it exists
+    if (window.fuelCostChart) {
+        window.fuelCostChart.destroy();
+    }
+    
+    window.fuelCostChart = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+            labels: fuelBreakdown.map(d => d.range),
+            datasets: [{
+                data: fuelBreakdown.map(d => d.count),
+                backgroundColor: [
+                    '#FF6384', '#36A2EB', '#FFCE56', '#4BC0C0', '#9966FF'
+                ]
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: { position: 'bottom' }
+            }
+        }
+    });
+}
+
+async function loadRecentMileage() {
+    const contentDiv = document.getElementById('recentMileageData');
+    contentDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Loading...</p></div>';
+    
+    try {
+        const response = await fetch('/api/reports/recent-mileage');
+        const data = await response.json();
+        
+        if (data.success && data.records.length > 0) {
+            let html = '<div class="list-group list-group-flush">';
+            
+            data.records.forEach(record => {
+                const fuelInfo = record.fuel_cost ? `£${parseFloat(record.fuel_cost).toFixed(2)}` : 'No fuel data';
+                html += `
+                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                        <div>
+                            <strong>${record.date}</strong>
+                            <br>
+                            <small class="text-muted">${record.mileage} miles</small>
+                        </div>
+                        <span class="badge bg-primary rounded-pill">${fuelInfo}</span>
+                    </div>
+                `;
+            });
+            
+            html += '</div>';
+            contentDiv.innerHTML = html;
+        } else {
+            contentDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-info-circle"></i> No recent mileage data found</div>';
+        }
+    } catch (error) {
+        console.error('Error loading recent mileage:', error);
+        contentDiv.innerHTML = '<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error loading data</div>';
+    }
+}
+
+function generateMonthlyMileageReport() {
+    showStatus('Generating monthly mileage report...');
+    
+    fetch('/api/reports/monthly-mileage', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('Monthly mileage report generated!');
+                if (data.download_url) {
+                    window.location.href = data.download_url;
+                }
+            } else {
+                showError('Failed to generate report');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error generating report');
+        });
+}
+
+function generateHighMileageDays() {
+    showStatus('Analyzing high mileage days...');
+    
+    fetch('/api/reports/high-mileage-days', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('High mileage days report generated!');
+                if (data.download_url) {
+                    window.location.href = data.download_url;
+                }
+            } else {
+                showError('Failed to generate report');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error generating report');
+        });
+}
+
+function generateFuelEfficiencyReport() {
+    showStatus('Calculating fuel efficiency metrics...');
+    
+    fetch('/api/reports/fuel-efficiency', { method: 'POST' })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                showSuccess('Fuel efficiency report generated!');
+                if (data.download_url) {
+                    window.location.href = data.download_url;
+                }
+            } else {
+                showError('Failed to generate report');
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            showError('Error generating report');
+        });
+}
+
+// Initialize mileage tab when it becomes active
+document.addEventListener('DOMContentLoaded', function() {
+    // Load mileage data when tab is shown
+    const mileageTab = document.getElementById('mileage-tab');
+    if (mileageTab) {
+        mileageTab.addEventListener('shown.bs.tab', function() {
+            loadMileageData();
+            loadRecentMileage();
+        });
+    }
+});

@@ -584,6 +584,17 @@ async function viewRunSheetJobs(date) {
             // Load existing mileage and fuel cost
             loadDailyData(date);
             
+            // Add formatting to fuel cost field when user finishes entering value
+            const fuelCostInput = document.getElementById(`fuelCost-${date}`);
+            if (fuelCostInput) {
+                fuelCostInput.addEventListener('blur', function() {
+                    const value = this.value.trim();
+                    if (value !== '' && !isNaN(value)) {
+                        this.value = parseFloat(value).toFixed(2);
+                    }
+                });
+            }
+            
             // Clean up modal after it's hidden
             document.getElementById('runsheetJobsModal').addEventListener('hidden.bs.modal', function () {
                 this.remove();
@@ -806,7 +817,8 @@ async function loadDailyData(date) {
             document.getElementById(`mileage-${date}`).value = data.mileage;
         }
         if (data.fuel_cost !== null && data.fuel_cost !== undefined) {
-            document.getElementById(`fuelCost-${date}`).value = data.fuel_cost;
+            // Format cost to 2 decimal places (0 becomes 0.00, 5.5 becomes 5.50)
+            document.getElementById(`fuelCost-${date}`).value = parseFloat(data.fuel_cost).toFixed(2);
         }
     } catch (error) {
         console.error('Error loading daily data:', error);
@@ -831,8 +843,11 @@ async function saveAllJobStatuses(date) {
     });
     
     // Get mileage and fuel cost
-    const mileage = parseFloat(document.getElementById(`mileage-${date}`).value) || null;
-    const fuelCost = parseFloat(document.getElementById(`fuelCost-${date}`).value) || null;
+    const mileageValue = document.getElementById(`mileage-${date}`).value.trim();
+    const fuelCostValue = document.getElementById(`fuelCost-${date}`).value.trim();
+    
+    const mileage = mileageValue === '' ? null : parseFloat(mileageValue);
+    const fuelCost = fuelCostValue === '' ? null : parseFloat(fuelCostValue);
     
     if (updates.length === 0 && mileage === null && fuelCost === null) {
         alert('No changes to save');
