@@ -85,50 +85,55 @@ class RunsheetModel:
                 sort_order = 'DESC'
             
             # Build WHERE clause for filters
-            where_conditions = ["date IS NOT NULL"]
+            where_conditions = ["r.date IS NOT NULL"]
             
             if filter_year:
-                where_conditions.append(f"substr(date, 7, 4) = '{filter_year}'")
+                where_conditions.append(f"substr(r.date, 7, 4) = '{filter_year}'")
             
             if filter_month:
-                where_conditions.append(f"substr(date, 4, 2) = '{filter_month}'")
+                where_conditions.append(f"substr(r.date, 4, 2) = '{filter_month}'")
             
             if filter_week and filter_week.strip():
                 # Calculate week number from date
                 try:
                     week_num = int(filter_week)
                     where_conditions.append(f"""
-                        CAST(strftime('%U', substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2)) AS INTEGER) = {week_num - 1}
+                        CAST(strftime('%U', substr(r.date, 7, 4) || '-' || substr(r.date, 4, 2) || '-' || substr(r.date, 1, 2)) AS INTEGER) = {week_num - 1}
                     """)
                 except ValueError:
                     pass  # Invalid week number, skip filter
             
             if filter_day:
                 # Day of week (0=Sunday, 1=Monday, etc.)
-                where_conditions.append(f"CAST(strftime('%w', substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2)) AS INTEGER) = {filter_day}")
+                where_conditions.append(f"CAST(strftime('%w', substr(r.date, 7, 4) || '-' || substr(r.date, 4, 2) || '-' || substr(r.date, 1, 2)) AS INTEGER) = {filter_day}")
             
             where_clause = " AND ".join(where_conditions)
             
             # Get total count with filters
-            count_query = f"SELECT COUNT(DISTINCT date) FROM run_sheet_jobs WHERE {where_clause}"
+            count_query = f"SELECT COUNT(DISTINCT r.date) FROM run_sheet_jobs r WHERE {where_clause}"
             cursor.execute(count_query)
             total = cursor.fetchone()[0]
             
             # Get run sheets grouped by date with sorting and filters
             if sort_column == 'date':
-                order_clause = f"substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2) {sort_order.upper()}"
+                order_clause = f"substr(r.date, 7, 4) || '-' || substr(r.date, 4, 2) || '-' || substr(r.date, 1, 2) {sort_order.upper()}"
             else:
                 order_clause = f"{sort_column} {sort_order.upper()}"
             
             query = f"""
                 SELECT 
-                    date,
+                    r.date,
                     COUNT(*) as job_count,
-                    GROUP_CONCAT(DISTINCT customer) as customers,
-                    GROUP_CONCAT(DISTINCT activity) as activities
-                FROM run_sheet_jobs
+                    GROUP_CONCAT(DISTINCT r.customer) as customers,
+                    GROUP_CONCAT(DISTINCT r.activity) as activities,
+                    ROUND(SUM(r.pay_amount), 2) as daily_pay,
+                    COUNT(CASE WHEN r.pay_amount IS NOT NULL THEN 1 END) as jobs_with_pay,
+                    d.mileage,
+                    d.fuel_cost
+                FROM run_sheet_jobs r
+                LEFT JOIN runsheet_daily_data d ON r.date = d.date
                 WHERE {where_clause}
-                GROUP BY date
+                GROUP BY r.date, d.mileage, d.fuel_cost
                 ORDER BY {order_clause}
                 LIMIT ? OFFSET ?
             """
@@ -294,7 +299,7 @@ class RunsheetModel:
                     r.date,
                     COUNT(*) as total_jobs,
                     COUNT(CASE WHEN r.status IS NOT NULL AND r.status != 'pending' THEN 1 END) as jobs_with_actions,
-                    CASE WHEN d.mileage IS NOT NULL AND d.mileage > 0 THEN 1 ELSE 0 END as has_mileage
+                    CASE WHEN d.mileage IS NOT NULL THEN 1 ELSE 0 END as has_mileage
                 FROM run_sheet_jobs r
                 LEFT JOIN runsheet_daily_data d ON r.date = d.date
                 GROUP BY r.date, d.mileage
@@ -323,6 +328,241 @@ class RunsheetModel:
                 }
             
             return status_map
+    
+    @staticmethod
+    def update_job_pay_info():
+        """Update runsheet jobs with pay information from payslips using job numbers."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Add pay columns to run_sheet_jobs if they don't exist
+            try:
+                cursor.execute("ALTER TABLE run_sheet_jobs ADD COLUMN pay_amount REAL")
+                cursor.execute("ALTER TABLE run_sheet_jobs ADD COLUMN pay_rate REAL") 
+                cursor.execute("ALTER TABLE run_sheet_jobs ADD COLUMN pay_units REAL")
+                cursor.execute("ALTER TABLE run_sheet_jobs ADD COLUMN pay_week INTEGER")
+                cursor.execute("ALTER TABLE run_sheet_jobs ADD COLUMN pay_year TEXT")
+                cursor.execute("ALTER TABLE run_sheet_jobs ADD COLUMN pay_updated_at TIMESTAMP")
+            except:
+                pass  # Columns already exist
+            
+            # Update runsheet jobs with payslip data
+            cursor.execute("""
+                UPDATE run_sheet_jobs 
+                SET 
+                    pay_amount = (
+                        SELECT j.amount 
+                        FROM job_items j 
+                        JOIN payslips p ON j.payslip_id = p.id
+                        WHERE j.job_number = run_sheet_jobs.job_number
+                        LIMIT 1
+                    ),
+                    pay_rate = (
+                        SELECT j.rate 
+                        FROM job_items j 
+                        JOIN payslips p ON j.payslip_id = p.id
+                        WHERE j.job_number = run_sheet_jobs.job_number
+                        LIMIT 1
+                    ),
+                    pay_units = (
+                        SELECT j.units 
+                        FROM job_items j 
+                        JOIN payslips p ON j.payslip_id = p.id
+                        WHERE j.job_number = run_sheet_jobs.job_number
+                        LIMIT 1
+                    ),
+                    pay_week = (
+                        SELECT p.week_number 
+                        FROM job_items j 
+                        JOIN payslips p ON j.payslip_id = p.id
+                        WHERE j.job_number = run_sheet_jobs.job_number
+                        LIMIT 1
+                    ),
+                    pay_year = (
+                        SELECT p.tax_year 
+                        FROM job_items j 
+                        JOIN payslips p ON j.payslip_id = p.id
+                        WHERE j.job_number = run_sheet_jobs.job_number
+                        LIMIT 1
+                    ),
+                    pay_updated_at = CURRENT_TIMESTAMP
+                WHERE run_sheet_jobs.job_number IS NOT NULL
+                AND EXISTS (
+                    SELECT 1 FROM job_items j 
+                    WHERE j.job_number = run_sheet_jobs.job_number
+                )
+            """)
+            
+            updated_count = cursor.rowcount
+            conn.commit()
+            
+            return {
+                'updated_jobs': updated_count,
+                'message': f'Successfully updated {updated_count} runsheet jobs with pay information'
+            }
+    
+    @staticmethod
+    def get_jobs_with_pay_info(date=None, limit=50):
+        """Get runsheet jobs with their pay information."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            query = """
+                SELECT 
+                    r.date,
+                    r.job_number,
+                    r.customer,
+                    r.activity,
+                    r.job_address,
+                    r.status,
+                    r.pay_amount,
+                    r.pay_rate,
+                    r.pay_units,
+                    r.pay_week,
+                    r.pay_year,
+                    r.pay_updated_at
+                FROM run_sheet_jobs r
+                WHERE r.pay_amount IS NOT NULL
+            """
+            
+            params = []
+            if date:
+                query += " AND r.date = ?"
+                params.append(date)
+            
+            query += " ORDER BY r.date DESC, CAST(r.job_number AS INTEGER) DESC LIMIT ?"
+            params.append(limit)
+            
+            cursor.execute(query, params)
+            
+            jobs = []
+            for row in cursor.fetchall():
+                jobs.append({
+                    'date': row[0],
+                    'job_number': row[1], 
+                    'customer': row[2],
+                    'activity': row[3],
+                    'job_address': row[4],
+                    'status': row[5],
+                    'pay_amount': row[6],
+                    'pay_rate': row[7],
+                    'pay_units': row[8],
+                    'pay_week': row[9],
+                    'pay_year': row[10],
+                    'pay_updated_at': row[11]
+                })
+            
+            return jobs
+    
+    @staticmethod
+    def get_discrepancy_report(limit=100, year=None, month=None):
+        """Get jobs that are in payslips but missing from runsheets."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Build WHERE clause for date filtering
+            date_filter = ""
+            params = []
+            
+            if year:
+                date_filter += " AND p.tax_year = ?"
+                params.append(year)
+            
+            if month:
+                # Convert month number to month name for payslip filtering
+                month_names = {
+                    '01': 'January', '02': 'February', '03': 'March', '04': 'April',
+                    '05': 'May', '06': 'June', '07': 'July', '08': 'August', 
+                    '09': 'September', '10': 'October', '11': 'November', '12': 'December'
+                }
+                if month in month_names:
+                    date_filter += " AND j.date LIKE ?"
+                    params.append(f"%/{month}/%")
+            
+            # Get jobs in payslips but not in runsheets
+            query = f"""
+                SELECT 
+                    j.job_number,
+                    j.client,
+                    j.location,
+                    j.postcode,
+                    j.job_type,
+                    j.date,
+                    j.amount,
+                    j.rate,
+                    j.units,
+                    p.week_number,
+                    p.tax_year,
+                    p.pay_date
+                FROM job_items j
+                JOIN payslips p ON j.payslip_id = p.id
+                WHERE j.job_number IS NOT NULL 
+                AND j.job_number NOT IN (
+                    SELECT DISTINCT job_number 
+                    FROM run_sheet_jobs 
+                    WHERE job_number IS NOT NULL
+                )
+                {date_filter}
+                ORDER BY p.tax_year DESC, p.week_number DESC, CAST(j.job_number AS INTEGER) DESC
+                LIMIT ?
+            """
+            
+            params.append(limit)
+            cursor.execute(query, params)
+            
+            missing_jobs = []
+            total_missing_value = 0
+            
+            for row in cursor.fetchall():
+                job_data = {
+                    'job_number': row[0],
+                    'client': row[1],
+                    'location': row[2],
+                    'postcode': row[3],
+                    'job_type': row[4],
+                    'date': row[5],
+                    'amount': row[6],
+                    'rate': row[7],
+                    'units': row[8],
+                    'week_number': row[9],
+                    'tax_year': row[10],
+                    'pay_date': row[11]
+                }
+                missing_jobs.append(job_data)
+                if row[6]:  # amount
+                    total_missing_value += row[6]
+            
+            # Get total counts
+            cursor.execute("SELECT COUNT(*) FROM job_items WHERE job_number IS NOT NULL")
+            total_payslip_jobs = cursor.fetchone()[0]
+            
+            cursor.execute("SELECT COUNT(*) FROM run_sheet_jobs WHERE job_number IS NOT NULL")
+            total_runsheet_jobs = cursor.fetchone()[0]
+            
+            # Get total missing count (not limited) with date filters
+            total_query = f"""
+                SELECT COUNT(*)
+                FROM job_items j
+                JOIN payslips p ON j.payslip_id = p.id
+                WHERE j.job_number IS NOT NULL 
+                AND j.job_number NOT IN (
+                    SELECT DISTINCT job_number 
+                    FROM run_sheet_jobs 
+                    WHERE job_number IS NOT NULL
+                )
+                {date_filter}
+            """
+            cursor.execute(total_query, params[:-1])  # Exclude the LIMIT parameter
+            total_missing_count = cursor.fetchone()[0]
+            
+            return {
+                'missing_jobs': missing_jobs,
+                'total_missing_count': total_missing_count,
+                'total_missing_value': round(total_missing_value, 2),
+                'total_payslip_jobs': total_payslip_jobs,
+                'total_runsheet_jobs': total_runsheet_jobs,
+                'match_rate': round((total_payslip_jobs - total_missing_count) / total_payslip_jobs * 100, 1) if total_payslip_jobs > 0 else 0
+            }
     
     @staticmethod
     def clear_all_runsheets():

@@ -247,3 +247,179 @@ def api_daily_progress(date):
         return jsonify(progress)
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@runsheets_bp.route('/update-pay-info', methods=['POST'])
+def api_update_pay_info():
+    """Update runsheet jobs with pay information from payslips."""
+    try:
+        result = RunsheetModel.update_job_pay_info()
+        return jsonify(result)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@runsheets_bp.route('/jobs-with-pay')
+def api_jobs_with_pay():
+    """Get runsheet jobs that have pay information."""
+    try:
+        date = request.args.get('date')
+        limit = request.args.get('limit', 50, type=int)
+        
+        jobs = RunsheetModel.get_jobs_with_pay_info(date=date, limit=limit)
+        return jsonify({
+            'jobs': jobs,
+            'count': len(jobs)
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@runsheets_bp.route('/discrepancy-report')
+def api_discrepancy_report():
+    """Get discrepancy report showing jobs paid but not in runsheets."""
+    try:
+        from ..models.runsheet import RunsheetModel
+        
+        # Get filter parameters
+        year = request.args.get('year', '')
+        month = request.args.get('month', '')
+        limit = request.args.get('limit', 100, type=int)
+        
+        # Call the model with filters
+        report = RunsheetModel.get_discrepancy_report(
+            limit=limit,
+            year=year if year else None,
+            month=month if month else None
+        )
+        return jsonify(report)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@runsheets_bp.route('/discrepancy-pdf', methods=['POST'])
+def api_discrepancy_pdf():
+    """Generate PDF discrepancy report."""
+    try:
+        from flask import Response
+        from datetime import datetime
+        from ..models.runsheet import RunsheetModel
+        from ..utils.pdf_generator import DiscrepancyPDFGenerator
+        
+        # Get filter parameters from request
+        data = request.get_json() or {}
+        year = data.get('year', '')
+        month = data.get('month', '')
+        
+        # Get the discrepancy data
+        report_data = RunsheetModel.get_discrepancy_report(
+            limit=1000,  # Get comprehensive data for PDF
+            year=year if year else None,
+            month=month if month else None
+        )
+        
+        # Prepare filters for PDF header
+        filters = {}
+        if year:
+            filters['year'] = year
+        if month:
+            filters['month'] = month
+        
+        # Generate the PDF
+        pdf_generator = DiscrepancyPDFGenerator()
+        pdf_data = pdf_generator.generate_discrepancy_report(report_data, filters)
+        
+        # Generate filename with filters
+        filename = 'discrepancy_report'
+        if year:
+            filename += f'_{year}'
+        if month:
+            filename += f'_{month}'
+        filename += f'_{datetime.now().strftime("%Y%m%d")}.pdf'
+        
+        # Return PDF as download
+        return Response(
+            pdf_data,
+            mimetype='application/pdf',
+            headers={'Content-Disposition': f'attachment; filename={filename}'}
+        )
+            
+    except Exception as e:
+        import traceback
+        print(f"PDF Generation Error: {e}")
+        print(traceback.format_exc())
+        return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
+
+
+@runsheets_bp.route('/discrepancy-csv', methods=['POST'])
+def api_discrepancy_csv():
+    """Generate CSV discrepancy report (alternative to PDF)."""
+    try:
+        from flask import Response
+        from datetime import datetime
+        from ..models.runsheet import RunsheetModel
+        import csv
+        import io
+        
+        # Get filter parameters from request
+        data = request.get_json() or {}
+        year = data.get('year', '')
+        month = data.get('month', '')
+        
+        # Get the discrepancy data
+        report_data = RunsheetModel.get_discrepancy_report(
+            limit=1000,  # Get more data for the CSV
+            year=year if year else None,
+            month=month if month else None
+        )
+        
+        if report_data['missing_jobs']:
+            # Create CSV content
+            output = io.StringIO()
+            writer = csv.writer(output)
+            
+            # Write header
+            writer.writerow([
+                'Job Number', 'Client', 'Location', 'Postcode', 'Job Type',
+                'Date', 'Amount', 'Rate', 'Units', 'Week Number', 'Tax Year', 'Pay Date'
+            ])
+            
+            # Write data
+            for job in report_data['missing_jobs']:
+                writer.writerow([
+                    job['job_number'],
+                    job['client'] or '',
+                    job['location'] or '',
+                    job['postcode'] or '',
+                    job['job_type'] or '',
+                    job['date'] or '',
+                    job['amount'] or 0,
+                    job['rate'] or 0,
+                    job['units'] or 0,
+                    job['week_number'] or '',
+                    job['tax_year'] or '',
+                    job['pay_date'] or ''
+                ])
+            
+            # Create response
+            output.seek(0)
+            
+            # Generate filename with filters
+            filename = 'discrepancy_report'
+            if year:
+                filename += f'_{year}'
+            if month:
+                filename += f'_{month}'
+            filename += f'_{datetime.now().strftime("%Y%m%d")}.csv'
+            
+            # Return as file download
+            return Response(
+                output.getvalue(),
+                mimetype='text/csv',
+                headers={'Content-Disposition': f'attachment; filename={filename}'}
+            )
+        else:
+            return jsonify({'error': 'No missing jobs found for the selected criteria'}), 404
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

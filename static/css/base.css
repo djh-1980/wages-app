@@ -1,8 +1,17 @@
 :root {
-    --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    --success-gradient: linear-gradient(135deg, #84fab0 0%, #8fd3f4 100%);
-    --info-gradient: linear-gradient(135deg, #a1c4fd 0%, #c2e9fb 100%);
-    --warning-gradient: linear-gradient(135deg, #ffecd2 0%, #fcb69f 100%);
+    /* TVS Brand Colors */
+    --tvs-primary: #4a6fa5;
+    --tvs-secondary: #2c5282;
+    --tvs-dark: #1a365d;
+    --tvs-accent: #4299e1;
+    --tvs-light: #2b6cb0;
+    
+    /* TVS Gradients */
+    --primary-gradient: linear-gradient(135deg, #4a6fa5 0%, #2c5282 50%, #1a365d 100%);
+    --accent-gradient: linear-gradient(135deg, #4299e1 0%, #2b6cb0 100%);
+    --success-gradient: linear-gradient(135deg, #48bb78 0%, #38a169 100%);
+    --info-gradient: linear-gradient(135deg, #4299e1 0%, #3182ce 100%);
+    --warning-gradient: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
 }
 
 /* iPhone 16 Pro Max Optimizations */
@@ -44,8 +53,8 @@
     }
     
     .form-control:focus, .form-select:focus {
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: var(--tvs-primary);
+        box-shadow: 0 0 0 3px rgba(74, 111, 165, 0.1);
     }
     
     /* Cards */

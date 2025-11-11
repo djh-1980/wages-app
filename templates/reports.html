@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% block title %}Reporting - TVS App{% endblock %}
+{% block title %}Reports - TVS Wages Management{% endblock %}
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/reports.css') }}">
@@ -570,6 +570,12 @@
                         </select>
                         <button class="btn btn-primary btn-sm" onclick="loadDiscrepancyReport()">
                             <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                        <button class="btn btn-danger btn-sm" onclick="generateDiscrepancyPDF()">
+                            <i class="bi bi-file-earmark-pdf"></i> PDF
+                        </button>
+                        <button class="btn btn-success btn-sm" onclick="generateDiscrepancyCSV()">
+                            <i class="bi bi-file-earmark-spreadsheet"></i> CSV
                         </button>
                     </div>
                 </div>

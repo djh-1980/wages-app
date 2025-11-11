@@ -49,13 +49,20 @@ class GmailRunSheetDownloader:
             return None
     
     def has_driver_name(self, pdf_path: Path, driver_name: str = "Hanson, Daniel") -> bool:
-        """Check if driver name appears in PDF."""
+        """Check if this is a runsheet that should be organized (includes multi-driver sheets)."""
         try:
             with open(pdf_path, 'rb') as file:
                 reader = PyPDF2.PdfReader(file)
                 for page in reader.pages:
                     text = page.extract_text()
-                    if driver_name.lower() in text.lower():
+                    # Check for your name in various formats
+                    if (driver_name.lower() in text.lower() or
+                        "daniel hanson" in text.lower() or
+                        "hanson, daniel" in text.lower() or
+                        # Also organize if it's a runsheet format (multi-driver sheets)
+                        "run sheet" in text.lower() or
+                        "runsheet" in text.lower() or
+                        "job #" in text.lower()):
                         return True
             return False
         except:

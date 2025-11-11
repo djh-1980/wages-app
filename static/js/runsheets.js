@@ -225,6 +225,28 @@ async function loadRunSheetsList(page = 1) {
                     }
                 }
                 
+                // Format daily pay
+                let payDisplay = '';
+                if (rs.daily_pay && rs.daily_pay > 0) {
+                    payDisplay = `<strong class="text-success">${CurrencyFormatter.format(rs.daily_pay)}</strong>`;
+                    if (rs.jobs_with_pay && rs.jobs_with_pay < rs.job_count) {
+                        payDisplay += `<br><small class="text-muted">${rs.jobs_with_pay}/${rs.job_count} jobs</small>`;
+                    }
+                } else {
+                    payDisplay = '<span class="text-muted">No pay data</span>';
+                }
+
+                // Format mileage and fuel cost
+                let mileageDisplay = '';
+                if (rs.mileage !== null && rs.mileage !== undefined) {
+                    mileageDisplay = `<strong class="text-primary">${rs.mileage} miles</strong>`;
+                    if (rs.fuel_cost !== null && rs.fuel_cost !== undefined) {
+                        mileageDisplay += `<br><small class="text-muted">${CurrencyFormatter.format(rs.fuel_cost)} fuel</small>`;
+                    }
+                } else {
+                    mileageDisplay = '<span class="text-muted">Not recorded</span>';
+                }
+
                 return `
                     <tr>
                         <td><strong>${rs.date}</strong></td>
@@ -232,6 +254,8 @@ async function loadRunSheetsList(page = 1) {
                             <span class="badge bg-primary">${rs.job_count} jobs</span>
                         </td>
                         <td><small>${activities}</small></td>
+                        <td class="text-end">${payDisplay}</td>
+                        <td class="text-end">${mileageDisplay}</td>
                         <td class="text-center">
                             ${statusBadge || '<span class="badge bg-secondary">Unknown</span>'}
                         </td>
@@ -267,6 +291,22 @@ async function loadRunSheetsList(page = 1) {
                     }
                 }
                 
+                // Format daily pay for mobile
+                let payDisplay = '';
+                if (rs.daily_pay && rs.daily_pay > 0) {
+                    payDisplay = `<div class="text-success fw-bold mb-1">${CurrencyFormatter.format(rs.daily_pay)}</div>`;
+                }
+
+                // Format mileage for mobile
+                let mileageDisplayMobile = '';
+                if (rs.mileage !== null && rs.mileage !== undefined) {
+                    mileageDisplayMobile = `<div class="text-primary fw-bold mb-1">${rs.mileage} miles`;
+                    if (rs.fuel_cost !== null && rs.fuel_cost !== undefined) {
+                        mileageDisplayMobile += ` • ${CurrencyFormatter.format(rs.fuel_cost)} fuel`;
+                    }
+                    mileageDisplayMobile += `</div>`;
+                }
+                
                 return `
                     <div class="card mb-3 shadow-sm" style="border-radius: 12px;">
                         <div class="card-body p-3">
@@ -279,6 +319,8 @@ async function loadRunSheetsList(page = 1) {
                                     ${statusBadge || '<span class="badge bg-secondary">Unknown</span>'}
                                 </div>
                             </div>
+                            ${payDisplay}
+                            ${mileageDisplayMobile}
                             <p class="mb-3 small text-muted" style="font-size: 0.85rem;">${activities}</p>
                             <div class="d-grid">
                                 <button class="btn btn-primary py-2" onclick="viewRunSheetJobs('${rs.date}')" style="font-size: 1rem;">
@@ -294,7 +336,7 @@ async function loadRunSheetsList(page = 1) {
             // Update pagination
             updateRSPagination(data.page, data.total_pages);
         } else {
-            tbody.innerHTML = '<tr><td colspan="5" class="text-center">No run sheets found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No run sheets found</td></tr>';
             if (mobileCards) {
                 mobileCards.innerHTML = '<div class="text-center p-4"><p class="text-muted">No run sheets found</p></div>';
             }
@@ -303,7 +345,7 @@ async function loadRunSheetsList(page = 1) {
     } catch (error) {
         console.error('Error loading run sheets list:', error);
         document.getElementById('runsheetsList').innerHTML = 
-            '<tr><td colspan="5" class="text-center text-danger">Error loading data</td></tr>';
+            '<tr><td colspan="7" class="text-center text-danger">Error loading data</td></tr>';
         const mobileCardsError = document.getElementById('runsheetsCardsList');
         if (mobileCardsError) {
             mobileCardsError.innerHTML = '<div class="text-center p-4"><p class="text-danger">Error loading data</p></div>';
@@ -380,7 +422,15 @@ async function viewRunSheetJobs(date) {
                             </div>
                             <div class="modal-body">
                                 <div class="mb-3">
-                                    <p class="mb-2"><strong>${data.jobs.length} jobs</strong> on this day</p>
+                                    <div class="d-flex justify-content-between align-items-start mb-2">
+                                        <p class="mb-0"><strong>${data.jobs.length} jobs</strong> on this day</p>
+                                        <p class="mb-0 text-success fw-bold">
+                                            Total Pay: ${(() => {
+                                                const totalPay = data.jobs.reduce((sum, job) => sum + (job.pay_amount || 0), 0);
+                                                return totalPay > 0 ? CurrencyFormatter.format(totalPay) : 'No pay data';
+                                            })()}
+                                        </p>
+                                    </div>
                                     <div class="d-flex flex-wrap gap-1">
                                         <span class="badge bg-success" id="completedCount">0 Completed</span>
                                         <span class="badge bg-danger" id="missedCount">0 Missed</span>
@@ -399,6 +449,7 @@ async function viewRunSheetJobs(date) {
                                                 <th>Activity</th>
                                                 <th>Address</th>
                                                 <th>Status</th>
+                                                <th class="text-end">Pay</th>
                                                 <th class="text-end">Actions</th>
                                             </tr>
                                         </thead>
@@ -413,6 +464,9 @@ async function viewRunSheetJobs(date) {
                                                     <td><span class="badge bg-info">${job.activity || 'N/A'}</span></td>
                                                     <td><small>${job.job_address || 'N/A'}, ${job.postcode || ''}</small></td>
                                                     <td><span class="status-badge" id="status-${job.id}">${statusBadge}</span></td>
+                                                    <td class="text-end">
+                                                        ${job.pay_amount ? `<strong class="text-success">${CurrencyFormatter.format(job.pay_amount)}</strong>` : '<span class="text-muted">No pay data</span>'}
+                                                    </td>
                                                     <td class="text-end">
                                                         <div class="btn-group btn-group-sm" role="group">
                                                             <button class="btn btn-outline-success" onclick="updateJobStatus(${job.id}, 'completed')" title="Completed">
@@ -453,8 +507,9 @@ async function viewRunSheetJobs(date) {
                                                     </div>
                                                     <div class="status-badge-container ms-2" id="status-${job.id}">${statusBadge}</div>
                                                 </div>
-                                                <div class="mb-3">
+                                                <div class="mb-3 d-flex justify-content-between align-items-center">
                                                     <span class="badge bg-info px-3 py-2" style="font-size: 0.8rem;">${job.activity || 'N/A'}</span>
+                                                    ${job.pay_amount ? `<strong class="text-success">${CurrencyFormatter.format(job.pay_amount)}</strong>` : '<span class="text-muted small">No pay data</span>'}
                                                 </div>
                                                 <p class="mb-3 small text-muted" style="font-size: 0.85rem; line-height: 1.4;">${job.job_address || 'N/A'}${job.postcode ? ', ' + job.postcode : ''}</p>
                                                 <div class="d-grid gap-3">

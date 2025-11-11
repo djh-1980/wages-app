@@ -54,8 +54,8 @@ async function loadDiscrepancyReport() {
         if (year) params.append('year', year);
         if (month) params.append('month', month);
         
-        // Use the new dedicated API endpoint that gets all data
-        const response = await fetch(`/api/reports/discrepancies?${params.toString()}`);
+        // Use the runsheets discrepancy API endpoint
+        const response = await fetch(`/api/runsheets/discrepancy-report?${params.toString()}`);
         const data = await response.json();
         
         if (data.error) {
@@ -63,45 +63,30 @@ async function loadDiscrepancyReport() {
             return;
         }
         
-        const payslipJobs = new Map(Object.entries(data.payslip_jobs || {}));
-        const runsheetJobs = new Map(Object.entries(data.runsheet_jobs || {}));
-        
-        // Find discrepancies
-        const onlyInPayslips = [];
-        const onlyInRunsheets = [];
-        const matched = [];
-        
-        payslipJobs.forEach((job, jobNum) => {
-            if (!runsheetJobs.has(jobNum)) {
-                onlyInPayslips.push({ jobNum, ...job });
-            } else {
-                matched.push(jobNum);
-            }
-        });
-        
-        runsheetJobs.forEach((job, jobNum) => {
-            if (!payslipJobs.has(jobNum)) {
-                onlyInRunsheets.push({ jobNum, ...job });
-            }
-        });
-        
-        // Display results
+        // Display results using our new API data structure
         let html = `
             <div class="alert alert-info">
-                <h5>Discrepancy Report</h5>
-                <p><strong>Total Payslip Jobs:</strong> ${payslipJobs.size}</p>
-                <p><strong>Total Run Sheet Jobs:</strong> ${runsheetJobs.size}</p>
-                <p><strong>Matched:</strong> ${matched.length}</p>
-                <p class="text-danger"><strong>Discrepancies Found:</strong> ${onlyInPayslips.length + onlyInRunsheets.length}</p>
+                <h5><i class="bi bi-clipboard-data"></i> Discrepancy Analysis Results</h5>
+                <div class="row">
+                    <div class="col-md-6">
+                        <p><strong>Total Payslip Jobs:</strong> ${data.total_payslip_jobs?.toLocaleString() || 0}</p>
+                        <p><strong>Total Runsheet Jobs:</strong> ${data.total_runsheet_jobs?.toLocaleString() || 0}</p>
+                        <p><strong>Match Rate:</strong> <span class="badge bg-${data.match_rate > 90 ? 'success' : data.match_rate > 80 ? 'warning' : 'danger'}">${data.match_rate}%</span></p>
+                    </div>
+                    <div class="col-md-6">
+                        <p class="text-danger"><strong>Missing from Runsheets:</strong> ${data.total_missing_count?.toLocaleString() || 0}</p>
+                        <p class="text-success"><strong>Total Missing Value:</strong> ${CurrencyFormatter.format(data.total_missing_value)}</p>
+                    </div>
+                </div>
             </div>
         `;
         
-        if (onlyInPayslips.length > 0) {
+        if (data.missing_jobs && data.missing_jobs.length > 0) {
             html += `
                 <div class="card border-warning mb-3">
                     <div class="card-header bg-warning text-dark">
-                        <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Jobs on Payslips but NOT on Run Sheets (${onlyInPayslips.length})</h6>
-                        <small>You were paid for these but don't have run sheet records</small>
+                        <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Jobs Paid but Missing from Runsheets (${data.missing_jobs.length})</h6>
+                        <small>You were paid for these but don't have runsheet records - ${CurrencyFormatter.format(data.total_missing_value)} total value</small>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -109,16 +94,20 @@ async function loadDiscrepancyReport() {
                                 <thead>
                                     <tr>
                                         <th>Job #</th>
-                                        <th>Description</th>
                                         <th>Client</th>
+                                        <th>Location</th>
+                                        <th>Amount</th>
+                                        <th>Week/Year</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${onlyInPayslips.map(j => `
+                                    ${data.missing_jobs.map(j => `
                                         <tr>
-                                            <td><strong>${j.jobNum}</strong></td>
-                                            <td>${j.description || 'N/A'}</td>
+                                            <td><strong>${j.job_number}</strong></td>
                                             <td>${j.client || 'N/A'}</td>
+                                            <td>${j.location || 'N/A'} ${j.postcode || ''}</td>
+                                            <td class="text-success">${CurrencyFormatter.format(j.amount)}</td>
+                                            <td><small>Week ${j.week_number}/${j.tax_year}</small></td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -129,46 +118,25 @@ async function loadDiscrepancyReport() {
             `;
         }
         
-        if (onlyInRunsheets.length > 0) {
+        if (data.total_missing_count === 0) {
+            html += `<div class="alert alert-success"><i class="bi bi-check-circle"></i> Excellent! No missing jobs found. All payslip jobs are properly recorded in runsheets.</div>`;
+        } else {
             html += `
-                <div class="card border-danger mb-3">
-                    <div class="card-header bg-danger text-white">
-                        <h6 class="mb-0"><i class="bi bi-exclamation-circle"></i> Jobs on Run Sheets but NOT on Payslips (${onlyInRunsheets.length})</h6>
-                        <small>You worked these but weren't paid (or not yet processed)</small>
-                    </div>
-                    <div class="card-body p-0">
-                        <div class="table-responsive">
-                            <table class="table table-sm table-hover mb-0">
-                                <thead>
-                                    <tr>
-                                        <th>Job #</th>
-                                        <th>Customer</th>
-                                        <th>Date</th>
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    ${onlyInRunsheets.map(j => `
-                                        <tr>
-                                            <td><strong>${j.jobNum}</strong></td>
-                                            <td>${j.customer || 'Unknown'}</td>
-                                            <td>${j.date}</td>
-                                        </tr>
-                                    `).join('')}
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
+                <div class="alert alert-warning">
+                    <h6><i class="bi bi-info-circle"></i> Recommendations:</h6>
+                    <ul class="mb-0">
+                        <li>Review missing jobs to identify patterns (e.g., specific agencies or job types)</li>
+                        <li>Check if runsheet files are missing for certain date ranges</li>
+                        <li>Verify import processes are capturing all work types</li>
+                        <li>Generate PDF report for detailed analysis</li>
+                    </ul>
                 </div>
             `;
-        }
-        
-        if (onlyInPayslips.length === 0 && onlyInRunsheets.length === 0) {
-            html += `<div class="alert alert-success"><i class="bi bi-check-circle"></i> No discrepancies found! All jobs match.</div>`;
         }
         
         // Display results in the tab
         contentDiv.innerHTML = html;
-        console.log('Discrepancy Report:', { onlyInPayslips, onlyInRunsheets, matched });
+        console.log('Discrepancy Report:', data);
         
     } catch (error) {
         console.error('Error generating discrepancy report:', error);
@@ -1064,3 +1032,132 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+
+// PDF Generation for Discrepancy Report
+async function generateDiscrepancyPDF() {
+    try {
+        // Get current filter values
+        const year = document.getElementById('discrepancyYear')?.value || '';
+        const month = document.getElementById('discrepancyMonth')?.value || '';
+        
+        // Show loading state
+        const button = event.target;
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+        button.disabled = true;
+        
+        // Use the PDF generation endpoint
+        const response = await fetch('/api/runsheets/discrepancy-pdf', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ year, month })
+        });
+        
+        if (response.ok) {
+            // Download the PDF file
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            // Generate filename with date filters
+            let filename = 'discrepancy_report';
+            if (year) filename += `_${year}`;
+            if (month) filename += `_${month}`;
+            filename += `_${new Date().toISOString().slice(0, 10)}.pdf`;
+            
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showSuccess('Professional PDF report downloaded successfully! Contains executive summary, detailed analysis, and recommendations.');
+        } else {
+            const error = await response.json();
+            showError(`Failed to generate PDF: ${error.error || 'Unknown error'}`);
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showError('Error generating PDF report');
+    } finally {
+        // Restore button state
+        const button = event.target;
+        button.innerHTML = '<i class="bi bi-file-earmark-pdf"></i> PDF';
+        button.disabled = false;
+    }
+}
+
+// CSV Generation for Discrepancy Report
+async function generateDiscrepancyCSV() {
+    try {
+        // Get current filter values
+        const year = document.getElementById('discrepancyYear')?.value || '';
+        const month = document.getElementById('discrepancyMonth')?.value || '';
+        
+        // Show loading state
+        const button = event.target;
+        button.innerHTML = '<i class="bi bi-hourglass-split"></i> Generating...';
+        button.disabled = true;
+        
+        // Use the CSV generation endpoint
+        const response = await fetch('/api/runsheets/discrepancy-csv', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ year, month })
+        });
+        
+        if (response.ok) {
+            // Download the CSV file
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            // Generate filename with date filters
+            let filename = 'discrepancy_report';
+            if (year) filename += `_${year}`;
+            if (month) filename += `_${month}`;
+            filename += `_${new Date().toISOString().slice(0, 10)}.csv`;
+            
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showSuccess('CSV report downloaded successfully! Contains all missing job details with applied date filters.');
+        } else {
+            const error = await response.json();
+            showError(`Failed to generate CSV: ${error.error || 'Unknown error'}`);
+        }
+        
+    } catch (error) {
+        console.error('Error:', error);
+        showError('Error generating CSV report');
+    } finally {
+        // Restore button state
+        const button = event.target;
+        button.innerHTML = '<i class="bi bi-file-earmark-spreadsheet"></i> CSV';
+        button.disabled = false;
+    }
+}
+
+// Helper functions for status messages
+function showSuccess(message) {
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-success alert-dismissible fade show position-fixed';
+    alert.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alert.innerHTML = `<i class="bi bi-check-circle"></i> ${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+    document.body.appendChild(alert);
+    setTimeout(() => alert.remove(), 5000);
+}
+
+function showError(message) {
+    const alert = document.createElement('div');
+    alert.className = 'alert alert-danger alert-dismissible fade show position-fixed';
+    alert.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    alert.innerHTML = `<i class="bi bi-exclamation-triangle"></i> ${message}<button type="button" class="btn-close" data-bs-dismiss="alert"></button>`;
+    document.body.appendChild(alert);
+    setTimeout(() => alert.remove(), 8000);
+}

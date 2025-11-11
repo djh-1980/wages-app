@@ -161,7 +161,7 @@ async function loadWeeklyTrend(taxYear = '') {
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return 'Earnings: £' + context.parsed.y.toFixed(2);
+                                return 'Earnings: ' + CurrencyFormatter.format(context.parsed.y);
                             }
                         }
                     }
@@ -171,7 +171,7 @@ async function loadWeeklyTrend(taxYear = '') {
                         beginAtZero: true,
                         ticks: {
                             callback: function(value) {
-                                return '£' + value.toFixed(0);
+                                return CurrencyFormatter.format(value);
                             }
                         }
                     }
@@ -370,7 +370,7 @@ async function loadClients() {
                     tooltip: {
                         callbacks: {
                             label: function(context) {
-                                return 'Total: £' + context.parsed.y.toFixed(2);
+                                return 'Total: ' + CurrencyFormatter.format(context.parsed.y);
                             }
                         }
                     }
@@ -380,7 +380,7 @@ async function loadClients() {
                         beginAtZero: true,
                         ticks: {
                             callback: function(value) {
-                                return '£' + value.toFixed(0);
+                                return CurrencyFormatter.format(value);
                             }
                         }
                     }
@@ -752,8 +752,7 @@ async function performSearch(query) {
 
 // Utility functions
 function formatCurrency(value) {
-    if (value === null || value === undefined) return '£0.00';
-    return '£' + parseFloat(value).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return CurrencyFormatter.format(value);
 }
 
 function truncate(str, length) {
