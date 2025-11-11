@@ -234,14 +234,14 @@ class GmailRunSheetDownloader:
         
         # Search query for run sheets
         # Adjust these search terms based on your email patterns
-        # Searches for PDFs with "RUN SHEETS" in subject or "runsheet" in filename
+        # Searches for PDFs with "RUN SHEETS" in subject, "runsheet" in filename, or "Runsheet" (new format)
         
         if recent_only:
             # Search recent emails without date restriction (includes future dates)
-            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR filename:runsheet OR subject:runsheet) newer_than:7d'
+            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR filename:runsheet OR subject:runsheet OR filename:Runsheet OR subject:Runsheet) newer_than:7d'
         else:
             # Use original date-based search
-            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR filename:runsheet OR subject:runsheet) after:{after_date}'
+            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR filename:runsheet OR subject:runsheet OR filename:Runsheet OR subject:Runsheet) after:{after_date}'
         
         try:
             results = self.service.users().messages().list(
