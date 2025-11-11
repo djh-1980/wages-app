@@ -316,6 +316,87 @@ def api_get_sync_progress():
         }), 500
 
 
+@data_bp.route('/sync-missing-runsheets', methods=['POST'])
+def api_sync_missing_runsheets():
+    """Find and download missing run sheets from the last 30 days."""
+    log_settings_action('SYNC_MISSING_RUNSHEETS', 'Starting missing run sheets check and download')
+    
+    try:
+        # Run the missing sheets downloader
+        download_process = subprocess.Popen(
+            [sys.executable, 'scripts/download_runsheets_gmail.py', '--missing'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        try:
+            download_stdout, download_stderr = download_process.communicate(timeout=300)  # 5 minutes
+        except subprocess.TimeoutExpired:
+            download_process.kill()
+            log_settings_action('SYNC_MISSING_RUNSHEETS', 'ERROR: Missing sheets download timed out after 5 minutes', 'WARNING')
+            return jsonify({
+                'success': False,
+                'error': 'Missing sheets download timed out after 5 minutes. Check Gmail credentials and network connection.',
+                'output': 'Timeout occurred during missing sheets download'
+            }), 500
+        
+        if download_process.returncode != 0:
+            log_settings_action('SYNC_MISSING_RUNSHEETS', f'Missing sheets download failed: {download_stderr}', 'WARNING')
+            return jsonify({
+                'success': False,
+                'error': f'Missing sheets download failed: {download_stderr}',
+                'output': download_stdout
+            }), 500
+        
+        log_settings_action('SYNC_MISSING_RUNSHEETS', f'Missing sheets download complete: {download_stdout[:200]}...')
+        
+        # Step 2: Import the downloaded files
+        log_settings_action('SYNC_MISSING_RUNSHEETS', 'Step 2: Importing downloaded run sheets...')
+        
+        import_process = subprocess.Popen(
+            [sys.executable, 'scripts/import_run_sheets.py'],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        try:
+            import_stdout, import_stderr = import_process.communicate(timeout=300)  # 5 minutes
+        except subprocess.TimeoutExpired:
+            import_process.kill()
+            log_settings_action('SYNC_MISSING_RUNSHEETS', 'ERROR: Import timed out after 5 minutes', 'WARNING')
+            return jsonify({
+                'success': False,
+                'error': 'Import timed out after 5 minutes.',
+                'output': download_stdout + '\n\nImport timeout occurred'
+            }), 500
+        
+        if import_process.returncode != 0:
+            log_settings_action('SYNC_MISSING_RUNSHEETS', f'Import failed: {import_stderr}', 'WARNING')
+            return jsonify({
+                'success': False,
+                'error': f'Download succeeded but import failed: {import_stderr}',
+                'output': download_stdout + '\n\nImport failed: ' + import_stderr
+            }), 500
+        
+        log_settings_action('SYNC_MISSING_RUNSHEETS', f'Missing sheets sync complete: {import_stdout[:200]}...')
+        
+        return jsonify({
+            'success': True,
+            'message': 'Missing run sheets check and sync completed successfully',
+            'output': download_stdout + '\n\n' + import_stdout
+        })
+        
+    except Exception as e:
+        log_settings_action('SYNC_MISSING_RUNSHEETS', f'Unexpected error: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': f'Unexpected error during missing sheets sync: {str(e)}',
+            'output': ''
+        }), 500
+
+
 @data_bp.route('/reorganize-runsheets', methods=['POST'])
 def api_reorganize_runsheets():
     """Reorganize run sheets by date and driver."""

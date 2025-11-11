@@ -15,6 +15,7 @@ from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import PyPDF2
+import sqlite3
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
@@ -119,7 +120,40 @@ class GmailRunSheetDownloader:
         # If there are no (valid) credentials available, let the user log in
         if not creds or not creds.valid:
             if creds and creds.expired and creds.refresh_token:
-                creds.refresh(Request())
+                try:
+                    print("🔄 Refreshing expired Gmail token...")
+                    creds.refresh(Request())
+                    print("✅ Token refreshed successfully")
+                    
+                    # Save the refreshed credentials
+                    with open(token_path, 'w') as token:
+                        token.write(creds.to_json())
+                    
+                except Exception as e:
+                    print(f"❌ Token refresh failed: {e}")
+                    print("🔄 Attempting to re-authenticate...")
+                    
+                    # Try to re-authenticate automatically
+                    if not credentials_path.exists():
+                        print("❌ Error: credentials.json not found!")
+                        print("Cannot re-authenticate without credentials.json")
+                        return False
+                    
+                    try:
+                        flow = InstalledAppFlow.from_client_secrets_file(
+                            str(credentials_path), SCOPES)
+                        # Use run_console instead of run_local_server for headless environments
+                        creds = flow.run_console()
+                        
+                        # Save the new credentials
+                        with open(token_path, 'w') as token:
+                            token.write(creds.to_json())
+                        
+                        print("✅ Re-authentication successful")
+                        
+                    except Exception as auth_e:
+                        print(f"❌ Re-authentication failed: {auth_e}")
+                        return False
             else:
                 if not credentials_path.exists():
                     print("❌ Error: credentials.json not found!")
@@ -143,6 +177,55 @@ class GmailRunSheetDownloader:
         
         self.service = build('gmail', 'v1', credentials=creds)
         return True
+    
+    def find_missing_runsheet_dates(self, days_back=30):
+        """Find dates in the last N days that don't have run sheets in the database."""
+        db_path = Path('data/payslips.db')
+        if not db_path.exists():
+            print(f"❌ Database not found: {db_path}")
+            return []
+        
+        try:
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+            
+            # Get all dates from the last N days that have run sheet jobs
+            cursor.execute("""
+                SELECT DISTINCT date 
+                FROM run_sheet_jobs 
+                WHERE date IS NOT NULL 
+                AND date != ''
+                AND date >= date('now', '-{} days')
+                ORDER BY date DESC
+            """.format(days_back))
+            
+            existing_dates = {row[0] for row in cursor.fetchall()}
+            conn.close()
+            
+            # Generate all dates in the last N days (excluding weekends)
+            from datetime import datetime, timedelta
+            
+            end_date = datetime.now()
+            start_date = end_date - timedelta(days=days_back)
+            
+            expected_dates = set()
+            current_date = start_date
+            
+            while current_date <= end_date:
+                # Skip weekends (Saturday=5, Sunday=6)
+                if current_date.weekday() < 5:  # Monday=0 to Friday=4
+                    date_str = current_date.strftime('%d/%m/%Y')
+                    expected_dates.add(date_str)
+                current_date += timedelta(days=1)
+            
+            # Find missing dates
+            missing_dates = expected_dates - existing_dates
+            
+            return sorted(list(missing_dates), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
+            
+        except Exception as e:
+            print(f"❌ Error checking database: {e}")
+            return []
     
     def search_run_sheet_emails(self, after_date='2025/01/01', recent_only=False):
         """Search for emails with run sheet attachments."""
@@ -391,6 +474,80 @@ class GmailRunSheetDownloader:
         print()
         print(f"📁 Files saved to: {self.download_dir.absolute()}")
     
+    def download_missing_runsheets(self, days_back=30):
+        """Find and download missing run sheets from the last N days."""
+        print("=" * 70)
+        print("MISSING RUN SHEETS DOWNLOADER")
+        print("=" * 70)
+        print(f"Checking for missing run sheets in the last {days_back} days...")
+        print()
+        
+        if not self.authenticate():
+            return
+        
+        # Find missing dates
+        missing_dates = self.find_missing_runsheet_dates(days_back)
+        
+        if not missing_dates:
+            print("✅ No missing run sheets found!")
+            return
+        
+        print(f"📋 Found {len(missing_dates)} missing dates:")
+        for date in missing_dates:
+            print(f"  • {date}")
+        print()
+        
+        # Search for emails in the last N days
+        print("🔍 Searching Gmail for run sheet emails...")
+        emails = self.search_run_sheet_emails(recent_only=True)
+        
+        if not emails:
+            print("❌ No run sheet emails found in Gmail")
+            return
+        
+        print(f"📧 Found {len(emails)} run sheet emails")
+        
+        # Download all recent run sheets (they might contain the missing dates)
+        downloaded_files = []
+        total_downloaded = 0
+        
+        for i, email in enumerate(emails, 1):
+            print(f"\n📧 Processing email {i}/{len(emails)}...")
+            
+            try:
+                # Get email details
+                message = self.service.users().messages().get(
+                    userId='me', 
+                    id=email['id']
+                ).execute()
+                
+                # Get email subject and date
+                headers = message['payload'].get('headers', [])
+                subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
+                date_header = next((h['value'] for h in headers if h['name'] == 'Date'), '')
+                
+                print(f"  Subject: {subject}")
+                print(f"  Date: {date_header}")
+                
+                # Download attachments
+                email_files = self.download_attachments(email['id'])
+                downloaded_files.extend(email_files)
+                total_downloaded += len(email_files)
+                
+            except Exception as e:
+                print(f"  ✗ Error processing email: {e}")
+        
+        print()
+        print("=" * 70)
+        print("MISSING SHEETS DOWNLOAD COMPLETE")
+        print("=" * 70)
+        print(f"📥 Downloaded {total_downloaded} files")
+        print()
+        print("💡 Tip: Run the sync again to import these files into the database")
+        print("   and check if the missing dates are now covered.")
+        print()
+        print(f"📁 Files saved to: {self.download_dir.absolute()}")
+    
     def download_all_payslips(self, after_date='2025/01/01', auto_import=True):
         """Download all payslips from Gmail (Tuesdays at 1300 - saser files)."""
         print("=" * 70)
@@ -557,6 +714,8 @@ def main():
             mode = 'runsheets'
         elif arg == '--payslips':
             mode = 'payslips'
+        elif arg == '--missing':
+            mode = 'missing'
         elif arg == '--recent':
             recent_only = True
         elif arg in ['--help', '-h']:
@@ -566,6 +725,7 @@ def main():
             print("  --date=YYYY/MM/DD   Download emails after this date (default: 2025/01/01)")
             print("  --runsheets         Download only run sheets")
             print("  --payslips          Download only payslips")
+            print("  --missing           Find and download missing run sheets (last 30 days)")
             print("  --recent            Search recent emails (last 7 days, includes future dates)")
             print("  --help, -h          Show this help")
             print()
@@ -574,6 +734,7 @@ def main():
             print("  python download_runsheets_gmail.py --date=2024/01/01")
             print("  python download_runsheets_gmail.py --payslips")
             print("  python download_runsheets_gmail.py --runsheets --recent")
+            print("  python download_runsheets_gmail.py --missing")
             return
         else:
             # Assume it's a date
@@ -587,6 +748,8 @@ def main():
         downloader.download_all_run_sheets(after_date, recent_only=recent_only)
     elif mode == 'payslips':
         downloader.download_all_payslips(after_date)
+    elif mode == 'missing':
+        downloader.download_missing_runsheets(30)
 
 
 if __name__ == "__main__":
