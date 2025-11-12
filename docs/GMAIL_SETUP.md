@@ -81,9 +81,9 @@ python3 scripts/download_runsheets_gmail.py 2025/10/01
 
 **What It Does:**
 1. Connects to Gmail and searches for run sheet emails
-2. Downloads PDF attachments to `RunSheets/` folder
+2. Downloads PDF attachments to `data/runsheets/` folder
 3. Extracts the date from each PDF
-4. Moves PDFs to `RunSheets/YYYY/MM/` folders
+4. Moves PDFs to `data/runsheets/YYYY/MM/` folders
 5. Imports all jobs to the database automatically
 6. Shows summary of downloaded and imported jobs
 

@@ -8,7 +8,7 @@ from pathlib import Path
 from contextlib import contextmanager
 
 # Database configuration
-DB_PATH = "data/payslips.db"
+DB_PATH = "data/database/payslips.db"
 
 
 def get_db():

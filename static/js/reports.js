@@ -1,13 +1,13 @@
 function generateMissingDatesReport() {
     showStatus('Generating missing dates report...');
     
-    fetch('/api/reports/missing-dates', {
+    fetch('/api/data/reports/missing-dates', {
         method: 'POST'
     })
     .then(response => response.json())
     .then(data => {
         if (data.success) {
-            showSuccess('Report generated! Check the reports/ folder.');
+            showSuccess('Report generated! Check the data/reports/ folder.');
             // Optionally download the file
             window.location.href = '/download/report/' + data.filename;
         } else {
@@ -652,7 +652,7 @@ async function loadMileageData() {
         const year = document.getElementById('mileageYear')?.value || '';
         console.log('Loading mileage data for year:', year);
         
-        const response = await fetch(`/api/reports/mileage-summary?year=${year}`);
+        const response = await fetch(`/api/data/reports/mileage-summary?year=${year}`);
         const data = await response.json();
         
         console.log('Mileage data received:', data);
@@ -803,7 +803,7 @@ async function loadRecentMileage() {
     contentDiv.innerHTML = '<div class="text-center py-4"><div class="spinner-border text-primary" role="status"></div><p class="mt-2 text-muted">Loading...</p></div>';
     
     try {
-        const response = await fetch('/api/reports/recent-mileage');
+        const response = await fetch('/api/data/reports/recent-mileage');
         const data = await response.json();
         
         if (data.success && data.records.length > 0) {
@@ -838,7 +838,7 @@ function generateMonthlyMileageReport(format = 'csv') {
     const formatName = format.toUpperCase();
     showStatus(`Generating monthly mileage ${formatName} report...`);
     
-    fetch('/api/reports/monthly-mileage', { 
+    fetch('/api/data/reports/monthly-mileage', { 
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -880,7 +880,7 @@ function generateHighMileageDays(format = 'csv') {
     const formatName = format.toUpperCase();
     showStatus(`Analyzing high mileage days for ${formatName} report...`);
     
-    fetch('/api/reports/high-mileage-days', { 
+    fetch('/api/data/reports/high-mileage-days', { 
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'
@@ -921,7 +921,7 @@ function generateHighMileageDays(format = 'csv') {
 function generateFuelEfficiencyReport() {
     showStatus('Calculating fuel efficiency metrics...');
     
-    fetch('/api/reports/fuel-efficiency', { method: 'POST' })
+    fetch('/api/data/reports/fuel-efficiency', { method: 'POST' })
         .then(response => {
             if (response.headers.get('content-type')?.includes('text/csv')) {
                 // Direct CSV download
@@ -956,7 +956,7 @@ function generateMissingMileageReport(format = 'csv') {
     const formatName = format.toUpperCase();
     showStatus(`Analyzing missing mileage data for ${formatName} report...`);
     
-    fetch('/api/reports/missing-mileage-data', { 
+    fetch('/api/data/reports/missing-mileage-data', { 
         method: 'POST',
         headers: {
             'Content-Type': 'application/json'

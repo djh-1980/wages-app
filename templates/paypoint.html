@@ -7,35 +7,32 @@
 {% endblock %}
 
 {% block content %}
-<div class="container-fluid py-4 paypoint-page">
     <!-- Header -->
-    <div class="row mb-4 paypoint-header">
-        <div class="col-12">
-            <div class="d-flex justify-content-between align-items-center">
-                <div>
-                    <h1 class="h3 mb-1">
-                        <i class="bi bi-box-seam text-primary"></i>
-                        Paypoint Stock Management
-                    </h1>
-                    <p class="text-muted mb-0">Track van stock, usage, and audit trails</p>
-                </div>
-                <div class="btn-group paypoint-actions" role="group">
-                    <button type="button" class="btn btn-primary" onclick="showAddDeviceModal()">
-                        <i class="bi bi-plus-circle"></i> Add Device
-                    </button>
-                    <button type="button" class="btn btn-success" onclick="showDeployModal()">
-                        <i class="bi bi-arrow-up-circle"></i> Deploy
-                    </button>
-                    <button type="button" class="btn btn-warning" onclick="showReturnModal()">
-                        <i class="bi bi-arrow-down-circle"></i> Return
-                    </button>
-                </div>
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1>
+                    <i class="bi bi-box-seam text-primary"></i>
+                    Paypoint Stock Management
+                </h1>
+                <p>Track van stock, usage, and audit trails</p>
+            </div>
+            <div class="action-buttons" role="group">
+                <button type="button" class="btn btn-primary" onclick="showAddDeviceModal()">
+                    <i class="bi bi-plus-circle"></i> Add Device
+                </button>
+                <button type="button" class="btn btn-success" onclick="showDeployModal()">
+                    <i class="bi bi-arrow-up-circle"></i> Deploy
+                </button>
+                <button type="button" class="btn btn-warning" onclick="showReturnModal()">
+                    <i class="bi bi-arrow-down-circle"></i> Return
+                </button>
             </div>
         </div>
     </div>
 
     <!-- Summary Cards -->
-    <div class="paypoint-summary" id="summaryCards">
+    <div class="row summary-cards" id="summaryCards">
         <div class="col-md-3">
             <div class="card bg-primary text-white">
                 <div class="card-body">
@@ -101,8 +98,8 @@
     <!-- Main Content Tabs -->
     <div class="row">
         <div class="col-12">
-            <div class="card paypoint-tab-content">
-                <div class="card-header paypoint-tabs">
+            <div class="content-card">
+                <div class="content-card-header unified-tabs">
                     <ul class="nav nav-tabs card-header-tabs" id="paypointTabs" role="tablist">
                         <li class="nav-item" role="presentation">
                             <button class="nav-link active" id="devices-tab" data-bs-toggle="tab" data-bs-target="#devices" type="button" role="tab">
@@ -129,10 +126,10 @@
                 <div class="card-body">
                     <div class="tab-content" id="paypointTabContent">
                         <!-- Devices Tab -->
-                        <div class="tab-pane fade show active paypoint-tab-pane" id="devices" role="tabpanel">
-                            <div class="paypoint-table-container">
+                        <div class="tab-pane fade show active" id="devices" role="tabpanel">
+                            <div class="unified-table-container">
                                 <div class="table-responsive">
-                                    <table class="table table-hover paypoint-table" id="devicesTable">
+                                    <table class="table table-hover unified-table" id="devicesTable">
                                     <thead>
                                         <tr>
                                             <th>Paypoint Type</th>
@@ -256,7 +253,7 @@
 </div>
 
 <!-- Add Device Modal -->
-<div class="modal fade paypoint-modal" id="addDeviceModal" tabindex="-1">
+<div class="modal fade unified-modal" id="addDeviceModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -299,7 +296,7 @@
 </div>
 
 <!-- Deploy Device Modal -->
-<div class="modal fade paypoint-modal" id="deployModal" tabindex="-1">
+<div class="modal fade unified-modal" id="deployModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -341,7 +338,7 @@
 </div>
 
 <!-- Return Device Modal -->
-<div class="modal fade paypoint-modal" id="returnModal" tabindex="-1">
+<div class="modal fade unified-modal" id="returnModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">

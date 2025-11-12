@@ -9,8 +9,8 @@ venv/
 ENV/
 
 # Database (don't upload personal data)
-data/payslips.db
-data/*.db
+data/database/payslips.db
+data/database/*.db
 
 # PDFs (don't upload personal payslips and run sheets)
 PaySlips/
@@ -23,6 +23,8 @@ token.json
 # Generated output files
 output/*.csv
 output/*.txt
+data/exports/*.csv
+data/exports/*.txt
 
 # IDE
 .vscode/
@@ -37,3 +39,17 @@ Thumbs.db
 
 # Logs
 *.log
+logs/*.log
+
+# Data directories (exclude from repository)
+data/documents/payslips/
+data/documents/runsheets/
+data/uploads/
+data/processing/
+data/database/backups/
+data/reports/
+data/reorganization_backup/
+!data/documents/payslips/.gitkeep
+!data/documents/runsheets/.gitkeep
+!data/uploads/.gitkeep
+!data/processing/.gitkeep

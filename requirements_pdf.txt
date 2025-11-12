@@ -1,3 +1,0 @@
-# PDF Report Generation Dependencies
-reportlab>=4.0.0
-Pillow>=10.0.0  # Required for image handling in ReportLab

@@ -580,7 +580,7 @@ def api_export_custom():
 
 # ===== MILEAGE REPORTS =====
 
-@reports_bp.route('/reports/mileage-summary')
+@reports_bp.route('/data/reports/mileage-summary')
 def api_mileage_summary():
     """Get mileage summary statistics."""
     try:
@@ -674,7 +674,7 @@ def api_mileage_summary():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@reports_bp.route('/reports/recent-mileage')
+@reports_bp.route('/data/reports/recent-mileage')
 def api_recent_mileage():
     """Get recent mileage records."""
     try:
@@ -703,7 +703,7 @@ def api_recent_mileage():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@reports_bp.route('/reports/monthly-mileage', methods=['POST'])
+@reports_bp.route('/data/reports/monthly-mileage', methods=['POST'])
 def api_generate_monthly_mileage_report():
     """Generate monthly mileage report."""
     try:
@@ -778,7 +778,7 @@ def api_generate_monthly_mileage_report():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@reports_bp.route('/reports/high-mileage-days', methods=['POST'])
+@reports_bp.route('/data/reports/high-mileage-days', methods=['POST'])
 def api_generate_high_mileage_report():
     """Generate high mileage days report."""
     try:
@@ -843,7 +843,7 @@ def api_generate_high_mileage_report():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@reports_bp.route('/reports/fuel-efficiency', methods=['POST'])
+@reports_bp.route('/data/reports/fuel-efficiency', methods=['POST'])
 def api_generate_fuel_efficiency_report():
     """Generate fuel efficiency report."""
     try:
@@ -901,7 +901,7 @@ def api_generate_fuel_efficiency_report():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@reports_bp.route('/reports/missing-mileage-data', methods=['POST'])
+@reports_bp.route('/data/reports/missing-mileage-data', methods=['POST'])
 def api_generate_missing_mileage_report():
     """Generate missing mileage data report."""
     try:

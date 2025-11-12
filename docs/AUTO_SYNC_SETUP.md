@@ -21,7 +21,7 @@ This will:
 The automated sync runs daily and:
 
 1. **Downloads** run sheets from Gmail (yesterday's date)
-2. **Organizes** PDFs into `RunSheets/YYYY/MM/` folders
+2. **Organizes** PDFs into `data/runsheets/YYYY/MM/` folders
 3. **Imports** all jobs to the database
 4. **Creates notification** for the web app
 5. **Logs** everything to `logs/runsheet_sync.log`

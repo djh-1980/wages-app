@@ -575,7 +575,7 @@ async function reorganizeRunSheets() {
     const statusDiv = document.getElementById('dataManagementStatus');
     
     // First, show options
-    const choice = confirm('This will reorganize all run sheets:\n\n1. Move all to RunSheets/backup\n2. Check for "Hanson, Daniel"\n3. Organize by year/month\n4. Rename to DH_DD-MM-YYYY.pdf\n\nClick OK to preview changes (dry run)\nClick Cancel to abort');
+    const choice = confirm('This will reorganize all run sheets:\n\n1. Move all to data/runsheets/backup\n2. Check for "Hanson, Daniel"\n3. Organize by year/month\n4. Rename to DH_DD-MM-YYYY.pdf\n\nClick OK to preview changes (dry run)\nClick Cancel to abort');
     
     if (!choice) {
         return;

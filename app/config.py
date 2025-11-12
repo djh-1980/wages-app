@@ -16,8 +16,8 @@ class Config:
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max file upload
     
     # Database Configuration
-    DATABASE_PATH = os.environ.get('DATABASE_PATH') or 'data/payslips.db'
-    DATABASE_BACKUP_DIR = os.environ.get('BACKUP_DIR') or 'Backups'
+    DATABASE_PATH = os.environ.get('DATABASE_PATH') or 'data/database/payslips.db'
+    DATABASE_BACKUP_DIR = os.environ.get('BACKUP_DIR') or 'data/database/backups'
     DATABASE_BACKUP_RETENTION_DAYS = int(os.environ.get('BACKUP_RETENTION_DAYS', '30'))
     
     # Upload Configuration

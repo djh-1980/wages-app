@@ -52,6 +52,7 @@ def create_app(config_name=None):
     from .routes.api_attendance import attendance_bp
     from .routes.api_sync import sync_bp
     from .routes.api_paypoint import paypoint_bp
+    from .routes.api_upload import upload_bp
     
     app.register_blueprint(main_bp)
     app.register_blueprint(payslips_bp)
@@ -65,5 +66,6 @@ def create_app(config_name=None):
     app.register_blueprint(attendance_bp)
     app.register_blueprint(sync_bp)
     app.register_blueprint(paypoint_bp)
+    app.register_blueprint(upload_bp)
     
     return app

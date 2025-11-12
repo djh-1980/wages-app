@@ -458,7 +458,7 @@ def api_backup_database():
         backup_file = backup_dir / f'payslips_backup_{timestamp}.db'
         
         # Copy database
-        shutil.copy2('data/payslips.db', backup_file)
+        shutil.copy2('data/database/payslips.db', backup_file)
         
         # Get file size
         size_mb = backup_file.stat().st_size / (1024 * 1024)
@@ -711,6 +711,150 @@ def api_database_info():
             'database_path': str(db_path)
         })
     except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/stats', methods=['GET'])
+def api_get_stats():
+    """Get database statistics for the settings page."""
+    try:
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        # Get payslips count
+        cursor.execute("SELECT COUNT(*) FROM payslips")
+        payslips_count = cursor.fetchone()[0]
+        
+        # Get runsheets count
+        cursor.execute("SELECT COUNT(DISTINCT date) FROM run_sheet_jobs WHERE date IS NOT NULL AND date != ''")
+        runsheets_count = cursor.fetchone()[0]
+        
+        # Get total jobs count
+        cursor.execute("SELECT COUNT(*) FROM run_sheet_jobs")
+        jobs_count = cursor.fetchone()[0]
+        
+        # Get database size
+        cursor.execute("SELECT page_count * page_size as size FROM pragma_page_count(), pragma_page_size()")
+        db_size_bytes = cursor.fetchone()[0]
+        
+        conn.close()
+        
+        # Format database size
+        if db_size_bytes < 1024:
+            db_size = f"{db_size_bytes} B"
+        elif db_size_bytes < 1024 * 1024:
+            db_size = f"{db_size_bytes / 1024:.1f} KB"
+        elif db_size_bytes < 1024 * 1024 * 1024:
+            db_size = f"{db_size_bytes / (1024 * 1024):.1f} MB"
+        else:
+            db_size = f"{db_size_bytes / (1024 * 1024 * 1024):.1f} GB"
+        
+        return jsonify({
+            'success': True,
+            'payslips': payslips_count,
+            'runsheets': runsheets_count,
+            'jobs': jobs_count,
+            'size': db_size,
+            'total_records': payslips_count + jobs_count
+        })
+        
+    except Exception as e:
+        log_settings_action('GET_STATS', f'Failed to get database stats: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e),
+            'payslips': 0,
+            'runsheets': 0,
+            'jobs': 0,
+            'size': '0 B',
+            'total_records': 0
+        }), 500
+
+
+@data_bp.route('/periodic-sync/status', methods=['GET'])
+def api_get_periodic_sync_status():
+    """Get periodic sync service status."""
+    try:
+        from ..services.periodic_sync import periodic_sync_service
+        status = periodic_sync_service.get_sync_status()
+        
+        return jsonify({
+            'success': True,
+            **status
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/periodic-sync/start', methods=['POST'])
+def api_start_periodic_sync():
+    """Start the periodic sync service."""
+    try:
+        from ..services.periodic_sync import periodic_sync_service
+        periodic_sync_service.start_periodic_sync()
+        
+        log_settings_action('PERIODIC_SYNC', 'Periodic sync service started')
+        
+        return jsonify({
+            'success': True,
+            'message': 'Periodic sync service started'
+        })
+    except Exception as e:
+        log_settings_action('PERIODIC_SYNC', f'Failed to start periodic sync: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/periodic-sync/stop', methods=['POST'])
+def api_stop_periodic_sync():
+    """Stop the periodic sync service."""
+    try:
+        from ..services.periodic_sync import periodic_sync_service
+        periodic_sync_service.stop_periodic_sync()
+        
+        log_settings_action('PERIODIC_SYNC', 'Periodic sync service stopped')
+        
+        return jsonify({
+            'success': True,
+            'message': 'Periodic sync service stopped'
+        })
+    except Exception as e:
+        log_settings_action('PERIODIC_SYNC', f'Failed to stop periodic sync: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/periodic-sync/force', methods=['POST'])
+def api_force_sync():
+    """Force an immediate sync."""
+    try:
+        from ..services.periodic_sync import periodic_sync_service
+        success = periodic_sync_service.force_sync_now()
+        
+        if success:
+            log_settings_action('PERIODIC_SYNC', 'Manual sync triggered')
+            return jsonify({
+                'success': True,
+                'message': 'Sync started in background'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Periodic sync service not running'
+            }), 400
+            
+    except Exception as e:
+        log_settings_action('PERIODIC_SYNC', f'Failed to force sync: {str(e)}', 'ERROR')
         return jsonify({
             'success': False,
             'error': str(e)

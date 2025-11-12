@@ -1,0 +1,87 @@
+{
+  "file_structure": {
+    "version": "4.0",
+    "organized": true,
+    "database_driven": true,
+    "real_time_processing": true,
+    "reorganized_date": "2025-11-12",
+    "base_data_dir": "data",
+    "directories": {
+      "database": {
+        "base": "data/database",
+        "main_db": "data/database/payslips.db",
+        "backups": "data/database/backups"
+      },
+      "documents": {
+        "base": "data/documents",
+        "payslips": "data/documents/payslips",
+        "runsheets": "data/documents/runsheets",
+        "archive_pattern": "data/documents/{document_type}/{year}/{month_name}"
+      },
+      "processing": {
+        "base": "data/processing",
+        "queue": "data/processing/queue",
+        "temp": "data/processing/temp",
+        "failed": "data/processing/failed",
+        "manual": "data/processing/manual",
+        "processed": "data/processing/processed"
+      },
+      "uploads": {
+        "base": "data/uploads",
+        "pending": "data/uploads/pending",
+        "processed": "data/uploads/processed"
+      },
+      "exports": {
+        "base": "data/exports",
+        "csv": "data/exports/csv",
+        "summaries": "data/exports/summaries"
+      },
+      "reports": {
+        "base": "data/reports",
+        "pattern": "data/reports/{year}/{month_name}"
+      }
+    },
+    "legacy_paths": {
+      "note": "These paths are deprecated and maintained for reference only",
+      "payslips_old": "data/payslips",
+      "runsheets_old": "data/runsheets",
+      "output_old": "data/output",
+      "backups_old": "data/backups"
+    }
+  },
+  "processing_workflow": {
+    "immediate_processing": true,
+    "move_after_processing": true,
+    "archive_processed_files": true,
+    "retry_failed_files": true,
+    "cleanup_temp_files": true,
+    "max_processing_time": 300,
+    "archive_format": "{month:02d}-{month_name}",
+    "supported_years": ["2021", "2022", "2023", "2024", "2025", "2026"]
+  },
+  "monitoring": {
+    "watch_directories": [
+      "data/processing/manual",
+      "data/processing/queue",
+      "data/uploads/pending",
+      "data/processing/temp"
+    ],
+    "file_extensions": [
+      ".pdf"
+    ],
+    "processing_delay": 2,
+    "cleanup_empty_dirs": true,
+    "remove_system_files": true
+  },
+  "maintenance": {
+    "cleanup_schedule": "monthly",
+    "backup_retention_days": 90,
+    "archive_old_data": true,
+    "monitor_folder_sizes": true,
+    "scripts": {
+      "reorganize": "scripts/reorganize_data_folder.py",
+      "cleanup": "scripts/cleanup_data_folder.py",
+      "update_paths": "scripts/update_app_paths.py"
+    }
+  }
+}

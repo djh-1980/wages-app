@@ -6,7 +6,7 @@
 ```bash
 python3 extract_payslips.py
 ```
-This processes all PDF files in the `PaySlips/` directory and creates `payslips.db`.
+This processes all PDF files in the `data/payslips/` directory and creates `payslips.db`.
 
 ### 2. Query the Data Interactively
 ```bash
@@ -202,7 +202,7 @@ EOF
 ## Troubleshooting
 
 **No data extracted:**
-- Check that PDF files are in `PaySlips/` directory
+- Check that PDF files are in `data/payslips/` directory
 - Verify filename format matches expected pattern
 
 **Missing fields:**
