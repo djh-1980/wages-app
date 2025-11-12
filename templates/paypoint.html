@@ -1,0 +1,395 @@
+{% extends "base.html" %}
+
+{% block title %}Paypoint Stock Management - TVS Wages{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/paypoint.css') }}?v={{ range(1000, 9999) | random }}">
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid py-4 paypoint-page">
+    <!-- Header -->
+    <div class="row mb-4 paypoint-header">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-1">
+                        <i class="bi bi-box-seam text-primary"></i>
+                        Paypoint Stock Management
+                    </h1>
+                    <p class="text-muted mb-0">Track van stock, usage, and audit trails</p>
+                </div>
+                <div class="btn-group paypoint-actions" role="group">
+                    <button type="button" class="btn btn-primary" onclick="showAddDeviceModal()">
+                        <i class="bi bi-plus-circle"></i> Add Device
+                    </button>
+                    <button type="button" class="btn btn-success" onclick="showDeployModal()">
+                        <i class="bi bi-arrow-up-circle"></i> Deploy
+                    </button>
+                    <button type="button" class="btn btn-warning" onclick="showReturnModal()">
+                        <i class="bi bi-arrow-down-circle"></i> Return
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Summary Cards -->
+    <div class="paypoint-summary" id="summaryCards">
+        <div class="col-md-3">
+            <div class="card bg-primary text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Total Devices</h6>
+                            <h3 class="mb-0" id="totalDevices">-</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-device-hdd fs-2"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-success text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Available</h6>
+                            <h3 class="mb-0" id="availableDevices">-</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-check-circle fs-2"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-warning text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Deployed</h6>
+                            <h3 class="mb-0" id="deployedDevices">-</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-arrow-up-circle fs-2"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        <div class="col-md-3">
+            <div class="card bg-info text-white">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between">
+                        <div>
+                            <h6 class="card-title">Returned</h6>
+                            <h3 class="mb-0" id="returnedDevices">-</h3>
+                        </div>
+                        <div class="align-self-center">
+                            <i class="bi bi-arrow-down-circle fs-2"></i>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Content Tabs -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card paypoint-tab-content">
+                <div class="card-header paypoint-tabs">
+                    <ul class="nav nav-tabs card-header-tabs" id="paypointTabs" role="tablist">
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link active" id="devices-tab" data-bs-toggle="tab" data-bs-target="#devices" type="button" role="tab">
+                                <i class="bi bi-device-hdd"></i> Devices
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="deployments-tab" data-bs-toggle="tab" data-bs-target="#deployments" type="button" role="tab">
+                                <i class="bi bi-arrow-up-circle"></i> Deployments
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="returns-tab" data-bs-toggle="tab" data-bs-target="#returns" type="button" role="tab">
+                                <i class="bi bi-arrow-down-circle"></i> Returns
+                            </button>
+                        </li>
+                        <li class="nav-item" role="presentation">
+                            <button class="nav-link" id="audit-tab" data-bs-toggle="tab" data-bs-target="#audit" type="button" role="tab">
+                                <i class="bi bi-list-check"></i> Audit History
+                            </button>
+                        </li>
+                    </ul>
+                </div>
+                <div class="card-body">
+                    <div class="tab-content" id="paypointTabContent">
+                        <!-- Devices Tab -->
+                        <div class="tab-pane fade show active paypoint-tab-pane" id="devices" role="tabpanel">
+                            <div class="paypoint-table-container">
+                                <div class="table-responsive">
+                                    <table class="table table-hover paypoint-table" id="devicesTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Paypoint Type</th>
+                                            <th>Serial/TID</th>
+                                            <th>Trace/Stock</th>
+                                            <th>Status</th>
+                                            <th>Current Job</th>
+                                            <th>Deployment Date</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="devicesTableBody">
+                                        <tr>
+                                            <td colspan="7" class="text-center">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Deployments Tab -->
+                        <div class="tab-pane fade" id="deployments" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="deploymentsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Job Number</th>
+                                            <th>Paypoint Type</th>
+                                            <th>Serial/TID</th>
+                                            <th>Trace/Stock</th>
+                                            <th>Customer</th>
+                                            <th>Status</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="deploymentsTableBody">
+                                        <tr>
+                                            <td colspan="8" class="text-center">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Returns Tab -->
+                        <div class="tab-pane fade" id="returns" role="tabpanel">
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="returnsTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Return Date</th>
+                                            <th>Job Number</th>
+                                            <th>Paypoint Type</th>
+                                            <th>Return Serial/TID</th>
+                                            <th>Return Trace</th>
+                                            <th>Customer</th>
+                                            <th>Reason</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="returnsTableBody">
+                                        <tr>
+                                            <td colspan="7" class="text-center">
+                                                <div class="spinner-border text-primary" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+
+                        <!-- Audit History Tab -->
+                        <div class="tab-pane fade" id="audit" role="tabpanel">
+                            <div class="mb-3">
+                                <div class="alert alert-info" role="alert">
+                                    <i class="bi bi-info-circle"></i>
+                                    <strong>Complete Audit Trail:</strong> Full history of all device deployments and returns.
+                                </div>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-hover" id="auditTable">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Type</th>
+                                            <th>Job Number</th>
+                                            <th>Paypoint Type</th>
+                                            <th>Serial/TID</th>
+                                            <th>Trace</th>
+                                            <th>Customer</th>
+                                            <th>Status</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="auditTableBody">
+                                        <tr>
+                                            <td colspan="8" class="text-center">
+                                                <div class="spinner-border text-info" role="status">
+                                                    <span class="visually-hidden">Loading...</span>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Add Device Modal -->
+<div class="modal fade paypoint-modal" id="addDeviceModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Add New Paypoint Device</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="addDeviceForm">
+                    <div class="mb-3">
+                        <label for="paypointType" class="form-label">Paypoint Type *</label>
+                        <select class="form-select" id="paypointType" required>
+                            <option value="">Select type...</option>
+                            <option value="PP One">PP One</option>
+                            <option value="PP Mini">PP Mini</option>
+                            <option value="P-Pod">P-Pod</option>
+                            <option value="Rp10">Rp10</option>
+                            <option value="Zebra Printer">Zebra Printer</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="serialPtid" class="form-label">Serial / TID *</label>
+                        <input type="text" class="form-control" id="serialPtid" required placeholder="e.g., PP001-2025">
+                    </div>
+                    <div class="mb-3">
+                        <label for="traceStock" class="form-label">Trace / Stock *</label>
+                        <input type="text" class="form-control" id="traceStock" required placeholder="e.g., TRC-001">
+                    </div>
+                    <div class="mb-3">
+                        <label for="deviceNotes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="deviceNotes" rows="2" placeholder="Optional notes about the device"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="addDevice()">Add Device</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Deploy Device Modal -->
+<div class="modal fade paypoint-modal" id="deployModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Deploy Device to Job</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="deployForm">
+                    <div class="mb-3">
+                        <label for="deployDeviceSelect" class="form-label">Available Device *</label>
+                        <select class="form-select" id="deployDeviceSelect" required>
+                            <option value="">Select device...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="deployJobNumber" class="form-label">Job Number *</label>
+                        <input type="text" class="form-control" id="deployJobNumber" required placeholder="e.g., 4053001">
+                    </div>
+                    <div class="mb-3">
+                        <label for="deployCustomer" class="form-label">Customer</label>
+                        <input type="text" class="form-control" id="deployCustomer" placeholder="e.g., TESCO Express">
+                    </div>
+                    <div class="mb-3">
+                        <label for="deployLocation" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="deployLocation" placeholder="e.g., 123 High Street, London">
+                    </div>
+                    <div class="mb-3">
+                        <label for="deployNotes" class="form-label">Installation Notes</label>
+                        <textarea class="form-control" id="deployNotes" rows="3" placeholder="Installation details and notes"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-success" onclick="deployDevice()">Deploy Device</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Return Device Modal -->
+<div class="modal fade paypoint-modal" id="returnModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Return Device from Job</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="returnForm">
+                    <div class="mb-3">
+                        <label for="returnDeploymentSelect" class="form-label">Deployed Device *</label>
+                        <select class="form-select" id="returnDeploymentSelect" required>
+                            <option value="">Select deployed device...</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="returnSerialPtid" class="form-label">Return Serial / TID *</label>
+                        <input type="text" class="form-control" id="returnSerialPtid" required placeholder="Serial/TID of returned device">
+                    </div>
+                    <div class="mb-3">
+                        <label for="returnTrace" class="form-label">Return Trace *</label>
+                        <input type="text" class="form-control" id="returnTrace" required placeholder="Return trace number for audit">
+                    </div>
+                    <div class="mb-3">
+                        <label for="returnReason" class="form-label">Return Reason</label>
+                        <select class="form-select" id="returnReason">
+                            <option value="">Select reason...</option>
+                            <option value="Job Completed">Job Completed</option>
+                            <option value="Device Fault">Device Fault</option>
+                            <option value="Customer Request">Customer Request</option>
+                            <option value="Upgrade">Upgrade</option>
+                            <option value="Other">Other</option>
+                        </select>
+                    </div>
+                    <div class="mb-3">
+                        <label for="returnNotes" class="form-label">Return Notes</label>
+                        <textarea class="form-control" id="returnNotes" rows="3" placeholder="Return details and condition notes"></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-warning" onclick="returnDevice()">Return Device</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/paypoint.js') }}?v={{ range(1000, 9999) | random }}"></script>
+{% endblock %}

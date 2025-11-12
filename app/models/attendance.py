@@ -74,20 +74,45 @@ class AttendanceModel:
     
     @staticmethod
     def add_record(date, reason, notes=''):
-        """Add a new attendance record."""
+        """Add a new attendance record and remove any runsheet for that date."""
         if not date or not reason:
             raise ValueError('Date and reason are required')
         
         try:
-            query = """
-                INSERT INTO attendance (date, reason, notes)
-                VALUES (?, ?, ?)
-            """
             with get_db_connection() as conn:
                 cursor = conn.cursor()
+                
+                # Add the attendance record
+                query = """
+                    INSERT INTO attendance (date, reason, notes)
+                    VALUES (?, ?, ?)
+                """
                 cursor.execute(query, (date, reason, notes))
+                record_id = cursor.lastrowid
+                
+                # Remove any runsheet jobs for this date since attendance indicates no work
+                delete_jobs_query = """
+                    DELETE FROM run_sheet_jobs 
+                    WHERE date = ?
+                """
+                cursor.execute(delete_jobs_query, (date,))
+                deleted_jobs = cursor.rowcount
+                
+                # Remove any daily data for this date
+                delete_daily_query = """
+                    DELETE FROM runsheet_daily_data 
+                    WHERE date = ?
+                """
+                cursor.execute(delete_daily_query, (date,))
+                deleted_daily = cursor.rowcount
+                
                 conn.commit()
-                return cursor.lastrowid
+                
+                # Log the cleanup action
+                if deleted_jobs > 0 or deleted_daily > 0:
+                    print(f"Attendance added for {date}: Removed {deleted_jobs} jobs and {deleted_daily} daily records")
+                
+                return record_id
         except sqlite3.IntegrityError:
             raise ValueError('Record already exists for this date')
     
@@ -95,28 +120,54 @@ class AttendanceModel:
     def update_record(record_id, date=None, reason=None, notes=None):
         """Update an attendance record. Only updates provided fields."""
         try:
-            # Build dynamic query based on provided fields
-            updates = []
-            params = []
-            
-            if date is not None:
-                updates.append("date = ?")
-                params.append(date)
-            if reason is not None:
-                updates.append("reason = ?")
-                params.append(reason)
-            if notes is not None:
-                updates.append("notes = ?")
-                params.append(notes)
-            
-            if not updates:
-                return True  # No updates needed
-            
-            query = f"UPDATE attendance SET {', '.join(updates)} WHERE id = ?"
-            params.append(record_id)
-            
-            execute_query(query, tuple(params))
-            return True
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                
+                # Build dynamic query based on provided fields
+                updates = []
+                params = []
+                
+                if date is not None:
+                    updates.append("date = ?")
+                    params.append(date)
+                if reason is not None:
+                    updates.append("reason = ?")
+                    params.append(reason)
+                if notes is not None:
+                    updates.append("notes = ?")
+                    params.append(notes)
+                
+                if not updates:
+                    return True  # No updates needed
+                
+                # If date is being updated, clean up runsheets for the new date
+                if date is not None:
+                    # Remove any runsheet jobs for the new date
+                    delete_jobs_query = """
+                        DELETE FROM run_sheet_jobs 
+                        WHERE date = ?
+                    """
+                    cursor.execute(delete_jobs_query, (date,))
+                    deleted_jobs = cursor.rowcount
+                    
+                    # Remove any daily data for the new date
+                    delete_daily_query = """
+                        DELETE FROM runsheet_daily_data 
+                        WHERE date = ?
+                    """
+                    cursor.execute(delete_daily_query, (date,))
+                    deleted_daily = cursor.rowcount
+                    
+                    if deleted_jobs > 0 or deleted_daily > 0:
+                        print(f"Attendance updated for {date}: Removed {deleted_jobs} jobs and {deleted_daily} daily records")
+                
+                # Update the attendance record
+                query = f"UPDATE attendance SET {', '.join(updates)} WHERE id = ?"
+                params.append(record_id)
+                cursor.execute(query, tuple(params))
+                
+                conn.commit()
+                return True
         except sqlite3.IntegrityError:
             raise ValueError('Record already exists for this date')
         except Exception as e:

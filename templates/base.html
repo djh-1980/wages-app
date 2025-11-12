@@ -52,6 +52,11 @@
                         </a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link {% if request.path == '/paypoint' %}active{% endif %}" href="/paypoint">
+                            <i class="bi bi-box-seam"></i> Paypoint
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link {% if request.path == '/reports' %}active{% endif %}" href="/reports">
                             <i class="bi bi-file-earmark-bar-graph"></i> Reporting
                         </a>

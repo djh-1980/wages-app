@@ -20,6 +20,12 @@ def wages():
     return render_template('wages.html')
 
 
+@main_bp.route('/paypoint')
+def paypoint():
+    """Paypoint stock management page."""
+    return render_template('paypoint.html')
+
+
 @main_bp.route('/runsheets')
 def runsheets():
     """Run sheets page."""

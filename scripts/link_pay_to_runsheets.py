@@ -84,9 +84,54 @@ def link_pay_to_runsheets(db_path="data/payslips.db"):
     """)
     
     updated_count = cursor.rowcount
+    
+    # Update address information for jobs with N/A addresses
+    print("\n🏠 Updating N/A addresses with payslip location data...")
+    
+    cursor.execute("""
+        UPDATE run_sheet_jobs 
+        SET 
+            job_address = (
+                SELECT j.location 
+                FROM job_items j 
+                WHERE j.job_number = run_sheet_jobs.job_number
+                AND j.location IS NOT NULL 
+                AND j.location != ''
+                AND j.location != 'N/A'
+                LIMIT 1
+            ),
+            customer = COALESCE(
+                (SELECT j.client 
+                 FROM job_items j 
+                 WHERE j.job_number = run_sheet_jobs.job_number
+                 AND j.client IS NOT NULL 
+                 AND j.client != ''
+                 AND j.client != 'N/A'
+                 LIMIT 1), 
+                customer
+            )
+        WHERE run_sheet_jobs.job_number IS NOT NULL
+        AND (
+            run_sheet_jobs.job_address IN ('N/A', '', 'n/a', 'N/a') 
+            OR run_sheet_jobs.job_address IS NULL
+            OR run_sheet_jobs.customer IN ('N/A', '', 'n/a', 'N/a') 
+            OR run_sheet_jobs.customer IS NULL
+        )
+        AND EXISTS (
+            SELECT 1 FROM job_items j 
+            WHERE j.job_number = run_sheet_jobs.job_number
+            AND (
+                (j.location IS NOT NULL AND j.location != '' AND j.location != 'N/A')
+                OR (j.client IS NOT NULL AND j.client != '' AND j.client != 'N/A')
+            )
+        )
+    """)
+    
+    address_updated_count = cursor.rowcount
     conn.commit()
     
     print(f"✅ Updated {updated_count} runsheet jobs with pay information")
+    print(f"✅ Updated {address_updated_count} runsheet jobs with address/customer information")
     
     # Show statistics
     cursor.execute("""
@@ -102,10 +147,24 @@ def link_pay_to_runsheets(db_path="data/payslips.db"):
     stats = cursor.fetchone()
     total_jobs, jobs_with_pay, avg_pay, total_pay = stats
     
+    # Get address statistics
+    cursor.execute("""
+        SELECT 
+            COUNT(*) as total_jobs,
+            COUNT(CASE WHEN job_address NOT IN ('N/A', '', 'n/a', 'N/a') AND job_address IS NOT NULL THEN 1 END) as jobs_with_address,
+            COUNT(CASE WHEN customer NOT IN ('N/A', '', 'n/a', 'N/a') AND customer IS NOT NULL THEN 1 END) as jobs_with_customer
+        FROM run_sheet_jobs
+        WHERE job_number IS NOT NULL
+    """)
+    
+    address_stats = cursor.fetchone()
+    total_jobs_addr, jobs_with_address, jobs_with_customer = address_stats
+    
     print(f"\n📊 STATISTICS:")
     print(f"   Total runsheet jobs: {total_jobs:,}")
-    print(f"   Jobs with pay info: {jobs_with_pay:,}")
-    print(f"   Match rate: {(jobs_with_pay/total_jobs*100):.1f}%")
+    print(f"   Jobs with pay info: {jobs_with_pay:,} ({(jobs_with_pay/total_jobs*100):.1f}%)")
+    print(f"   Jobs with addresses: {jobs_with_address:,} ({(jobs_with_address/total_jobs_addr*100):.1f}%)")
+    print(f"   Jobs with customer info: {jobs_with_customer:,} ({(jobs_with_customer/total_jobs_addr*100):.1f}%)")
     print(f"   Average pay per job: £{avg_pay}")
     print(f"   Total pay tracked: £{total_pay:,}")
     

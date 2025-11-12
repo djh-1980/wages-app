@@ -376,6 +376,50 @@ class PayslipExtractor:
         
         print("=" * 60)
         print(f"Successfully processed: {success_count}/{len(pdf_files)} payslips")
+        
+        # Automatically sync payslip data to runsheets if any payslips were processed
+        if success_count > 0:
+            self._sync_to_runsheets()
+    
+    def _sync_to_runsheets(self):
+        """Sync processed payslip data to runsheet records."""
+        try:
+            # Import here to avoid circular imports
+            import sys
+            from pathlib import Path
+            
+            # Add the app directory to the path
+            app_path = Path(__file__).parent.parent / 'app'
+            sys.path.insert(0, str(app_path))
+            
+            from services.runsheet_sync_service import RunsheetSyncService
+            
+            print("\n" + "=" * 60)
+            print("SYNCING PAYSLIP DATA TO RUNSHEETS")
+            print("=" * 60)
+            
+            result = RunsheetSyncService.sync_payslip_data_to_runsheets()
+            
+            if result['success']:
+                # Get and display statistics
+                stats = RunsheetSyncService.get_sync_statistics()
+                if stats:
+                    print(f"\n📊 SYNC STATISTICS:")
+                    print(f"   Total runsheet jobs: {stats['total_jobs']:,}")
+                    print(f"   Jobs with pay info: {stats['jobs_with_pay']:,} ({stats['pay_match_rate']:.1f}%)")
+                    print(f"   Jobs with addresses: {stats['jobs_with_address']:,} ({stats['address_completion_rate']:.1f}%)")
+                    print(f"   Jobs with customer info: {stats['jobs_with_customer']:,} ({stats['customer_completion_rate']:.1f}%)")
+                    print(f"   Average pay per job: £{stats['avg_pay']}")
+                    print(f"   Total pay tracked: £{stats['total_pay']:,}")
+            else:
+                print(f"❌ Sync failed: {result.get('error', 'Unknown error')}")
+                
+        except ImportError as e:
+            print(f"⚠️  Could not import sync service: {e}")
+            print("   Payslip data processed but not synced to runsheets")
+        except Exception as e:
+            print(f"❌ Error during sync: {e}")
+            print("   Payslip data processed but sync failed")
     
     def get_summary_stats(self):
         """Print summary statistics from the database."""
