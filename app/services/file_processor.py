@@ -111,7 +111,7 @@ class RealTimeFileProcessor:
             
             process = subprocess.run([
                 sys.executable, 
-                'scripts/extract_payslips.py', 
+                'scripts/production/extract_payslips.py', 
                 '--file', str(file_path),
                 '--quiet'
             ], capture_output=True, text=True, timeout=60)
@@ -134,7 +134,7 @@ class RealTimeFileProcessor:
             
             process = subprocess.run([
                 sys.executable, 
-                'scripts/import_run_sheets.py', 
+                'scripts/production/import_run_sheets.py', 
                 '--file', str(file_path),
                 '--quiet'
             ], capture_output=True, text=True, timeout=120)

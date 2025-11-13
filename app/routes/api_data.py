@@ -55,10 +55,13 @@ def api_sync_payslips():
         
         # Determine the date to search from
         if last_payslip_result and last_payslip_result[0]:
-            # Convert DD/MM/YYYY to YYYY/MM/DD for Gmail search
+            # Convert DD/MM/YYYY to datetime, then subtract 1 day (Gmail 'after:' is exclusive)
             last_date_parts = last_payslip_result[0].split('/')
             if len(last_date_parts) == 3:
-                search_date = f"{last_date_parts[2]}/{last_date_parts[1]}/{last_date_parts[0]}"
+                last_date = datetime(int(last_date_parts[2]), int(last_date_parts[1]), int(last_date_parts[0]))
+                # Subtract 1 day to ensure we catch the last date (since Gmail 'after:' is exclusive)
+                search_from = last_date - timedelta(days=1)
+                search_date = search_from.strftime('%Y/%m/%d')
                 write_progress(f'Last payslip found: {last_payslip_result[0]}')
             else:
                 search_date = "2025/01/01"  # Fallback
@@ -67,11 +70,11 @@ def api_sync_payslips():
             search_date = "2025/01/01"  # No payslips yet, start from beginning of year
             write_progress('No payslips found in database - starting from 2025/01/01')
         
-        write_progress(f'Searching Gmail for payslips after: {search_date}')
+        write_progress(f'Latest payslip: {last_payslip_result[0] if last_payslip_result and last_payslip_result[0] else "None"}, searching after: {search_date}')
         write_progress('Step 2: Connecting to Gmail API...')
         
         download_process = subprocess.Popen(
-            [sys.executable, 'scripts/download_runsheets_gmail.py', '--payslips', f'--date={search_date}'],
+            [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--payslips', f'--date={search_date}'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -102,7 +105,7 @@ def api_sync_payslips():
         log_settings_action('SYNC_PAYSLIPS', 'Step 2: Extracting payslips to database...')
         
         process = subprocess.Popen(
-            [sys.executable, 'scripts/extract_payslips.py', '--recent', '7'],
+            [sys.executable, 'scripts/production/extract_payslips.py', '--recent', '7'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -160,10 +163,13 @@ def api_sync_runsheets():
         
         # Determine the date to search from
         if last_runsheet_result and last_runsheet_result[0]:
-            # Convert DD/MM/YYYY to YYYY/MM/DD for Gmail search
+            # Convert DD/MM/YYYY to datetime, then subtract 1 day (Gmail 'after:' is exclusive)
             last_date_parts = last_runsheet_result[0].split('/')
             if len(last_date_parts) == 3:
-                search_date = f"{last_date_parts[2]}/{last_date_parts[1]}/{last_date_parts[0]}"
+                last_date = datetime(int(last_date_parts[2]), int(last_date_parts[1]), int(last_date_parts[0]))
+                # Subtract 1 day to ensure we catch the last date (since Gmail 'after:' is exclusive)
+                search_from = last_date - timedelta(days=1)
+                search_date = search_from.strftime('%Y/%m/%d')
             else:
                 # Fallback to yesterday
                 yesterday = datetime.now() - timedelta(days=1)
@@ -172,10 +178,10 @@ def api_sync_runsheets():
             # No run sheets yet, start from beginning of year
             search_date = "2025/01/01"
         
-        log_settings_action('SYNC_RUNSHEETS', f'Searching for run sheets after: {search_date}')
+        log_settings_action('SYNC_RUNSHEETS', f'Latest runsheet: {last_runsheet_result[0] if last_runsheet_result and last_runsheet_result[0] else "None"}, searching after: {search_date}')
         
         download_process = subprocess.Popen(
-            [sys.executable, 'scripts/download_runsheets_gmail.py', '--runsheets', '--recent'],
+            [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', f'--date={search_date}'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -194,7 +200,7 @@ def api_sync_runsheets():
         log_settings_action('SYNC_RUNSHEETS', f'Gmail download complete: {download_stdout[:200]}...')
         
         # Check if script exists
-        script_path = Path('scripts/import_run_sheets.py')
+        script_path = Path('scripts/production/import_run_sheets.py')
         if not script_path.exists():
             log_settings_action('SYNC_RUNSHEETS', f'Script not found: {script_path}', 'ERROR')
             return jsonify({
@@ -324,7 +330,7 @@ def api_sync_missing_runsheets():
     try:
         # Run the missing sheets downloader
         download_process = subprocess.Popen(
-            [sys.executable, 'scripts/download_runsheets_gmail.py', '--missing'],
+            [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--missing'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True
@@ -355,7 +361,7 @@ def api_sync_missing_runsheets():
         log_settings_action('SYNC_MISSING_RUNSHEETS', 'Step 2: Importing downloaded run sheets...')
         
         import_process = subprocess.Popen(
-            [sys.executable, 'scripts/import_run_sheets.py'],
+            [sys.executable, 'scripts/production/import_run_sheets.py'],
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
             text=True

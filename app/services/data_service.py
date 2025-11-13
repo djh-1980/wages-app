@@ -296,7 +296,7 @@ class DataService:
             
             # Run sync process
             process = subprocess.Popen(
-                [sys.executable, 'scripts/download_runsheets_gmail.py', '--payslips', f'--date={search_date}'],
+                [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--payslips', f'--date={search_date}'],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True
@@ -307,7 +307,7 @@ class DataService:
             if process.returncode == 0:
                 # Run extraction
                 extract_process = subprocess.Popen(
-                    [sys.executable, 'scripts/extract_payslips.py', '--recent', str(days_back // 7)],
+                    [sys.executable, 'scripts/production/extract_payslips.py', '--recent', str(days_back // 7)],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True
@@ -350,7 +350,7 @@ class DataService:
             
             # Run sync process
             process = subprocess.Popen(
-                [sys.executable, 'scripts/download_runsheets_gmail.py', '--runsheets', f'--date={search_date}'],
+                [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', f'--date={search_date}'],
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True
@@ -361,7 +361,7 @@ class DataService:
             if process.returncode == 0:
                 # Run import
                 import_process = subprocess.Popen(
-                    [sys.executable, 'scripts/import_run_sheets.py', '--recent', str(days_back)],
+                    [sys.executable, 'scripts/production/import_run_sheets.py', '--recent', str(days_back)],
                     stdout=subprocess.PIPE,
                     stderr=subprocess.PIPE,
                     text=True

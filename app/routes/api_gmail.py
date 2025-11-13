@@ -20,7 +20,7 @@ def api_gmail_download():
         after_date = data.get('after_date', '2025/01/01')
         
         # Build command
-        cmd = [sys.executable, 'scripts/download_runsheets_gmail.py']
+        cmd = [sys.executable, 'scripts/production/download_runsheets_gmail.py']
         
         if mode == 'runsheets':
             cmd.append('--runsheets')
@@ -93,7 +93,7 @@ def api_test_gmail_connection():
 import sys
 sys.path.append(".")
 try:
-    from scripts.download_runsheets_gmail import GmailRunSheetDownloader
+    from scripts.production.download_runsheets_gmail import GmailRunSheetDownloader
     downloader = GmailRunSheetDownloader()
     if downloader.authenticate():
         profile = downloader.service.users().getProfile(userId="me").execute()

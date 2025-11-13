@@ -245,7 +245,7 @@ async function downloadFromGmail() {
 }
 
 function reauthorizeGmail() {
-    alert('To re-authorize Gmail:\n\n1. Delete token.json from the project root\n2. Run: python3 scripts/download_runsheets_gmail.py\n3. Follow the browser authentication flow\n4. Refresh this page');
+    alert('To re-authorize Gmail:\n\n1. Delete token.json from the project root\n2. Run: python3 scripts/production/download_runsheets_gmail.py\n3. Follow the browser authentication flow\n4. Refresh this page');
 }
 
 // ===== DATA =====

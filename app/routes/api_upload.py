@@ -260,7 +260,7 @@ def process_uploaded_files(uploaded_files, file_type):
 def process_single_payslip(file_path):
     """Process a single payslip file."""
     process = subprocess.run(
-        [sys.executable, 'scripts/extract_payslips.py', '--file', file_path],
+        [sys.executable, 'scripts/production/extract_payslips.py', '--file', file_path],
         capture_output=True,
         text=True,
         timeout=60
@@ -275,7 +275,7 @@ def process_single_payslip(file_path):
 def process_single_runsheet(file_path):
     """Process a single runsheet file."""
     process = subprocess.run(
-        [sys.executable, 'scripts/import_run_sheets.py', '--file', file_path],
+        [sys.executable, 'scripts/production/import_run_sheets.py', '--file', file_path],
         capture_output=True,
         text=True,
         timeout=60
@@ -319,7 +319,7 @@ def attempt_gmail_sync():
     try:
         # Try payslips first
         payslip_process = subprocess.run(
-            [sys.executable, 'scripts/download_runsheets_gmail.py', '--payslips', '--recent'],
+            [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--payslips', '--recent'],
             capture_output=True,
             text=True,
             timeout=180
@@ -327,7 +327,7 @@ def attempt_gmail_sync():
         
         # Try runsheets
         runsheet_process = subprocess.run(
-            [sys.executable, 'scripts/download_runsheets_gmail.py', '--runsheets', '--recent'],
+            [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', '--recent'],
             capture_output=True,
             text=True,
             timeout=180
@@ -354,7 +354,7 @@ def process_all_local_files():
     try:
         # Process payslips
         payslip_process = subprocess.run(
-            [sys.executable, 'scripts/extract_payslips.py', '--recent', '30'],
+            [sys.executable, 'scripts/production/extract_payslips.py', '--recent', '30'],
             capture_output=True,
             text=True,
             timeout=300
@@ -362,7 +362,7 @@ def process_all_local_files():
         
         # Process runsheets
         runsheet_process = subprocess.run(
-            [sys.executable, 'scripts/import_run_sheets.py', '--recent', '30'],
+            [sys.executable, 'scripts/production/import_run_sheets.py', '--recent', '30'],
             capture_output=True,
             text=True,
             timeout=300
@@ -417,7 +417,7 @@ def process_manual_uploads():
 def process_local_payslips(directory, days_back):
     """Process payslips from specific directory."""
     try:
-        cmd = [sys.executable, 'scripts/extract_payslips.py', '--recent', str(days_back)]
+        cmd = [sys.executable, 'scripts/production/extract_payslips.py', '--recent', str(days_back)]
         if directory:
             cmd.extend(['--directory', directory])
         
@@ -435,7 +435,7 @@ def process_local_payslips(directory, days_back):
 def process_local_runsheets(directory, days_back):
     """Process runsheets from specific directory."""
     try:
-        cmd = [sys.executable, 'scripts/import_run_sheets.py', '--recent', str(days_back)]
+        cmd = [sys.executable, 'scripts/production/import_run_sheets.py', '--recent', str(days_back)]
         if directory:
             cmd.extend(['--directory', directory])
         

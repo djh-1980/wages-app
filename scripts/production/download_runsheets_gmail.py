@@ -245,10 +245,15 @@ class GmailRunSheetDownloader:
         
         if recent_only:
             # Search recent emails without date restriction (includes future dates)
-            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR filename:runsheet OR subject:runsheet OR filename:Runsheet OR subject:Runsheet) newer_than:7d'
+            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR subject:runsheet OR filename:runsheet) newer_than:7d'
         else:
             # Use original date-based search
-            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR filename:runsheet OR subject:runsheet OR filename:Runsheet OR subject:Runsheet) after:{after_date}'
+            # Gmail filename search is case-insensitive, so just use lowercase
+            # Convert date format for Gmail (YYYY/MM/DD to YYYY-MM-DD)
+            gmail_date = after_date.replace('/', '-')
+            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR subject:runsheet OR filename:runsheet) after:{gmail_date}'
+        
+        print(f"🔍 Gmail search query: {query}")
         
         try:
             results = self.service.users().messages().list(
@@ -476,7 +481,7 @@ class GmailRunSheetDownloader:
                 
             except Exception as e:
                 print(f"⚠️  Import failed: {e}")
-                print("   Run 'python scripts/import_run_sheets.py' manually")
+                print("   Run 'python scripts/production/import_run_sheets.py' manually")
         
         print()
         print(f"📁 Files saved to: {self.download_dir.absolute()}")
@@ -660,7 +665,7 @@ class GmailRunSheetDownloader:
                 for pdf_path in downloaded_files:
                     try:
                         result = subprocess.run(
-                            [sys.executable, 'scripts/extract_payslips.py', str(pdf_path)],
+                            [sys.executable, 'scripts/production/extract_payslips.py', str(pdf_path)],
                             capture_output=True,
                             text=True,
                             timeout=60
@@ -680,7 +685,7 @@ class GmailRunSheetDownloader:
                 
             except Exception as e:
                 print(f"⚠️  Import failed: {e}")
-                print("   Run 'python scripts/extract_payslips.py' manually")
+                print("   Run 'python scripts/production/extract_payslips.py' manually")
         
         print()
         print(f"📁 Files saved to: {payslip_dir.absolute()}")

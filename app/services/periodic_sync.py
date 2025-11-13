@@ -180,7 +180,7 @@ class PeriodicSyncService:
             # Run Gmail download for recent payslips with real-time processing
             download_process = subprocess.run([
                 sys.executable, 
-                'scripts/download_runsheets_gmail.py', 
+                'scripts/production/download_runsheets_gmail.py', 
                 '--payslips', 
                 f'--date={search_date}',
                 '--auto-process'  # Enable immediate processing if supported
@@ -192,7 +192,7 @@ class PeriodicSyncService:
                 # Immediately process downloaded payslips
                 extract_process = subprocess.run([
                     sys.executable, 
-                    'scripts/extract_payslips.py', 
+                    'scripts/production/extract_payslips.py', 
                     '--recent', str(self.fallback_days),
                     '--quiet'  # Reduce logging noise for periodic runs
                 ], capture_output=True, text=True, timeout=180)
@@ -245,7 +245,7 @@ class PeriodicSyncService:
                     # Use date-based search instead of --recent
                     download_args = [
                         sys.executable, 
-                        'scripts/download_runsheets_gmail.py', 
+                        'scripts/production/download_runsheets_gmail.py', 
                         '--runsheets', 
                         f'--date={search_date}',
                         '--auto-process'
@@ -255,7 +255,7 @@ class PeriodicSyncService:
                     self.logger.warning("Invalid date format in database, using recent fallback")
                     download_args = [
                         sys.executable, 
-                        'scripts/download_runsheets_gmail.py', 
+                        'scripts/production/download_runsheets_gmail.py', 
                         '--runsheets', 
                         '--recent',
                         '--auto-process'
@@ -265,7 +265,7 @@ class PeriodicSyncService:
                 self.logger.info(f"No runsheets in database, using recent search (last {self.fallback_days} days)")
                 download_args = [
                     sys.executable, 
-                    'scripts/download_runsheets_gmail.py', 
+                    'scripts/production/download_runsheets_gmail.py', 
                     '--runsheets', 
                     '--recent',
                     '--auto-process'
@@ -283,7 +283,7 @@ class PeriodicSyncService:
                 # Immediately process downloaded runsheets
                 import_process = subprocess.run([
                     sys.executable, 
-                    'scripts/import_run_sheets.py', 
+                    'scripts/production/import_run_sheets.py', 
                     '--recent', str(self.fallback_days),
                     '--quiet'  # Reduce logging noise for periodic runs
                 ], capture_output=True, text=True, timeout=300)
