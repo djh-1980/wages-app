@@ -36,15 +36,20 @@ def get_upload_path(file_type='general'):
     return path
 
 @upload_bp.route('/files', methods=['POST'])
-def upload_files():
+def api_upload_files():
     """Handle multiple file uploads with automatic processing."""
     try:
+        log_settings_action('FILE_UPLOAD', f'Upload request received. Content-Type: {request.content_type}')
+        
         if 'files' not in request.files:
+            log_settings_action('FILE_UPLOAD', 'No files in request', 'ERROR')
             return jsonify({'error': 'No files provided'}), 400
         
         files = request.files.getlist('files')
         file_type = request.form.get('type', 'general')  # payslips, runsheets, general
         auto_process = request.form.get('auto_process', 'true').lower() == 'true'
+        
+        log_settings_action('FILE_UPLOAD', f'Processing {len(files)} files, type: {file_type}, auto_process: {auto_process}')
         
         if not files or all(file.filename == '' for file in files):
             return jsonify({'error': 'No files selected'}), 400
