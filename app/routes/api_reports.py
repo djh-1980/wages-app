@@ -1005,3 +1005,294 @@ def api_generate_missing_mileage_report():
             
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@reports_bp.route('/weekly-summary')
+def api_weekly_summary():
+    """Get weekly summary report (Sunday to Saturday)."""
+    try:
+        from datetime import datetime, timedelta
+        
+        # Get week parameter (format: YYYY-MM-DD for the Sunday of the week)
+        week_start = request.args.get('week_start')
+        
+        if not week_start:
+            # Default to the most recent payslip's week (using period_end)
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT period_end, week_number, tax_year
+                    FROM payslips 
+                    WHERE period_end IS NOT NULL 
+                    ORDER BY tax_year DESC, week_number DESC 
+                    LIMIT 1
+                """)
+                result = cursor.fetchone()
+                
+                if result and result['period_end']:
+                    # period_end is Saturday, calculate Sunday (start of week)
+                    try:
+                        saturday = datetime.strptime(result['period_end'], '%d/%m/%Y')
+                        sunday = saturday - timedelta(days=6)
+                        week_start = sunday.strftime('%d/%m/%Y')
+                    except:
+                        # Fallback
+                        week_start = '19/10/2025'
+                else:
+                    week_start = '19/10/2025'
+        else:
+            # Convert from YYYY-MM-DD to DD/MM/YYYY
+            try:
+                dt = datetime.strptime(week_start, '%Y-%m-%d')
+                week_start = dt.strftime('%d/%m/%Y')
+            except:
+                pass
+        
+        # Calculate week end (Saturday)
+        try:
+            start_dt = datetime.strptime(week_start, '%d/%m/%Y')
+            end_dt = start_dt + timedelta(days=6)
+            week_end = end_dt.strftime('%d/%m/%Y')
+        except:
+            return jsonify({'error': 'Invalid week_start format'}), 400
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get all dates in the week range
+            dates_in_week = []
+            current = start_dt
+            while current <= end_dt:
+                dates_in_week.append(current.strftime('%d/%m/%Y'))
+                current += timedelta(days=1)
+            
+            placeholders = ','.join('?' * len(dates_in_week))
+            
+            # Job statistics by status
+            cursor.execute(f"""
+                SELECT 
+                    status,
+                    COUNT(*) as count,
+                    SUM(CASE WHEN pay_amount IS NOT NULL THEN pay_amount ELSE 0 END) as total_pay
+                FROM run_sheet_jobs
+                WHERE date IN ({placeholders})
+                GROUP BY status
+            """, dates_in_week)
+            
+            status_breakdown = {}
+            total_jobs = 0
+            total_earnings = 0
+            
+            for row in cursor.fetchall():
+                status = row['status'] or 'unknown'
+                count = row['count']
+                pay = row['total_pay'] or 0
+                
+                status_breakdown[status] = {
+                    'count': count,
+                    'earnings': round(pay, 2)
+                }
+                total_jobs += count
+                if status not in ['DNCO', 'dnco', 'missed']:
+                    total_earnings += pay
+            
+            # Daily breakdown - maintain Sunday-Saturday order
+            cursor.execute(f"""
+                SELECT 
+                    date,
+                    COUNT(*) as jobs,
+                    SUM(CASE WHEN status = 'completed' THEN 1 ELSE 0 END) as completed,
+                    SUM(CASE WHEN status = 'extra' THEN 1 ELSE 0 END) as extra,
+                    SUM(CASE WHEN status = 'DNCO' OR status = 'dnco' THEN 1 ELSE 0 END) as dnco,
+                    SUM(CASE WHEN status = 'missed' THEN 1 ELSE 0 END) as missed,
+                    SUM(CASE WHEN status = 'pending' THEN 1 ELSE 0 END) as pending,
+                    SUM(CASE WHEN pay_amount IS NOT NULL THEN pay_amount ELSE 0 END) as earnings
+                FROM run_sheet_jobs
+                WHERE date IN ({placeholders})
+                GROUP BY date
+            """, dates_in_week)
+            
+            # Create a dict for quick lookup
+            daily_data = {row['date']: row for row in cursor.fetchall()}
+            
+            # Build daily breakdown in correct order (Sunday to Saturday)
+            daily_breakdown = []
+            for date_str in dates_in_week:
+                if date_str in daily_data:
+                    row = daily_data[date_str]
+                    daily_breakdown.append({
+                        'date': row['date'],
+                        'day_name': datetime.strptime(row['date'], '%d/%m/%Y').strftime('%A'),
+                        'jobs': row['jobs'],
+                        'completed': row['completed'],
+                        'extra': row['extra'],
+                        'dnco': row['dnco'],
+                        'missed': row['missed'],
+                        'pending': row['pending'],
+                        'earnings': round(row['earnings'] or 0, 2)
+                    })
+                else:
+                    # No jobs for this day
+                    daily_breakdown.append({
+                        'date': date_str,
+                        'day_name': datetime.strptime(date_str, '%d/%m/%Y').strftime('%A'),
+                        'jobs': 0,
+                        'completed': 0,
+                        'extra': 0,
+                        'dnco': 0,
+                        'missed': 0,
+                        'pending': 0,
+                        'earnings': 0
+                    })
+            
+            # Mileage data
+            cursor.execute(f"""
+                SELECT 
+                    date,
+                    mileage,
+                    fuel_cost
+                FROM runsheet_daily_data
+                WHERE date IN ({placeholders})
+                ORDER BY date
+            """, dates_in_week)
+            
+            mileage_data = []
+            total_mileage = 0
+            total_fuel_cost = 0
+            days_with_mileage = 0
+            
+            for row in cursor.fetchall():
+                mileage = row['mileage'] or 0
+                fuel_cost = row['fuel_cost'] or 0
+                
+                if mileage > 0:
+                    days_with_mileage += 1
+                    total_mileage += mileage
+                    total_fuel_cost += fuel_cost
+                
+                mileage_data.append({
+                    'date': row['date'],
+                    'mileage': mileage,
+                    'fuel_cost': round(fuel_cost, 2)
+                })
+            
+            # Top customers this week
+            cursor.execute(f"""
+                SELECT 
+                    customer,
+                    COUNT(*) as jobs,
+                    SUM(CASE WHEN pay_amount IS NOT NULL THEN pay_amount ELSE 0 END) as earnings
+                FROM run_sheet_jobs
+                WHERE date IN ({placeholders})
+                AND customer IS NOT NULL
+                GROUP BY customer
+                ORDER BY jobs DESC
+                LIMIT 10
+            """, dates_in_week)
+            
+            top_customers = []
+            for row in cursor.fetchall():
+                top_customers.append({
+                    'customer': row['customer'],
+                    'jobs': row['jobs'],
+                    'earnings': round(row['earnings'] or 0, 2)
+                })
+            
+            # Job types breakdown
+            cursor.execute(f"""
+                SELECT 
+                    activity,
+                    COUNT(*) as count
+                FROM run_sheet_jobs
+                WHERE date IN ({placeholders})
+                AND activity IS NOT NULL
+                GROUP BY activity
+                ORDER BY count DESC
+                LIMIT 10
+            """, dates_in_week)
+            
+            job_types = []
+            for row in cursor.fetchall():
+                job_types.append({
+                    'type': row['activity'],
+                    'count': row['count']
+                })
+            
+            # Calculate averages and metrics
+            working_days = len([d for d in daily_breakdown if d['jobs'] > 0])
+            avg_jobs_per_day = round(total_jobs / working_days, 1) if working_days > 0 else 0
+            avg_earnings_per_day = round(total_earnings / working_days, 2) if working_days > 0 else 0
+            avg_earnings_per_job = round(total_earnings / total_jobs, 2) if total_jobs > 0 else 0
+            avg_mileage_per_day = round(total_mileage / days_with_mileage, 1) if days_with_mileage > 0 else 0
+            
+            # Fuel efficiency
+            cost_per_mile = round(total_fuel_cost / total_mileage, 3) if total_mileage > 0 else 0
+            earnings_per_mile = round(total_earnings / total_mileage, 2) if total_mileage > 0 else 0
+            
+            # Completion rate (completed + extra + DNCO are successful, only missed counts as not completed)
+            completed_jobs = status_breakdown.get('completed', {}).get('count', 0) + status_breakdown.get('extra', {}).get('count', 0)
+            dnco_jobs = status_breakdown.get('DNCO', {}).get('count', 0) + status_breakdown.get('dnco', {}).get('count', 0)
+            missed_jobs = status_breakdown.get('missed', {}).get('count', 0)
+            
+            # Exclude pending from calculation (not yet processed)
+            pending_jobs = status_breakdown.get('pending', {}).get('count', 0)
+            processed_jobs = total_jobs - pending_jobs
+            
+            # Successful = completed + extra + DNCO (DNCO is not your fault - parts didn't arrive)
+            successful_jobs = completed_jobs + dnco_jobs
+            completion_rate = round((successful_jobs / processed_jobs * 100), 1) if processed_jobs > 0 else 0
+            
+            # Get discrepancies for this week (jobs in payslips but not in runsheets)
+            cursor.execute(f"""
+                SELECT COUNT(DISTINCT j.job_number) as discrepancy_count
+                FROM job_items j
+                LEFT JOIN run_sheet_jobs r ON j.job_number = r.job_number
+                WHERE j.date IN ({placeholders})
+                AND r.job_number IS NULL
+            """, dates_in_week)
+            
+            discrepancies = cursor.fetchone()['discrepancy_count'] or 0
+            
+            # Get week number from payslip using period_end (Saturday of the week)
+            cursor.execute("""
+                SELECT week_number, tax_year
+                FROM payslips
+                WHERE period_end = ?
+                LIMIT 1
+            """, (week_end,))
+            
+            payslip_info = cursor.fetchone()
+            week_number = payslip_info['week_number'] if payslip_info else start_dt.isocalendar()[1]
+            tax_year = payslip_info['tax_year'] if payslip_info else start_dt.year
+            
+            return jsonify({
+                'week_start': week_start,
+                'week_end': week_end,
+                'week_label': f"{start_dt.strftime('%d %b')} - {end_dt.strftime('%d %b %Y')}",
+                'week_number': week_number,
+                'summary': {
+                    'total_jobs': total_jobs,
+                    'total_earnings': round(total_earnings, 2),
+                    'total_mileage': total_mileage,
+                    'total_fuel_cost': round(total_fuel_cost, 2),
+                    'working_days': working_days,
+                    'completion_rate': completion_rate,
+                    'discrepancies': discrepancies
+                },
+                'status_breakdown': status_breakdown,
+                'daily_breakdown': daily_breakdown,
+                'mileage_data': mileage_data,
+                'top_customers': top_customers,
+                'job_types': job_types,
+                'metrics': {
+                    'avg_jobs_per_day': avg_jobs_per_day,
+                    'avg_earnings_per_day': avg_earnings_per_day,
+                    'avg_earnings_per_job': avg_earnings_per_job,
+                    'avg_mileage_per_day': avg_mileage_per_day,
+                    'cost_per_mile': cost_per_mile,
+                    'earnings_per_mile': earnings_per_mile
+                }
+            })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

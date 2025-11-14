@@ -3,7 +3,7 @@
 Extract payslip data from PDFs and store in SQLite database.
 """
 
-import PyPDF2
+import pdfplumber
 import re
 import sqlite3
 from pathlib import Path
@@ -70,42 +70,54 @@ class PayslipExtractor:
         self.conn.commit()
     
     def extract_text_from_pdf(self, pdf_path: str) -> str:
-        """Extract all text from a PDF file."""
-        with open(pdf_path, 'rb') as file:
-            reader = PyPDF2.PdfReader(file)
-            text = ""
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
+        """Extract all text from a PDF file using pdfplumber."""
+        text = ""
+        with pdfplumber.open(pdf_path) as pdf:
+            for page in pdf.pages:
+                page_text = page.extract_text()
+                if page_text:
+                    text += page_text + "\n"
         return text
     
     def parse_payslip_header(self, text: str) -> Dict:
         """Extract header information from payslip."""
         header_data = {}
         
-        # Extract verification number
-        match = re.search(r'Verification Number\s*(\d+)', text)
-        if match:
-            header_data['verification_number'] = match.group(1)
+        # Split into lines for structured parsing
+        lines = text.split('\n')
         
-        # Extract UTR number
-        match = re.search(r'UTR Number\s*(\d+)', text)
-        if match:
-            header_data['utr_number'] = match.group(1)
-        
-        # Extract pay date
-        match = re.search(r'Pay Date\s*(\d{2}/\d{2}/\d{4})', text)
-        if match:
-            header_data['pay_date'] = match.group(1)
-        
-        # Extract period end
-        match = re.search(r'Period End\s*(\d{2}/\d{2}/\d{4})', text)
-        if match:
-            header_data['period_end'] = match.group(1)
-        
-        # Extract VAT number
-        match = re.search(r'VAT Number\s*(\d+)', text)
-        if match:
-            header_data['vat_number'] = match.group(1)
+        # pdfplumber preserves table structure better
+        # Look for the header line with labels and the next line with values
+        for i, line in enumerate(lines[:10]):
+            if 'Verification Number' in line and 'Pay Date' in line and 'Period End' in line:
+                # This is the header line, values are on the next line
+                if i + 1 < len(lines):
+                    values_line = lines[i + 1]
+                    # Extract values in order: VAT Number, Pay Date, Periods, Period End
+                    parts = values_line.split()
+                    
+                    # VAT Number (10 digits)
+                    vat_match = re.search(r'(\d{10})', values_line)
+                    if vat_match:
+                        header_data['vat_number'] = vat_match.group(1)
+                    
+                    # Pay Date (DD/MM/YYYY)
+                    pay_dates = re.findall(r'(\d{2}/\d{2}/\d{4})', values_line)
+                    if len(pay_dates) >= 2:
+                        header_data['pay_date'] = pay_dates[0]
+                        header_data['period_end'] = pay_dates[1]
+                    
+                    # Verification Number (from label line or values line)
+                    verif_match = re.search(r'Verification Number[:\s]*(\d+)', line + ' ' + values_line)
+                    if verif_match:
+                        header_data['verification_number'] = verif_match.group(1)
+                    
+                    # UTR Number
+                    utr_match = re.search(r'UTR Number[:\s]*(\d+)', line + ' ' + values_line)
+                    if utr_match:
+                        header_data['utr_number'] = utr_match.group(1)
+                    
+                    break
         
         return header_data
     

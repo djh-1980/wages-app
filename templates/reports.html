@@ -33,7 +33,12 @@
         <div class="content-card-header unified-tabs">
             <ul class="nav nav-tabs card-header-tabs" id="reportTabs" role="tablist">
     <li class="nav-item" role="presentation">
-        <button class="nav-link active" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button">
+        <button class="nav-link active" id="weekly-summary-tab" data-bs-toggle="pill" data-bs-target="#weekly-summary" type="button">
+            <i class="bi bi-calendar-week"></i> Weekly Summary
+        </button>
+    </li>
+    <li class="nav-item" role="presentation">
+        <button class="nav-link" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button">
             <i class="bi bi-speedometer2"></i> Overview
         </button>
     </li>
@@ -82,8 +87,147 @@
 <!-- Tab Content -->
 <div class="tab-content" id="reportTabContent">
     
+    <!-- Weekly Summary Tab -->
+    <div class="tab-pane fade show active" id="weekly-summary" role="tabpanel">
+        <!-- Hero Section with Week Navigation -->
+        <div class="weekly-hero mb-4">
+            <div class="d-flex justify-content-between align-items-center">
+                <button class="btn btn-lg btn-outline-light" onclick="previousWeek()">
+                    <i class="bi bi-chevron-left"></i>
+                </button>
+                <div class="text-center text-white">
+                    <h2 class="mb-1" id="weekLabel">Loading...</h2>
+                    <p class="mb-0 opacity-75">Weekly Performance Report</p>
+                </div>
+                <button class="btn btn-lg btn-outline-light" onclick="nextWeek()">
+                    <i class="bi bi-chevron-right"></i>
+                </button>
+            </div>
+            <div class="text-center mt-3">
+                <button class="btn btn-light" onclick="currentWeek()">
+                    <i class="bi bi-calendar-today"></i> Jump to Current Week
+                </button>
+            </div>
+        </div>
+        
+        <!-- Key Metrics Cards -->
+        <div class="row summary-cards mb-4" id="weeklySummaryCards">
+            <!-- Populated by JavaScript -->
+        </div>
+        
+        <!-- Main Content Grid -->
+        <div class="row g-4 mb-4">
+            <!-- Status Breakdown -->
+            <div class="col-lg-4">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title mb-4">
+                            <i class="bi bi-clipboard-check text-primary"></i> Status Breakdown
+                        </h5>
+                        <div id="weeklyStatusBreakdown">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Performance Metrics -->
+            <div class="col-lg-8">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title mb-4">
+                            <i class="bi bi-graph-up text-success"></i> Performance Metrics
+                        </h5>
+                        <div class="row g-3" id="weeklyMetrics">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Daily Breakdown -->
+        <div class="card mb-4">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-calendar-week text-info"></i> Daily Breakdown
+                </h5>
+                <div class="table-responsive">
+                    <table class="table table-hover align-middle">
+                        <thead class="table-light">
+                            <tr>
+                                <th>Day</th>
+                                <th>Date</th>
+                                <th class="text-center">Jobs</th>
+                                <th class="text-center">Completed</th>
+                                <th class="text-center">Extra</th>
+                                <th class="text-center">DNCO</th>
+                                <th class="text-center">Pending</th>
+                                <th class="text-end">Earnings</th>
+                                <th class="text-end">Mileage</th>
+                                <th class="text-end">Fuel</th>
+                            </tr>
+                        </thead>
+                        <tbody id="weeklyDailyBreakdown">
+                            <!-- Populated by JavaScript -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Top Customers & Job Types -->
+        <div class="row g-4">
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title mb-4">
+                            <i class="bi bi-building text-warning"></i> Top 10 Customers
+                        </h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Customer</th>
+                                        <th class="text-center">Jobs</th>
+                                        <th class="text-end">Earnings</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="weeklyTopCustomers">
+                                    <!-- Populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-lg-6">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <h5 class="card-title mb-4">
+                            <i class="bi bi-tools text-danger"></i> Top Job Types
+                        </h5>
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Job Type</th>
+                                        <th class="text-end">Count</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="weeklyJobTypes">
+                                    <!-- Populated by JavaScript -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
     <!-- Overview Tab -->
-    <div class="tab-pane fade show active" id="overview" role="tabpanel">
+    <div class="tab-pane fade" id="overview" role="tabpanel">
         <!-- Summary Cards -->
         <div class="row g-4 mb-4">
             <div class="col-md-3">
