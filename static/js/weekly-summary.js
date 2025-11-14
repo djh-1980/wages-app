@@ -12,24 +12,24 @@ window.addEventListener('load', () => {
         // Load when tab is shown
         weeklyTab.addEventListener('shown.bs.tab', () => {
             if (!currentWeekStart) {
-                currentWeek();
+                window.currentWeek();
             }
         });
         
         // Load if it's the active tab on page load
         if (weeklyTab.classList.contains('active')) {
-            currentWeek();
+            window.currentWeek();
         }
     }
 });
 
-// Navigation functions
-function currentWeek() {
+// Navigation functions - exposed globally for onclick handlers
+window.currentWeek = function() {
     currentWeekStart = null;
     loadWeeklySummary();
 }
 
-function previousWeek() {
+window.previousWeek = function() {
     if (!currentWeekStart) return;
     const date = new Date(currentWeekStart);
     date.setDate(date.getDate() - 7);
@@ -37,9 +37,9 @@ function previousWeek() {
     loadWeeklySummary();
 }
 
-function nextWeek() {
+window.nextWeek = function() {
     if (!currentWeekStart) {
-        currentWeek();
+        window.currentWeek();
         return;
     }
     const date = new Date(currentWeekStart);
