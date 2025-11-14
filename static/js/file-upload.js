@@ -234,12 +234,17 @@ class FileUploadManager {
             });
             
             formData.append('type', fileType === 'auto' ? 'general' : fileType);
-            formData.append('auto_process', autoProcess.toString());
+            formData.append('auto_process', autoProcess ? 'true' : 'false');
             
             const response = await fetch('/api/upload/files', {
                 method: 'POST',
                 body: formData
             });
+            
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`Server error (${response.status}): ${errorText}`);
+            }
             
             const result = await response.json();
             
@@ -251,6 +256,7 @@ class FileUploadManager {
             }
             
         } catch (error) {
+            console.error('Upload error:', error);
             this.showError(`Upload failed: ${error.message}`);
         } finally {
             this.isUploading = false;
