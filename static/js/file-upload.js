@@ -351,11 +351,40 @@ class FileUploadManager {
             this.options.onUploadComplete(result);
         }
         
-        // If on runsheets page, reload the data
+        // If on runsheets page, wait for processing to complete then reload
         if (typeof loadRunSheetsList === 'function') {
-            setTimeout(() => {
-                loadRunSheetsList();
-                loadRunSheetsSummary();
+            // Show a message that processing is happening
+            const processingAlert = document.createElement('div');
+            processingAlert.className = 'alert alert-info alert-dismissible fade show position-fixed';
+            processingAlert.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
+            processingAlert.innerHTML = `
+                <i class="bi bi-hourglass-split"></i> Processing files in background...
+                <div class="spinner-border spinner-border-sm ms-2" role="status"></div>
+            `;
+            document.body.appendChild(processingAlert);
+            
+            // Poll for completion and then refresh
+            let pollCount = 0;
+            const pollInterval = setInterval(() => {
+                pollCount++;
+                
+                // After 5 seconds, refresh the data
+                if (pollCount >= 5) {
+                    clearInterval(pollInterval);
+                    processingAlert.remove();
+                    loadRunSheetsList();
+                    loadRunSheetsSummary();
+                    
+                    const doneAlert = document.createElement('div');
+                    doneAlert.className = 'alert alert-success alert-dismissible fade show position-fixed';
+                    doneAlert.style.cssText = 'top: 80px; right: 20px; z-index: 9999; min-width: 300px;';
+                    doneAlert.innerHTML = `
+                        <i class="bi bi-check-circle"></i> Processing complete! Data refreshed.
+                        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+                    `;
+                    document.body.appendChild(doneAlert);
+                    setTimeout(() => doneAlert.remove(), 5000);
+                }
             }, 1000);
         }
     }
