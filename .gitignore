@@ -9,8 +9,11 @@ venv/
 ENV/
 
 # Database (don't upload personal data)
-data/database/payslips.db
+*.db
+*.sqlite
+*.sqlite3
 data/database/*.db
+data/payslips.db
 
 # PDFs (don't upload personal payslips and run sheets)
 PaySlips/
