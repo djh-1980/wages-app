@@ -35,6 +35,12 @@ def create_app(config_name=None):
     # Initialize database
     init_database()
     
+    # Start auto-sync by default
+    from app.services.periodic_sync import periodic_sync_service
+    if app.config.get('AUTO_SYNC_ENABLED', True):
+        periodic_sync_service.start_periodic_sync()
+        app.logger.info("Auto-sync started automatically")
+    
     # Register middleware
     from .middleware import register_middleware
     register_middleware(app)

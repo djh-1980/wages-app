@@ -145,121 +145,39 @@ def api_sync_payslips():
 
 @data_bp.route('/sync-runsheets', methods=['POST'])
 def api_sync_runsheets():
-    """Download run sheets from Gmail and sync to database."""
-    log_settings_action('SYNC_RUNSHEETS', 'Starting run sheets sync with Gmail download')
+    """Quick sync - download, organize, and import the latest runsheet from Gmail."""
+    log_settings_action('SYNC_RUNSHEETS', 'Starting quick sync for latest runsheet')
     
     try:
-        from datetime import timedelta
-        
-        # Step 1: Check last run sheet date and download only newer ones
-        log_settings_action('SYNC_RUNSHEETS', 'Step 1: Checking for new run sheets since last download...')
-        
-        # Get the most recent run sheet date from database
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("SELECT MAX(date) FROM run_sheet_jobs WHERE date IS NOT NULL AND date != ''")
-        last_runsheet_result = cursor.fetchone()
-        conn.close()
-        
-        # Determine the date to search from
-        if last_runsheet_result and last_runsheet_result[0]:
-            # Convert DD/MM/YYYY to datetime, then subtract 1 day (Gmail 'after:' is exclusive)
-            last_date_parts = last_runsheet_result[0].split('/')
-            if len(last_date_parts) == 3:
-                last_date = datetime(int(last_date_parts[2]), int(last_date_parts[1]), int(last_date_parts[0]))
-                # Subtract 1 day to ensure we catch the last date (since Gmail 'after:' is exclusive)
-                search_from = last_date - timedelta(days=1)
-                search_date = search_from.strftime('%Y/%m/%d')
-            else:
-                # Fallback to yesterday
-                yesterday = datetime.now() - timedelta(days=1)
-                search_date = yesterday.strftime('%Y/%m/%d')
-        else:
-            # No run sheets yet, start from beginning of year
-            search_date = "2025/01/01"
-        
-        log_settings_action('SYNC_RUNSHEETS', f'Latest runsheet: {last_runsheet_result[0] if last_runsheet_result and last_runsheet_result[0] else "None"}, searching after: {search_date}')
-        
-        download_process = subprocess.Popen(
-            [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', f'--date={search_date}'],
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            text=True
+        # Step 1: Download from Gmail with --recent (gets last 7 days, organizes & imports automatically)
+        download_process = subprocess.run(
+            [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', '--recent'],
+            capture_output=True,
+            text=True,
+            timeout=120  # Allow 2 minutes for download + organize + import
         )
         
-        download_stdout, download_stderr = download_process.communicate(timeout=300)
-        
         if download_process.returncode != 0:
-            log_settings_action('SYNC_RUNSHEETS', f'Gmail download failed: {download_stderr}', 'ERROR')
+            log_settings_action('SYNC_RUNSHEETS', f'Sync failed: {download_process.stderr}', 'ERROR')
             return jsonify({
                 'success': False,
-                'error': f'Gmail download failed: {download_stderr}',
-                'output': download_stdout
+                'error': f'Sync failed: {download_process.stderr}',
+                'output': download_process.stdout
             }), 500
         
-        log_settings_action('SYNC_RUNSHEETS', f'Gmail download complete: {download_stdout[:200]}...')
+        log_settings_action('SYNC_RUNSHEETS', f'Success - sync complete')
         
-        # Check if script exists
-        script_path = Path('scripts/production/import_run_sheets.py')
-        if not script_path.exists():
-            log_settings_action('SYNC_RUNSHEETS', f'Script not found: {script_path}', 'ERROR')
-            return jsonify({
-                'success': False,
-                'error': f'Script not found: {script_path}'
-            }), 500
-        
-        # Create progress log file
-        progress_log = Path('logs/runsheet_sync_progress.log')
-        progress_log.parent.mkdir(exist_ok=True)
-        
-        # Clear previous progress log
-        with open(progress_log, 'w') as f:
-            f.write(f"Starting run sheets sync at {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}\n")
-            f.write(f"Step 1: Gmail download completed\n")
-            f.write(f"Step 2: Starting import to database...\n")
-        
-        # Run process with output redirected to log file
-        with open(progress_log, 'a') as log_file:
-            process = subprocess.Popen(
-                [sys.executable, str(script_path), '--recent', '7'],
-                stdout=log_file,
-                stderr=subprocess.STDOUT,
-                text=True,
-                cwd=str(Path.cwd())
-            )
-        
-        # Wait for process (5 minutes should be plenty for recent files only)
-        try:
-            process.wait(timeout=300)
-        except subprocess.TimeoutExpired:
-            process.kill()
-            raise
-        
-        # Read the output from log file
-        with open(progress_log, 'r') as f:
-            stdout = f.read()
-        
-        if process.returncode == 0:
-            log_settings_action('SYNC_RUNSHEETS', f'Success - Output preview: {stdout[:500]}...')
-            combined_output = f"=== Gmail Download ===\n{download_stdout}\n\n=== Run Sheets Import ===\n{stdout}"
-            return jsonify({
-                'success': True,
-                'message': 'Run sheets downloaded from Gmail and synced successfully',
-                'output': combined_output
-            })
-        else:
-            log_settings_action('SYNC_RUNSHEETS', f'Failed - Return code: {process.returncode}', 'ERROR')
-            return jsonify({
-                'success': False,
-                'error': 'Sync failed',
-                'output': stdout
-            }), 500
+        return jsonify({
+            'success': True,
+            'message': 'Latest runsheet downloaded, organized, and imported successfully',
+            'output': download_process.stdout
+        })
             
     except subprocess.TimeoutExpired:
-        log_settings_action('SYNC_RUNSHEETS', 'Sync timed out after 5 minutes', 'ERROR')
+        log_settings_action('SYNC_RUNSHEETS', 'Sync timed out', 'ERROR')
         return jsonify({
             'success': False,
-            'error': 'Sync timed out (took longer than 5 minutes). This may indicate a problem with the import script.'
+            'error': 'Sync timed out (took longer than 2 minutes)'
         }), 500
     except Exception as e:
         log_settings_action('SYNC_RUNSHEETS', f'Exception: {str(e)}', 'ERROR')

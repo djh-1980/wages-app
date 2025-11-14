@@ -14,7 +14,7 @@ import csv
 
 
 class RunSheetImporter:
-    def __init__(self, db_path: str = "data/payslips.db", name: str = "Daniel Hanson"):
+    def __init__(self, db_path: str = "data/database/payslips.db", name: str = "Daniel Hanson"):
         self.db_path = db_path
         self.conn = None
         self.name = name

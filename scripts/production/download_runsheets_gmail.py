@@ -26,6 +26,16 @@ class GmailRunSheetDownloader:
         self.download_dir.mkdir(exist_ok=True)
         self.service = None
         
+    def extract_date_from_pdf_filename(self, filename: str) -> str:
+        """Extract date from filename like 'Runsheet_11_runs_2025_11_14.pdf' -> '14/11/2025'."""
+        import re
+        # Try pattern: YYYY_MM_DD
+        match = re.search(r'(\d{4})_(\d{2})_(\d{2})', filename)
+        if match:
+            year, month, day = match.groups()
+            return f"{day}/{month}/{year}"
+        return None
+    
     def extract_date_from_pdf(self, pdf_path: Path) -> str:
         """Extract date from PDF to determine folder structure."""
         try:
@@ -70,6 +80,22 @@ class GmailRunSheetDownloader:
     
     def organize_pdf(self, pdf_path: Path) -> Path:
         """Move PDF to year/month folder and rename to DH_DD-MM-YYYY.pdf."""
+        # Check if file exists (may have been organized already)
+        if not pdf_path.exists():
+            print(f"  ⚠️  File not found (may be already organized): {pdf_path.name}")
+            # Try to find the organized version
+            date_str = self.extract_date_from_pdf_filename(pdf_path.name)
+            if date_str:
+                try:
+                    dt = datetime.strptime(date_str, '%d/%m/%Y')
+                    month_name = dt.strftime('%B')
+                    organized_path = self.download_dir / str(dt.year) / month_name / f"DH_{dt.strftime('%d-%m-%Y')}.pdf"
+                    if organized_path.exists():
+                        return organized_path
+                except:
+                    pass
+            return pdf_path
+        
         # Check if this is your run sheet
         if not self.has_driver_name(pdf_path):
             # Move to manual folder for review
@@ -375,11 +401,7 @@ class GmailRunSheetDownloader:
                             filename = part['filename']
                             filepath = self.download_dir / filename
                             
-                            # Don't overwrite existing files
-                            if filepath.exists():
-                                print(f"  ⏭️  Skipped (already exists): {filename}")
-                                continue
-                            
+                            # Download file (overwrite if exists to ensure we have latest)
                             with open(filepath, 'wb') as f:
                                 f.write(file_data)
                             
@@ -623,18 +645,10 @@ class GmailRunSheetDownloader:
                                 # Extract year from filename (e.g., "Week30 2025.pdf" -> "2025")
                                 import re
                                 year_match = re.search(r'(\d{4})', filename)
-                                if year_match:
-                                    year = year_match.group(1)
-                                    year_dir = payslip_dir / year
-                                    year_dir.mkdir(exist_ok=True)
-                                    filepath = year_dir / filename
-                                else:
-                                    # Fallback to root PaySlips folder if no year found
-                                    filepath = payslip_dir / filename
-                                
-                                # Don't overwrite existing files
                                 if filepath.exists():
-                                    print(f"  ⏭️  Skipped (already exists): {filename}")
+                                    print(f"  ⏭️  Already exists: {filename}")
+                                    # Still add to downloaded list so it gets processed
+                                    downloaded_files.append(filepath)
                                     continue
                                 
                                 with open(filepath, 'wb') as f:
@@ -752,7 +766,7 @@ def main():
             # Assume it's a date
             after_date = arg
     
-    downloader = GmailRunSheetDownloader()
+    downloader = GmailRunSheetDownloader('data/documents/runsheets')
     
     if mode == 'all':
         downloader.download_all(after_date)

@@ -35,6 +35,9 @@
             <a class="navbar-brand d-flex align-items-center" href="/">
                 <img src="{{ url_for('static', filename='images/tvs-logo.svg') }}" alt="TVS Logo" height="32" class="me-2">
                 <span class="fw-bold">TVS Wages</span>
+                <span id="navAutoSyncBadge" class="badge bg-danger ms-2" style="font-size: 0.65rem; cursor: pointer;" onclick="handleAutoSyncBadgeClick()" title="Click to force sync">
+                    <i class="bi bi-arrow-repeat" id="navAutoSyncIcon"></i> <span id="navAutoSyncText">Auto-Sync Off</span>
+                </span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>

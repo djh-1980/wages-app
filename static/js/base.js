@@ -1,3 +1,85 @@
+// Check auto-sync status and update badge in navbar
+async function checkAutoSyncStatus() {
+    try {
+        const response = await fetch('/api/data/periodic-sync/status');
+        const data = await response.json();
+        
+        const badge = document.getElementById('navAutoSyncBadge');
+        const icon = document.getElementById('navAutoSyncIcon');
+        const text = document.getElementById('navAutoSyncText');
+        
+        if (badge && data.success) {
+            if (data.is_running) {
+                // Green when running
+                badge.className = 'badge bg-success ms-2';
+                badge.style.cssText = 'font-size: 0.65rem; cursor: pointer; animation: pulse 2s infinite;';
+                badge.title = 'Auto-sync active - Click to force sync now';
+                text.textContent = 'Auto-Sync On';
+            } else {
+                // Red when off
+                badge.className = 'badge bg-danger ms-2';
+                badge.style.cssText = 'font-size: 0.65rem; cursor: pointer;';
+                badge.title = 'Auto-sync disabled - Click to enable';
+                text.textContent = 'Auto-Sync Off';
+            }
+        }
+    } catch (error) {
+        console.error('Failed to check auto-sync status:', error);
+    }
+}
+
+// Handle badge click - force sync if on, or go to settings if off
+async function handleAutoSyncBadgeClick() {
+    try {
+        const response = await fetch('/api/data/periodic-sync/status');
+        const data = await response.json();
+        
+        if (data.success && data.is_running) {
+            // Force sync
+            const badge = document.getElementById('navAutoSyncBadge');
+            const icon = document.getElementById('navAutoSyncIcon');
+            
+            // Show syncing animation
+            icon.style.animation = 'spin 1s linear infinite';
+            
+            const syncResponse = await fetch('/api/data/periodic-sync/force', { method: 'POST' });
+            const syncResult = await syncResponse.json();
+            
+            // Stop animation
+            setTimeout(() => {
+                icon.style.animation = '';
+                checkAutoSyncStatus();
+            }, 2000);
+            
+            if (syncResult.success) {
+                showToast('Sync started!', 'success');
+            }
+        } else {
+            // Go to settings to enable
+            window.location.href = '/settings#data-sync';
+        }
+    } catch (error) {
+        console.error('Failed to handle badge click:', error);
+    }
+}
+
+// Simple toast notification
+function showToast(message, type = 'info') {
+    const toast = document.createElement('div');
+    toast.className = `alert alert-${type} position-fixed top-0 end-0 m-3`;
+    toast.style.cssText = 'z-index: 9999; min-width: 250px;';
+    toast.innerHTML = `<i class="bi bi-${type === 'success' ? 'check-circle' : 'info-circle'}"></i> ${message}`;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 3000);
+}
+
+// Check auto-sync status on page load
+document.addEventListener('DOMContentLoaded', function() {
+    checkAutoSyncStatus();
+    // Refresh status every 5 minutes
+    setInterval(checkAutoSyncStatus, 300000);
+});
+
 // Global Search Function
 async function performGlobalSearch() {
     const searchInput = document.getElementById('globalSearchInput');

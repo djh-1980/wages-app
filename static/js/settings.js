@@ -420,6 +420,28 @@ async function syncPayslips() {
 
 let syncProgressInterval = null;
 
+async function syncLatest() {
+    try {
+        updateSyncStatus('Running', 'Syncing latest from Gmail...');
+        
+        const response = await fetch('/api/data/sync-runsheets', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            updateSyncStatus('Complete', 'Latest files synced successfully');
+            showSuccess('✅ Latest runsheet + payslip synced successfully!');
+            updateLastSyncTime();
+            loadDatabaseStats();
+        } else {
+            updateSyncStatus('Error', 'Sync failed');
+            showError(`❌ Sync failed: ${result.error}`);
+        }
+    } catch (error) {
+        updateSyncStatus('Error', 'Connection error');
+        showError(`❌ Sync failed: ${error.message}`);
+    }
+}
+
 async function downloadAndSyncRunSheets() {
     const statusDiv = document.getElementById('dataManagementStatus');
     statusDiv.style.display = 'block';
@@ -437,12 +459,13 @@ async function downloadAndSyncRunSheets() {
         const today = new Date();
         const todayStr = `${today.getFullYear()}/${String(today.getMonth() + 1).padStart(2, '0')}/${String(today.getDate()).padStart(2, '0')}`;
         
-        const downloadResponse = await fetch('/api/gmail/download-runsheets', {
+        const downloadResponse = await fetch('/api/gmail/download', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
             body: JSON.stringify({
+                mode: 'runsheets',
                 after_date: todayStr
             })
         });
@@ -882,10 +905,15 @@ async function clearDatabase() {
 
 // ===== APPEARANCE =====
 function loadAppearance() {
-    document.getElementById('defaultPage').value = localStorage.getItem('defaultPage') || 'runsheets';
-    document.getElementById('itemsPerPage').value = localStorage.getItem('itemsPerPage') || '20';
-    document.getElementById('dateFormat').value = localStorage.getItem('dateFormat') || 'DD/MM/YYYY';
-    document.getElementById('theme').value = localStorage.getItem('theme') || 'light';
+    const defaultPageEl = document.getElementById('defaultPage');
+    const itemsPerPageEl = document.getElementById('itemsPerPage');
+    const dateFormatEl = document.getElementById('dateFormat');
+    const themeEl = document.getElementById('theme');
+    
+    if (defaultPageEl) defaultPageEl.value = localStorage.getItem('defaultPage') || 'runsheets';
+    if (itemsPerPageEl) itemsPerPageEl.value = localStorage.getItem('itemsPerPage') || '20';
+    if (dateFormatEl) dateFormatEl.value = localStorage.getItem('dateFormat') || 'DD/MM/YYYY';
+    if (themeEl) themeEl.value = localStorage.getItem('theme') || 'light';
 }
 
 function saveAppearance() {

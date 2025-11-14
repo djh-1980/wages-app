@@ -214,8 +214,16 @@
                         <div class="card-body">
                             <div class="d-flex justify-content-between align-items-center mb-3">
                                 <div>
-                                    <p class="mb-1"><strong>Smart Periodic Sync</strong></p>
-                                    <small class="text-muted">Automatically downloads only newer files based on database content</small>
+                                    <p class="mb-1">
+                                        <strong>Automatic Sync (Every 30 Minutes)</strong>
+                                        <span id="autoSyncBadge" class="badge bg-success ms-2" style="display: none;">
+                                            <i class="bi bi-check-circle"></i> Active
+                                        </span>
+                                    </p>
+                                    <small class="text-muted">Downloads and imports latest runsheet + payslip from Gmail automatically</small>
+                                    <div id="nextSyncTime" class="mt-1" style="display: none;">
+                                        <small class="text-info"><i class="bi bi-clock"></i> Next sync: <span id="nextSyncTimeValue">--:--</span></small>
+                                    </div>
                                 </div>
                                 <div class="form-check form-switch">
                                     <input class="form-check-input" type="checkbox" id="periodicSyncToggle" onchange="togglePeriodicSync()">
@@ -227,8 +235,7 @@
                             <div id="periodicSyncInfo" class="alert alert-info" style="display: none;">
                                 <small>
                                     <i class="bi bi-info-circle me-1"></i>
-                                    <strong>Smart Strategy:</strong> Checks database for latest files and only downloads newer ones to <code>data/</code> directory. 
-                                    Real-time monitoring processes files immediately with organized workflow.
+                                    <strong>Auto-Sync Active:</strong> Checks Gmail every 30 minutes for the latest runsheet and payslip, then automatically imports them to the database.
                                 </small>
                             </div>
                         </div>
@@ -236,27 +243,21 @@
 
                     <!-- Manual Sync Actions -->
                     <div class="row g-3 mb-4 settings-actions">
-                        <div class="col-md-3">
-                            <button class="btn btn-success w-100" onclick="syncPayslips()">
-                                <i class="bi bi-cloud-download me-2"></i>Sync Payslips
+                        <div class="col-md-6">
+                            <button class="btn btn-primary btn-lg w-100" onclick="syncLatest()">
+                                <i class="bi bi-cloud-download me-2"></i>Sync Latest from Gmail
                             </button>
+                            <small class="text-muted d-block mt-2 text-center">Downloads and imports latest runsheet + payslip</small>
                         </div>
-                        <div class="col-md-3">
-                            <button class="btn btn-primary w-100" onclick="syncRunSheets()">
-                                <i class="bi bi-cloud-download me-2"></i>Sync Run Sheets
-                            </button>
-                        </div>
-                        <div class="col-md-3">
-                            <button class="btn btn-warning w-100" onclick="hybridSync()">
-                                <i class="bi bi-arrow-repeat me-2"></i>Smart Sync
-                            </button>
-                        </div>
-                        <div class="col-md-3">
-                            <button class="btn btn-outline-info w-100" onclick="forceSync()">
+                        <div class="col-md-6">
+                            <button class="btn btn-outline-primary btn-lg w-100" onclick="forceSync()">
                                 <i class="bi bi-lightning me-2"></i>Force Sync Now
                             </button>
+                            <small class="text-muted d-block mt-2 text-center">Triggers auto-sync immediately (if enabled)</small>
                         </div>
                     </div>
+                    
+                    <div id="syncDataStatus" class="mb-4" style="display: none;"></div>
 
                     <!-- File Upload Section -->
                     <div class="settings-card-section">
@@ -423,6 +424,7 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/file-upload.js') }}?v={{ range(1000, 9999) | random }}"></script>
+<script src="{{ url_for('static', filename='js/settings.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script>
 // Settings page functionality
 function showSettingsSection(section) {
@@ -520,6 +522,28 @@ async function syncPayslips() {
     }
 }
 
+async function syncLatest() {
+    try {
+        updateSyncStatus('Running', 'Syncing latest from Gmail...');
+        
+        const response = await fetch('/api/data/sync-runsheets', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            updateSyncStatus('Complete', 'Latest files synced successfully');
+            showSuccess('✅ Latest runsheet + payslip synced successfully!');
+            updateLastSyncTime();
+            loadDatabaseStats(); // Refresh stats
+        } else {
+            updateSyncStatus('Error', 'Sync failed');
+            showError(`❌ Sync failed: ${result.error}`);
+        }
+    } catch (error) {
+        updateSyncStatus('Error', 'Connection error');
+        showError(`❌ Sync failed: ${error.message}`);
+    }
+}
+
 async function syncRunSheets() {
     try {
         updateSyncStatus('Running', 'Syncing run sheets from Gmail...');
@@ -573,22 +597,27 @@ async function loadPeriodicSyncStatus() {
             const toggle = document.getElementById('periodicSyncToggle');
             const label = document.getElementById('periodicSyncLabel');
             const info = document.getElementById('periodicSyncInfo');
+            const badge = document.getElementById('autoSyncBadge');
+            const nextSyncDiv = document.getElementById('nextSyncTime');
+            const nextSyncValue = document.getElementById('nextSyncTimeValue');
             
             toggle.checked = status.is_running;
             label.textContent = status.is_running ? 'Enabled' : 'Disabled';
             
             if (status.is_running) {
                 info.style.display = 'block';
-                if (status.last_sync_time) {
-                    const lastSync = new Date(status.last_sync_time);
-                    document.getElementById('lastSyncTime').textContent = lastSync.toLocaleTimeString('en-GB', { 
-                        hour: '2-digit', 
-                        minute: '2-digit',
-                        hour12: false 
-                    });
+                badge.style.display = 'inline-block';
+                
+                // Show next sync time if available
+                if (status.next_sync_estimate) {
+                    const nextSync = new Date(status.next_sync_estimate);
+                    nextSyncValue.textContent = nextSync.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                    nextSyncDiv.style.display = 'block';
                 }
             } else {
                 info.style.display = 'none';
+                badge.style.display = 'none';
+                nextSyncDiv.style.display = 'none';
             }
         }
     } catch (error) {
@@ -601,23 +630,26 @@ async function togglePeriodicSync() {
     const label = document.getElementById('periodicSyncLabel');
     
     try {
-        const endpoint = toggle.checked ? '/api/data/periodic-sync/start' : '/api/data/periodic-sync/stop';
-        const response = await fetch(endpoint, { method: 'POST' });
+        const action = toggle.checked ? 'start' : 'stop';
+        const response = await fetch(`/api/data/periodic-sync/${action}`, {
+            method: 'POST'
+        });
+        
         const result = await response.json();
         
         if (result.success) {
             label.textContent = toggle.checked ? 'Enabled' : 'Disabled';
-            const info = document.getElementById('periodicSyncInfo');
-            info.style.display = toggle.checked ? 'block' : 'none';
+            showSuccess(`Periodic sync ${toggle.checked ? 'enabled' : 'disabled'}`);
+            loadPeriodicSyncStatus();
             
-            showSuccess(toggle.checked ? 
-                '🔄 Periodic sync enabled - will run every 30 minutes' : 
-                '⏹️ Periodic sync disabled'
-            );
+            // Update navbar badge immediately
+            if (typeof checkAutoSyncStatus === 'function') {
+                checkAutoSyncStatus();
+            }
         } else {
             // Revert toggle on error
             toggle.checked = !toggle.checked;
-            showError(`Failed to ${toggle.checked ? 'start' : 'stop'} periodic sync: ${result.error}`);
+            showError('Failed to toggle periodic sync');
         }
     } catch (error) {
         // Revert toggle on error

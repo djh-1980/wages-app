@@ -21,8 +21,7 @@ class PeriodicSyncService:
         self.sync_thread = None
         self.last_sync_time = None
         self.sync_interval_minutes = 30  # Sync every 30 minutes
-        self.fallback_days = 7  # Fallback to 7 days if no database records found
-        self.real_time_processing = True  # Enable immediate file processing
+        self.real_time_processing = False  # Disable file monitoring, use simple sync
         
         # Setup logging
         self.logger = logging.getLogger('periodic_sync')
@@ -33,45 +32,25 @@ class PeriodicSyncService:
         self.logger.setLevel(logging.INFO)
     
     def start_periodic_sync(self):
-        """Start the periodic sync service with real-time processing."""
+        """Start the periodic sync service - syncs latest runsheet + payslip every 30 mins."""
         if self.is_running:
             self.logger.info("Periodic sync already running")
             return
         
         self.is_running = True
-        self.logger.info(f"Starting periodic sync service (every {self.sync_interval_minutes} minutes) with real-time processing")
-        
-        # Start real-time file monitoring if enabled
-        if self.real_time_processing:
-            try:
-                from .file_processor import file_processor
-                file_processor.start_monitoring()
-                self.logger.info("Real-time file processing enabled")
-            except ImportError:
-                self.logger.warning("Real-time file processor not available, using batch processing")
-                self.real_time_processing = False
+        self.logger.info(f"Starting periodic sync service (every {self.sync_interval_minutes} minutes)")
         
         # Schedule the sync job
-        schedule.every(self.sync_interval_minutes).minutes.do(self.run_smart_sync)
+        schedule.every(self.sync_interval_minutes).minutes.do(self.sync_latest)
         
         # Start the scheduler in a separate thread
         self.sync_thread = threading.Thread(target=self._run_scheduler, daemon=True)
         self.sync_thread.start()
     
     def stop_periodic_sync(self):
-        """Stop the periodic sync service and file monitoring."""
+        """Stop the periodic sync service."""
         self.is_running = False
         schedule.clear()
-        
-        # Stop real-time file monitoring
-        if self.real_time_processing:
-            try:
-                from .file_processor import file_processor
-                file_processor.stop_monitoring()
-                self.logger.info("Real-time file processing stopped")
-            except ImportError:
-                pass
-        
         self.logger.info("Periodic sync service stopped")
     
     def _run_scheduler(self):
@@ -80,48 +59,48 @@ class PeriodicSyncService:
             schedule.run_pending()
             time.sleep(60)  # Check every minute
     
-    def run_smart_sync(self):
-        """Run smart sync - download and immediately process recent files."""
+    def sync_latest(self):
+        """Sync latest runsheet and payslip from Gmail."""
         try:
-            self.logger.info("Starting smart periodic sync with immediate processing")
+            self.logger.info("Starting periodic sync - downloading latest files from Gmail")
             
-            # Check if sync is needed
-            if not self._should_sync():
-                self.logger.info("Skipping sync - no new data expected")
-                return
+            # Download latest runsheet
+            runsheet_result = subprocess.run(
+                [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', '--recent'],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
             
-            sync_results = {
-                'payslips': {'attempted': False, 'success': False, 'count': 0},
-                'runsheets': {'attempted': False, 'success': False, 'count': 0}
-            }
+            # Download latest payslip
+            payslip_result = subprocess.run(
+                [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--payslips', '--recent'],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
             
-            # Sync and process recent payslips
-            self.logger.info("Processing payslips...")
-            sync_results['payslips']['attempted'] = True
-            payslip_success = self._sync_recent_payslips()
-            sync_results['payslips']['success'] = payslip_success
+            # Import any new files (modified today)
+            import_result = subprocess.run(
+                [sys.executable, 'scripts/production/import_run_sheets.py', '--recent', '0'],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
             
-            # Sync and process recent runsheets
-            self.logger.info("Processing runsheets...")
-            sync_results['runsheets']['attempted'] = True
-            runsheet_success = self._sync_recent_runsheets()
-            sync_results['runsheets']['success'] = runsheet_success
+            # Import payslips
+            payslip_import = subprocess.run(
+                [sys.executable, 'scripts/production/extract_payslips.py', '--recent', '0'],
+                capture_output=True,
+                text=True,
+                timeout=60
+            )
             
-            # Update sync time if any operation succeeded
-            if payslip_success or runsheet_success:
-                self.last_sync_time = datetime.now()
-                success_items = []
-                if payslip_success:
-                    success_items.append("payslips")
-                if runsheet_success:
-                    success_items.append("runsheets")
-                
-                self.logger.info(f"Smart sync completed successfully at {self.last_sync_time} - processed: {', '.join(success_items)}")
-            else:
-                self.logger.warning("Smart sync completed - no new files found or errors occurred")
-                
+            self.last_sync_time = datetime.now()
+            self.logger.info(f"Periodic sync completed at {self.last_sync_time}")
+            
         except Exception as e:
-            self.logger.error(f"Smart sync failed: {str(e)}")
+            self.logger.error(f"Periodic sync failed: {str(e)}")
     
     def _should_sync(self):
         """Determine if sync is needed based on time and data patterns."""
@@ -313,31 +292,32 @@ class PeriodicSyncService:
     
     def get_sync_status(self):
         """Get current sync status for API."""
+        next_sync = self._estimate_next_sync()
         return {
             'is_running': self.is_running,
             'last_sync_time': self.last_sync_time.isoformat() if self.last_sync_time else None,
             'sync_interval_minutes': self.sync_interval_minutes,
-            'fallback_days': self.fallback_days,
-            'real_time_processing': self.real_time_processing,
-            'next_sync_estimate': self._estimate_next_sync(),
-            'sync_strategy': 'database_driven'
+            'next_sync_estimate': next_sync
         }
     
     def _estimate_next_sync(self):
         """Estimate when the next sync will occur."""
-        if not self.is_running or self.last_sync_time is None:
+        if not self.is_running:
             return None
         
-        next_sync = self.last_sync_time + timedelta(minutes=self.sync_interval_minutes)
+        # If we have a last sync time, calculate from that
+        if self.last_sync_time:
+            next_sync = self.last_sync_time + timedelta(minutes=self.sync_interval_minutes)
+        else:
+            # If no last sync yet, estimate from now
+            next_sync = datetime.now() + timedelta(minutes=self.sync_interval_minutes)
+        
         return next_sync.isoformat()
     
     def force_sync_now(self):
         """Force an immediate sync (for manual trigger)."""
-        if not self.is_running:
-            return False
-        
         # Run sync in background thread
-        sync_thread = threading.Thread(target=self.run_smart_sync, daemon=True)
+        sync_thread = threading.Thread(target=self.sync_latest, daemon=True)
         sync_thread.start()
         return True
 
