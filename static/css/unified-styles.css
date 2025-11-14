@@ -503,11 +503,12 @@ body {
     }
     
     .summary-cards .card-body {
-        padding: var(--spacing-md);
+        padding: 12px;
         display: flex;
         flex-direction: column;
         justify-content: space-between;
         height: 100%;
+        overflow: hidden;
     }
     
     .summary-cards .card-title {
@@ -516,11 +517,20 @@ body {
     }
     
     .summary-cards h3 {
-        font-size: 28px;
+        font-size: 22px;
+        word-break: break-word;
+        overflow-wrap: break-word;
+        line-height: 1.2;
+        max-width: 100%;
+    }
+    
+    /* Make currency symbols smaller on mobile */
+    .summary-cards h3::first-letter {
+        font-size: 0.8em;
     }
     
     .summary-cards .bi {
-        font-size: 20px;
+        font-size: 18px;
     }
     
     /* Tab navigation */
