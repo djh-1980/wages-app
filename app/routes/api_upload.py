@@ -60,8 +60,18 @@ def upload_files():
                 try:
                     # Secure filename and add timestamp to avoid conflicts
                     filename = secure_filename(file.filename)
+                    
+                    # Handle case where secure_filename returns empty string
+                    if not filename:
+                        filename = f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                    
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                     name, ext = os.path.splitext(filename)
+                    
+                    # Ensure we have an extension
+                    if not ext:
+                        ext = '.pdf'
+                    
                     unique_filename = f"{name}_{timestamp}{ext}"
                     
                     file_path = upload_path / unique_filename
@@ -78,7 +88,9 @@ def upload_files():
                     log_settings_action('FILE_UPLOAD', f'Uploaded {file.filename} as {unique_filename}')
                     
                 except Exception as e:
-                    errors.append(f"Failed to upload {file.filename}: {str(e)}")
+                    error_msg = f"Failed to upload {file.filename}: {str(e)}"
+                    errors.append(error_msg)
+                    log_settings_action('FILE_UPLOAD', error_msg, 'ERROR')
             else:
                 errors.append(f"Invalid file: {file.filename}")
         
