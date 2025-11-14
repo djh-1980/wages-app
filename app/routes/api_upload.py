@@ -99,11 +99,23 @@ def api_upload_files():
             else:
                 errors.append(f"Invalid file: {file.filename}")
         
-        # Auto-process if requested
+        # Auto-process if requested (run in background to avoid timeout)
         processing_results = []
         if auto_process and uploaded_files:
             try:
-                processing_results = process_uploaded_files(uploaded_files, file_type)
+                # Start processing in background thread to avoid gateway timeout
+                import threading
+                thread = threading.Thread(
+                    target=process_uploaded_files_background,
+                    args=(uploaded_files, file_type)
+                )
+                thread.daemon = True
+                thread.start()
+                
+                processing_results = [{
+                    'file': f['original_name'],
+                    'result': {'success': True, 'message': 'Processing started in background'}
+                } for f in uploaded_files]
             except Exception as e:
                 errors.append(f"Processing failed: {str(e)}")
         
@@ -254,25 +266,35 @@ def process_uploaded_files(uploaded_files, file_type):
     results = []
     
     for file_info in uploaded_files:
-        try:
-            if file_type == 'payslips':
-                result = process_single_payslip(file_info['path'])
-            elif file_type == 'runsheets':
-                result = process_single_runsheet(file_info['path'])
-            else:
-                result = auto_detect_and_process(file_info['path'])
-            
-            results.append({
-                'file': file_info['original_name'],
-                'result': result
-            })
-        except Exception as e:
-            results.append({
-                'file': file_info['original_name'],
-                'error': str(e)
-            })
+        file_path = file_info['path']
+        
+        if file_type == 'runsheets':
+            result = process_single_runsheet(file_path)
+        elif file_type == 'payslips':
+            result = process_single_payslip(file_path)
+        else:
+            # Auto-detect and process
+            result = auto_detect_and_process(file_path)
+        
+        results.append({
+            'file': file_info['original_name'],
+            'result': result
+        })
     
     return results
+
+
+def process_uploaded_files_background(uploaded_files, file_type):
+    """Process uploaded files in background to avoid timeout."""
+    try:
+        log_settings_action('FILE_UPLOAD', f'Background processing started for {len(uploaded_files)} files')
+        results = process_uploaded_files(uploaded_files, file_type)
+        
+        success_count = sum(1 for r in results if r['result'].get('success'))
+        log_settings_action('FILE_UPLOAD', f'Background processing complete: {success_count}/{len(results)} successful')
+    except Exception as e:
+        log_settings_action('FILE_UPLOAD', f'Background processing failed: {str(e)}', 'ERROR')
+
 
 def process_single_payslip(file_path):
     """Process a single payslip file."""
