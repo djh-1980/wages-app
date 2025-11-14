@@ -1294,11 +1294,18 @@ function displayWeeklySummary(data) {
     
     for (const [status, info] of Object.entries(data.status_breakdown)) {
         const config = statusConfig[status] || { label: status, class: 'secondary' };
+        
+        // Show estimated loss for DNCO jobs
+        let earningsDisplay = CurrencyFormatter.format(info.earnings);
+        if ((status === 'DNCO' || status === 'dnco') && info.estimated_loss) {
+            earningsDisplay = `${CurrencyFormatter.format(info.earnings)}<br><small class="text-danger">Est. loss: ${CurrencyFormatter.format(info.estimated_loss)}</small>`;
+        }
+        
         statusHTML += `
             <tr>
                 <td><strong>${config.label}</strong></td>
                 <td><span class="badge bg-${config.class}">${info.count} jobs</span></td>
-                <td class="text-end"><strong>${CurrencyFormatter.format(info.earnings)}</strong></td>
+                <td class="text-end"><strong>${earningsDisplay}</strong></td>
             </tr>
         `;
     }
@@ -1354,6 +1361,29 @@ function displayWeeklySummary(data) {
         </div>
     `;
     
+    // Mileage Summary (inside performance metrics card)
+    const mileageSummary = document.getElementById('weeklyMileageSummary');
+    mileageSummary.innerHTML = `
+        <div class="col-md-4">
+            <div class="text-center p-3 bg-light rounded">
+                <h5 class="text-primary">${data.summary.total_mileage} mi</h5>
+                <small class="text-muted">Total Mileage</small>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="text-center p-3 bg-light rounded">
+                <h5 class="text-primary">${CurrencyFormatter.format(data.summary.total_fuel_cost)}</h5>
+                <small class="text-muted">Total Fuel Cost</small>
+            </div>
+        </div>
+        <div class="col-md-4">
+            <div class="text-center p-3 bg-light rounded">
+                <h5 class="text-primary">${CurrencyFormatter.format(data.metrics.cost_per_mile)}</h5>
+                <small class="text-muted">Cost per Mile</small>
+            </div>
+        </div>
+    `;
+    
     // Top Customers
     const topCustomers = document.getElementById('weeklyTopCustomers');
     topCustomers.innerHTML = data.top_customers.map((customer, index) => `
@@ -1369,7 +1399,7 @@ function displayWeeklySummary(data) {
     jobTypes.innerHTML = data.job_types.map(type => `
         <tr>
             <td>${type.type}</td>
-            <td><span class="badge bg-info">${type.count}</span></td>
+            <td class="text-end"><span class="badge bg-info">${type.count}</span></td>
         </tr>
     `).join('');
 }

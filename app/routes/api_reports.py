@@ -1082,6 +1082,7 @@ def api_weekly_summary():
             status_breakdown = {}
             total_jobs = 0
             total_earnings = 0
+            dnco_count = 0
             
             for row in cursor.fetchall():
                 status = row['status'] or 'unknown'
@@ -1095,6 +1096,29 @@ def api_weekly_summary():
                 total_jobs += count
                 if status not in ['DNCO', 'dnco', 'missed']:
                     total_earnings += pay
+                
+                if status in ['DNCO', 'dnco']:
+                    dnco_count += count
+            
+            # Estimate lost earnings from DNCO jobs based on historical average
+            estimated_dnco_loss = 0
+            if dnco_count > 0:
+                # Get average earnings per completed job from historical data
+                cursor.execute("""
+                    SELECT AVG(pay_amount) as avg_pay
+                    FROM run_sheet_jobs
+                    WHERE status = 'completed' 
+                    AND pay_amount IS NOT NULL 
+                    AND pay_amount > 0
+                """)
+                avg_result = cursor.fetchone()
+                avg_pay = avg_result['avg_pay'] if avg_result and avg_result['avg_pay'] else 0
+                estimated_dnco_loss = round(dnco_count * avg_pay, 2)
+                
+                # Add estimated loss to DNCO status breakdown
+                for status_key in ['DNCO', 'dnco']:
+                    if status_key in status_breakdown:
+                        status_breakdown[status_key]['estimated_loss'] = estimated_dnco_loss
             
             # Daily breakdown - maintain Sunday-Saturday order
             cursor.execute(f"""
