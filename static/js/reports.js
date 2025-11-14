@@ -1176,7 +1176,20 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         // Load if it's the active tab on page load
         if (weeklyTab.classList.contains('active')) {
-            currentWeek();
+            // Ensure CurrencyFormatter is loaded before initializing
+            if (typeof CurrencyFormatter !== 'undefined') {
+                currentWeek();
+            } else {
+                // Wait for CurrencyFormatter to be available
+                const checkFormatter = setInterval(() => {
+                    if (typeof CurrencyFormatter !== 'undefined') {
+                        clearInterval(checkFormatter);
+                        currentWeek();
+                    }
+                }, 100);
+                // Timeout after 5 seconds
+                setTimeout(() => clearInterval(checkFormatter), 5000);
+            }
         }
     }
 });
@@ -1234,6 +1247,15 @@ async function loadWeeklySummary() {
 }
 
 function displayWeeklySummary(data) {
+    // Fallback currency formatter if CurrencyFormatter is not available
+    const formatCurrency = (value) => {
+        if (typeof CurrencyFormatter !== 'undefined') {
+            return CurrencyFormatter.format(value);
+        }
+        // Fallback formatting
+        return '£' + (value || 0).toFixed(2);
+    };
+    
     // Update week label with week number
     document.getElementById('weekLabel').textContent = `Week ${data.week_number} - ${data.week_label}`;
     
@@ -1254,8 +1276,8 @@ function displayWeeklySummary(data) {
             <div class="card stat-card">
                 <div class="card-body">
                     <h6 class="text-muted mb-2">Total Earnings</h6>
-                    <h3 class="mb-0">${CurrencyFormatter.format(data.summary.total_earnings)}</h3>
-                    <small class="text-success">${CurrencyFormatter.format(data.metrics.avg_earnings_per_day)}/day</small>
+                    <h3 class="mb-0">${formatCurrency(data.summary.total_earnings)}</h3>
+                    <small class="text-success">${formatCurrency(data.metrics.avg_earnings_per_day)}/day</small>
                 </div>
             </div>
         </div>
@@ -1296,9 +1318,9 @@ function displayWeeklySummary(data) {
         const config = statusConfig[status] || { label: status, class: 'secondary' };
         
         // Show estimated loss for DNCO jobs
-        let earningsDisplay = CurrencyFormatter.format(info.earnings);
+        let earningsDisplay = formatCurrency(info.earnings);
         if ((status === 'DNCO' || status === 'dnco') && info.estimated_loss) {
-            earningsDisplay = `${CurrencyFormatter.format(info.earnings)}<br><small class="text-danger">Est. loss: ${CurrencyFormatter.format(info.estimated_loss)}</small>`;
+            earningsDisplay = `${formatCurrency(info.earnings)}<br><small class="text-danger">Est. loss: ${formatCurrency(info.estimated_loss)}</small>`;
         }
         
         statusHTML += `
@@ -1325,9 +1347,9 @@ function displayWeeklySummary(data) {
                 <td><span class="badge bg-info">${day.extra}</span></td>
                 <td><span class="badge bg-warning">${day.dnco}</span></td>
                 <td><span class="badge bg-secondary">${day.pending}</span></td>
-                <td><strong>${CurrencyFormatter.format(day.earnings)}</strong></td>
+                <td><strong>${formatCurrency(day.earnings)}</strong></td>
                 <td>${mileageData.mileage || 0} mi</td>
-                <td>${CurrencyFormatter.format(mileageData.fuel_cost || 0)}</td>
+                <td>${formatCurrency(mileageData.fuel_cost || 0)}</td>
             </tr>
         `;
     }).join('');
@@ -1343,19 +1365,19 @@ function displayWeeklySummary(data) {
         </div>
         <div class="col-md-3">
             <div class="text-center p-3 bg-light rounded">
-                <h4 class="text-primary">${CurrencyFormatter.format(data.metrics.avg_earnings_per_day)}</h4>
+                <h4 class="text-primary">${formatCurrency(data.metrics.avg_earnings_per_day)}</h4>
                 <small class="text-muted">Avg Earnings/Day</small>
             </div>
         </div>
         <div class="col-md-3">
             <div class="text-center p-3 bg-light rounded">
-                <h4 class="text-primary">${CurrencyFormatter.format(data.metrics.avg_earnings_per_job)}</h4>
+                <h4 class="text-primary">${formatCurrency(data.metrics.avg_earnings_per_job)}</h4>
                 <small class="text-muted">Avg Earnings/Job</small>
             </div>
         </div>
         <div class="col-md-3">
             <div class="text-center p-3 bg-light rounded">
-                <h4 class="text-primary">${CurrencyFormatter.format(data.metrics.earnings_per_mile)}</h4>
+                <h4 class="text-primary">${formatCurrency(data.metrics.earnings_per_mile)}</h4>
                 <small class="text-muted">Earnings/Mile</small>
             </div>
         </div>
@@ -1372,13 +1394,13 @@ function displayWeeklySummary(data) {
         </div>
         <div class="col-md-4">
             <div class="text-center p-3 bg-light rounded">
-                <h5 class="text-primary">${CurrencyFormatter.format(data.summary.total_fuel_cost)}</h5>
+                <h5 class="text-primary">${formatCurrency(data.summary.total_fuel_cost)}</h5>
                 <small class="text-muted">Total Fuel Cost</small>
             </div>
         </div>
         <div class="col-md-4">
             <div class="text-center p-3 bg-light rounded">
-                <h5 class="text-primary">${CurrencyFormatter.format(data.metrics.cost_per_mile)}</h5>
+                <h5 class="text-primary">${formatCurrency(data.metrics.cost_per_mile)}</h5>
                 <small class="text-muted">Cost per Mile</small>
             </div>
         </div>
@@ -1390,7 +1412,7 @@ function displayWeeklySummary(data) {
         <tr>
             <td>${customer.customer}</td>
             <td><span class="badge bg-primary">${customer.jobs}</span></td>
-            <td><strong>${CurrencyFormatter.format(customer.earnings)}</strong></td>
+            <td><strong>${formatCurrency(customer.earnings)}</strong></td>
         </tr>
     `).join('');
     
