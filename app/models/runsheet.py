@@ -172,7 +172,7 @@ class RunsheetModel:
                 job_id = update.get('job_id')
                 status = update.get('status')
                 
-                if job_id and status in ['completed', 'missed', 'dnco', 'extra', 'pending']:
+                if job_id and status.lower() in ['completed', 'missed', 'dnco', 'extra', 'pending']:
                     cursor.execute("""
                         UPDATE run_sheet_jobs
                         SET status = ?

@@ -475,7 +475,7 @@ async function viewRunSheetJobs(date) {
                                                             <button class="btn btn-outline-danger" onclick="updateJobStatus(${job.id}, 'missed')" title="Missed">
                                                                 <i class="bi bi-x-circle"></i>
                                                             </button>
-                                                            <button class="btn btn-outline-warning" onclick="updateJobStatus(${job.id}, 'dnco')" title="DNCO">
+                                                            <button class="btn btn-outline-warning" onclick="updateJobStatus(${job.id}, 'DNCO')" title="DNCO">
                                                                 <i class="bi bi-exclamation-circle"></i>
                                                             </button>
                                                             <button class="btn btn-outline-info" onclick="updateJobStatus(${job.id}, 'extra')" title="Extra">
@@ -523,7 +523,7 @@ async function viewRunSheetJobs(date) {
                                                             </button>
                                                         </div>
                                                         <div class="col-6">
-                                                            <button class="btn btn-warning w-100 py-2" onclick="updateJobStatus(${job.id}, 'dnco')" style="font-size: 0.9rem;">
+                                                            <button class="btn btn-warning w-100 py-2" onclick="updateJobStatus(${job.id}, 'DNCO')" style="font-size: 0.9rem;">
                                                                 <i class="bi bi-exclamation-circle me-1"></i>DNCO
                                                             </button>
                                                         </div>
@@ -668,6 +668,7 @@ function getStatusBadge(status) {
         'completed': '<span class="badge bg-success">Completed</span>',
         'missed': '<span class="badge bg-danger">Missed</span>',
         'dnco': '<span class="badge bg-warning">DNCO</span>',
+        'DNCO': '<span class="badge bg-warning">DNCO</span>',
         'extra': '<span class="badge bg-info">Extra</span>',
         'pending': '<span class="badge bg-secondary">Pending</span>'
     };
@@ -753,8 +754,10 @@ function updateStatusCounts() {
         if (!seenJobIds.has(jobId)) {
             seenJobIds.add(jobId);
             const status = row.dataset.status;
-            if (counts.hasOwnProperty(status)) {
-                counts[status]++;
+            // Normalize DNCO to lowercase for counting
+            const normalizedStatus = status === 'DNCO' ? 'dnco' : status;
+            if (counts.hasOwnProperty(normalizedStatus)) {
+                counts[normalizedStatus]++;
             }
         }
     });
