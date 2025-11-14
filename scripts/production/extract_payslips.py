@@ -467,11 +467,39 @@ class PayslipExtractor:
 
 
 def main():
+    import argparse
+    import sys
+    
+    parser = argparse.ArgumentParser(description='Extract payslip data from PDFs')
+    parser.add_argument('--file', type=str, help='Process a single specific file')
+    parser.add_argument('--recent', type=int, help='Only process files modified in last N days')
+    parser.add_argument('--directory', type=str, help='Directory to process files from')
+    args = parser.parse_args()
+    
     extractor = PayslipExtractor()
     
     try:
-        extractor.process_all_payslips()
-        extractor.get_summary_stats()
+        if args.file:
+            # Process single file
+            from pathlib import Path
+            file_path = Path(args.file)
+            if not file_path.exists():
+                print(f"Error: File not found: {file_path}")
+                sys.exit(1)
+            
+            print(f"Processing single file: {file_path}")
+            result = extractor.process_payslip(str(file_path))
+            
+            if result:
+                print(f"\n✓ Successfully processed {file_path.name}")
+                sys.exit(0)
+            else:
+                print(f"\n⚠️  Failed to process {file_path.name}")
+                sys.exit(1)
+        else:
+            # Process all payslips (with optional filters)
+            extractor.process_all_payslips()
+            extractor.get_summary_stats()
     finally:
         extractor.close()
     

@@ -339,6 +339,19 @@ class FileUploadManager {
         
         resultsContent.innerHTML = html;
         resultsContainer.style.display = 'block';
+        
+        // Trigger callback if provided
+        if (this.options.onUploadComplete) {
+            this.options.onUploadComplete(result);
+        }
+        
+        // If on runsheets page, reload the data
+        if (typeof loadRunSheetsList === 'function') {
+            setTimeout(() => {
+                loadRunSheetsList();
+                loadRunSheetsSummary();
+            }, 1000);
+        }
     }
     
     showError(message) {

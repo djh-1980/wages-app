@@ -783,3 +783,40 @@ def api_force_sync():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@data_bp.route('/sync-runsheets-payslips', methods=['POST'])
+def api_sync_runsheets_payslips():
+    """Sync runsheet data with payslip data to update prices and addresses."""
+    log_settings_action('SYNC_RUNSHEETS_PAYSLIPS', 'Starting runsheet-payslip sync')
+    
+    try:
+        # Run the sync script
+        result = subprocess.run(
+            [sys.executable, 'scripts/sync_runsheets_with_payslips.py'],
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+        
+        if result.returncode == 0:
+            log_settings_action('SYNC_RUNSHEETS_PAYSLIPS', 'Sync completed successfully')
+            return jsonify({
+                'success': True,
+                'message': 'Runsheet data synced with payslips',
+                'output': result.stdout
+            })
+        else:
+            log_settings_action('SYNC_RUNSHEETS_PAYSLIPS', f'Sync failed: {result.stderr}', 'ERROR')
+            return jsonify({
+                'success': False,
+                'error': result.stderr,
+                'output': result.stdout
+            }), 500
+            
+    except Exception as e:
+        log_settings_action('SYNC_RUNSHEETS_PAYSLIPS', f'Sync failed: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

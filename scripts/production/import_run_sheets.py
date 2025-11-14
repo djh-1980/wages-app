@@ -643,12 +643,30 @@ def main():
     parser = argparse.ArgumentParser(description='Import run sheets from PDFs')
     parser.add_argument('--name', default='Daniel Hanson', help='Driver name to search for')
     parser.add_argument('--recent', type=int, help='Only import files modified in last N days')
+    parser.add_argument('--file', type=str, help='Import a single specific file')
     args = parser.parse_args()
     
     importer = RunSheetImporter(name=args.name)
     
     try:
-        if args.recent:
+        if args.file:
+            # Import single file
+            file_path = Path(args.file)
+            if not file_path.exists():
+                print(f"Error: File not found: {file_path}")
+                sys.exit(1)
+            
+            print(f"Importing single file: {file_path}")
+            imported = importer.import_run_sheet(file_path)
+            
+            if imported > 0:
+                print(f"\n✓ Successfully imported {imported} jobs from {file_path.name}")
+                sys.exit(0)
+            else:
+                print(f"\n⚠️  No jobs imported from {file_path.name}")
+                sys.exit(1)
+                
+        elif args.recent:
             # Only import recent files
             from datetime import datetime, timedelta
             cutoff_date = datetime.now() - timedelta(days=args.recent)

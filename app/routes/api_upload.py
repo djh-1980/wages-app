@@ -273,18 +273,47 @@ def process_single_payslip(file_path):
     }
 
 def process_single_runsheet(file_path):
-    """Process a single runsheet file."""
-    process = subprocess.run(
+    """Process a single runsheet file and organize it."""
+    # First, import the runsheet data
+    import_process = subprocess.run(
         [sys.executable, 'scripts/production/import_run_sheets.py', '--file', file_path],
         capture_output=True,
         text=True,
         timeout=60
     )
     
+    # If import successful, organize the file and sync with payslips
+    if import_process.returncode == 0:
+        # Organize the file
+        organize_process = subprocess.run(
+            [sys.executable, 'scripts/organize_uploaded_runsheets.py'],
+            capture_output=True,
+            text=True,
+            timeout=30
+        )
+        
+        # Sync with payslip data to get prices and addresses
+        sync_process = subprocess.run(
+            [sys.executable, 'scripts/sync_runsheets_with_payslips.py'],
+            capture_output=True,
+            text=True,
+            timeout=60
+        )
+        
+        output = import_process.stdout + '\n' + organize_process.stdout
+        if sync_process.returncode == 0:
+            output += '\n' + sync_process.stdout
+        
+        return {
+            'success': True,
+            'output': output,
+            'error': None
+        }
+    
     return {
-        'success': process.returncode == 0,
-        'output': process.stdout,
-        'error': process.stderr if process.returncode != 0 else None
+        'success': False,
+        'output': import_process.stdout,
+        'error': import_process.stderr
     }
 
 def auto_detect_and_process(file_path):
