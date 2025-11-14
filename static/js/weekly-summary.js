@@ -6,11 +6,18 @@
 let currentWeekStart = null;
 
 // Initialize weekly summary when page loads
-window.addEventListener('load', () => {
+function initWeeklySummary() {
     const weeklyTab = document.getElementById('weekly-summary-tab');
+    const weeklyPane = document.getElementById('weekly-summary');
+    
+    console.log('Initializing weekly summary...');
+    console.log('weeklyTab:', weeklyTab);
+    console.log('weeklyPane:', weeklyPane);
+    
     if (weeklyTab) {
         // Load when tab is shown
         weeklyTab.addEventListener('shown.bs.tab', () => {
+            console.log('Tab shown event fired');
             if (!currentWeekStart) {
                 window.currentWeek();
             }
@@ -18,10 +25,27 @@ window.addEventListener('load', () => {
         
         // Load if it's the active tab on page load
         if (weeklyTab.classList.contains('active')) {
+            console.log('Tab is active on load, loading data...');
             window.currentWeek();
         }
     }
-});
+    
+    // Also check if the pane is active
+    if (weeklyPane && weeklyPane.classList.contains('show', 'active')) {
+        console.log('Pane is active on load, loading data...');
+        window.currentWeek();
+    }
+}
+
+// Try both DOMContentLoaded and load events
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initWeeklySummary);
+} else {
+    // DOM already loaded
+    initWeeklySummary();
+}
+
+window.addEventListener('load', initWeeklySummary);
 
 // Navigation functions - exposed globally for onclick handlers
 window.currentWeek = function() {
@@ -95,7 +119,14 @@ function displayWeeklySummary(data) {
     };
     
     // Update week label with week number
-    document.getElementById('weekLabel').textContent = `Week ${data.week_number} - ${data.week_label}`;
+    const weekLabel = document.getElementById('weekLabel');
+    console.log('weekLabel element:', weekLabel);
+    console.log('Setting week label to:', `Week ${data.week_number} - ${data.week_label}`);
+    if (weekLabel) {
+        weekLabel.textContent = `Week ${data.week_number} - ${data.week_label}`;
+    } else {
+        console.error('weekLabel element not found!');
+    }
     
     // Summary Cards
     const summaryCards = document.getElementById('weeklySummaryCards');
