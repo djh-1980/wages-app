@@ -32,10 +32,98 @@ async function initializePaypoint() {
         // Set up event listeners
         setupEventListeners();
         
+        // Set up job number auto-fill
+        setupJobNumberAutoFill();
+        
         console.log('Paypoint system initialized successfully');
     } catch (error) {
         console.error('Error initializing Paypoint system:', error);
         showError('Failed to initialize Paypoint system');
+    }
+}
+
+/**
+ * Setup job number auto-fill from runsheets
+ */
+function setupJobNumberAutoFill() {
+    // Set up event listener when deploy modal is shown
+    const deployModal = document.getElementById('deployModal');
+    if (deployModal) {
+        deployModal.addEventListener('shown.bs.modal', function() {
+            const jobNumberInput = document.getElementById('deployJobNumber');
+            if (jobNumberInput && !jobNumberInput.dataset.listenerAttached) {
+                // Mark as attached to avoid duplicate listeners
+                jobNumberInput.dataset.listenerAttached = 'true';
+                
+                jobNumberInput.addEventListener('blur', async function() {
+                    const jobNumber = this.value.trim();
+                    if (jobNumber) {
+                        await fetchJobDetails(jobNumber);
+                    }
+                });
+                
+                // Also trigger on Enter key
+                jobNumberInput.addEventListener('keypress', async function(e) {
+                    if (e.key === 'Enter') {
+                        e.preventDefault();
+                        const jobNumber = this.value.trim();
+                        if (jobNumber) {
+                            await fetchJobDetails(jobNumber);
+                        }
+                    }
+                });
+            }
+        });
+    }
+}
+
+/**
+ * Fetch job details from runsheets and auto-fill form
+ */
+async function fetchJobDetails(jobNumber) {
+    try {
+        console.log('Fetching job details for:', jobNumber);
+        const response = await fetch(`/api/search/job/${jobNumber}`);
+        if (!response.ok) {
+            console.log('Job not found in runsheets');
+            return;
+        }
+        
+        const data = await response.json();
+        console.log('Job search response:', data);
+        
+        if (data && data.found && data.runsheets && data.runsheets.length > 0) {
+            // Get the most recent job entry from runsheets
+            const job = data.runsheets[0];
+            
+            // Auto-fill customer and location
+            const customerInput = document.getElementById('deployCustomer');
+            const locationInput = document.getElementById('deployLocation');
+            
+            if (customerInput && job.customer) {
+                customerInput.value = job.customer;
+                console.log('Customer filled:', job.customer);
+            }
+            
+            if (locationInput && job.address) {
+                locationInput.value = job.address;
+                console.log('Location filled:', job.address);
+            }
+            
+            // Show success feedback
+            const jobNumberInput = document.getElementById('deployJobNumber');
+            if (jobNumberInput) {
+                jobNumberInput.classList.add('is-valid');
+                setTimeout(() => jobNumberInput.classList.remove('is-valid'), 2000);
+            }
+            
+            console.log('Job details auto-filled from runsheet');
+        } else {
+            console.log('No runsheet data found for job:', jobNumber);
+        }
+    } catch (error) {
+        console.error('Error fetching job details:', error);
+        // Don't show error to user - just fail silently if job not found
     }
 }
 
@@ -81,8 +169,10 @@ async function loadSummary() {
 function updateSummaryCards(summary) {
     document.getElementById('totalDevices').textContent = summary.total_devices || 0;
     document.getElementById('availableDevices').textContent = summary.available_devices || 0;
-    document.getElementById('deployedDevices').textContent = summary.deployed_devices || 0;
-    document.getElementById('returnedDevices').textContent = summary.returned_devices || 0;
+    const returnedEl = document.getElementById('returnedDevices');
+    if (returnedEl) {
+        returnedEl.textContent = summary.returned_devices || 0;
+    }
 }
 
 /**
@@ -107,52 +197,40 @@ async function loadDevices() {
 }
 
 /**
- * Update devices table
+ * Update devices table - only show available stock
  */
 function updateDevicesTable() {
     const tbody = document.getElementById('devicesTableBody');
+    const stockCount = document.getElementById('stockCount');
     
-    if (devices.length === 0) {
+    // Filter to only show available stock (not returned)
+    const availableStock = devices.filter(d => d.status === 'available');
+    
+    // Update count badge
+    if (stockCount) {
+        stockCount.textContent = `${availableStock.length} item${availableStock.length !== 1 ? 's' : ''}`;
+    }
+    
+    if (availableStock.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center text-muted">
-                    <i class="bi bi-device-hdd fs-1 d-block mb-2"></i>
-                    No devices found. Add your first device to get started.
+                <td colspan="5" class="text-center text-muted" style="padding: 3rem;">
+                    <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
+                    <p class="mt-2 mb-0">No stock available</p>
+                    <small>Click "Add Stock" to add devices to your van</small>
                 </td>
             </tr>
         `;
         return;
     }
     
-    tbody.innerHTML = devices.map(device => `
-        <tr>
-            <td><strong>${device.paypoint_type}</strong></td>
-            <td><code>${device.serial_ptid}</code></td>
-            <td><span class="badge bg-secondary">${device.trace_stock}</span></td>
-            <td>
-                <span class="badge ${getStatusBadgeClass(device.status)}">
-                    ${device.status.toUpperCase()}
-                </span>
-            </td>
-            <td>${device.current_job_number || '-'}</td>
-            <td>${device.deployment_date ? formatDate(device.deployment_date) : '-'}</td>
-            <td>
-                <div class="btn-group btn-group-sm">
-                    ${device.status === 'available' ? 
-                        `<button class="btn btn-outline-success" onclick="quickDeploy(${device.id})" title="Deploy">
-                            <i class="bi bi-arrow-up-circle"></i>
-                        </button>` : ''
-                    }
-                    ${device.status === 'deployed' ? 
-                        `<button class="btn btn-outline-warning" onclick="quickReturn(${device.id})" title="Return">
-                            <i class="bi bi-arrow-down-circle"></i>
-                        </button>` : ''
-                    }
-                    <button class="btn btn-outline-info" onclick="viewDeviceHistory(${device.id})" title="View History">
-                        <i class="bi bi-clock-history"></i>
-                    </button>
-                </div>
-            </td>
+    tbody.innerHTML = availableStock.map(device => `
+        <tr style="border-bottom: 1px solid #f0f0f0;">
+            <td style="font-weight: 500;">${device.paypoint_type}</td>
+            <td><code style="background: #f8f9fa; padding: 0.25rem 0.5rem; border-radius: 4px;">${device.serial_ptid}</code></td>
+            <td><span class="badge" style="background: linear-gradient(135deg, #17a2b8, #138496); font-size: 0.85rem;">${device.trace_stock}</span></td>
+            <td><span class="badge bg-success" style="font-size: 0.85rem;">Available</span></td>
+            <td style="color: #6c757d;">${device.notes || '-'}</td>
         </tr>
     `).join('');
 }
@@ -257,11 +335,14 @@ function updateDeploymentsTable() {
  */
 async function loadReturns() {
     try {
+        console.log('Loading returns...');
         const response = await fetch('/api/paypoint/returns');
         const data = await response.json();
+        console.log('Returns API response:', data);
         
         if (data.success) {
             currentReturns = data.returns;
+            console.log('Current returns:', currentReturns);
             updateReturnsTable();
         }
     } catch (error) {
@@ -274,12 +355,25 @@ async function loadReturns() {
  */
 function updateReturnsTable() {
     const tbody = document.getElementById('returnsTableBody');
+    const returnsCount = document.getElementById('returnsCount');
+    
+    if (!tbody) {
+        console.error('returnsTableBody element not found!');
+        return;
+    }
+    
+    // Update count badge
+    if (returnsCount) {
+        returnsCount.textContent = `${currentReturns.length} return${currentReturns.length !== 1 ? 's' : ''}`;
+    }
     
     if (currentReturns.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center text-muted">
-                    No returns recorded yet.
+                <td colspan="7" class="text-center text-muted" style="padding: 3rem;">
+                    <i class="bi bi-archive" style="font-size: 3rem; opacity: 0.3;"></i>
+                    <p class="mt-2 mb-0">No returns recorded yet</p>
+                    <small>Returns will appear here when you use stock</small>
                 </td>
             </tr>
         `;
@@ -287,14 +381,14 @@ function updateReturnsTable() {
     }
     
     tbody.innerHTML = currentReturns.map(returnItem => `
-        <tr>
+        <tr style="border-bottom: 1px solid #f0f0f0;">
             <td>${formatDate(returnItem.return_date)}</td>
-            <td><strong>${returnItem.job_number}</strong></td>
-            <td>${returnItem.paypoint_type}</td>
-            <td><code>${returnItem.return_serial_ptid}</code></td>
-            <td><span class="badge bg-info">${returnItem.return_trace}</span></td>
-            <td>${returnItem.customer || '-'}</td>
-            <td>${returnItem.return_reason || '-'}</td>
+            <td><strong style="color: #0d6efd;">${returnItem.job_number}</strong></td>
+            <td style="font-weight: 500;">${returnItem.paypoint_type}</td>
+            <td><code style="background: #f8f9fa; padding: 0.25rem 0.5rem; border-radius: 4px; color: #d63384;">${returnItem.return_serial_ptid}</code></td>
+            <td><span class="badge" style="background: linear-gradient(135deg, #17a2b8, #138496); font-size: 0.85rem;">${returnItem.return_trace}</span></td>
+            <td style="color: #6c757d;">${returnItem.location || '-'}</td>
+            <td><span class="badge bg-secondary" style="font-size: 0.85rem;">${returnItem.return_reason || '-'}</span></td>
         </tr>
     `).join('');
 }
@@ -363,52 +457,192 @@ window.showAddDeviceModal = function() {
     modal.show();
 }
 
-window.showDeployModal = function() {
-    const modal = new bootstrap.Modal(document.getElementById('deployModal'));
-    modal.show();
-}
-
-window.showReturnModal = function() {
-    const modal = new bootstrap.Modal(document.getElementById('returnModal'));
-    modal.show();
-}
+// Old deploy/return modals removed - now using unified Use Stock modal
 
 /**
- * Add new device
+ * Add new stock
  */
-window.addDevice = async function() {
+window.addStock = async function() {
     try {
-        const formData = {
-            paypoint_type: document.getElementById('paypointType').value,
-            serial_ptid: document.getElementById('serialPtid').value,
-            trace_stock: document.getElementById('traceStock').value,
-            notes: document.getElementById('deviceNotes').value
-        };
+        const paypointType = document.getElementById('paypointType').value;
+        const serialPtid = document.getElementById('serialPtid').value;
+        const traceStock = document.getElementById('traceStock').value;
+        const notes = document.getElementById('deviceNotes').value;
         
-        if (!formData.paypoint_type || !formData.serial_ptid || !formData.trace_stock) {
-            showError('Paypoint type, serial/TID, and trace/stock are required');
+        if (!paypointType || !serialPtid || !traceStock) {
+            showError('Please fill in all required fields');
             return;
         }
         
         const response = await fetch('/api/paypoint/devices', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(formData)
+            body: JSON.stringify({
+                paypoint_type: paypointType,
+                serial_ptid: serialPtid,
+                trace_stock: traceStock,
+                notes: notes
+            })
         });
         
         const data = await response.json();
         
         if (data.success) {
-            showSuccess('Device added successfully');
-            bootstrap.Modal.getInstance(document.getElementById('addDeviceModal')).hide();
-            document.getElementById('addDeviceForm').reset();
+            showSuccess('Stock added successfully');
+            bootstrap.Modal.getInstance(document.getElementById('addStockModal')).hide();
+            document.getElementById('addStockForm').reset();
             await refreshData();
         } else {
-            showError(data.error || 'Failed to add device');
+            showError(data.error || 'Failed to add stock');
         }
     } catch (error) {
-        console.error('Error adding device:', error);
-        showError('Failed to add device');
+        console.error('Error adding stock:', error);
+        showError('Failed to add stock');
+    }
+}
+
+/**
+ * Use stock (deploy and return in one action)
+ */
+window.useStock = async function() {
+    try {
+        const deviceId = document.getElementById('useStockDevice').value;
+        const jobNumber = document.getElementById('useStockJobNumber').value;
+        const customer = document.getElementById('useStockCustomer').value;
+        const location = document.getElementById('useStockLocation').value;
+        const returnSerial = document.getElementById('useStockReturnSerial').value;
+        const returnTrace = document.getElementById('useStockReturnTrace').value;
+        const returnReason = document.getElementById('useStockReturnReason').value;
+        const notes = document.getElementById('useStockNotes').value;
+        
+        if (!deviceId || !jobNumber) {
+            showError('Device and job number are required');
+            return;
+        }
+        
+        // Deploy and return in one API call
+        const response = await fetch(`/api/paypoint/devices/${deviceId}/deploy`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                job_number: jobNumber,
+                customer: customer,
+                location: location,
+                installation_notes: notes,
+                return_immediately: true,
+                return_notes: `Return Serial: ${returnSerial || 'N/A'}, Return Trace: ${returnTrace || 'N/A'}, Reason: ${returnReason || 'N/A'}, Notes: ${notes}`
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showSuccess(`Stock used for job ${jobNumber}`);
+            bootstrap.Modal.getInstance(document.getElementById('useStockModal')).hide();
+            document.getElementById('useStockForm').reset();
+            await refreshData();
+        } else {
+            showError(data.error || 'Failed to use stock');
+        }
+    } catch (error) {
+        console.error('Error using stock:', error);
+        showError('Failed to use stock');
+    }
+}
+
+/**
+ * Show Add Stock modal
+ */
+window.showAddStockModal = function() {
+    const modal = new bootstrap.Modal(document.getElementById('addStockModal'));
+    modal.show();
+}
+
+/**
+ * Show Use Stock modal
+ */
+window.showUseStockModal = async function() {
+    // Load available devices
+    await loadDevices();
+    
+    // Populate device dropdown
+    const select = document.getElementById('useStockDevice');
+    if (select && devices) {
+        select.innerHTML = '<option value="">Select device...</option>';
+        devices.filter(d => d.status === 'available').forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.id;
+            option.textContent = `${device.paypoint_type} - ${device.serial_ptid}`;
+            select.appendChild(option);
+        });
+    }
+    
+    // Set up job number auto-fill
+    const jobNumberInput = document.getElementById('useStockJobNumber');
+    if (jobNumberInput && !jobNumberInput.dataset.listenerAttached) {
+        jobNumberInput.dataset.listenerAttached = 'true';
+        
+        jobNumberInput.addEventListener('blur', async function() {
+            const jobNumber = this.value.trim();
+            if (jobNumber) {
+                await fetchJobDetailsForUseStock(jobNumber);
+            }
+        });
+        
+        jobNumberInput.addEventListener('keypress', async function(e) {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                const jobNumber = this.value.trim();
+                if (jobNumber) {
+                    await fetchJobDetailsForUseStock(jobNumber);
+                }
+            }
+        });
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('useStockModal'));
+    modal.show();
+}
+
+/**
+ * Fetch job details for Use Stock form
+ */
+async function fetchJobDetailsForUseStock(jobNumber) {
+    try {
+        console.log('Fetching job details for:', jobNumber);
+        const response = await fetch(`/api/search/job/${jobNumber}`);
+        if (!response.ok) {
+            console.log('Job not found in runsheets');
+            return;
+        }
+        
+        const data = await response.json();
+        console.log('Job search response:', data);
+        
+        if (data && data.found && data.runsheets && data.runsheets.length > 0) {
+            const job = data.runsheets[0];
+            
+            const customerInput = document.getElementById('useStockCustomer');
+            const locationInput = document.getElementById('useStockLocation');
+            
+            if (customerInput && job.customer) {
+                customerInput.value = job.customer;
+            }
+            
+            if (locationInput && job.address) {
+                locationInput.value = job.address;
+            }
+            
+            const jobNumberInput = document.getElementById('useStockJobNumber');
+            if (jobNumberInput) {
+                jobNumberInput.classList.add('is-valid');
+                setTimeout(() => jobNumberInput.classList.remove('is-valid'), 2000);
+            }
+            
+            console.log('Job details auto-filled');
+        }
+    } catch (error) {
+        console.error('Error fetching job details:', error);
     }
 }
 
@@ -422,6 +656,8 @@ window.deployDevice = async function() {
         const customer = document.getElementById('deployCustomer').value;
         const location = document.getElementById('deployLocation').value;
         const installationNotes = document.getElementById('deployNotes').value;
+        const returnImmediately = document.getElementById('deployAndReturn').checked;
+        const returnNotes = document.getElementById('deployReturnNotes').value;
         
         if (!deviceId || !jobNumber) {
             showError('Device and job number are required');
@@ -435,7 +671,9 @@ window.deployDevice = async function() {
                 job_number: jobNumber,
                 customer: customer,
                 location: location,
-                installation_notes: installationNotes
+                installation_notes: installationNotes,
+                return_immediately: returnImmediately,
+                return_notes: returnNotes
             })
         });
         
@@ -445,6 +683,8 @@ window.deployDevice = async function() {
             showSuccess(data.message);
             bootstrap.Modal.getInstance(document.getElementById('deployModal')).hide();
             document.getElementById('deployForm').reset();
+            document.getElementById('deployAndReturn').checked = false;
+            toggleReturnNotes();
             await refreshData();
         } else {
             showError(data.error || 'Failed to deploy device');
@@ -499,21 +739,11 @@ window.returnDevice = async function() {
 }
 
 /**
- * Quick actions
+ * Quick actions - updated for new Use Stock workflow
  */
-window.quickDeploy = function(deviceId) {
-    document.getElementById('deployDeviceSelect').value = deviceId;
-    showDeployModal();
-}
-
-window.quickReturn = function(deviceId) {
-    document.getElementById('returnDeploymentSelect').value = deviceId;
-    showReturnModal();
-}
-
-window.returnFromDeployment = function(deploymentId) {
-    document.getElementById('returnDeploymentSelect').value = deploymentId;
-    showReturnModal();
+window.quickUseStock = async function(deviceId) {
+    await showUseStockModal();
+    document.getElementById('useStockDevice').value = deviceId;
 }
 
 window.viewDeviceHistory = function(deviceId) {
@@ -527,17 +757,20 @@ window.viewDeviceHistory = function(deviceId) {
  */
 function setupEventListeners() {
     // Tab change events
-    document.querySelectorAll('#paypointTabs button[data-bs-toggle="tab"]').forEach(tab => {
+    const tabs = document.querySelectorAll('#paypointTabs button[data-bs-toggle="tab"]');
+    console.log('Setting up event listeners for', tabs.length, 'tabs');
+    
+    tabs.forEach(tab => {
         tab.addEventListener('shown.bs.tab', function(event) {
             const target = event.target.getAttribute('data-bs-target');
+            console.log('Tab switched to:', target);
             
             // Refresh data when switching to certain tabs
-            if (target === '#deployments') {
-                loadDeployments();
-            } else if (target === '#returns') {
+            if (target === '#returns') {
+                console.log('Loading returns from tab switch');
                 loadReturns();
-            } else if (target === '#audit') {
-                loadAuditHistory();
+            } else if (target === '#devices') {
+                loadDevices();
             }
         });
     });

@@ -14,10 +14,9 @@ class PaypointModel:
     @staticmethod
     def init_tables():
         """Initialize Paypoint-related database tables."""
-        conn = get_db_connection()
-        cursor = conn.cursor()
-        
-        try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
             # Paypoint stock items table - individual devices with serial/TID
             cursor.execute("""
                 CREATE TABLE IF NOT EXISTS paypoint_stock (
@@ -87,13 +86,6 @@ class PaypointModel:
             
             conn.commit()
             print("✅ Paypoint database tables initialized")
-            
-        except Exception as e:
-            conn.rollback()
-            print(f"❌ Error initializing Paypoint tables: {e}")
-            raise
-        finally:
-            conn.close()
     
     @staticmethod
     def get_all_stock_items():

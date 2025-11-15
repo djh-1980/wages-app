@@ -18,14 +18,11 @@
                 <p>Track van stock, usage, and audit trails</p>
             </div>
             <div class="action-buttons" role="group">
-                <button type="button" class="btn btn-primary" onclick="showAddDeviceModal()">
-                    <i class="bi bi-plus-circle"></i> Add Device
+                <button type="button" class="btn btn-primary" onclick="showAddStockModal()">
+                    <i class="bi bi-plus-circle"></i> Add Stock
                 </button>
-                <button type="button" class="btn btn-success" onclick="showDeployModal()">
-                    <i class="bi bi-arrow-up-circle"></i> Deploy
-                </button>
-                <button type="button" class="btn btn-warning" onclick="showReturnModal()">
-                    <i class="bi bi-arrow-down-circle"></i> Return
+                <button type="button" class="btn btn-success" onclick="showUseStockModal()">
+                    <i class="bi bi-box-arrow-right"></i> Use Stock
                 </button>
             </div>
         </div>
@@ -33,7 +30,7 @@
 
     <!-- Summary Cards -->
     <div class="row summary-cards" id="summaryCards">
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="card bg-primary text-white">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
@@ -48,7 +45,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="card bg-success text-white">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
@@ -63,22 +60,7 @@
                 </div>
             </div>
         </div>
-        <div class="col-md-3">
-            <div class="card bg-warning text-white">
-                <div class="card-body">
-                    <div class="d-flex justify-content-between">
-                        <div>
-                            <h6 class="card-title">Deployed</h6>
-                            <h3 class="mb-0" id="deployedDevices">-</h3>
-                        </div>
-                        <div class="align-self-center">
-                            <i class="bi bi-arrow-up-circle fs-2"></i>
-                        </div>
-                    </div>
-                </div>
-            </div>
-        </div>
-        <div class="col-md-3">
+        <div class="col-md-4">
             <div class="card bg-info text-white">
                 <div class="card-body">
                     <div class="d-flex justify-content-between">
@@ -95,156 +77,78 @@
         </div>
     </div>
 
-    <!-- Main Content Tabs -->
+    <!-- Stock Section -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="content-card stock-section-card">
+                <div class="content-card-header stock-section-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5><i class="bi bi-box-seam"></i>Van Stock</h5>
+                        <span class="badge bg-white text-primary stock-count-badge" id="stockCount">0 items</span>
+                    </div>
+                </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 paypoint-table-compact" id="devicesTable">
+                            <thead class="paypoint-table-header" style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                                <tr>
+                                    <th style="width: 15%;">Paypoint Type</th>
+                                    <th style="width: 20%;">Serial/TID</th>
+                                    <th style="width: 20%;">Trace/Stock</th>
+                                    <th style="width: 15%;">Status</th>
+                                    <th style="width: 30%;">Notes</th>
+                                </tr>
+                            </thead>
+                            <tbody id="devicesTableBody" style="background: white;">
+                                <tr>
+                                    <td colspan="5" class="text-center">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Returns History Section -->
     <div class="row">
         <div class="col-12">
-            <div class="content-card">
-                <div class="content-card-header unified-tabs">
-                    <ul class="nav nav-tabs card-header-tabs" id="paypointTabs" role="tablist">
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link active" id="devices-tab" data-bs-toggle="tab" data-bs-target="#devices" type="button" role="tab">
-                                <i class="bi bi-device-hdd"></i> Devices
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="deployments-tab" data-bs-toggle="tab" data-bs-target="#deployments" type="button" role="tab">
-                                <i class="bi bi-arrow-up-circle"></i> Deployments
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="returns-tab" data-bs-toggle="tab" data-bs-target="#returns" type="button" role="tab">
-                                <i class="bi bi-arrow-down-circle"></i> Returns
-                            </button>
-                        </li>
-                        <li class="nav-item" role="presentation">
-                            <button class="nav-link" id="audit-tab" data-bs-toggle="tab" data-bs-target="#audit" type="button" role="tab">
-                                <i class="bi bi-list-check"></i> Audit History
-                            </button>
-                        </li>
-                    </ul>
+            <div class="content-card returns-section-card">
+                <div class="content-card-header returns-section-header">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h5><i class="bi bi-arrow-down-circle"></i>Returns History</h5>
+                        <span class="badge bg-white text-primary stock-count-badge" id="returnsCount">0 returns</span>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="tab-content" id="paypointTabContent">
-                        <!-- Devices Tab -->
-                        <div class="tab-pane fade show active" id="devices" role="tabpanel">
-                            <div class="unified-table-container">
-                                <div class="table-responsive">
-                                    <table class="table table-hover unified-table" id="devicesTable">
-                                    <thead>
-                                        <tr>
-                                            <th>Paypoint Type</th>
-                                            <th>Serial/TID</th>
-                                            <th>Trace/Stock</th>
-                                            <th>Status</th>
-                                            <th>Current Job</th>
-                                            <th>Deployment Date</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="devicesTableBody">
-                                        <tr>
-                                            <td colspan="7" class="text-center">
-                                                <div class="spinner-border text-primary" role="status">
-                                                    <span class="visually-hidden">Loading...</span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Deployments Tab -->
-                        <div class="tab-pane fade" id="deployments" role="tabpanel">
-                            <div class="table-responsive">
-                                <table class="table table-hover" id="deploymentsTable">
-                                    <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Job Number</th>
-                                            <th>Paypoint Type</th>
-                                            <th>Serial/TID</th>
-                                            <th>Trace/Stock</th>
-                                            <th>Customer</th>
-                                            <th>Status</th>
-                                            <th>Actions</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="deploymentsTableBody">
-                                        <tr>
-                                            <td colspan="8" class="text-center">
-                                                <div class="spinner-border text-primary" role="status">
-                                                    <span class="visually-hidden">Loading...</span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Returns Tab -->
-                        <div class="tab-pane fade" id="returns" role="tabpanel">
-                            <div class="table-responsive">
-                                <table class="table table-hover" id="returnsTable">
-                                    <thead>
-                                        <tr>
-                                            <th>Return Date</th>
-                                            <th>Job Number</th>
-                                            <th>Paypoint Type</th>
-                                            <th>Return Serial/TID</th>
-                                            <th>Return Trace</th>
-                                            <th>Customer</th>
-                                            <th>Reason</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="returnsTableBody">
-                                        <tr>
-                                            <td colspan="7" class="text-center">
-                                                <div class="spinner-border text-primary" role="status">
-                                                    <span class="visually-hidden">Loading...</span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-
-                        <!-- Audit History Tab -->
-                        <div class="tab-pane fade" id="audit" role="tabpanel">
-                            <div class="mb-3">
-                                <div class="alert alert-info" role="alert">
-                                    <i class="bi bi-info-circle"></i>
-                                    <strong>Complete Audit Trail:</strong> Full history of all device deployments and returns.
-                                </div>
-                            </div>
-                            <div class="table-responsive">
-                                <table class="table table-hover" id="auditTable">
-                                    <thead>
-                                        <tr>
-                                            <th>Date</th>
-                                            <th>Type</th>
-                                            <th>Job Number</th>
-                                            <th>Paypoint Type</th>
-                                            <th>Serial/TID</th>
-                                            <th>Trace</th>
-                                            <th>Customer</th>
-                                            <th>Status</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody id="auditTableBody">
-                                        <tr>
-                                            <td colspan="8" class="text-center">
-                                                <div class="spinner-border text-info" role="status">
-                                                    <span class="visually-hidden">Loading...</span>
-                                                </div>
-                                            </td>
-                                        </tr>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-hover mb-0 paypoint-table-compact" id="returnsTable">
+                            <thead class="paypoint-table-header" style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                                <tr>
+                                    <th style="width: 12%;">Return Date</th>
+                                    <th style="width: 10%;">Job Number</th>
+                                    <th style="width: 12%;">Paypoint Type</th>
+                                    <th style="width: 15%;">Return Serial/TID</th>
+                                    <th style="width: 15%;">Return Trace</th>
+                                    <th style="width: 24%;">Location</th>
+                                    <th style="width: 12%;">Reason</th>
+                                </tr>
+                            </thead>
+                            <tbody id="returnsTableBody" style="background: white;">
+                                <tr>
+                                    <td colspan="7" class="text-center">
+                                        <div class="spinner-border text-primary" role="status">
+                                            <span class="visually-hidden">Loading...</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
                     </div>
                 </div>
             </div>
@@ -252,16 +156,16 @@
     </div>
 </div>
 
-<!-- Add Device Modal -->
-<div class="modal fade unified-modal" id="addDeviceModal" tabindex="-1">
+<!-- Add Stock Modal -->
+<div class="modal fade unified-modal" id="addStockModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Add New Paypoint Device</h5>
+                <h5 class="modal-title">Add Stock to Van</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="addDeviceForm">
+                <form id="addStockForm">
                     <div class="mb-3">
                         <label for="paypointType" class="form-label">Paypoint Type *</label>
                         <select class="form-select" id="paypointType" required>
@@ -289,81 +193,51 @@
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-primary" onclick="addDevice()">Add Device</button>
+                <button type="button" class="btn btn-primary" onclick="addStock()">Add Stock</button>
             </div>
         </div>
     </div>
 </div>
 
-<!-- Deploy Device Modal -->
-<div class="modal fade unified-modal" id="deployModal" tabindex="-1">
+<!-- Use Stock Modal (Deploy + Return in one) -->
+<div class="modal fade unified-modal" id="useStockModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Deploy Device to Job</h5>
+                <h5 class="modal-title">Use Stock for Job</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <form id="deployForm">
+                <form id="useStockForm">
                     <div class="mb-3">
-                        <label for="deployDeviceSelect" class="form-label">Available Device *</label>
-                        <select class="form-select" id="deployDeviceSelect" required>
+                        <label for="useStockDevice" class="form-label">Device *</label>
+                        <select class="form-select" id="useStockDevice" required>
                             <option value="">Select device...</option>
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label for="deployJobNumber" class="form-label">Job Number *</label>
-                        <input type="text" class="form-control" id="deployJobNumber" required placeholder="e.g., 4053001">
+                        <label for="useStockJobNumber" class="form-label">Job Number *</label>
+                        <input type="text" class="form-control" id="useStockJobNumber" required placeholder="e.g., 4289316">
                     </div>
                     <div class="mb-3">
-                        <label for="deployCustomer" class="form-label">Customer</label>
-                        <input type="text" class="form-control" id="deployCustomer" placeholder="e.g., TESCO Express">
+                        <label for="useStockCustomer" class="form-label">Customer</label>
+                        <input type="text" class="form-control" id="useStockCustomer" placeholder="e.g., TESCO Express">
                     </div>
                     <div class="mb-3">
-                        <label for="deployLocation" class="form-label">Location</label>
-                        <input type="text" class="form-control" id="deployLocation" placeholder="e.g., 123 High Street, London">
+                        <label for="useStockLocation" class="form-label">Location</label>
+                        <input type="text" class="form-control" id="useStockLocation" placeholder="e.g., 123 High Street, London">
                     </div>
                     <div class="mb-3">
-                        <label for="deployNotes" class="form-label">Installation Notes</label>
-                        <textarea class="form-control" id="deployNotes" rows="3" placeholder="Installation details and notes"></textarea>
-                    </div>
-                </form>
-            </div>
-            <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-success" onclick="deployDevice()">Deploy Device</button>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- Return Device Modal -->
-<div class="modal fade unified-modal" id="returnModal" tabindex="-1">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title">Return Device from Job</h5>
-                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
-            </div>
-            <div class="modal-body">
-                <form id="returnForm">
-                    <div class="mb-3">
-                        <label for="returnDeploymentSelect" class="form-label">Deployed Device *</label>
-                        <select class="form-select" id="returnDeploymentSelect" required>
-                            <option value="">Select deployed device...</option>
-                        </select>
+                        <label for="useStockReturnSerial" class="form-label">Return Serial</label>
+                        <input type="text" class="form-control" id="useStockReturnSerial" placeholder="Serial of device being returned">
                     </div>
                     <div class="mb-3">
-                        <label for="returnSerialPtid" class="form-label">Return Serial / TID *</label>
-                        <input type="text" class="form-control" id="returnSerialPtid" required placeholder="Serial/TID of returned device">
+                        <label for="useStockReturnTrace" class="form-label">Return Trace</label>
+                        <input type="text" class="form-control" id="useStockReturnTrace" placeholder="Return trace number">
                     </div>
                     <div class="mb-3">
-                        <label for="returnTrace" class="form-label">Return Trace *</label>
-                        <input type="text" class="form-control" id="returnTrace" required placeholder="Return trace number for audit">
-                    </div>
-                    <div class="mb-3">
-                        <label for="returnReason" class="form-label">Return Reason</label>
-                        <select class="form-select" id="returnReason">
+                        <label for="useStockReturnReason" class="form-label">Return Reason</label>
+                        <select class="form-select" id="useStockReturnReason">
                             <option value="">Select reason...</option>
                             <option value="Job Completed">Job Completed</option>
                             <option value="Device Fault">Device Fault</option>
@@ -373,14 +247,14 @@
                         </select>
                     </div>
                     <div class="mb-3">
-                        <label for="returnNotes" class="form-label">Return Notes</label>
-                        <textarea class="form-control" id="returnNotes" rows="3" placeholder="Return details and condition notes"></textarea>
+                        <label for="useStockNotes" class="form-label">Notes</label>
+                        <textarea class="form-control" id="useStockNotes" rows="2" placeholder="Installation and return notes"></textarea>
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                <button type="button" class="btn btn-warning" onclick="returnDevice()">Return Device</button>
+                <button type="button" class="btn btn-success" onclick="useStock()">Use Stock</button>
             </div>
         </div>
     </div>

@@ -69,6 +69,10 @@ def api_deploy_device(device_id):
         location = data.get('location', '')
         installation_notes = data.get('installation_notes', '')
         
+        # Return information (optional - for immediate deploy+return)
+        return_notes = data.get('return_notes', '')
+        return_immediately = data.get('return_immediately', False)
+        
         if not job_number:
             return jsonify({'error': 'Job number is required'}), 400
         
@@ -76,9 +80,55 @@ def api_deploy_device(device_id):
             device_id, job_number, customer, location, installation_notes
         )
         
+        # If return_immediately is True, also create the return record
+        if return_immediately:
+            # Extract return serial and trace from notes (format: "Return Serial: X, Return Trace: Y, ...")
+            import re
+            return_serial = None
+            return_trace = None
+            return_reason = ''
+            
+            if return_notes:
+                serial_match = re.search(r'Return Serial:\s*([^,]+)', return_notes)
+                trace_match = re.search(r'Return Trace:\s*([^,]+)', return_notes)
+                reason_match = re.search(r'Reason:\s*([^,]+)', return_notes)
+                
+                if serial_match:
+                    val = serial_match.group(1).strip()
+                    if val and val != 'N/A':
+                        return_serial = val
+                if trace_match:
+                    val = trace_match.group(1).strip()
+                    if val and val != 'N/A':
+                        return_trace = val
+                if reason_match:
+                    return_reason = reason_match.group(1).strip()
+            
+            # If return serial/trace not provided, use the device's own serial/trace
+            if not return_serial or not return_trace:
+                from ..models.paypoint import PaypointModel as PM
+                with PM.get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT serial_ptid, trace_stock 
+                        FROM paypoint_stock 
+                        WHERE id = ?
+                    """, (device_id,))
+                    device_info = cursor.fetchone()
+                    if device_info:
+                        if not return_serial:
+                            return_serial = device_info[0]
+                        if not return_trace:
+                            return_trace = device_info[1]
+            
+            PaypointModel.return_device(deployment_id, return_serial, return_trace, return_reason, return_notes)
+            message = f'Device deployed and returned for job {job_number}'
+        else:
+            message = f'Device deployed to job {job_number}'
+        
         return jsonify({
             'success': True,
-            'message': f'Device deployed to job {job_number}',
+            'message': message,
             'deployment_id': deployment_id
         })
         

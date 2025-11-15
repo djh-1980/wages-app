@@ -3,6 +3,67 @@
  * Responsive design for all screen sizes
  */
 
+/* Stock and Returns Section Styling */
+.stock-section-card {
+    border-left: 4px solid var(--tvs-primary) !important;
+    width: 100%;
+}
+
+.stock-section-header {
+    background: linear-gradient(135deg, var(--tvs-primary) 0%, var(--tvs-accent) 100%);
+    color: white;
+    padding: 1.25rem 1.5rem;
+}
+
+.stock-section-header h5 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+
+.stock-section-header .bi {
+    margin-right: 0.5rem;
+}
+
+.stock-count-badge {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.9rem;
+}
+
+.returns-section-card {
+    border-left: 4px solid var(--tvs-accent) !important;
+    width: 100%;
+}
+
+.returns-section-header {
+    background: linear-gradient(135deg, var(--tvs-accent) 0%, var(--tvs-secondary) 100%);
+    color: white;
+    padding: 1.25rem 1.5rem;
+}
+
+.returns-section-header h5 {
+    font-size: 1.25rem;
+    font-weight: 600;
+    margin-bottom: 0;
+}
+
+.returns-section-header .bi {
+    margin-right: 0.5rem;
+}
+
+.paypoint-table-header th {
+    padding: 0.75rem 1rem;
+    font-weight: 600;
+    color: #495057;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.3px;
+}
+
+.paypoint-table-compact td {
+    padding: 0.75rem 1rem !important;
+}
+
 /* Base Desktop Styles */
 .paypoint-page {
     padding: 24px;

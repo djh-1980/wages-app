@@ -28,16 +28,14 @@ document.addEventListener('DOMContentLoaded', function() {
     // Setup event listeners
     setupEventListeners();
     
-    // TEST: Load payslips immediately to see if function works
-    console.log('🧪 Testing payslips load on page load...');
+    // Load tax years which will automatically load latest year's payslips
+    console.log('🧪 Loading tax years on page load...');
     setTimeout(() => {
-        if (typeof window.loadPayslips === 'function') {
-            console.log('✓ loadPayslips function exists');
-            window.loadPayslips();
-        } else {
-            console.error('❌ loadPayslips function not found!');
+        if (typeof loadTaxYears === 'function') {
+            console.log('✓ loadTaxYears function exists');
+            loadTaxYears();
         }
-    }, 2000);
+    }, 1000);
 });
 
 function setupEventListeners() {
@@ -45,7 +43,14 @@ function setupEventListeners() {
     const payslipsTab = document.getElementById('payslips-tab');
     if (payslipsTab) {
         payslipsTab.addEventListener('shown.bs.tab', function() {
-            loadPayslips();
+            // Only load if not already loaded
+            const select = document.getElementById('taxYearFilter');
+            if (select && select.value) {
+                loadPayslips(select.value);
+            } else if (select) {
+                // Load tax years which will trigger payslips load
+                loadTaxYears();
+            }
         });
     }
     
@@ -483,6 +488,14 @@ async function loadTaxYears() {
                 option.textContent = year;
                 select.appendChild(option);
             });
+            
+            // Default to latest year (maximum year value)
+            if (years.length > 0) {
+                const latestYear = Math.max(...years.map(y => parseInt(y)));
+                select.value = latestYear.toString();
+                // Load payslips for the latest year
+                loadPayslips(latestYear.toString());
+            }
         }
         
         // Populate dashboard trend filter (if exists)
