@@ -14,6 +14,12 @@
     --warning-gradient: linear-gradient(135deg, #ed8936 0%, #dd6b20 100%);
 }
 
+/* Auto-sync badge */
+.auto-sync-badge {
+    font-size: 0.65rem;
+    cursor: pointer;
+}
+
 /* iPhone 16 Pro Max and Modern Mobile Optimizations */
 @media screen and (max-width: 430px) {
     /* Base mobile styles */

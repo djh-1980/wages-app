@@ -236,20 +236,5 @@
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
-<script>
-    // Load data when page loads
-    document.addEventListener('DOMContentLoaded', function() {
-        // Load summary data
-        loadSummary();
-        
-        // Load tax years for filters
-        loadTaxYears();
-        
-        // Load weekly trend chart
-        loadWeeklyTrend();
-        
-        // Load top clients
-        loadTopClients();
-    });
-</script>
+<script src="{{ url_for('static', filename='js/wages-init.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}
