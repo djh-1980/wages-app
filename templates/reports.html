@@ -17,14 +17,6 @@
                 </h1>
                 <p>Analyze earnings, jobs, and performance metrics</p>
             </div>
-            <div class="action-buttons">
-                <button class="btn btn-outline-primary" onclick="refreshAllData()">
-                    <i class="bi bi-arrow-clockwise"></i> Refresh
-                </button>
-                <button class="btn btn-primary" onclick="exportAllData()">
-                    <i class="bi bi-download"></i> Export All
-                </button>
-            </div>
         </div>
     </div>
 
@@ -35,26 +27,6 @@
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="weekly-summary-tab" data-bs-toggle="pill" data-bs-target="#weekly-summary" type="button">
             <i class="bi bi-calendar-week"></i> Weekly Summary
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="overview-tab" data-bs-toggle="pill" data-bs-target="#overview" type="button">
-            <i class="bi bi-speedometer2"></i> Overview
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="correlation-tab" data-bs-toggle="pill" data-bs-target="#correlation" type="button">
-            <i class="bi bi-graph-up"></i> Jobs vs Earnings
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="wages-reports-tab" data-bs-toggle="pill" data-bs-target="#wages-reports" type="button">
-            <i class="bi bi-wallet2"></i> Wages
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="runsheets-reports-tab" data-bs-toggle="pill" data-bs-target="#runsheets-reports" type="button">
-            <i class="bi bi-calendar-check"></i> Run Sheets
         </button>
     </li>
     <li class="nav-item" role="presentation">
@@ -75,11 +47,6 @@
     <li class="nav-item" role="presentation">
         <button class="nav-link" id="missing-payslips-tab" data-bs-toggle="pill" data-bs-target="#missing-payslips" type="button">
             <i class="bi bi-file-earmark-x"></i> Missing Payslips
-        </button>
-    </li>
-    <li class="nav-item" role="presentation">
-        <button class="nav-link" id="export-tab" data-bs-toggle="pill" data-bs-target="#export" type="button">
-            <i class="bi bi-file-earmark-arrow-down"></i> Export
         </button>
     </li>
 </ul>
@@ -104,8 +71,11 @@
                 </button>
             </div>
             <div class="text-center mt-3">
-                <button class="btn btn-light" onclick="currentWeek()">
+                <button class="btn btn-light me-2" onclick="currentWeek()">
                     <i class="bi bi-calendar-today"></i> Jump to Current Week
+                </button>
+                <button class="btn btn-success" onclick="exportWeeklySummaryPDF()">
+                    <i class="bi bi-file-pdf"></i> Export PDF
                 </button>
             </div>
         </div>

@@ -117,9 +117,51 @@ function displayWeeklySummary(data) {
         weekLabel.textContent = `Week ${data.week_number} - ${data.week_label}`;
     }
     
-    // Summary Cards
+    // Check for missing mileage data and show alert
+    const missingMileageDates = data.summary.missing_mileage_dates || [];
+    const hasMissingMileage = missingMileageDates.length > 0;
+    
+    // Add alert banner if there's missing mileage
+    let alertHTML = '';
+    if (hasMissingMileage) {
+        const datesList = missingMileageDates.map(date => {
+            const dayName = new Date(date.split('/').reverse().join('-')).toLocaleDateString('en-GB', { weekday: 'short' });
+            return `<strong>${dayName} ${date}</strong>`;
+        }).join(', ');
+        
+        alertHTML = `
+            <div class="alert alert-warning alert-dismissible fade show mb-3" role="alert">
+                <i class="bi bi-exclamation-triangle-fill"></i>
+                <strong>Missing Mileage Data!</strong> 
+                Please add mileage for: ${datesList}
+                <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+            </div>
+        `;
+    }
+    
+    // Insert alert before summary cards
     const summaryCards = document.getElementById('weeklySummaryCards');
+    const parentContainer = summaryCards.parentElement;
+    
+    // Remove any existing alerts
+    const existingAlerts = parentContainer.querySelectorAll('.alert-warning');
+    existingAlerts.forEach(alert => alert.remove());
+    
+    // Add new alert if needed
+    if (alertHTML) {
+        summaryCards.insertAdjacentHTML('beforebegin', alertHTML);
+    }
+    
     const discrepancyClass = data.summary.discrepancies > 0 ? 'text-danger' : 'text-success';
+    
+    // Check for earnings discrepancy
+    const earningsDiscrepancy = data.summary.earnings_discrepancy || 0;
+    const hasEarningsDiscrepancy = Math.abs(earningsDiscrepancy) > 0.01;
+    const earningsDiscrepancyClass = hasEarningsDiscrepancy ? 'text-danger' : 'text-success';
+    const earningsDiscrepancyText = hasEarningsDiscrepancy 
+        ? `<small class="text-danger">Payslip diff: ${formatCurrency(earningsDiscrepancy)}</small>`
+        : `<small class="text-success">Matches payslip ✓</small>`;
+    
     summaryCards.innerHTML = `
         <div class="col-md-3">
             <div class="card stat-card">
@@ -135,7 +177,7 @@ function displayWeeklySummary(data) {
                 <div class="card-body">
                     <h6 class="text-muted mb-2">Total Earnings</h6>
                     <h3 class="mb-0">${formatCurrency(data.summary.total_earnings)}</h3>
-                    <small class="text-success">${formatCurrency(data.metrics.avg_earnings_per_day)}/day</small>
+                    ${earningsDiscrepancyText}
                 </div>
             </div>
         </div>
@@ -144,7 +186,7 @@ function displayWeeklySummary(data) {
                 <div class="card-body">
                     <h6 class="text-muted mb-2">Completion Rate</h6>
                     <h3 class="mb-0">${data.summary.completion_rate}%</h3>
-                    <small class="text-success">Jobs completed</small>
+                    <small class="text-muted">Successfully completed</small>
                 </div>
             </div>
         </div>
@@ -168,27 +210,51 @@ function displayWeeklySummary(data) {
         'extra': { label: 'Extra', class: 'info' },
         'DNCO': { label: 'DNCO', class: 'warning' },
         'dnco': { label: 'DNCO', class: 'warning' },
+        'PDA Licence': { label: 'PDA Licence', class: 'secondary' },
+        'SASER Auto Billing': { label: 'SASER Auto Billing', class: 'secondary' },
         'missed': { label: 'Missed', class: 'danger' },
         'pending': { label: 'Pending', class: 'secondary' }
     };
     
-    for (const [status, info] of Object.entries(data.status_breakdown)) {
-        const config = statusConfig[status] || { label: status, class: 'secondary' };
-        
-        // Show estimated loss for DNCO jobs
-        let earningsDisplay = formatCurrency(info.earnings);
-        if ((status === 'DNCO' || status === 'dnco') && info.estimated_loss) {
-            earningsDisplay = `${formatCurrency(info.earnings)}<br><small class="text-danger">Est. loss: ${formatCurrency(info.estimated_loss)}</small>`;
+    // Define the order we want to display statuses
+    const statusOrder = ['completed', 'extra', 'DNCO', 'dnco', 'PDA Licence', 'SASER Auto Billing', 'missed', 'pending'];
+    
+    // First, display statuses in the specified order
+    for (const status of statusOrder) {
+        if (data.status_breakdown[status]) {
+            const info = data.status_breakdown[status];
+            const config = statusConfig[status] || { label: status, class: 'secondary' };
+            
+            // Show estimated loss for DNCO jobs
+            let earningsDisplay = formatCurrency(info.earnings);
+            if ((status === 'DNCO' || status === 'dnco') && info.estimated_loss) {
+                earningsDisplay = `${formatCurrency(info.earnings)}<br><small class="text-danger">Est. loss: ${formatCurrency(info.estimated_loss)}</small>`;
+            }
+            
+            statusHTML += `
+                <tr>
+                    <td><strong>${config.label}</strong></td>
+                    <td><span class="badge bg-${config.class}">${info.count} jobs</span></td>
+                    <td class="text-end"><strong>${earningsDisplay}</strong></td>
+                </tr>
+            `;
         }
-        
-        statusHTML += `
-            <tr>
-                <td><strong>${config.label}</strong></td>
-                <td><span class="badge bg-${config.class}">${info.count} jobs</span></td>
-                <td class="text-end"><strong>${earningsDisplay}</strong></td>
-            </tr>
-        `;
     }
+    
+    // Then add any remaining statuses not in the order list
+    for (const [status, info] of Object.entries(data.status_breakdown)) {
+        if (!statusOrder.includes(status)) {
+            const config = statusConfig[status] || { label: status, class: 'secondary' };
+            statusHTML += `
+                <tr>
+                    <td><strong>${config.label}</strong></td>
+                    <td><span class="badge bg-${config.class}">${info.count} jobs</span></td>
+                    <td class="text-end"><strong>${formatCurrency(info.earnings)}</strong></td>
+                </tr>
+            `;
+        }
+    }
+    
     statusHTML += '</tbody></table></div>';
     statusBreakdown.innerHTML = statusHTML;
     
@@ -282,4 +348,56 @@ function displayWeeklySummary(data) {
             <td class="text-end"><span class="badge bg-info">${type.count}</span></td>
         </tr>
     `).join('');
+}
+
+// Export weekly summary as PDF
+window.exportWeeklySummaryPDF = function() {
+    if (!currentWeekStart) {
+        alert('Please load a week first');
+        return;
+    }
+    
+    // Show loading state
+    const btn = event.target.closest('button');
+    const originalHTML = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span>Generating PDF...';
+    
+    // Make POST request to export endpoint
+    fetch('/api/weekly-summary/export-pdf', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+            week_start: currentWeekStart
+        })
+    })
+    .then(response => {
+        if (!response.ok) {
+            throw new Error('Failed to generate PDF');
+        }
+        return response.blob();
+    })
+    .then(blob => {
+        // Create download link
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `weekly_summary_${currentWeekStart.replace(/\//g, '-')}.pdf`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        // Reset button
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    })
+    .catch(error => {
+        console.error('Error generating PDF:', error);
+        alert('Failed to generate PDF. Please try again.');
+        btn.disabled = false;
+        btn.innerHTML = originalHTML;
+    });
 }

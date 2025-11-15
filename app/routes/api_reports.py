@@ -1007,6 +1007,40 @@ def api_generate_missing_mileage_report():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@reports_bp.route('/weekly-summary/export-pdf', methods=['POST'])
+def api_weekly_summary_export_pdf():
+    """Export weekly summary as PDF."""
+    try:
+        from datetime import datetime, timedelta
+        from flask import send_file
+        from ..services.weekly_summary_pdf_service import WeeklySummaryPDFService
+        
+        # Get the week_start parameter
+        week_start = request.json.get('week_start') if request.json else None
+        
+        # Fetch the weekly summary data (reuse the logic from api_weekly_summary)
+        # We'll make a request to get the data
+        import requests
+        base_url = request.url_root.rstrip('/')
+        params = {'week_start': week_start} if week_start else {}
+        
+        # Get the data from the weekly-summary endpoint
+        response = requests.get(f"{base_url}/api/weekly-summary", params=params)
+        data = response.json()
+        
+        # Generate PDF
+        pdf_service = WeeklySummaryPDFService()
+        pdf_path = pdf_service.create_weekly_summary_pdf(data)
+        
+        return send_file(pdf_path, 
+                        as_attachment=True,
+                        download_name=f"weekly_summary_week{data.get('week_number', 'XX')}.pdf",
+                        mimetype='application/pdf')
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @reports_bp.route('/weekly-summary')
 def api_weekly_summary():
     """Get weekly summary report (Sunday to Saturday)."""
@@ -1100,6 +1134,66 @@ def api_weekly_summary():
                 if status in ['DNCO', 'dnco']:
                     dnco_count += count
             
+            # Get deductions from payslip for this week
+            cursor.execute("""
+                SELECT 
+                    ji.client,
+                    SUM(ji.amount) as total_amount
+                FROM job_items ji
+                JOIN payslips p ON ji.payslip_id = p.id
+                WHERE p.period_end = ?
+                AND ji.client IN ('Deduction', 'Company Margin')
+                GROUP BY ji.client
+            """, (week_end,))
+            
+            deduction_amount = 0
+            company_margin_amount = 0
+            
+            for row in cursor.fetchall():
+                if row['client'] == 'Deduction':
+                    deduction_amount = abs(row['total_amount'] or 0)
+                    status_breakdown['PDA Licence'] = {
+                        'count': 1,
+                        'earnings': -deduction_amount
+                    }
+                elif row['client'] == 'Company Margin':
+                    company_margin_amount = abs(row['total_amount'] or 0)
+                    status_breakdown['SASER Auto Billing'] = {
+                        'count': 1,
+                        'earnings': -company_margin_amount
+                    }
+            
+            # Subtract deductions from total earnings
+            total_deductions = deduction_amount + company_margin_amount
+            total_earnings = total_earnings - total_deductions
+            
+            # Reorder status_breakdown to show in specific order
+            # Order: Completed, Extra, DNCO, PDA Licence, SASER Auto Billing
+            from collections import OrderedDict
+            ordered_status_breakdown = OrderedDict()
+            
+            # Add in exact order requested
+            if 'completed' in status_breakdown:
+                ordered_status_breakdown['completed'] = status_breakdown['completed']
+            if 'extra' in status_breakdown:
+                ordered_status_breakdown['extra'] = status_breakdown['extra']
+            # Handle both DNCO cases (uppercase and lowercase)
+            if 'DNCO' in status_breakdown:
+                ordered_status_breakdown['DNCO'] = status_breakdown['DNCO']
+            elif 'dnco' in status_breakdown:
+                ordered_status_breakdown['dnco'] = status_breakdown['dnco']
+            if 'PDA Licence' in status_breakdown:
+                ordered_status_breakdown['PDA Licence'] = status_breakdown['PDA Licence']
+            if 'SASER Auto Billing' in status_breakdown:
+                ordered_status_breakdown['SASER Auto Billing'] = status_breakdown['SASER Auto Billing']
+            
+            # Add any remaining statuses not in the order list (missed, pending, etc.)
+            for status, data in status_breakdown.items():
+                if status not in ordered_status_breakdown:
+                    ordered_status_breakdown[status] = data
+            
+            status_breakdown = dict(ordered_status_breakdown)
+            
             # Estimate lost earnings from DNCO jobs based on historical average
             estimated_dnco_loss = 0
             if dnco_count > 0:
@@ -1181,6 +1275,7 @@ def api_weekly_summary():
             """, dates_in_week)
             
             mileage_data = []
+            mileage_dict = {}
             total_mileage = 0
             total_fuel_cost = 0
             days_with_mileage = 0
@@ -1194,11 +1289,25 @@ def api_weekly_summary():
                     total_mileage += mileage
                     total_fuel_cost += fuel_cost
                 
+                mileage_dict[row['date']] = {
+                    'date': row['date'],
+                    'mileage': mileage,
+                    'fuel_cost': round(fuel_cost, 2)
+                }
+                
                 mileage_data.append({
                     'date': row['date'],
                     'mileage': mileage,
                     'fuel_cost': round(fuel_cost, 2)
                 })
+            
+            # Check for days with jobs but missing mileage
+            missing_mileage_dates = []
+            for day in daily_breakdown:
+                if day['jobs'] > 0:  # Day has jobs
+                    mileage_info = mileage_dict.get(day['date'])
+                    if not mileage_info or mileage_info['mileage'] == 0:
+                        missing_mileage_dates.append(day['date'])
             
             # Top customers this week
             cursor.execute(f"""
@@ -1277,9 +1386,9 @@ def api_weekly_summary():
             
             discrepancies = cursor.fetchone()['discrepancy_count'] or 0
             
-            # Get week number from payslip using period_end (Saturday of the week)
+            # Get week number and payslip net payment using period_end (Saturday of the week)
             cursor.execute("""
-                SELECT week_number, tax_year
+                SELECT week_number, tax_year, net_payment
                 FROM payslips
                 WHERE period_end = ?
                 LIMIT 1
@@ -1288,6 +1397,12 @@ def api_weekly_summary():
             payslip_info = cursor.fetchone()
             week_number = payslip_info['week_number'] if payslip_info else start_dt.isocalendar()[1]
             tax_year = payslip_info['tax_year'] if payslip_info else start_dt.year
+            
+            # Check if weekly earnings match payslip net payment
+            payslip_net_payment = payslip_info['net_payment'] if payslip_info else None
+            earnings_discrepancy = 0
+            if payslip_net_payment is not None:
+                earnings_discrepancy = round(total_earnings - payslip_net_payment, 2)
             
             return jsonify({
                 'week_start': week_start,
@@ -1301,7 +1416,10 @@ def api_weekly_summary():
                     'total_fuel_cost': round(total_fuel_cost, 2),
                     'working_days': working_days,
                     'completion_rate': completion_rate,
-                    'discrepancies': discrepancies
+                    'discrepancies': discrepancies,
+                    'payslip_net_payment': payslip_net_payment,
+                    'earnings_discrepancy': earnings_discrepancy,
+                    'missing_mileage_dates': missing_mileage_dates
                 },
                 'status_breakdown': status_breakdown,
                 'daily_breakdown': daily_breakdown,

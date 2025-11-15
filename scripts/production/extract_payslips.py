@@ -13,7 +13,7 @@ import json
 
 
 class PayslipExtractor:
-    def __init__(self, db_path: str = "data/payslips.db"):
+    def __init__(self, db_path: str = "data/database/payslips.db"):
         self.db_path = db_path
         self.conn = None
         self.setup_database()
@@ -170,6 +170,46 @@ class PayslipExtractor:
         while i < len(lines):
             line = lines[i].strip()
             
+            # Check for deduction lines first (these don't have job numbers or pipes)
+            # Format: "1.00 £(4.00) Daniel Hanson: Deduction 18/10/2025" or "Daniel Hanson: Deduction Rico 26/03/2022"
+            # Or: "Company Margin £ (11.00)"
+            # Important: Deduction lines should NOT have a pipe character after "Daniel Hanson:"
+            deduction_match = re.search(r'Daniel Hanson:\s*Deduction', line) and '|' not in line
+            margin_match = re.search(r'Company Margin\s+£\s*\(([\d,]+\.?\d*)\)', line)
+            
+            if deduction_match or margin_match:
+                job_item = {}
+                job_item['description'] = line
+                job_item['job_number'] = None
+                
+                if deduction_match:
+                    job_item['client'] = 'Deduction'
+                    # Format: "1.00 £(4.00) Daniel Hanson: Deduction 18/10/2025"
+                    # Extract the amount in parentheses before "Daniel Hanson:"
+                    amount_match = re.search(r'£\(([\d,]+\.?\d*)\)\s+Daniel Hanson:\s*Deduction', line)
+                    if amount_match:
+                        amount_str = amount_match.group(1).replace(',', '')
+                        job_item['rate'] = -float(amount_str)
+                        job_item['units'] = 1.0
+                        job_item['amount'] = job_item['rate']
+                elif margin_match:
+                    job_item['client'] = 'Company Margin'
+                    # Format: "Company Margin £ (11.00)"
+                    amount_str = margin_match.group(1).replace(',', '')
+                    job_item['rate'] = -float(amount_str)
+                    job_item['units'] = 1.0
+                    job_item['amount'] = job_item['rate']
+                
+                # Only add if we found an amount
+                if 'amount' in job_item:
+                    job_key = f"deduction|{job_item.get('client', '')}|{job_item.get('amount', 0)}"
+                    if job_key not in seen_descriptions:
+                        seen_descriptions.add(job_key)
+                        job_items.append(job_item)
+                
+                i += 1
+                continue
+            
             # Look for job pattern - with or without job number
             # Format 2022+: "Daniel Hanson: 2609338 | Client..."
             # Format 2021: "Daniel Hanson: Client..."
@@ -227,19 +267,38 @@ class PayslipExtractor:
                     job_item['date'] = date_matches[0][0]
                     job_item['time'] = date_matches[0][1]
                 
-                # Look backwards for units and rate
-                if i > 0:
-                    prev_line = lines[i-1].strip()
-                    rate_match = re.match(r'£\(?([\d,]+\.?\d*)\)?', prev_line)
-                    if rate_match:
-                        rate_str = rate_match.group(1).replace(',', '')
-                        job_item['rate'] = float(rate_str) if not prev_line.startswith('£(') else -float(rate_str)
-                        
-                        if i > 1:
-                            units_match = re.match(r'([\d.]+)', lines[i-2].strip())
-                            if units_match:
-                                job_item['units'] = float(units_match.group(1))
+                # Look forward for units and rate
+                # Format varies by year:
+                # 2024-2025: "1.00 £22.50 [rest]" on line i+1 or i+2
+                # 2021-2023: "1.00 £22.50 Rico [rest]" on line i+3 to i+6
+                units_rate_match = None
+                
+                # Try 2024-2025 format first (closer to job line, no Rico)
+                for offset in [1, 2]:
+                    if i + offset < len(lines):
+                        forward_line = lines[i+offset].strip()
+                        # Match: units (decimal) followed by £rate (NOT followed by Rico immediately)
+                        units_rate_match = re.match(r'([\d.]+)\s+£([\d,]+\.?\d*)\s+(?!Rico)', forward_line)
+                        if units_rate_match:
+                            job_item['units'] = float(units_rate_match.group(1))
+                            rate_str = units_rate_match.group(2).replace(',', '')
+                            job_item['rate'] = float(rate_str)
+                            job_item['amount'] = job_item['units'] * job_item['rate']
+                            break
+                
+                # If not found, try 2021-2023 format (further away, with Rico)
+                if not units_rate_match:
+                    for offset in range(1, 8):
+                        if i + offset < len(lines):
+                            forward_line = lines[i+offset].strip()
+                            # Match: units (decimal) followed by £rate followed by Rico (with or without text after)
+                            units_rate_match = re.match(r'([\d.]+)\s+£([\d,]+\.?\d*)\s+Rico(?:\s|$)', forward_line)
+                            if units_rate_match:
+                                job_item['units'] = float(units_rate_match.group(1))
+                                rate_str = units_rate_match.group(2).replace(',', '')
+                                job_item['rate'] = float(rate_str)
                                 job_item['amount'] = job_item['units'] * job_item['rate']
+                                break
                 
                 # Look forward for agency and date
                 for k in range(i+1, min(i+5, len(lines))):
@@ -275,8 +334,11 @@ class PayslipExtractor:
             }
         return {}
     
-    def process_payslip(self, pdf_path: Path) -> Optional[int]:
+    def process_payslip(self, pdf_path) -> Optional[int]:
         """Process a single payslip PDF and insert into database."""
+        # Handle both Path and str types
+        if isinstance(pdf_path, str):
+            pdf_path = Path(pdf_path)
         print(f"Processing: {pdf_path.name}")
         
         try:
@@ -510,7 +572,10 @@ def main():
                 sys.exit(1)
         else:
             # Process all payslips (with optional filters)
-            extractor.process_all_payslips()
+            if args.directory:
+                extractor.process_all_payslips(args.directory)
+            else:
+                extractor.process_all_payslips()
             extractor.get_summary_stats()
     finally:
         extractor.close()
