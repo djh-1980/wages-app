@@ -7,6 +7,10 @@ import os
 from pathlib import Path
 from datetime import timedelta
 
+# Load environment variables from .env file if it exists
+from dotenv import load_dotenv
+load_dotenv()
+
 
 class Config:
     """Base configuration class."""
@@ -99,6 +103,14 @@ class ProductionConfig(Config):
     """Production configuration."""
     DEBUG = False
     TESTING = False
+    
+    # Enforce SECRET_KEY in production
+    def __init__(self):
+        if not os.environ.get('SECRET_KEY') or os.environ.get('SECRET_KEY') == 'dev-secret-key-change-in-production':
+            raise ValueError(
+                "SECRET_KEY must be set in production environment!\n"
+                "Set it in .env file or as environment variable."
+            )
     
     # Production logging
     LOG_LEVEL = 'INFO'

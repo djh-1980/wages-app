@@ -1,0 +1,11 @@
+# SSH Config for TVS Wages Proxmox Container
+# Add this to your ~/.ssh/config file
+
+Host tvs-wages
+    HostName 192.168.1.202
+    Port 22
+    User tvswages
+    IdentityFile ~/.ssh/tvs_wages_proxmox
+    IdentitiesOnly yes
+    ServerAliveInterval 60
+    ServerAliveCountMax 3

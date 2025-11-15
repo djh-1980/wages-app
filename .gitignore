@@ -8,6 +8,11 @@ env/
 venv/
 ENV/
 
+# Environment variables (keep private)
+.env
+.env.local
+.env.*.local
+
 # Database (don't upload personal data)
 *.db
 *.sqlite
