@@ -935,8 +935,10 @@ def api_download_backup(filename):
         
         backup_path = None
         for path in possible_paths:
+            print(f"Trying path: {path.resolve()}")
             if path.exists():
                 backup_path = path
+                print(f"Found backup at: {path.resolve()}")
                 break
         
         if not backup_path:
@@ -954,8 +956,12 @@ def api_download_backup(filename):
         
         log_settings_action('DOWNLOAD_BACKUP', f'Downloaded backup: {filename}')
         
+        # Convert to absolute path for send_file
+        absolute_path = backup_path.resolve()
+        print(f"Sending file from absolute path: {absolute_path}")
+        
         return send_file(
-            backup_path,
+            str(absolute_path),
             as_attachment=True,
             download_name=filename,
             mimetype='application/x-sqlite3'
