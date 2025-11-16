@@ -373,9 +373,9 @@ def api_reorganize_runsheets():
 def api_backup_database():
     """Create a backup of the database."""
     try:
-        # Create Backups directory if it doesn't exist
-        backup_dir = Path('Backups')
-        backup_dir.mkdir(exist_ok=True)
+        # Create backups directory if it doesn't exist
+        backup_dir = Path('data/database/backups')
+        backup_dir.mkdir(parents=True, exist_ok=True)
         
         # Create backup filename with timestamp
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
@@ -553,7 +553,10 @@ def api_validate_integrity():
     """Comprehensive data integrity validation."""
     try:
         validation = DataService.validate_data_integrity()
-        return jsonify(validation)
+        return jsonify({
+            'success': True,
+            'validation': validation
+        })
     except Exception as e:
         return jsonify({
             'success': False,
@@ -816,6 +819,177 @@ def api_sync_runsheets_payslips():
             
     except Exception as e:
         log_settings_action('SYNC_RUNSHEETS_PAYSLIPS', f'Sync failed: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/backups/list', methods=['GET'])
+def api_list_backups():
+    """List all available database backups."""
+    try:
+        backup_dir = Path('data/database/backups')
+        if not backup_dir.exists():
+            return jsonify({
+                'success': True,
+                'backups': []
+            })
+        
+        backups = []
+        for backup_file in backup_dir.glob('*.db'):
+            stat = backup_file.stat()
+            
+            # Try to parse timestamp from filename (format: *_YYYYMMDD_HHMMSS.db)
+            created_timestamp = stat.st_mtime  # Default to file modification time
+            try:
+                import re
+                match = re.search(r'_(\d{8})_(\d{6})\.db$', backup_file.name)
+                if match:
+                    date_str = match.group(1)  # YYYYMMDD
+                    time_str = match.group(2)  # HHMMSS
+                    # Parse to datetime
+                    dt = datetime.strptime(f'{date_str}_{time_str}', '%Y%m%d_%H%M%S')
+                    created_timestamp = dt.timestamp()
+            except:
+                pass  # Fall back to file mtime if parsing fails
+            
+            backups.append({
+                'filename': backup_file.name,
+                'size': stat.st_size,
+                'created': created_timestamp
+            })
+        
+        # Sort by creation time, newest first
+        backups.sort(key=lambda x: x['created'], reverse=True)
+        
+        return jsonify({
+            'success': True,
+            'backups': backups
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/restore', methods=['POST'])
+def api_restore_database():
+    """Restore database from a backup file."""
+    try:
+        data = request.json
+        filename = data.get('filename')
+        
+        if not filename:
+            return jsonify({
+                'success': False,
+                'error': 'No filename provided'
+            }), 400
+        
+        backup_path = Path('data/database/backups') / filename
+        
+        if not backup_path.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Backup file not found: {filename}'
+            }), 404
+        
+        # Create a backup of current database before restoring
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        current_backup = Path('data/database/backups') / f'pre_restore_backup_{timestamp}.db'
+        shutil.copy2(DB_PATH, current_backup)
+        
+        # Restore the backup
+        shutil.copy2(backup_path, DB_PATH)
+        
+        log_settings_action('RESTORE_DATABASE', f'Database restored from {filename}')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Database restored from {filename}',
+            'backup_created': current_backup.name
+        })
+    except Exception as e:
+        log_settings_action('RESTORE_DATABASE', f'Restore failed: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/backups/download/<filename>', methods=['GET'])
+def api_download_backup(filename):
+    """Download a backup file."""
+    try:
+        backup_path = Path('data/database/backups') / filename
+        
+        if not backup_path.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Backup file not found: {filename}'
+            }), 404
+        
+        # Security check - ensure the file is within the backups directory
+        if not str(backup_path.resolve()).startswith(str(Path('data/database/backups').resolve())):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid file path'
+            }), 403
+        
+        log_settings_action('DOWNLOAD_BACKUP', f'Downloaded backup: {filename}')
+        
+        return send_file(
+            backup_path,
+            as_attachment=True,
+            download_name=filename,
+            mimetype='application/x-sqlite3'
+        )
+    except Exception as e:
+        log_settings_action('DOWNLOAD_BACKUP', f'Download failed: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/backups/delete', methods=['POST'])
+def api_delete_backup():
+    """Delete a backup file."""
+    try:
+        data = request.json
+        filename = data.get('filename')
+        
+        if not filename:
+            return jsonify({
+                'success': False,
+                'error': 'No filename provided'
+            }), 400
+        
+        backup_path = Path('data/database/backups') / filename
+        
+        if not backup_path.exists():
+            return jsonify({
+                'success': False,
+                'error': f'Backup file not found: {filename}'
+            }), 404
+        
+        # Delete the backup file
+        backup_path.unlink()
+        
+        # Also delete metadata file if it exists
+        metadata_path = Path('data/database/backups') / f'{backup_path.stem}_metadata.json'
+        if metadata_path.exists():
+            metadata_path.unlink()
+        
+        log_settings_action('DELETE_BACKUP', f'Deleted backup: {filename}')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Backup deleted: {filename}'
+        })
+    except Exception as e:
+        log_settings_action('DELETE_BACKUP', f'Delete failed: {str(e)}', 'ERROR')
         return jsonify({
             'success': False,
             'error': str(e)

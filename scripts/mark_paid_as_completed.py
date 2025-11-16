@@ -20,7 +20,9 @@ print("="*80)
 print()
 
 # Create backup first
-backup_path = Path(f'data/database/payslips_backup_before_completed_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db')
+backup_dir = Path('data/database/backups')
+backup_dir.mkdir(parents=True, exist_ok=True)
+backup_path = backup_dir / f'payslips_backup_before_completed_{datetime.now().strftime("%Y%m%d_%H%M%S")}.db'
 print(f"📦 Creating backup at {backup_path}...")
 import shutil
 shutil.copy2(db_path, backup_path)

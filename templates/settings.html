@@ -26,6 +26,9 @@
         </div>
     </div>
 
+    <!-- Global Status Message -->
+    <div id="settingsStatus" style="display: none;"></div>
+
     <!-- Settings Navigation Cards -->
     <div class="row summary-cards settings-nav-cards mb-4">
         <div class="col-md-3 col-lg-2">
@@ -462,7 +465,7 @@
                     </div>
 
                     <!-- Database Stats -->
-                    <div class="settings-card-section">
+                    <div class="settings-card-section mb-4">
                         <div class="card-header">
                             <h6 class="mb-0"><i class="bi bi-database me-2"></i>Database Statistics</h6>
                         </div>
@@ -488,22 +491,87 @@
                         </div>
                     </div>
 
+                    <!-- Backup & Restore -->
+                    <div class="settings-card-section mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-shield-check me-2"></i>Backup & Restore</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-6">
+                                    <button class="btn btn-primary w-100" onclick="backupDatabase()">
+                                        <i class="bi bi-download me-2"></i>Create Backup
+                                    </button>
+                                    <small class="text-muted d-block mt-2 text-center">Creates a timestamped backup of the database</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-primary w-100" onclick="loadBackupsList()">
+                                        <i class="bi bi-arrow-clockwise me-2"></i>Refresh Backups List
+                                    </button>
+                                    <small class="text-muted d-block mt-2 text-center">Reload available backups</small>
+                                </div>
+                            </div>
+                            
+                            <!-- Available Backups -->
+                            <div id="backupsListContainer" class="mt-3">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <strong>Available Backups:</strong>
+                                    <span id="backupsCount" class="badge bg-secondary">Loading...</span>
+                                </div>
+                                <div id="backupsList" class="list-group" style="max-height: 300px; overflow-y: auto;">
+                                    <div class="text-center py-3 text-muted">
+                                        <div class="spinner-border spinner-border-sm me-2"></div>
+                                        Loading backups...
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="backupStatus" class="mt-3" style="display: none;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Database Maintenance -->
+                    <div class="settings-card-section mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-wrench me-2"></i>Database Maintenance</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-success w-100" onclick="optimizeDatabase()">
+                                        <i class="bi bi-speedometer2 me-2"></i>Optimize Database
+                                    </button>
+                                    <small class="text-muted d-block mt-2 text-center">Vacuum and optimize for better performance</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-info w-100" onclick="validateDatabase()">
+                                        <i class="bi bi-check-circle me-2"></i>Validate Integrity
+                                    </button>
+                                    <small class="text-muted d-block mt-2 text-center">Check database for errors</small>
+                                </div>
+                            </div>
+                            <div id="maintenanceStatus" class="mt-3" style="display: none;"></div>
+                        </div>
+                    </div>
+
                     <!-- System Actions -->
                     <div class="settings-card-section">
                         <div class="card-header">
                             <h6 class="mb-0"><i class="bi bi-tools me-2"></i>System Actions</h6>
                         </div>
                         <div class="card-body">
-                            <div class="row g-3 settings-actions">
-                                <div class="col-md-6">
-                                    <button class="btn btn-outline-primary w-100" onclick="backupDatabase()">
-                                        <i class="bi bi-download me-2"></i>Backup Database
-                                    </button>
-                                </div>
+                            <div class="row g-3">
                                 <div class="col-md-6">
                                     <button class="btn btn-outline-warning w-100" onclick="clearCache()">
-                                        <i class="bi bi-trash me-2"></i>Clear Cache
+                                        <i class="bi bi-trash me-2"></i>Clear Browser Cache
                                     </button>
+                                    <small class="text-muted d-block mt-2 text-center">Clear local storage and reload</small>
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-secondary w-100" onclick="viewSystemLogs()">
+                                        <i class="bi bi-file-text me-2"></i>View System Logs
+                                    </button>
+                                    <small class="text-muted d-block mt-2 text-center">View recent system activity</small>
                                 </div>
                             </div>
                         </div>

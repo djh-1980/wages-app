@@ -138,10 +138,6 @@ function saveProfile() {
     showSuccess('Profile saved successfully!');
 }
 
-function backupDatabase() {
-    showSuccess('Database backup initiated!');
-}
-
 function clearCache() {
     showSuccess('Cache cleared successfully!');
 }
@@ -703,5 +699,3 @@ document.addEventListener('DOMContentLoaded', function() {
     loadAllSettings();
     loadAttendanceRecords();
 });
-</script>
-{% endblock %}

@@ -142,8 +142,8 @@ class DataService:
     def create_intelligent_backup(backup_type='manual'):
         """Create intelligent backup with metadata and compression."""
         try:
-            backup_dir = Path('Backups')
-            backup_dir.mkdir(exist_ok=True)
+            backup_dir = Path('data/database/backups')
+            backup_dir.mkdir(parents=True, exist_ok=True)
             
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
             backup_name = f'intelligent_backup_{backup_type}_{timestamp}'

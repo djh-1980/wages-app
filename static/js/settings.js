@@ -111,26 +111,35 @@ async function checkGmailStatus() {
         const tokenStatus = document.getElementById('tokenStatus');
         const credentialsStatus = document.getElementById('credentialsStatus');
         
+        // Only update if elements exist
+        if (!badge) {
+            console.log('Gmail status badge not found on this page');
+            return;
+        }
+        
         if (data.configured && data.authenticated) {
             badge.textContent = 'Connected';
             badge.className = 'sync-status active';
-            tokenStatus.innerHTML = '<span class="text-success">✓ Authenticated</span>';
-            credentialsStatus.innerHTML = '<span class="text-success">✓ Configured</span>';
+            if (tokenStatus) tokenStatus.innerHTML = '<span class="text-success">✓ Authenticated</span>';
+            if (credentialsStatus) credentialsStatus.innerHTML = '<span class="text-success">✓ Configured</span>';
         } else if (data.configured) {
             badge.textContent = 'Not Authenticated';
             badge.className = 'sync-status inactive';
-            tokenStatus.innerHTML = '<span class="text-warning">⚠ Need to authorize</span>';
-            credentialsStatus.innerHTML = '<span class="text-success">✓ Configured</span>';
+            if (tokenStatus) tokenStatus.innerHTML = '<span class="text-warning">⚠ Need to authorize</span>';
+            if (credentialsStatus) credentialsStatus.innerHTML = '<span class="text-success">✓ Configured</span>';
         } else {
             badge.textContent = 'Not Configured';
             badge.className = 'sync-status inactive';
-            tokenStatus.innerHTML = '<span class="text-danger">✗ Not authenticated</span>';
-            credentialsStatus.innerHTML = '<span class="text-danger">✗ Missing credentials.json</span>';
+            if (tokenStatus) tokenStatus.innerHTML = '<span class="text-danger">✗ Not authenticated</span>';
+            if (credentialsStatus) credentialsStatus.innerHTML = '<span class="text-danger">✗ Missing credentials.json</span>';
         }
     } catch (error) {
         console.error('Error checking Gmail status:', error);
-        document.getElementById('gmailStatusBadge').textContent = 'Error';
-        document.getElementById('gmailStatusBadge').className = 'sync-status inactive';
+        const badge = document.getElementById('gmailStatusBadge');
+        if (badge) {
+            badge.textContent = 'Error';
+            badge.className = 'sync-status inactive';
+        }
     }
 }
 
@@ -765,19 +774,41 @@ async function viewSettingsLogs() {
 async function backupDatabase() {
     const statusDiv = document.getElementById('backupStatus');
     statusDiv.style.display = 'block';
-    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Creating backup...</div>';
+    statusDiv.innerHTML = `
+        <div class="alert alert-info">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-3" role="status"></div>
+                <div class="flex-grow-1">
+                    <strong>Creating backup...</strong>
+                    <div class="progress mt-2" style="height: 20px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%">
+                            Processing...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
     
     try {
+        console.log('Calling backup API...');
         const response = await fetch('/api/data/backup', {
             method: 'POST'
         });
         
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
+        console.log('Backup result:', result);
         
         if (result.success) {
             statusDiv.innerHTML = `
                 <div class="alert alert-success">
-                    <i class="bi bi-check-circle"></i> ${result.message}
+                    <i class="bi bi-check-circle"></i> <strong>Backup created successfully!</strong>
                     <ul class="mt-2 mb-0">
                         <li><strong>File:</strong> ${result.filename}</li>
                         <li><strong>Size:</strong> ${result.size_mb} MB</li>
@@ -786,18 +817,26 @@ async function backupDatabase() {
                 </div>
             `;
             showSuccess('Backup created successfully');
+            
+            // Refresh backups list after a short delay to ensure file is written
+            setTimeout(() => {
+                console.log('Refreshing backups list...');
+                loadBackupsList();
+            }, 500);
         } else {
             statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Backup failed: ${result.error}</div>`;
             showError('Backup failed');
         }
     } catch (error) {
+        console.error('Backup error:', error);
         statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
         showError('Error creating backup');
     }
 }
 
+// This function is deprecated - restore functionality is now in the System tab UI
 function restoreDatabase() {
-    alert('To restore from backup:\n\n1. Stop the web app\n2. Replace data/payslips.db with your backup file\n3. Restart the web app\n\nBackup files are in the Backups/ folder');
+    alert('Database restore is now available in the System tab.\n\nGo to Settings > System > Backup & Restore to restore from a backup.');
 }
 
 function exportRunSheets() {
@@ -954,21 +993,33 @@ function resetSettings() {
 // ===== UTILITY =====
 function showStatus(message) {
     const status = document.getElementById('settingsStatus');
-    status.innerHTML = `<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> ${message}</div>`;
-    status.style.display = 'block';
+    if (status) {
+        status.innerHTML = `<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> ${message}</div>`;
+        status.style.display = 'block';
+    } else {
+        console.log('Status:', message);
+    }
 }
 
 function showSuccess(message) {
     const status = document.getElementById('settingsStatus');
-    status.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle"></i> ${message}</div>`;
-    status.style.display = 'block';
-    setTimeout(() => status.style.display = 'none', 3000);
+    if (status) {
+        status.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle"></i> ${message}</div>`;
+        status.style.display = 'block';
+        setTimeout(() => status.style.display = 'none', 3000);
+    } else {
+        console.log('Success:', message);
+    }
 }
 
 function showError(message) {
     const status = document.getElementById('settingsStatus');
-    status.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${message}</div>`;
-    status.style.display = 'block';
+    if (status) {
+        status.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${message}</div>`;
+        status.style.display = 'block';
+    } else {
+        console.error('Error:', message);
+    }
 }
 
 // ===== ATTENDANCE TRACKING =====
@@ -1617,5 +1668,332 @@ async function clearAllAttendanceRecords() {
     } catch (error) {
         console.error('Error clearing attendance records:', error);
         showError('Error clearing records');
+    }
+}
+
+// ===== BACKUP & RESTORE FUNCTIONS =====
+
+// Load backups list on page load for System tab
+document.addEventListener('DOMContentLoaded', function() {
+    const systemTab = document.getElementById('system-tab');
+    if (systemTab) {
+        systemTab.addEventListener('shown.bs.tab', function() {
+            loadBackupsList();
+        });
+    }
+});
+
+async function loadBackupsList() {
+    const backupsList = document.getElementById('backupsList');
+    const backupsCount = document.getElementById('backupsCount');
+    
+    backupsList.innerHTML = '<div class="text-center py-3 text-muted"><div class="spinner-border spinner-border-sm me-2"></div>Loading backups...</div>';
+    backupsCount.textContent = 'Loading...';
+    
+    try {
+        // Add cache-busting parameter to ensure fresh data
+        const response = await fetch(`/api/data/backups/list?t=${Date.now()}`);
+        const result = await response.json();
+        
+        if (result.success && result.backups && result.backups.length > 0) {
+            backupsCount.textContent = result.backups.length;
+            backupsCount.className = 'badge bg-primary';
+            
+            let html = '';
+            result.backups.forEach(backup => {
+                // Convert Unix timestamp (seconds) to milliseconds for JavaScript Date
+                const date = new Date(backup.created * 1000);
+                const formattedDate = date.toLocaleString();
+                const sizeStr = formatFileSize(backup.size);
+                
+                html += `
+                    <div class="list-group-item">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div class="flex-grow-1">
+                                <div class="d-flex align-items-center mb-1">
+                                    <i class="bi bi-file-earmark-zip text-primary me-2"></i>
+                                    <strong>${backup.filename}</strong>
+                                </div>
+                                <small class="text-muted d-block">
+                                    <i class="bi bi-clock me-1"></i>${formattedDate}
+                                    <span class="ms-3"><i class="bi bi-hdd me-1"></i>${sizeStr}</span>
+                                </small>
+                            </div>
+                            <div class="btn-group btn-group-sm">
+                                <button class="btn btn-outline-primary" onclick="downloadBackup('${backup.filename}')" title="Download this backup">
+                                    <i class="bi bi-download"></i>
+                                </button>
+                                <button class="btn btn-outline-success" onclick="restoreBackup('${backup.filename}')" title="Restore this backup">
+                                    <i class="bi bi-arrow-counterclockwise"></i>
+                                </button>
+                                <button class="btn btn-outline-danger" onclick="deleteBackup('${backup.filename}')" title="Delete this backup">
+                                    <i class="bi bi-trash"></i>
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            backupsList.innerHTML = html;
+        } else {
+            backupsCount.textContent = '0';
+            backupsCount.className = 'badge bg-secondary';
+            backupsList.innerHTML = `
+                <div class="text-center py-4 text-muted">
+                    <i class="bi bi-inbox fs-1 d-block mb-2"></i>
+                    <p class="mb-0">No backups found</p>
+                    <small>Create your first backup using the button above</small>
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading backups:', error);
+        backupsCount.textContent = 'Error';
+        backupsCount.className = 'badge bg-danger';
+        backupsList.innerHTML = `
+            <div class="text-center py-3 text-danger">
+                <i class="bi bi-exclamation-triangle me-2"></i>
+                Failed to load backups
+            </div>
+        `;
+    }
+}
+
+async function restoreBackup(filename) {
+    if (!confirm(`⚠️ WARNING: Restore database from backup?\n\nFilename: ${filename}\n\nThis will:\n1. Replace the current database with the backup\n2. All current data will be overwritten\n3. The current database will be backed up first\n\nAre you sure you want to continue?`)) {
+        return;
+    }
+    
+    const statusDiv = document.getElementById('backupStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Restoring database from backup...</div>';
+    
+    try {
+        const response = await fetch('/api/data/restore', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ filename: filename })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> <strong>Database restored successfully!</strong>
+                    <ul class="mt-2 mb-0">
+                        <li><strong>Restored from:</strong> ${filename}</li>
+                        <li><strong>Backup created:</strong> ${result.backup_created || 'Yes'}</li>
+                    </ul>
+                    <p class="mt-2 mb-0"><small>The page will reload in 3 seconds...</small></p>
+                </div>
+            `;
+            showSuccess('Database restored successfully!');
+            
+            // Reload page after 3 seconds to reflect changes
+            setTimeout(() => {
+                location.reload();
+            }, 3000);
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Restore failed: ${result.error}</div>`;
+            showError('Restore failed');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error restoring backup');
+    }
+}
+
+function downloadBackup(filename) {
+    // Create a download link and trigger it
+    window.location.href = `/api/data/backups/download/${encodeURIComponent(filename)}`;
+    showSuccess('Downloading backup...');
+}
+
+async function deleteBackup(filename) {
+    if (!confirm(`Delete backup: ${filename}?\n\nThis action cannot be undone.`)) {
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/data/backups/delete', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ filename: filename })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess('Backup deleted successfully');
+            loadBackupsList(); // Refresh the list
+        } else {
+            showError(`Failed to delete backup: ${result.error}`);
+        }
+    } catch (error) {
+        showError(`Error deleting backup: ${error.message}`);
+    }
+}
+
+async function optimizeDatabase() {
+    const statusDiv = document.getElementById('maintenanceStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Optimizing database... This may take a moment.</div>';
+    
+    try {
+        const response = await fetch('/api/data/optimize-database', {
+            method: 'POST'
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> <strong>Database optimized successfully!</strong>
+                    <ul class="mt-2 mb-0">
+                        ${result.size_before ? `<li><strong>Size before:</strong> ${formatFileSize(result.size_before)}</li>` : ''}
+                        ${result.size_after ? `<li><strong>Size after:</strong> ${formatFileSize(result.size_after)}</li>` : ''}
+                        ${result.space_saved ? `<li><strong>Space saved:</strong> ${formatFileSize(result.space_saved)}</li>` : ''}
+                    </ul>
+                </div>
+            `;
+            showSuccess('Database optimized successfully');
+            loadDatabaseInfo(); // Refresh stats
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Optimization failed: ${result.error}</div>`;
+            showError('Optimization failed');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error optimizing database');
+    }
+}
+
+async function validateDatabase() {
+    const statusDiv = document.getElementById('maintenanceStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Validating database integrity...</div>';
+    
+    try {
+        const response = await fetch('/api/data/validate-integrity');
+        const result = await response.json();
+        
+        if (result.success) {
+            const validation = result.validation || {};
+            const issues = validation.issues_found || [];
+            const warnings = validation.warnings || [];
+            const overallHealth = validation.overall_health || 'unknown';
+            
+            let statusClass = 'success';
+            let statusIcon = 'check-circle';
+            let statusTitle = 'Database is healthy!';
+            
+            if (overallHealth === 'critical') {
+                statusClass = 'danger';
+                statusIcon = 'x-circle';
+                statusTitle = 'Critical issues found!';
+            } else if (overallHealth === 'poor') {
+                statusClass = 'danger';
+                statusIcon = 'exclamation-circle';
+                statusTitle = 'Issues found!';
+            } else if (overallHealth === 'fair' || warnings.length > 0) {
+                statusClass = 'warning';
+                statusIcon = 'exclamation-triangle';
+                statusTitle = 'Warnings found';
+            }
+            
+            let html = `
+                <div class="alert alert-${statusClass}">
+                    <i class="bi bi-${statusIcon}"></i> <strong>${statusTitle}</strong>
+            `;
+            
+            if (issues.length > 0) {
+                html += '<div class="mt-2"><strong>Issues:</strong><ul class="mb-0">';
+                issues.forEach(issue => {
+                    const message = issue.message || issue;
+                    const severity = issue.severity || 'unknown';
+                    html += `<li><span class="badge bg-${severity === 'critical' ? 'danger' : 'warning'} me-2">${severity}</span>${message}</li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            if (warnings.length > 0) {
+                html += '<div class="mt-2"><strong>Warnings:</strong><ul class="mb-0">';
+                warnings.forEach(warning => {
+                    const message = warning.message || warning;
+                    html += `<li>${message}</li>`;
+                });
+                html += '</ul></div>';
+            }
+            
+            if (issues.length === 0 && warnings.length === 0) {
+                html += '<p class="mt-2 mb-0">All integrity checks passed successfully.</p>';
+            }
+            
+            // Show statistics if available
+            if (validation.statistics) {
+                html += '<div class="mt-3"><small class="text-muted"><strong>Statistics:</strong> ';
+                const stats = [];
+                if (validation.statistics.payslips) stats.push(`Payslips: ${validation.statistics.payslips.total || 0}`);
+                if (validation.statistics.runsheets) stats.push(`Runsheets: ${validation.statistics.runsheets.total || 0}`);
+                html += stats.join(' | ');
+                html += '</small></div>';
+            }
+            
+            html += '</div>';
+            statusDiv.innerHTML = html;
+            
+            if (issues.length === 0) {
+                showSuccess('Database validation complete');
+            }
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Validation failed: ${result.error || 'Unknown error'}</div>`;
+            showError('Validation failed');
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error validating database');
+    }
+}
+
+async function viewSystemLogs() {
+    const statusDiv = document.getElementById('maintenanceStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = '<div class="alert alert-info"><i class="bi bi-hourglass-split"></i> Loading system logs...</div>';
+    
+    try {
+        const response = await fetch('/api/settings/logs');
+        const result = await response.json();
+        
+        if (result.success) {
+            const logs = result.logs || [];
+            const logsHtml = logs.length > 0 
+                ? `<pre class="small" style="max-height: 400px; overflow-y: auto; background: #f8f9fa; padding: 10px; border-radius: 5px; font-family: 'Courier New', monospace;">${logs.join('')}</pre>`
+                : '<p class="text-muted">No logs yet</p>';
+            
+            statusDiv.innerHTML = `
+                <div class="alert alert-info">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
+                        <strong><i class="bi bi-file-text"></i> System Logs</strong>
+                        <button class="btn btn-sm btn-outline-secondary" onclick="document.getElementById('maintenanceStatus').style.display='none'">
+                            <i class="bi bi-x"></i> Close
+                        </button>
+                    </div>
+                    <p class="small mb-2">Showing last ${logs.length} lines (Total: ${result.total_lines || 0})</p>
+                    ${logsHtml}
+                    <p class="small mt-2 mb-0">Log file: <code>logs/settings.log</code></p>
+                </div>
+            `;
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Failed to load logs: ${result.error}</div>`;
+        }
+    } catch (error) {
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
     }
 }
