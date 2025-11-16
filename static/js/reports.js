@@ -40,6 +40,60 @@ function generateActivityReport() {
     alert('Activity Breakdown - Coming soon!');
 }
 
+async function addDiscrepancyToRunsheet(index, jobNumber, client, location, amount) {
+    const dateInput = document.getElementById(`date-input-${index}`);
+    const date = dateInput.value;
+    
+    if (!date) {
+        alert('Please select a date first');
+        return;
+    }
+    
+    // Convert date from YYYY-MM-DD to DD/MM/YYYY
+    const [year, month, day] = date.split('-');
+    const formattedDate = `${day}/${month}/${year}`;
+    
+    try {
+        const response = await fetch('/api/runsheets/add-job', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                date: formattedDate,
+                job_number: jobNumber,
+                customer: client,
+                job_address: location,
+                pay_amount: amount,
+                status: 'extra'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Remove the row from the table
+            const row = document.getElementById(`discrepancy-row-${index}`);
+            row.style.backgroundColor = '#d4edda';
+            setTimeout(() => {
+                row.remove();
+                // Check if table is empty
+                const tbody = document.querySelector('#discrepancyReportContent tbody');
+                if (tbody && tbody.children.length === 0) {
+                    loadDiscrepancyReport(); // Reload to show success message
+                }
+            }, 500);
+            
+            showSuccess(`Job ${jobNumber} added to runsheet for ${formattedDate}`);
+        } else {
+            showError('Failed to add job: ' + (result.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error adding job to runsheet:', error);
+        showError('Error adding job to runsheet: ' + error.message);
+    }
+}
+
 async function loadDiscrepancyReport() {
     const contentDiv = document.getElementById('discrepancyReportContent');
     contentDiv.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-3 text-muted">Analyzing data...</p></div>';
@@ -98,16 +152,26 @@ async function loadDiscrepancyReport() {
                                         <th>Location</th>
                                         <th>Amount</th>
                                         <th>Week/Year</th>
+                                        <th>Add Date</th>
+                                        <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${data.missing_jobs.map(j => `
-                                        <tr>
+                                    ${data.missing_jobs.map((j, index) => `
+                                        <tr id="discrepancy-row-${index}">
                                             <td><strong>${j.job_number}</strong></td>
                                             <td>${j.client || 'N/A'}</td>
                                             <td>${j.location || 'N/A'} ${j.postcode || ''}</td>
                                             <td class="text-success">${CurrencyFormatter.format(j.amount)}</td>
                                             <td><small>Week ${j.week_number}/${j.tax_year}</small></td>
+                                            <td>
+                                                <input type="date" class="form-control form-control-sm" id="date-input-${index}" style="width: 140px;">
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary" onclick="addDiscrepancyToRunsheet(${index}, '${j.job_number}', '${(j.client || '').replace(/'/g, "\\'")}', '${(j.location || '').replace(/'/g, "\\'")}', ${j.amount})">
+                                                    <i class="bi bi-plus-circle"></i> Add
+                                                </button>
+                                            </td>
                                         </tr>
                                     `).join('')}
                                 </tbody>

@@ -248,6 +248,12 @@ class PayslipExtractor:
                 client_match = re.search(r'\|\s*([^|]+?)\s*\|', desc)
                 if client_match:
                     job_item['client'] = client_match.group(1).strip()
+                else:
+                    # Fallback: Try to extract client from description after job number
+                    # Format: "Daniel Hanson: 4209480 | Xerox (UK) Technical***DO"
+                    fallback_match = re.search(r'Daniel Hanson:\s*\d+\s*\|\s*([^|]+?)(?:\*\*\*|$)', desc)
+                    if fallback_match:
+                        job_item['client'] = fallback_match.group(1).strip()
                 
                 # Extract location (between second | and third |)
                 location_match = re.search(r'\|[^|]+\|\s*([^|]+?)\s*\|', desc)
