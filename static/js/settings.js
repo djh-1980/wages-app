@@ -834,6 +834,77 @@ async function backupDatabase() {
     }
 }
 
+// Upload a backup file
+async function uploadBackup(input) {
+    const file = input.files[0];
+    if (!file) return;
+    
+    // Validate file extension
+    if (!file.name.endsWith('.db')) {
+        showError('Please select a valid database backup file (.db)');
+        input.value = '';
+        return;
+    }
+    
+    const statusDiv = document.getElementById('backupStatus');
+    statusDiv.style.display = 'block';
+    statusDiv.innerHTML = `
+        <div class="alert alert-info">
+            <div class="d-flex align-items-center">
+                <div class="spinner-border spinner-border-sm me-3" role="status"></div>
+                <div class="flex-grow-1">
+                    <strong>Uploading backup: ${file.name}</strong>
+                    <div class="progress mt-2" style="height: 20px;">
+                        <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%">
+                            Uploading...
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    try {
+        const formData = new FormData();
+        formData.append('backup_file', file);
+        
+        const response = await fetch('/api/data/upload-backup', {
+            method: 'POST',
+            body: formData
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            statusDiv.innerHTML = `
+                <div class="alert alert-success">
+                    <i class="bi bi-check-circle"></i> <strong>Backup uploaded successfully!</strong>
+                    <ul class="mt-2 mb-0">
+                        <li><strong>File:</strong> ${result.filename}</li>
+                        <li><strong>Size:</strong> ${result.size_mb} MB</li>
+                    </ul>
+                </div>
+            `;
+            showSuccess('Backup uploaded successfully');
+            
+            // Refresh backups list
+            setTimeout(() => {
+                loadBackupsList();
+            }, 500);
+        } else {
+            statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Upload failed: ${result.error}</div>`;
+            showError('Upload failed');
+        }
+    } catch (error) {
+        console.error('Upload error:', error);
+        statusDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> Error: ${error.message}</div>`;
+        showError('Error uploading backup');
+    } finally {
+        // Clear the input
+        input.value = '';
+    }
+}
+
 // This function is deprecated - restore functionality is now in the System tab UI
 function restoreDatabase() {
     alert('Database restore is now available in the System tab.\n\nGo to Settings > System > Backup & Restore to restore from a backup.');

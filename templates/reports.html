@@ -875,6 +875,7 @@
                     <div class="d-flex gap-2 align-items-center">
                         <select class="form-select form-select-sm" id="reportType" style="width: auto;" onchange="updateReportPreview()">
                             <option value="dnco" selected>DNCO Report</option>
+                            <option value="earnings_discrepancy">Earnings Discrepancy</option>
                         </select>
                         <select class="form-select form-select-sm" id="yearSelect" style="width: auto;" onchange="generateCustomReport()">
                         </select>
@@ -883,6 +884,9 @@
                         <span class="text-muted">or</span>
                         <select class="form-select form-select-sm" id="weekSelect" style="width: auto;" onchange="selectWeek()">
                         </select>
+                        <button class="btn btn-outline-secondary btn-sm" id="sortToggle" onclick="toggleReportSort()" title="Toggle sort order">
+                            <i class="bi bi-sort-down" id="sortIcon"></i>
+                        </button>
                     </div>
                     
                     <div class="d-flex gap-2">

@@ -91,13 +91,15 @@ async function loadDiscrepancyReport() {
                     <div class="card-body p-0">
                         <div class="table-responsive">
                             <table class="table table-sm table-hover mb-0">
-                                <thead>
+                                <thead class="table-dark">
                                     <tr>
                                         <th>Job #</th>
                                         <th>Client</th>
                                         <th>Location</th>
                                         <th>Amount</th>
                                         <th>Week/Year</th>
+                                        <th>Date</th>
+                                        <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -108,6 +110,17 @@ async function loadDiscrepancyReport() {
                                             <td>${j.location || 'N/A'} ${j.postcode || ''}</td>
                                             <td class="text-success">${CurrencyFormatter.format(j.amount)}</td>
                                             <td><small>Week ${j.week_number}/${j.tax_year}</small></td>
+                                            <td>
+                                                <input type="date" class="form-control form-control-sm" 
+                                                       id="date_${j.job_number}" 
+                                                       style="width: 150px;">
+                                            </td>
+                                            <td>
+                                                <button class="btn btn-sm btn-primary" 
+                                                        onclick="addDiscrepancyToRunsheet('${j.job_number}', '${j.client?.replace(/'/g, "\\'")}', '${j.location?.replace(/'/g, "\\'")}', ${j.amount})">
+                                                    <i class="bi bi-plus-circle"></i> Add
+                                                </button>
+                                            </td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -146,6 +159,53 @@ async function loadDiscrepancyReport() {
                 <br><small>Check browser console for details</small>
             </div>
         `;
+    }
+}
+
+// Add discrepancy job to runsheet
+async function addDiscrepancyToRunsheet(jobNumber, client, location, amount) {
+    const dateInput = document.getElementById(`date_${jobNumber}`);
+    const selectedDate = dateInput.value;
+    
+    if (!selectedDate) {
+        alert('Please select a date first');
+        return;
+    }
+    
+    // Convert YYYY-MM-DD to DD/MM/YYYY
+    const [year, month, day] = selectedDate.split('-');
+    const formattedDate = `${day}/${month}/${year}`;
+    
+    try {
+        const response = await fetch('/api/runsheets/add-job', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                date: formattedDate,
+                job_number: jobNumber,
+                customer: client,
+                location: location,
+                pay_amount: amount,
+                status: 'extra'
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            // Show success message
+            alert(`✓ Job ${jobNumber} added to runsheet for ${formattedDate} as Extra`);
+            
+            // Reload the discrepancy report
+            loadDiscrepancyReport();
+        } else {
+            alert(`Error: ${result.error || 'Failed to add job'}`);
+        }
+    } catch (error) {
+        console.error('Error adding job:', error);
+        alert(`Error: ${error.message}`);
     }
 }
 
@@ -1248,6 +1308,26 @@ function selectMonth() {
     generateCustomReport();
 }
 
+// Store last report data for sorting
+let lastReportData = null;
+let lastReportType = null;
+let sortDescending = true; // Default to descending (latest first)
+
+function toggleReportSort() {
+    sortDescending = !sortDescending;
+    
+    // Update icon
+    const icon = document.getElementById('sortIcon');
+    if (icon) {
+        icon.className = sortDescending ? 'bi bi-sort-down' : 'bi bi-sort-up';
+    }
+    
+    // Re-render the report with new sort order
+    if (lastReportData && lastReportType) {
+        displayCustomReportData(lastReportData, lastReportType);
+    }
+}
+
 function updateReportPreview() {
     // Auto-generate when report type changes
     generateCustomReport();
@@ -1300,7 +1380,10 @@ async function generateCustomReport() {
         const result = await response.json();
         
         if (result.success) {
-            displayCustomReport(result.data, reportType);
+            // Store data for sorting
+            lastReportData = result.data;
+            lastReportType = reportType;
+            displayCustomReportData(result.data, reportType);
         } else {
             outputDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ${result.error}</div>`;
         }
@@ -1308,6 +1391,55 @@ async function generateCustomReport() {
         console.error('Error generating report:', error);
         outputDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error: ${error.message}</div>`;
     }
+}
+
+function displayCustomReportData(data, reportType) {
+    // Apply sorting to the data before displaying
+    if (data.dnco_jobs) {
+        data.dnco_jobs.sort((a, b) => {
+            const dateA = parseDate(a.date);
+            const dateB = parseDate(b.date);
+            return sortDescending ? dateB - dateA : dateA - dateB;
+        });
+    }
+    if (data.discrepancies) {
+        data.discrepancies.sort((a, b) => {
+            if (reportType === 'earnings_discrepancy') {
+                // Sort by week number
+                return sortDescending ? b.week - a.week : a.week - b.week;
+            } else {
+                const dateA = parseDate(a.date);
+                const dateB = parseDate(b.date);
+                return sortDescending ? dateB - dateA : dateA - dateB;
+            }
+        });
+    }
+    if (data.jobs) {
+        data.jobs.sort((a, b) => {
+            const dateA = parseDate(a.date);
+            const dateB = parseDate(b.date);
+            return sortDescending ? dateB - dateA : dateA - dateB;
+        });
+    }
+    if (data.mileage) {
+        data.mileage.sort((a, b) => {
+            const dateA = parseDate(a.date);
+            const dateB = parseDate(b.date);
+            return sortDescending ? dateB - dateA : dateA - dateB;
+        });
+    }
+    
+    displayCustomReport(data, reportType);
+}
+
+// Helper function to parse DD/MM/YYYY dates
+function parseDate(dateStr) {
+    if (!dateStr) return new Date(0);
+    const parts = dateStr.split('/');
+    if (parts.length === 3) {
+        return new Date(parts[2], parts[1] - 1, parts[0]);
+    }
+    return new Date(0);
 }
 
 function displayCustomReport(data, reportType) {
@@ -1410,6 +1542,54 @@ function displayCustomReport(data, reportType) {
         `;
         data.dnco_jobs.forEach(d => {
             html += `<tr><td>${d.date}</td><td>${d.job}</td><td>${d.customer}</td><td>${d.address}</td><td class="text-danger fw-bold">${formatCurrency(d.amount)}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+        
+    } else if (reportType === 'earnings_discrepancy' && data.discrepancies) {
+        // Earnings Discrepancy Report
+        html += `
+            <div class="alert alert-info mb-3">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <strong>Earnings Discrepancy Summary</strong>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div><strong>Weeks with Discrepancy:</strong> ${data.summary.weeks_with_discrepancy}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div><strong>Total Discrepancy:</strong> <span class="${data.summary.total_discrepancy >= 0 ? 'text-success' : 'text-danger'}">${formatCurrency(data.summary.total_discrepancy)}</span></div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        html += `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Week</th>
+                            <th>Period End</th>
+                            <th>Payslip Amount</th>
+                            <th>Runsheet Amount</th>
+                            <th>Discrepancy</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        data.discrepancies.forEach(d => {
+            const discrepancyClass = d.discrepancy >= 0 ? 'text-success' : 'text-danger';
+            const discrepancyIcon = d.discrepancy >= 0 ? '▲' : '▼';
+            html += `
+                <tr>
+                    <td>Week ${d.week}/${d.year}</td>
+                    <td>${d.period_end}</td>
+                    <td>${formatCurrency(d.payslip_amount)}</td>
+                    <td>${formatCurrency(d.runsheet_amount)}</td>
+                    <td class="${discrepancyClass} fw-bold">${discrepancyIcon} ${formatCurrency(Math.abs(d.discrepancy))}</td>
+                </tr>
+            `;
         });
         html += `</tbody></table></div>`;
         

@@ -223,21 +223,42 @@ class PayslipExtractor:
                     job_item['job_number'] = None
                 
                 # Extract full description (may span multiple lines)
+                # Build description by reading lines until we find units/rate, then continue for location
                 description_parts = [line]
                 j = i + 1
-                # Continue reading lines that are part of the description
-                # Stop when we hit a line that looks like a rate (decimal number) or agency name
-                while j < len(lines):
+                rate_line_index = None
+                
+                # First, find the rate line
+                while j < len(lines) and j < i + 10:
                     next_line = lines[j].strip()
-                    # Stop if empty, or if it's a standalone decimal number (rate), or agency name
-                    # Also stop at common separator lines like TVS, SCS, IFM, Limited
-                    if (not next_line or 
-                        re.match(r'^\d+\.\d+$', next_line) or 
-                        next_line in ['Rico', 'TVS', 'SCS', 'IFM', 'Limited'] or
-                        re.match(r'^\d{2}/\d{2}/\d{4}$', next_line)):  # Date format
+                    
+                    # Check if this is the units/rate line
+                    if re.match(r'^\d+\.\d+\s+£', next_line):
+                        rate_line_index = j
+                        # Add the rate line content (which may include location after the amount)
+                        description_parts.append(next_line)
+                        j += 1
                         break
-                    description_parts.append(next_line)
+                    
+                    # Stop if we hit the next job
+                    if next_line.startswith('Daniel Hanson:') or re.match(r'^Total Company Income', next_line):
+                        break
+                    
+                    # Include lines before rate line
+                    if next_line:
+                        description_parts.append(next_line)
                     j += 1
+                
+                # After finding rate line, continue for 2-3 more lines to get location/job type
+                if rate_line_index:
+                    for k in range(2):
+                        if j < len(lines):
+                            next_line = lines[j].strip()
+                            if next_line and not next_line.startswith('Daniel Hanson:'):
+                                description_parts.append(next_line)
+                                j += 1
+                            else:
+                                break
                 
                 job_item['description'] = ' '.join(description_parts)
                 
@@ -247,12 +268,24 @@ class PayslipExtractor:
                 # Extract client (between first | and second |)
                 client_match = re.search(r'\|\s*([^|]+?)\s*\|', desc)
                 if client_match:
-                    job_item['client'] = client_match.group(1).strip()
+                    client_text = client_match.group(1).strip()
+                    # Clean up client: remove units/rate pattern and codes
+                    client_text = re.sub(r'\s+\d+\.\d+\s+£[\d,]+\.\d+.*$', '', client_text)  # Remove rate info
+                    client_text = re.sub(r'\s+(SCS|TVS|IFM|Limited|Rico)$', '', client_text)  # Remove trailing codes
+                    client_text = ' '.join(client_text.split())  # Normalize whitespace
+                    if client_text:
+                        job_item['client'] = client_text
                 
                 # Extract location (between second | and third |)
                 location_match = re.search(r'\|[^|]+\|\s*([^|]+?)\s*\|', desc)
                 if location_match:
-                    job_item['location'] = location_match.group(1).strip()
+                    location_text = location_match.group(1).strip()
+                    # Clean up location: remove dates, codes, and extra info
+                    location_text = re.sub(r'\s+\d{2}/\d{2}/\d{4}.*$', '', location_text)  # Remove dates and after
+                    location_text = re.sub(r'\s+(SCS|TVS|IFM|Limited|Rico)\s*', ' ', location_text)  # Remove codes
+                    location_text = ' '.join(location_text.split())  # Normalize whitespace
+                    if location_text:
+                        job_item['location'] = location_text
                 
                 # Extract job type (after third |, before date/time info)
                 job_type_match = re.search(r'\|[^|]+\|[^|]+\|\s*([^|]+?)(?:\s*-\s*(?:ND|AP|Priority|4HR|8HR|6HR|Timed)|\s*\|)', desc)
@@ -272,9 +305,10 @@ class PayslipExtractor:
                 # 2024-2025: "1.00 £22.50 [rest]" on line i+1 or i+2
                 # 2021-2023: "1.00 £22.50 Rico [rest]" on line i+3 to i+6
                 units_rate_match = None
+                rate_line_content = None
                 
                 # Try 2024-2025 format first (closer to job line, no Rico)
-                for offset in [1, 2]:
+                for offset in [1, 2, 3]:
                     if i + offset < len(lines):
                         forward_line = lines[i+offset].strip()
                         # Match: units (decimal) followed by £rate (NOT followed by Rico immediately)

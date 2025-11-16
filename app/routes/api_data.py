@@ -401,6 +401,83 @@ def api_backup_database():
         }), 500
 
 
+@data_bp.route('/upload-backup', methods=['POST'])
+def api_upload_backup():
+    """Upload a database backup file."""
+    try:
+        # Check if file was uploaded
+        if 'backup_file' not in request.files:
+            return jsonify({
+                'success': False,
+                'error': 'No file uploaded'
+            }), 400
+        
+        file = request.files['backup_file']
+        
+        # Check if filename is empty
+        if file.filename == '':
+            return jsonify({
+                'success': False,
+                'error': 'No file selected'
+            }), 400
+        
+        # Validate file extension
+        if not file.filename.endswith('.db'):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid file type. Only .db files are allowed'
+            }), 400
+        
+        # Create backups directory if it doesn't exist
+        backup_dir = Path('data/database/backups')
+        backup_dir.mkdir(parents=True, exist_ok=True)
+        
+        # Create filename with timestamp
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        original_name = Path(file.filename).stem
+        backup_file = backup_dir / f'{original_name}_{timestamp}.db'
+        
+        # Save the uploaded file
+        file.save(str(backup_file))
+        
+        # Get file size
+        size_mb = backup_file.stat().st_size / (1024 * 1024)
+        
+        # Verify it's a valid SQLite database
+        try:
+            conn = sqlite3.connect(str(backup_file))
+            cursor = conn.cursor()
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = cursor.fetchall()
+            conn.close()
+            
+            if not tables:
+                backup_file.unlink()  # Delete invalid file
+                return jsonify({
+                    'success': False,
+                    'error': 'Invalid database file - no tables found'
+                }), 400
+        except sqlite3.Error as e:
+            if backup_file.exists():
+                backup_file.unlink()  # Delete invalid file
+            return jsonify({
+                'success': False,
+                'error': f'Invalid SQLite database file: {str(e)}'
+            }), 400
+        
+        return jsonify({
+            'success': True,
+            'message': 'Backup uploaded successfully',
+            'filename': backup_file.name,
+            'size_mb': round(size_mb, 2)
+        })
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @data_bp.route('/export-runsheets', methods=['GET'])
 def api_export_runsheets():
     """Export run sheets to CSV."""
@@ -1199,6 +1276,103 @@ def api_generate_custom_report():
                         'estimated_loss': round(total_loss, 2)
                     },
                     'dnco_jobs': dnco_jobs_with_estimates
+                }
+                
+            elif report_type == 'earnings_discrepancy':
+                # Earnings Discrepancy Report - Compare payslip vs runsheet earnings by week
+                # Get all payslips for the selected period
+                cursor.execute(f"""
+                    SELECT p.week_number, p.tax_year, p.net_payment, p.period_end
+                    FROM payslips p
+                    WHERE p.tax_year = ?
+                    ORDER BY p.week_number
+                """, (year if year else '2025',))
+                payslips = cursor.fetchall()
+                
+                discrepancies = []
+                total_discrepancy = 0
+                
+                for payslip in payslips:
+                    week_num, tax_year, payslip_amount, period_end = payslip
+                    
+                    if not period_end:
+                        continue
+                    
+                    # Calculate week start (period_end is Saturday, so subtract 6 days)
+                    from datetime import datetime, timedelta
+                    try:
+                        saturday = datetime.strptime(period_end, '%d/%m/%Y')
+                        sunday = saturday - timedelta(days=6)
+                        
+                        # Generate all dates in the week
+                        week_dates = []
+                        current = sunday
+                        for _ in range(7):
+                            week_dates.append(current.strftime('%d/%m/%Y'))
+                            current += timedelta(days=1)
+                        
+                        # Get runsheet earnings for this week (include completed and extra)
+                        placeholders = ','.join(['?' for _ in week_dates])
+                        cursor.execute(f"""
+                            SELECT SUM(pay_amount)
+                            FROM run_sheet_jobs
+                            WHERE date IN ({placeholders})
+                            AND UPPER(status) IN ('COMPLETED', 'EXTRA')
+                        """, week_dates)
+                        
+                        runsheet_result = cursor.fetchone()
+                        runsheet_amount = runsheet_result[0] if runsheet_result and runsheet_result[0] else 0
+                        
+                        # Get deductions from payslip for this week
+                        cursor.execute("""
+                            SELECT 
+                                ji.client,
+                                SUM(ji.amount) as total_amount
+                            FROM job_items ji
+                            JOIN payslips p ON ji.payslip_id = p.id
+                            WHERE p.period_end = ?
+                            AND ji.client IN ('Deduction', 'Company Margin')
+                            GROUP BY ji.client
+                        """, (period_end,))
+                        
+                        deduction_amount = 0
+                        company_margin_amount = 0
+                        
+                        for row in cursor.fetchall():
+                            if row[0] == 'Deduction':
+                                deduction_amount = abs(row[1] or 0)
+                            elif row[0] == 'Company Margin':
+                                company_margin_amount = abs(row[1] or 0)
+                        
+                        # Subtract deductions from runsheet amount (to match Weekly Summary)
+                        total_deductions = deduction_amount + company_margin_amount
+                        runsheet_amount_after_deductions = runsheet_amount - total_deductions
+                        
+                        # Calculate discrepancy
+                        discrepancy = runsheet_amount_after_deductions - (payslip_amount or 0)
+                        
+                        # Only include weeks with discrepancies
+                        if abs(discrepancy) > 0.01:  # Ignore tiny differences
+                            total_discrepancy += discrepancy
+                            discrepancies.append({
+                                'week': week_num,
+                                'year': tax_year,
+                                'payslip_amount': round(payslip_amount or 0, 2),
+                                'runsheet_amount': round(runsheet_amount_after_deductions, 2),
+                                'discrepancy': round(discrepancy, 2),
+                                'period_end': period_end
+                            })
+                    except Exception as e:
+                        print(f"Error processing week {week_num}: {e}")
+                        continue
+                
+                report_data = {
+                    'total_records': len(discrepancies),
+                    'summary': {
+                        'weeks_with_discrepancy': len(discrepancies),
+                        'total_discrepancy': round(total_discrepancy, 2)
+                    },
+                    'discrepancies': discrepancies
                 }
                 
             elif report_type == 'discrepancies':

@@ -498,15 +498,22 @@
                         </div>
                         <div class="card-body">
                             <div class="row g-3 mb-3">
-                                <div class="col-md-6">
+                                <div class="col-md-4">
                                     <button class="btn btn-primary w-100" onclick="backupDatabase()">
                                         <i class="bi bi-download me-2"></i>Create Backup
                                     </button>
                                     <small class="text-muted d-block mt-2 text-center">Creates a timestamped backup of the database</small>
                                 </div>
-                                <div class="col-md-6">
+                                <div class="col-md-4">
+                                    <button class="btn btn-success w-100" onclick="document.getElementById('uploadBackupInput').click()">
+                                        <i class="bi bi-upload me-2"></i>Upload Backup
+                                    </button>
+                                    <input type="file" id="uploadBackupInput" accept=".db" style="display: none;" onchange="uploadBackup(this)">
+                                    <small class="text-muted d-block mt-2 text-center">Upload a database backup file</small>
+                                </div>
+                                <div class="col-md-4">
                                     <button class="btn btn-outline-primary w-100" onclick="loadBackupsList()">
-                                        <i class="bi bi-arrow-clockwise me-2"></i>Refresh Backups List
+                                        <i class="bi bi-arrow-clockwise me-2"></i>Refresh List
                                     </button>
                                     <small class="text-muted d-block mt-2 text-center">Reload available backups</small>
                                 </div>

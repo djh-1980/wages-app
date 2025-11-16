@@ -233,16 +233,16 @@ class RunsheetModel:
         return rows_affected > 0
     
     @staticmethod
-    def add_extra_job(date, job_number, customer, activity='', job_address='', status='extra'):
+    def add_extra_job(date, job_number, customer, activity='', job_address='', status='extra', pay_amount=None):
         """Add an extra job to a run sheet."""
         query = """
             INSERT INTO run_sheet_jobs 
-            (date, job_number, customer, activity, job_address, status)
-            VALUES (?, ?, ?, ?, ?, ?)
+            (date, job_number, customer, activity, job_address, status, pay_amount)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
         """
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            cursor.execute(query, (date, job_number, customer, activity, job_address, status))
+            cursor.execute(query, (date, job_number, customer, activity, job_address, status, pay_amount))
             conn.commit()
             return cursor.lastrowid
     
