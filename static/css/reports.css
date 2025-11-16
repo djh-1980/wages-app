@@ -43,9 +43,12 @@
 
 /* Weekly Summary Styles - TVS Theme */
 .weekly-hero {
+    background: linear-gradient(135deg, #4a6fa5 0%, #2c5282 50%, #1a365d 100%);
     background: var(--primary-gradient, linear-gradient(135deg, #4a6fa5 0%, #2c5282 50%, #1a365d 100%));
     padding: 2rem;
+    border-radius: 16px;
     border-radius: var(--radius-xl, 16px);
+    box-shadow: 0 8px 20px rgba(0,0,0,0.12);
     box-shadow: var(--shadow-lg, 0 8px 20px rgba(0,0,0,0.12));
     margin-bottom: 1.5rem;
 }
