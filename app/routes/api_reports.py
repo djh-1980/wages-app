@@ -1194,20 +1194,45 @@ def api_weekly_summary():
             
             status_breakdown = dict(ordered_status_breakdown)
             
-            # Estimate lost earnings from DNCO jobs based on historical average
+            # Estimate lost earnings from DNCO jobs using customer-specific historical averages
             estimated_dnco_loss = 0
             if dnco_count > 0:
-                # Get average earnings per completed job from historical data
-                cursor.execute("""
-                    SELECT AVG(pay_amount) as avg_pay
+                # Get all DNCO jobs for this week
+                cursor.execute(f"""
+                    SELECT customer, pay_amount
                     FROM run_sheet_jobs
-                    WHERE status = 'completed' 
-                    AND pay_amount IS NOT NULL 
-                    AND pay_amount > 0
-                """)
-                avg_result = cursor.fetchone()
-                avg_pay = avg_result['avg_pay'] if avg_result and avg_result['avg_pay'] else 0
-                estimated_dnco_loss = round(dnco_count * avg_pay, 2)
+                    WHERE date IN ({placeholders})
+                    AND (UPPER(status) = 'DNCO')
+                """, dates_in_week)
+                dnco_jobs = cursor.fetchall()
+                
+                # Calculate estimated loss for each DNCO job based on customer history
+                for dnco_job in dnco_jobs:
+                    customer = dnco_job['customer']
+                    pay_amount = dnco_job['pay_amount']
+                    
+                    if pay_amount:
+                        # Use actual pay_amount if available
+                        estimated_dnco_loss += pay_amount
+                    else:
+                        # Look up average pay for this customer from historical completed jobs
+                        cursor.execute("""
+                            SELECT AVG(pay_amount) as avg_pay
+                            FROM run_sheet_jobs
+                            WHERE customer = ? 
+                            AND pay_amount IS NOT NULL 
+                            AND pay_amount > 0
+                            AND UPPER(status) != 'DNCO'
+                        """, (customer,))
+                        avg_result = cursor.fetchone()
+                        
+                        if avg_result and avg_result['avg_pay']:
+                            estimated_dnco_loss += avg_result['avg_pay']
+                        else:
+                            # If no historical data, use £15 default
+                            estimated_dnco_loss += 15.0
+                
+                estimated_dnco_loss = round(estimated_dnco_loss, 2)
                 
                 # Add estimated loss to DNCO status breakdown
                 for status_key in ['DNCO', 'dnco']:

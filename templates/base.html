@@ -6,7 +6,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <title>{% block title %}TVS Wages Management{% endblock %}</title>
+    <title>{% block title %}TVS TCMS{% endblock %}</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon.svg') }}">
@@ -34,7 +34,7 @@
         <div class="container-fluid">
             <a class="navbar-brand d-flex align-items-center" href="/">
                 <img src="{{ url_for('static', filename='images/tvs-logo.svg') }}" alt="TVS Logo" height="32" class="me-2">
-                <span class="fw-bold">TVS Wages</span>
+                <span class="fw-bold">TVS TCMS</span>
                 <span id="navAutoSyncBadge" class="badge bg-danger ms-2 auto-sync-badge" title="Click to force sync">
                     <i class="bi bi-arrow-repeat" id="navAutoSyncIcon"></i> <span id="navAutoSyncText">Auto-Sync Off</span>
                 </span>

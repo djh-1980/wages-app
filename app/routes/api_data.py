@@ -1015,3 +1015,520 @@ def api_delete_backup():
             'success': False,
             'error': str(e)
         }), 500
+
+
+@data_bp.route('/reports/custom', methods=['POST'])
+def api_generate_custom_report():
+    """Generate custom reports based on type and filters."""
+    try:
+        data = request.json
+        report_type = data.get('report_type', '')
+        year = data.get('year', '')
+        week = data.get('week', '')
+        month = data.get('month', '')
+        
+        if not report_type:
+            return jsonify({
+                'success': False,
+                'error': 'Report type is required'
+            }), 400
+        
+        # Build date filter - dates are in DD/MM/YYYY format
+        date_filter = ""
+        if year and week:
+            # Filter by week number - get week start/end dates
+            from datetime import datetime, timedelta
+            year_int = int(year)
+            week_int = int(week)
+            # Get first day of year
+            jan1 = datetime(year_int, 1, 1)
+            # Calculate week start (assuming week 1 starts on first Monday)
+            days_to_monday = (7 - jan1.weekday()) % 7
+            week_start = jan1 + timedelta(days=days_to_monday + (week_int - 1) * 7)
+            week_end = week_start + timedelta(days=6)
+            
+            # Generate list of dates in DD/MM/YYYY format for this week
+            week_dates = []
+            current = week_start
+            while current <= week_end:
+                week_dates.append(current.strftime('%d/%m/%Y'))
+                current += timedelta(days=1)
+            
+            # Create IN clause for exact date matching
+            date_placeholders = ','.join(['?' for _ in week_dates])
+            date_filter = f"AND date IN ({date_placeholders})"
+            # Store week_dates for later use in query
+            week_dates_filter = week_dates
+        elif year and month:
+            date_filter = f"AND substr(date, 7, 4) = '{year}' AND substr(date, 4, 2) = '{int(month):02d}'"
+        elif year:
+            date_filter = f"AND substr(date, 7, 4) = '{year}'"
+        elif month:
+            date_filter = f"AND substr(date, 4, 2) = '{int(month):02d}'"
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            if report_type == 'earnings':
+                # Earnings Summary Report
+                cursor.execute(f"""
+                    SELECT 
+                        date, week_number, gross_pay, tax, ni, other_deductions, net_pay, status
+                    FROM payslips
+                    WHERE 1=1 {date_filter}
+                    ORDER BY date DESC
+                """)
+                payslips = cursor.fetchall()
+                
+                total_gross = sum(p[2] or 0 for p in payslips)
+                total_net = sum(p[6] or 0 for p in payslips)
+                
+                report_data = {
+                    'total_records': len(payslips),
+                    'summary': {
+                        'total_gross': round(total_gross, 2),
+                        'total_net': round(total_net, 2),
+                        'payslips_count': len(payslips)
+                    },
+                    'payslips': [{
+                        'date': p[0], 'week': p[1], 'gross': p[2], 'net': p[6], 'status': p[7]
+                    } for p in payslips]
+                }
+                
+            elif report_type == 'jobs':
+                # Jobs Breakdown Report
+                cursor.execute(f"""
+                    SELECT ji.job_number, ji.customer_name, ji.amount, p.date
+                    FROM job_items ji
+                    LEFT JOIN payslips p ON ji.payslip_id = p.id
+                    WHERE 1=1 {date_filter.replace('date', 'p.date') if date_filter else ''}
+                    ORDER BY p.date DESC
+                """)
+                jobs = cursor.fetchall()
+                
+                total_amount = sum(j[2] or 0 for j in jobs)
+                
+                report_data = {
+                    'total_records': len(jobs),
+                    'summary': {
+                        'total_jobs': len(jobs),
+                        'total_amount': round(total_amount, 2)
+                    },
+                    'jobs': [{'job': j[0], 'customer': j[1], 'amount': j[2], 'date': j[3]} for j in jobs]
+                }
+                
+            elif report_type == 'mileage':
+                # Mileage Report
+                cursor.execute(f"""
+                    SELECT date, job_number, customer, pay_amount
+                    FROM run_sheet_jobs
+                    WHERE pay_amount IS NOT NULL AND pay_amount > 0
+                    {date_filter.replace('date', 'run_sheet_jobs.date') if date_filter else ''}
+                    ORDER BY date DESC
+                """)
+                mileage_data = cursor.fetchall()
+                
+                total_amount = sum(m[3] or 0 for m in mileage_data)
+                
+                report_data = {
+                    'total_records': len(mileage_data),
+                    'summary': {
+                        'total_amount': round(total_amount, 2),
+                        'total_jobs': len(mileage_data)
+                    },
+                    'mileage': [{'date': m[0], 'job': m[1], 'customer': m[2], 'amount': m[3]} for m in mileage_data]
+                }
+                
+            elif report_type == 'dnco':
+                # DNCO Report
+                if year and week:
+                    # Use week_dates for filtering
+                    cursor.execute(f"""
+                        SELECT date, job_number, customer, job_address, pay_amount
+                        FROM run_sheet_jobs
+                        WHERE UPPER(status) = 'DNCO'
+                        {date_filter}
+                        ORDER BY date DESC
+                    """, week_dates_filter)
+                else:
+                    cursor.execute(f"""
+                        SELECT date, job_number, customer, job_address, pay_amount
+                        FROM run_sheet_jobs
+                        WHERE UPPER(status) = 'DNCO'
+                        {date_filter}
+                        ORDER BY date DESC
+                    """)
+                dnco_jobs = cursor.fetchall()
+                
+                # Calculate estimated loss using historical data for each customer
+                total_loss = 0
+                dnco_jobs_with_estimates = []
+                
+                for job in dnco_jobs:
+                    estimated_amount = job[4]  # Use pay_amount if exists
+                    
+                    if not estimated_amount:
+                        # Look up average pay for this customer from historical completed jobs
+                        cursor.execute("""
+                            SELECT AVG(pay_amount)
+                            FROM run_sheet_jobs
+                            WHERE customer = ? AND pay_amount IS NOT NULL AND pay_amount > 0
+                            AND UPPER(status) != 'DNCO'
+                        """, (job[2],))
+                        avg_result = cursor.fetchone()
+                        
+                        if avg_result and avg_result[0]:
+                            estimated_amount = round(avg_result[0], 2)
+                        else:
+                            # If no historical data, use £15 default
+                            estimated_amount = 15.0
+                    
+                    total_loss += estimated_amount
+                    dnco_jobs_with_estimates.append({
+                        'date': job[0],
+                        'job': job[1],
+                        'customer': job[2],
+                        'address': job[3],
+                        'amount': estimated_amount
+                    })
+                
+                report_data = {
+                    'total_records': len(dnco_jobs),
+                    'summary': {
+                        'total_dnco': len(dnco_jobs),
+                        'estimated_loss': round(total_loss, 2)
+                    },
+                    'dnco_jobs': dnco_jobs_with_estimates
+                }
+                
+            elif report_type == 'discrepancies':
+                # Discrepancies Report
+                cursor.execute(f"""
+                    SELECT ji.job_number, ji.customer_name, ji.amount, p.date
+                    FROM job_items ji
+                    LEFT JOIN payslips p ON ji.payslip_id = p.id
+                    WHERE ji.job_number NOT IN (SELECT job_number FROM run_sheet_jobs WHERE job_number IS NOT NULL)
+                    {date_filter.replace('date', 'p.date') if date_filter else ''}
+                    ORDER BY p.date DESC
+                """)
+                missing = cursor.fetchall()
+                
+                total_value = sum(m[2] or 0 for m in missing)
+                
+                report_data = {
+                    'total_records': len(missing),
+                    'summary': {
+                        'missing_jobs': len(missing),
+                        'total_value': round(total_value, 2)
+                    },
+                    'discrepancies': [{'job': m[0], 'customer': m[1], 'amount': m[2], 'date': m[3]} for m in missing]
+                }
+                
+            elif report_type == 'missing-runsheets':
+                # Missing Run Sheets
+                cursor.execute(f"""
+                    SELECT DISTINCT date FROM payslips
+                    WHERE date NOT IN (SELECT DISTINCT date FROM run_sheet_jobs WHERE date IS NOT NULL)
+                    {date_filter}
+                    ORDER BY date DESC
+                """)
+                missing_dates = cursor.fetchall()
+                
+                report_data = {
+                    'total_records': len(missing_dates),
+                    'summary': {'missing_dates': len(missing_dates)},
+                    'dates': [{'date': d[0]} for d in missing_dates]
+                }
+                
+            elif report_type == 'missing-payslips':
+                # Missing Payslips
+                cursor.execute(f"""
+                    SELECT DISTINCT date FROM run_sheet_jobs
+                    WHERE date NOT IN (SELECT DISTINCT date FROM payslips WHERE date IS NOT NULL)
+                    {date_filter.replace('date', 'run_sheet_jobs.date') if date_filter else ''}
+                    ORDER BY date DESC
+                """)
+                missing_dates = cursor.fetchall()
+                
+                report_data = {
+                    'total_records': len(missing_dates),
+                    'summary': {'missing_dates': len(missing_dates)},
+                    'dates': [{'date': d[0]} for d in missing_dates]
+                }
+                
+            elif report_type == 'comprehensive':
+                # Comprehensive Report
+                cursor.execute(f"SELECT COUNT(*), SUM(gross_pay), SUM(net_pay) FROM payslips WHERE 1=1 {date_filter}")
+                earnings = cursor.fetchone()
+                
+                cursor.execute(f"""
+                    SELECT COUNT(*), SUM(amount) FROM job_items ji
+                    LEFT JOIN payslips p ON ji.payslip_id = p.id
+                    WHERE 1=1 {date_filter.replace('date', 'p.date') if date_filter else ''}
+                """)
+                jobs = cursor.fetchone()
+                
+                report_data = {
+                    'total_records': (earnings[0] or 0) + (jobs[0] or 0),
+                    'summary': {
+                        'payslips': earnings[0] or 0,
+                        'total_gross': round(earnings[1] or 0, 2),
+                        'total_net': round(earnings[2] or 0, 2),
+                        'total_jobs': jobs[0] or 0,
+                        'total_job_value': round(jobs[1] or 0, 2)
+                    }
+                }
+            else:
+                return jsonify({'success': False, 'error': f'Unknown report type: {report_type}'}), 400
+        
+        return jsonify({'success': True, 'data': report_data})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@data_bp.route('/reports/custom/pdf', methods=['POST'])
+def api_generate_custom_report_pdf():
+    """Generate PDF for custom reports."""
+    try:
+        from reportlab.lib import colors
+        from reportlab.lib.pagesizes import letter, A4, landscape
+        from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer
+        from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+        from reportlab.lib.units import inch
+        from io import BytesIO
+        from datetime import datetime, timedelta
+        
+        data = request.json
+        report_type = data.get('report_type', '')
+        year = data.get('year', '')
+        week = data.get('week', '')
+        month = data.get('month', '')
+        
+        if not report_type:
+            return jsonify({'success': False, 'error': 'Report type is required'}), 400
+        
+        # Build date filter - same logic as main report
+        date_filter = ""
+        week_dates_filter = None
+        
+        if year and week:
+            year_int = int(year)
+            week_int = int(week)
+            jan1 = datetime(year_int, 1, 1)
+            days_to_monday = (7 - jan1.weekday()) % 7
+            week_start = jan1 + timedelta(days=days_to_monday + (week_int - 1) * 7)
+            week_end = week_start + timedelta(days=6)
+            
+            week_dates = []
+            current = week_start
+            while current <= week_end:
+                week_dates.append(current.strftime('%d/%m/%Y'))
+                current += timedelta(days=1)
+            
+            date_placeholders = ','.join(['?' for _ in week_dates])
+            date_filter = f"AND date IN ({date_placeholders})"
+            week_dates_filter = week_dates
+        elif year and month:
+            date_filter = f"AND substr(date, 7, 4) = '{year}' AND substr(date, 4, 2) = '{int(month):02d}'"
+        elif year:
+            date_filter = f"AND substr(date, 7, 4) = '{year}'"
+        
+        # Get report data
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            if report_type == 'dnco':
+                if year and week:
+                    cursor.execute(f"""
+                        SELECT date, job_number, customer, job_address, pay_amount
+                        FROM run_sheet_jobs
+                        WHERE UPPER(status) = 'DNCO'
+                        {date_filter}
+                        ORDER BY date DESC
+                    """, week_dates_filter)
+                else:
+                    cursor.execute(f"""
+                        SELECT date, job_number, customer, job_address, pay_amount
+                        FROM run_sheet_jobs
+                        WHERE UPPER(status) = 'DNCO'
+                        {date_filter}
+                        ORDER BY date DESC
+                    """)
+                dnco_jobs = cursor.fetchall()
+                
+                # Calculate estimated loss
+                total_loss = 0
+                dnco_jobs_with_estimates = []
+                
+                for job in dnco_jobs:
+                    estimated_amount = job[4]
+                    
+                    if not estimated_amount:
+                        cursor.execute("""
+                            SELECT AVG(pay_amount)
+                            FROM run_sheet_jobs
+                            WHERE customer = ? AND pay_amount IS NOT NULL AND pay_amount > 0
+                            AND UPPER(status) != 'DNCO'
+                        """, (job[2],))
+                        avg_result = cursor.fetchone()
+                        
+                        if avg_result and avg_result[0]:
+                            estimated_amount = round(avg_result[0], 2)
+                        else:
+                            estimated_amount = 15.0
+                    
+                    total_loss += estimated_amount
+                    dnco_jobs_with_estimates.append({
+                        'date': job[0],
+                        'job': job[1],
+                        'customer': job[2],
+                        'address': job[3],
+                        'amount': estimated_amount
+                    })
+                
+                report_data = {
+                    'summary': {
+                        'total_dnco': len(dnco_jobs),
+                        'estimated_loss': round(total_loss, 2)
+                    },
+                    'dnco_jobs': dnco_jobs_with_estimates
+                }
+            else:
+                return jsonify({'success': False, 'error': f'PDF export not supported for {report_type}'}), 400
+        
+        # Create PDF in landscape
+        buffer = BytesIO()
+        doc = SimpleDocTemplate(buffer, pagesize=landscape(A4), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+        elements = []
+        styles = getSampleStyleSheet()
+        
+        # Professional Header
+        # Build date range text
+        date_range_text = ""
+        if year and week:
+            date_range_text = f"Week {week}, {year}"
+        elif year and month:
+            month_names = ['', 'January', 'February', 'March', 'April', 'May', 'June', 
+                          'July', 'August', 'September', 'October', 'November', 'December']
+            date_range_text = f"{month_names[int(month)]} {year}"
+        elif year:
+            date_range_text = f"Year {year}"
+        else:
+            date_range_text = "All Time"
+        
+        # Try to load logo
+        from pathlib import Path as PDFPath
+        logo_png_path = PDFPath(__file__).parent.parent.parent / 'static' / 'images' / 'logo.png'
+        
+        logo_element = None
+        if logo_png_path.exists():
+            try:
+                from reportlab.platypus import Image as PDFImage
+                logo_element = PDFImage(str(logo_png_path), width=40, height=40)
+            except:
+                pass
+        
+        # Header table with logo, branding and date info
+        if logo_element:
+            header_data = [
+                [logo_element,
+                 Paragraph('<b><font size=14 color="#1a73e8">TVS - Technical Courier Management System</font></b><br/><font size=12>DNCO Report</font>', styles['Normal']), 
+                 Paragraph(f'<b>Period:</b> {date_range_text}<br/><b>Generated:</b> {datetime.now().strftime("%d/%m/%Y %H:%M")}', styles['Normal'])]
+            ]
+            header_table = Table(header_data, colWidths=[0.6*inch, 4.4*inch, 3*inch])
+        else:
+            header_data = [
+                [Paragraph('<b><font size=14 color="#1a73e8">TVS - Technical Courier Management System</font></b><br/><font size=12>DNCO Report</font>', styles['Normal']), 
+                 Paragraph(f'<b>Period:</b> {date_range_text}<br/><b>Generated:</b> {datetime.now().strftime("%d/%m/%Y %H:%M")}', styles['Normal'])]
+            ]
+            header_table = Table(header_data, colWidths=[5*inch, 3*inch])
+        
+        header_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (-1, 0), (-1, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        elements.append(header_table)
+        elements.append(Spacer(1, 5))
+        
+        # Compact Summary and Warning in one row
+        if 'summary' in report_data and report_type == 'dnco':
+            combined_data = [[
+                Paragraph(f'<b>Summary:</b> Estimated Loss: £{report_data["summary"]["estimated_loss"]:,.2f} | Total DNCO: {report_data["summary"]["total_dnco"]}', styles['Normal']),
+                Paragraph(f'<b>⚠ Jobs Not Completed</b> - These jobs represent potential lost earnings', styles['Normal'])
+            ]]
+            combined_table = Table(combined_data, colWidths=[4*inch, 4*inch])
+            combined_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#d1ecf1')),
+                ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#fff3cd')),
+                ('TEXTCOLOR', (0, 0), (0, 0), colors.black),
+                ('TEXTCOLOR', (1, 0), (1, 0), colors.HexColor('#856404')),
+                ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                ('TOPPADDING', (0, 0), (-1, -1), 6),
+                ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ]))
+            elements.append(combined_table)
+            elements.append(Spacer(1, 8))
+        
+        # DNCO jobs table
+        if report_type == 'dnco' and 'dnco_jobs' in report_data:
+            jobs_data = [['Date', 'Job Number', 'Customer', 'Address', 'Est. Loss']]
+            for job in report_data['dnco_jobs']:
+                customer = job.get('customer') or ''
+                address = job.get('address') or ''
+                
+                jobs_data.append([
+                    job.get('date', ''),
+                    job.get('job', ''),
+                    customer[:30] if len(customer) > 30 else customer,
+                    address[:40] if len(address) > 40 else address,
+                    f"£{job.get('amount', 0):.2f}"
+                ])
+            
+            jobs_table = Table(jobs_data, colWidths=[0.9*inch, 1.1*inch, 2*inch, 3*inch, 0.9*inch])
+            jobs_table.setStyle(TableStyle([
+                ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#343a40')),
+                ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                ('FONTSIZE', (0, 0), (-1, 0), 9),
+                ('TOPPADDING', (0, 0), (-1, 0), 4),
+                ('BOTTOMPADDING', (0, 0), (-1, 0), 4),
+                ('TOPPADDING', (0, 1), (-1, -1), 3),
+                ('BOTTOMPADDING', (0, 1), (-1, -1), 3),
+                ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ('FONTSIZE', (0, 1), (-1, -1), 7),
+            ]))
+            elements.append(jobs_table)
+        
+        # Build PDF
+        doc.build(elements)
+        buffer.seek(0)
+        
+        # Generate filename
+        filename = f'{report_type}_report'
+        if year and week:
+            filename += f'_{year}_week{week}'
+        elif year and month:
+            filename += f'_{year}_{month}'
+        elif year:
+            filename += f'_{year}'
+        filename += '.pdf'
+        
+        return send_file(
+            buffer,
+            mimetype='application/pdf',
+            as_attachment=True,
+            download_name=filename
+        )
+        
+    except Exception as e:
+        print(f"PDF generation error: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'success': False, 'error': str(e)}), 500

@@ -1163,3 +1163,360 @@ function showError(message) {
 }
 
 // Weekly Summary Functions moved to weekly-summary.js
+
+// ===== REPORT GENERATOR FUNCTIONS =====
+
+// Initialize report generator on page load
+document.addEventListener('DOMContentLoaded', function() {
+    initializeReportGenerator();
+});
+
+function initializeReportGenerator() {
+    // Populate year dropdown with last 5 years and select current year
+    const yearSelect = document.getElementById('yearSelect');
+    if (yearSelect && yearSelect.options.length === 0) { // Only populate if empty
+        const currentYear = new Date().getFullYear();
+        for (let year = currentYear; year >= currentYear - 5; year--) {
+            const option = document.createElement('option');
+            option.value = year;
+            option.textContent = year;
+            if (year === currentYear) {
+                option.selected = true;
+            }
+            yearSelect.appendChild(option);
+        }
+    }
+    
+    // Populate month dropdown with "All Months" selected by default
+    const monthSelect = document.getElementById('monthSelect');
+    if (monthSelect && monthSelect.options.length === 0) {
+        const allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = 'All Months';
+        allOption.selected = true;
+        monthSelect.appendChild(allOption);
+        
+        const months = ['January', 'February', 'March', 'April', 'May', 'June', 
+                       'July', 'August', 'September', 'October', 'November', 'December'];
+        months.forEach((month, index) => {
+            const option = document.createElement('option');
+            option.value = index + 1;
+            option.textContent = month;
+            monthSelect.appendChild(option);
+        });
+    }
+    
+    // Populate week dropdown (1-53) with "All Weeks" selected by default
+    const weekSelect = document.getElementById('weekSelect');
+    if (weekSelect && weekSelect.options.length === 0) {
+        const allOption = document.createElement('option');
+        allOption.value = '';
+        allOption.textContent = 'All Weeks';
+        allOption.selected = true;
+        weekSelect.appendChild(allOption);
+        
+        for (let week = 1; week <= 53; week++) {
+            const option = document.createElement('option');
+            option.value = week;
+            option.textContent = `Week ${week}`;
+            weekSelect.appendChild(option);
+        }
+    }
+    
+    // Auto-generate the report on page load
+    const reportType = document.getElementById('reportType');
+    if (reportType && reportType.value === 'dnco') {
+        generateCustomReport();
+    }
+}
+
+function selectWeek() {
+    // Clear month selection when week is selected
+    const monthSelect = document.getElementById('monthSelect');
+    if (monthSelect) {
+        monthSelect.value = '';
+    }
+    generateCustomReport();
+}
+
+function selectMonth() {
+    // Clear week selection when month is selected
+    const weekSelect = document.getElementById('weekSelect');
+    if (weekSelect) {
+        weekSelect.value = '';
+    }
+    generateCustomReport();
+}
+
+function updateReportPreview() {
+    // Auto-generate when report type changes
+    generateCustomReport();
+}
+
+// Generate custom report
+async function generateCustomReport() {
+    const reportType = document.getElementById('reportType').value;
+    const year = document.getElementById('yearSelect').value;
+    const week = document.getElementById('weekSelect').value;
+    const month = document.getElementById('monthSelect').value;
+    
+    const outputDiv = document.getElementById('customReportOutput');
+    
+    if (!reportType) {
+        outputDiv.innerHTML = `
+            <div class="text-center py-5">
+                <div class="spinner-border text-primary" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <p class="mt-3 text-muted">Select a report type to generate...</p>
+            </div>
+        `;
+        return;
+    }
+    
+    outputDiv.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Generating ${reportType} report...</p>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch('/api/data/reports/custom', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                report_type: reportType,
+                year: year,
+                week: week,
+                month: month
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayCustomReport(result.data, reportType);
+        } else {
+            outputDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ${result.error}</div>`;
+        }
+    } catch (error) {
+        console.error('Error generating report:', error);
+        outputDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error: ${error.message}</div>`;
+    }
+}
+
+function displayCustomReport(data, reportType) {
+    const outputDiv = document.getElementById('customReportOutput');
+    
+    let html = '';
+    
+    // Data table
+    if (reportType === 'earnings' && data.payslips) {
+        html += `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Week</th>
+                            <th>Gross Pay</th>
+                            <th>Net Pay</th>
+                            <th>Status</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        data.payslips.forEach(p => {
+            html += `
+                <tr>
+                    <td>${p.date}</td>
+                    <td>${p.week}</td>
+                    <td>${formatCurrency(p.gross)}</td>
+                    <td>${formatCurrency(p.net)}</td>
+                    <td><span class="badge bg-${p.status === 'paid' ? 'success' : 'warning'}">${p.status}</span></td>
+                </tr>
+            `;
+        });
+        html += `</tbody></table></div>`;
+        
+    } else if (reportType === 'jobs' && data.jobs) {
+        html += `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr><th>Job Number</th><th>Customer</th><th>Amount</th><th>Date</th></tr>
+                    </thead>
+                    <tbody>
+        `;
+        data.jobs.forEach(j => {
+            html += `<tr><td>${j.job}</td><td>${j.customer}</td><td>${formatCurrency(j.amount)}</td><td>${j.date}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+        
+    } else if (reportType === 'mileage' && data.mileage) {
+        html += `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr><th>Date</th><th>Job Number</th><th>Customer</th><th>Amount</th></tr>
+                    </thead>
+                    <tbody>
+        `;
+        data.mileage.forEach(m => {
+            html += `<tr><td>${m.date}</td><td>${m.job}</td><td>${m.customer}</td><td>${formatCurrency(m.amount)}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+        
+    } else if (reportType === 'dnco' && data.dnco_jobs) {
+        // DNCO Analysis Results Box
+        html += `
+            <div class="alert alert-info mb-3">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-info-circle-fill me-2"></i>
+                    <strong>Report Summary</strong>
+                </div>
+                <div class="row">
+                    <div class="col-md-6">
+                        <div><strong>Estimated Loss:</strong> ${formatCurrency(data.summary.estimated_loss)}</div>
+                    </div>
+                    <div class="col-md-6">
+                        <div><strong>Total Dnco:</strong> ${data.summary.total_dnco}</div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Warning banner
+        html += `
+            <div class="alert alert-warning">
+                <strong><i class="bi bi-exclamation-triangle me-2"></i>Jobs Not Completed (${data.summary.total_dnco})</strong>
+                <p class="mb-0 mt-2">These jobs were not completed and represent potential lost earnings</p>
+            </div>
+        `;
+        
+        // Table
+        html += `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr><th>Date</th><th>Job Number</th><th>Customer</th><th>Address</th><th>Est. Loss</th></tr>
+                    </thead>
+                    <tbody>
+        `;
+        data.dnco_jobs.forEach(d => {
+            html += `<tr><td>${d.date}</td><td>${d.job}</td><td>${d.customer}</td><td>${d.address}</td><td class="text-danger fw-bold">${formatCurrency(d.amount)}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+        
+    } else if (reportType === 'discrepancies' && data.discrepancies) {
+        html += `
+            <div class="alert alert-warning">
+                <strong><i class="bi bi-exclamation-triangle me-2"></i>Jobs Paid but Missing from Run Sheets</strong>
+            </div>
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr><th>Job Number</th><th>Customer</th><th>Amount</th><th>Date</th></tr>
+                    </thead>
+                    <tbody>
+        `;
+        data.discrepancies.forEach(d => {
+            html += `<tr><td>${d.job}</td><td>${d.customer}</td><td>${formatCurrency(d.amount)}</td><td>${d.date}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+        
+    } else if ((reportType === 'missing-runsheets' || reportType === 'missing-payslips') && data.dates) {
+        html += `
+            <div class="alert alert-warning">
+                <strong><i class="bi bi-calendar-x me-2"></i>Missing Dates</strong>
+            </div>
+            <div class="row">
+        `;
+        data.dates.forEach(d => {
+            html += `<div class="col-md-3 mb-2"><span class="badge bg-warning">${d.date}</span></div>`;
+        });
+        html += `</div>`;
+    }
+    
+    outputDiv.innerHTML = html;
+}
+
+async function exportCustomReportPDF() {
+    const reportType = document.getElementById('reportType').value;
+    const year = document.getElementById('yearSelect').value;
+    const week = document.getElementById('weekSelect').value;
+    const month = document.getElementById('monthSelect').value;
+    
+    if (!reportType) {
+        showError('Please select a report type first');
+        return;
+    }
+    
+    try {
+        showSuccess('Generating PDF...');
+        
+        const response = await fetch('/api/data/reports/custom/pdf', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                report_type: reportType,
+                year: year,
+                week: week,
+                month: month
+            })
+        });
+        
+        if (response.ok) {
+            // Get the PDF blob
+            const blob = await response.blob();
+            
+            // Create download link
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            
+            // Generate filename
+            let filename = `${reportType}_report`;
+            if (year && week) {
+                filename += `_${year}_week${week}`;
+            } else if (year && month) {
+                filename += `_${year}_${month}`;
+            } else if (year) {
+                filename += `_${year}`;
+            }
+            filename += '.pdf';
+            
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+            document.body.removeChild(a);
+            
+            showSuccess('PDF downloaded successfully!');
+        } else {
+            const error = await response.json();
+            showError('Failed to generate PDF: ' + (error.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error exporting PDF:', error);
+        showError('Error generating PDF: ' + error.message);
+    }
+}
+
+function exportCustomReportCSV() {
+    const reportType = document.getElementById('reportType').value;
+    
+    if (!reportType) {
+        showError('Please select a report type first');
+        return;
+    }
+    
+    showSuccess('CSV export functionality coming soon!');
+}

@@ -28,6 +28,50 @@ class WeeklySummaryPDFService:
         self.styles = getSampleStyleSheet() if REPORTLAB_AVAILABLE else None
         self.setup_custom_styles()
     
+    def create_header(self, report_title, period_text):
+        """Create standardized TVS TCMS header for all PDFs."""
+        if not REPORTLAB_AVAILABLE:
+            return []
+        
+        elements = []
+        
+        # Try to load logo
+        logo_path = Path(__file__).parent.parent.parent / 'static' / 'images' / 'tvs-logo.svg'
+        logo_png_path = Path(__file__).parent.parent.parent / 'static' / 'images' / 'logo.png'
+        
+        logo_element = None
+        if logo_png_path.exists():
+            try:
+                logo_element = Image(str(logo_png_path), width=40, height=40)
+            except:
+                pass
+        
+        # Header table with logo, branding and date info
+        if logo_element:
+            header_data = [
+                [logo_element,
+                 Paragraph('<b><font size=14 color="#1a73e8">TVS - Technical Courier Management System</font></b><br/><font size=12>' + report_title + '</font>', self.styles['Normal']), 
+                 Paragraph(f'<b>Period:</b> {period_text}<br/><b>Generated:</b> {datetime.now().strftime("%d/%m/%Y %H:%M")}', self.styles['Normal'])]
+            ]
+            header_table = Table(header_data, colWidths=[0.6*inch, 4.4*inch, 3*inch])
+        else:
+            header_data = [
+                [Paragraph('<b><font size=14 color="#1a73e8">TVS - Technical Courier Management System</font></b><br/><font size=12>' + report_title + '</font>', self.styles['Normal']), 
+                 Paragraph(f'<b>Period:</b> {period_text}<br/><b>Generated:</b> {datetime.now().strftime("%d/%m/%Y %H:%M")}', self.styles['Normal'])]
+            ]
+            header_table = Table(header_data, colWidths=[5*inch, 3*inch])
+        
+        header_table.setStyle(TableStyle([
+            ('ALIGN', (0, 0), (0, 0), 'LEFT'),
+            ('ALIGN', (-1, 0), (-1, 0), 'RIGHT'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('BOTTOMPADDING', (0, 0), (-1, -1), 10),
+        ]))
+        elements.append(header_table)
+        elements.append(Spacer(1, 10))
+        
+        return elements
+    
     def setup_custom_styles(self):
         """Setup custom paragraph styles for the reports."""
         if not REPORTLAB_AVAILABLE:
@@ -112,46 +156,9 @@ class WeeklySummaryPDFService:
         
         story = []
         
-        # Try to load logo
-        logo_path = Path(__file__).parent.parent.parent / 'static' / 'images' / 'logo.png'
-        
-        # Header with logo and title
-        header_content = []
-        if logo_path.exists():
-            try:
-                logo = Image(str(logo_path), width=60, height=60)
-                header_content.append(logo)
-            except:
-                header_content.append(Paragraph('<b>TVS</b>', 
-                    ParagraphStyle('Logo', fontSize=24, textColor=colors.HexColor('#3498db'), fontName='Helvetica-Bold')))
-        else:
-            # Fallback: Create a simple colored box as logo placeholder
-            header_content.append(Paragraph('<b>TVS</b>', 
-                ParagraphStyle('Logo', fontSize=24, textColor=colors.HexColor('#3498db'), fontName='Helvetica-Bold')))
-        
-        header_content.append(
-            Paragraph('<b>WEEKLY PERFORMANCE REPORT</b><br/><font size="10" color="#666">Week {week} • {dates}</font>'.format(
-                week=data.get('week_number', 'N/A'),
-                dates=data.get('week_label', '')
-            ), ParagraphStyle('HeaderTitle', fontSize=20, textColor=colors.HexColor('#1a1a1a'), 
-                            fontName='Helvetica-Bold', leftIndent=10))
-        )
-        
-        header_content.append(
-            Paragraph(f'<font size="8" color="#999">Generated: {datetime.now().strftime("%d/%m/%Y %H:%M")}</font>',
-                     ParagraphStyle('GenDate', fontSize=8, textColor=colors.HexColor('#999'), alignment=TA_RIGHT))
-        )
-        
-        header_table = Table([header_content], colWidths=[0.8*inch, 5.5*inch, 1.5*inch])
-        header_table.setStyle(TableStyle([
-            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
-            ('LEFTPADDING', (0, 0), (-1, -1), 0),
-            ('RIGHTPADDING', (0, 0), (-1, -1), 0),
-        ]))
-        story.append(header_table)
-        story.append(Spacer(1, 8))
-        story.append(HRFlowable(width="100%", thickness=1.5, color=colors.HexColor('#3498db')))
-        story.append(Spacer(1, 10))
+        # Add standardized TVS TCMS header
+        period_text = f"Week {data.get('week_number', 'N/A')} • {data.get('week_label', '')}"
+        story.extend(self.create_header('Weekly Performance Report', period_text))
         
         # KEY METRICS CARDS - Compact horizontal layout
         summary = data.get('summary', {})

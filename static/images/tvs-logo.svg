@@ -1,6 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-  <!-- Outer circle with gradient -->
   <defs>
     <linearGradient id="tvs-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
       <stop offset="0%" style="stop-color:#4a6fa5;stop-opacity:1" />
@@ -13,16 +12,19 @@
     </linearGradient>
   </defs>
   
+  <!-- White background circle for visibility on dark backgrounds -->
+  <circle cx="100" cy="100" r="95" fill="white"/>
+  
   <!-- Main circle -->
-  <circle cx="100" cy="100" r="95" fill="none" stroke="url(#tvs-gradient)" stroke-width="8"/>
+  <circle cx="100" cy="100" r="90" fill="none" stroke="url(#tvs-gradient)" stroke-width="6"/>
   
   <!-- Accent arc -->
-  <path d="M 30 100 A 70 70 0 0 1 100 30" fill="none" stroke="url(#tvs-accent)" stroke-width="6" stroke-linecap="round"/>
+  <path d="M 30 100 A 70 70 0 0 1 100 30" fill="none" stroke="url(#tvs-accent)" stroke-width="5" stroke-linecap="round"/>
   
   <!-- TVS Text -->
   <text x="100" y="85" font-family="Arial, sans-serif" font-size="36" font-weight="bold" text-anchor="middle" fill="url(#tvs-gradient)">TVS</text>
   
-  <!-- Supply Chain Solutions -->
-  <text x="100" y="105" font-family="Arial, sans-serif" font-size="12" font-weight="600" text-anchor="middle" fill="#4a6fa5">Supply Chain</text>
-  <text x="100" y="120" font-family="Arial, sans-serif" font-size="12" font-weight="600" text-anchor="middle" fill="#4a6fa5">Solutions</text>
+  <!-- TCMS subtitle -->
+  <text x="100" y="105" font-family="Arial, sans-serif" font-size="14" font-weight="600" text-anchor="middle" fill="#4a6fa5">TCMS</text>
+  <text x="100" y="120" font-family="Arial, sans-serif" font-size="10" font-weight="500" text-anchor="middle" fill="#718096">Management System</text>
 </svg>
