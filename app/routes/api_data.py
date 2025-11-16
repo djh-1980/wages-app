@@ -922,16 +922,31 @@ def api_restore_database():
 def api_download_backup(filename):
     """Download a backup file."""
     try:
-        backup_path = Path('data/database/backups') / filename
+        # Get the absolute path to the project root
+        from pathlib import Path
+        import os
         
-        if not backup_path.exists():
+        # Try multiple possible locations
+        possible_paths = [
+            Path('data/database/backups') / filename,
+            Path('../data/database/backups') / filename,
+            Path(__file__).parent.parent.parent / 'data' / 'database' / 'backups' / filename
+        ]
+        
+        backup_path = None
+        for path in possible_paths:
+            if path.exists():
+                backup_path = path
+                break
+        
+        if not backup_path:
             return jsonify({
                 'success': False,
-                'error': f'Backup file not found: {filename}'
+                'error': f'Backup file not found: {filename}. Tried paths: {[str(p) for p in possible_paths]}'
             }), 404
         
-        # Security check - ensure the file is within the backups directory
-        if not str(backup_path.resolve()).startswith(str(Path('data/database/backups').resolve())):
+        # Security check - ensure the file is within a backups directory
+        if 'backups' not in str(backup_path.resolve()):
             return jsonify({
                 'success': False,
                 'error': 'Invalid file path'
