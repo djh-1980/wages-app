@@ -1234,34 +1234,25 @@ def api_weekly_summary():
             daily_data = {row['date']: row for row in cursor.fetchall()}
             
             # Build daily breakdown in correct order (Sunday to Saturday)
+            # Only include days where you actually worked (had jobs)
             daily_breakdown = []
             for date_str in dates_in_week:
                 if date_str in daily_data:
                     row = daily_data[date_str]
-                    daily_breakdown.append({
-                        'date': row['date'],
-                        'day_name': datetime.strptime(row['date'], '%d/%m/%Y').strftime('%A'),
-                        'jobs': row['jobs'],
-                        'completed': row['completed'],
-                        'extra': row['extra'],
-                        'dnco': row['dnco'],
-                        'missed': row['missed'],
-                        'pending': row['pending'],
-                        'earnings': round(row['earnings'] or 0, 2)
-                    })
-                else:
-                    # No jobs for this day
-                    daily_breakdown.append({
-                        'date': date_str,
-                        'day_name': datetime.strptime(date_str, '%d/%m/%Y').strftime('%A'),
-                        'jobs': 0,
-                        'completed': 0,
-                        'extra': 0,
-                        'dnco': 0,
-                        'missed': 0,
-                        'pending': 0,
-                        'earnings': 0
-                    })
+                    # Only add days with jobs > 0
+                    if row['jobs'] > 0:
+                        daily_breakdown.append({
+                            'date': row['date'],
+                            'day_name': datetime.strptime(row['date'], '%d/%m/%Y').strftime('%A'),
+                            'jobs': row['jobs'],
+                            'completed': row['completed'],
+                            'extra': row['extra'],
+                            'dnco': row['dnco'],
+                            'missed': row['missed'],
+                            'pending': row['pending'],
+                            'earnings': round(row['earnings'] or 0, 2)
+                        })
+                # Skip days with no jobs (absent days)
             
             # Mileage data
             cursor.execute(f"""
@@ -1281,29 +1272,43 @@ def api_weekly_summary():
             days_with_mileage = 0
             
             for row in cursor.fetchall():
+                date = row['date']
                 mileage = row['mileage'] or 0
                 fuel_cost = row['fuel_cost'] or 0
                 
-                if mileage > 0:
-                    days_with_mileage += 1
-                    total_mileage += mileage
-                    total_fuel_cost += fuel_cost
-                
-                mileage_dict[row['date']] = {
-                    'date': row['date'],
-                    'mileage': mileage,
-                    'fuel_cost': round(fuel_cost, 2)
-                }
-                
-                mileage_data.append({
-                    'date': row['date'],
-                    'mileage': mileage,
-                    'fuel_cost': round(fuel_cost, 2)
-                })
+                # Only include mileage data for days where you actually worked
+                if date in daily_data and daily_data[date]['jobs'] > 0:
+                    if mileage > 0:
+                        days_with_mileage += 1
+                        total_mileage += mileage
+                        total_fuel_cost += fuel_cost
+                    
+                    mileage_dict[date] = {
+                        'date': date,
+                        'mileage': mileage,
+                        'fuel_cost': round(fuel_cost, 2)
+                    }
+                    
+                    mileage_data.append({
+                        'date': date,
+                        'mileage': mileage,
+                        'fuel_cost': round(fuel_cost, 2)
+                    })
             
             # Check for days with jobs but missing mileage
+            # Exclude days with attendance entries (absent days)
+            cursor.execute(f"""
+                SELECT date FROM attendance 
+                WHERE date IN ({placeholders})
+            """, dates_in_week)
+            attendance_dates = set(row['date'] for row in cursor.fetchall())
+            
             missing_mileage_dates = []
             for day in daily_breakdown:
+                # Skip if day has attendance entry (absent)
+                if day['date'] in attendance_dates:
+                    continue
+                    
                 if day['jobs'] > 0:  # Day has jobs
                     mileage_info = mileage_dict.get(day['date'])
                     if not mileage_info or mileage_info['mileage'] == 0:

@@ -85,7 +85,11 @@ class RunsheetModel:
                 sort_order = 'DESC'
             
             # Build WHERE clause for filters
-            where_conditions = ["r.date IS NOT NULL"]
+            # Exclude dates that have attendance entries (absent days)
+            where_conditions = [
+                "r.date IS NOT NULL",
+                "NOT EXISTS (SELECT 1 FROM attendance a WHERE a.date = r.date)"
+            ]
             
             if filter_year:
                 where_conditions.append(f"substr(r.date, 7, 4) = '{filter_year}'")
