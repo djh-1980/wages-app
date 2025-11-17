@@ -12,6 +12,14 @@ let currentAuditHistory = [];
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
     initializePaypoint();
+    
+    // Reset Use Stock modal when it's closed
+    const useStockModal = document.getElementById('useStockModal');
+    if (useStockModal) {
+        useStockModal.addEventListener('hidden.bs.modal', function() {
+            resetUseStockModal();
+        });
+    }
 });
 
 /**
@@ -214,7 +222,7 @@ function updateDevicesTable() {
     if (availableStock.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="text-center text-muted" style="padding: 3rem;">
+                <td colspan="6" class="text-center text-muted" style="padding: 3rem;">
                     <i class="bi bi-inbox" style="font-size: 3rem; opacity: 0.3;"></i>
                     <p class="mt-2 mb-0">No stock available</p>
                     <small>Click "Add Stock" to add devices to your van</small>
@@ -231,6 +239,14 @@ function updateDevicesTable() {
             <td><span class="badge" style="background: linear-gradient(135deg, #17a2b8, #138496); font-size: 0.85rem;">${device.trace_stock}</span></td>
             <td><span class="badge bg-success" style="font-size: 0.85rem;">Available</span></td>
             <td style="color: #6c757d;">${device.notes || '-'}</td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="editStock(${device.id})" title="Edit">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteStock(${device.id})" title="Delete">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
         </tr>
     `).join('');
 }
@@ -294,6 +310,11 @@ async function loadDeployments() {
  */
 function updateDeploymentsTable() {
     const tbody = document.getElementById('deploymentsTableBody');
+    
+    // If table doesn't exist on this page, skip
+    if (!tbody) {
+        return;
+    }
     
     if (currentDeployments.length === 0) {
         tbody.innerHTML = `
@@ -370,7 +391,7 @@ function updateReturnsTable() {
     if (currentReturns.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center text-muted" style="padding: 3rem;">
+                <td colspan="8" class="text-center text-muted" style="padding: 3rem;">
                     <i class="bi bi-archive" style="font-size: 3rem; opacity: 0.3;"></i>
                     <p class="mt-2 mb-0">No returns recorded yet</p>
                     <small>Returns will appear here when you use stock</small>
@@ -389,6 +410,14 @@ function updateReturnsTable() {
             <td><span class="badge" style="background: linear-gradient(135deg, #17a2b8, #138496); font-size: 0.85rem;">${returnItem.return_trace}</span></td>
             <td style="color: #6c757d;">${returnItem.location || '-'}</td>
             <td><span class="badge bg-secondary" style="font-size: 0.85rem;">${returnItem.return_reason || '-'}</span></td>
+            <td>
+                <button class="btn btn-sm btn-outline-primary" onclick="editReturn(${returnItem.id})" title="Edit">
+                    <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn btn-sm btn-outline-danger" onclick="deleteReturn(${returnItem.id})" title="Delete">
+                    <i class="bi bi-trash"></i>
+                </button>
+            </td>
         </tr>
     `).join('');
 }
@@ -415,6 +444,11 @@ async function loadAuditHistory() {
  */
 function updateAuditTable() {
     const tbody = document.getElementById('auditTableBody');
+    
+    // If table doesn't exist on this page, skip
+    if (!tbody) {
+        return;
+    }
     
     if (currentAuditHistory.length === 0) {
         tbody.innerHTML = `
@@ -1081,5 +1115,228 @@ function useManualBarcode() {
     }
     
     handleBarcodeDetected(barcode);
+}
+
+// Edit and Delete Functions
+function editStock(id) {
+    const device = devices.find(d => d.id === id);
+    if (!device) {
+        alert('Device not found');
+        return;
+    }
+    
+    // Populate the Add Stock modal with existing data
+    document.getElementById('paypointType').value = device.paypoint_type;
+    document.getElementById('serialPtid').value = device.serial_ptid;
+    document.getElementById('traceStock').value = device.trace_stock;
+    document.getElementById('deviceNotes').value = device.notes || '';
+    
+    // Change the modal title and button
+    document.querySelector('#addStockModal .modal-title').textContent = 'Edit Stock';
+    const addButton = document.querySelector('#addStockModal .btn-primary');
+    addButton.textContent = 'Update Stock';
+    addButton.onclick = () => updateStock(id);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('addStockModal'));
+    modal.show();
+}
+
+async function updateStock(id) {
+    const paypointType = document.getElementById('paypointType').value;
+    const serialPtid = document.getElementById('serialPtid').value;
+    const traceStock = document.getElementById('traceStock').value;
+    const notes = document.getElementById('deviceNotes').value;
+    
+    if (!paypointType || !serialPtid || !traceStock) {
+        alert('Please fill in all required fields');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/paypoint/stock/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                paypoint_type: paypointType,
+                serial_ptid: serialPtid,
+                trace_stock: traceStock,
+                notes: notes
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('addStockModal')).hide();
+            await loadStock();
+            showSuccess('Stock updated successfully');
+            
+            // Reset modal
+            document.querySelector('#addStockModal .modal-title').textContent = 'Add Stock to Van';
+            const addButton = document.querySelector('#addStockModal .btn-primary');
+            addButton.textContent = 'Add Stock';
+            addButton.onclick = addStock;
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error updating stock:', error);
+        alert('Error updating stock');
+    }
+}
+
+async function deleteStock(id) {
+    if (!confirm('Are you sure you want to delete this stock item?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/paypoint/stock/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            await loadStock();
+            showSuccess('Stock deleted successfully');
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error deleting stock:', error);
+        alert('Error deleting stock');
+    }
+}
+
+function editReturn(id) {
+    const returnItem = currentReturns.find(r => r.id === id);
+    if (!returnItem) {
+        alert('Return not found');
+        return;
+    }
+    
+    // Hide the device selector when editing (device already selected)
+    const deviceSelect = document.getElementById('useStockDevice');
+    if (deviceSelect) {
+        const deviceSelectGroup = deviceSelect.closest('.mb-3');
+        if (deviceSelectGroup) {
+            deviceSelectGroup.style.display = 'none';
+        }
+    }
+    
+    // Populate the Use Stock modal with existing data
+    document.getElementById('useStockJobNumber').value = returnItem.job_number;
+    document.getElementById('useStockCustomer').value = returnItem.customer || '';
+    document.getElementById('useStockLocation').value = returnItem.location || '';
+    document.getElementById('useStockReturnSerial').value = returnItem.return_serial_ptid;
+    document.getElementById('useStockReturnTrace').value = returnItem.return_trace;
+    document.getElementById('useStockReturnReason').value = returnItem.return_reason || '';
+    document.getElementById('useStockNotes').value = returnItem.notes || '';
+    
+    // Change the modal title and button
+    document.querySelector('#useStockModal .modal-title').textContent = 'Edit Return';
+    const useButton = document.querySelector('#useStockModal .btn-success');
+    useButton.textContent = 'Update Return';
+    useButton.onclick = () => updateReturn(id);
+    
+    // Show modal
+    const modal = new bootstrap.Modal(document.getElementById('useStockModal'));
+    modal.show();
+}
+
+async function updateReturn(id) {
+    const jobNumber = document.getElementById('useStockJobNumber').value;
+    const customer = document.getElementById('useStockCustomer').value;
+    const location = document.getElementById('useStockLocation').value;
+    const returnSerial = document.getElementById('useStockReturnSerial').value;
+    const returnTrace = document.getElementById('useStockReturnTrace').value;
+    const returnReason = document.getElementById('useStockReturnReason').value;
+    const notes = document.getElementById('useStockNotes').value;
+    
+    if (!jobNumber) {
+        alert('Please enter a job number');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/paypoint/returns/${id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                job_number: jobNumber,
+                customer: customer,
+                location: location,
+                return_serial_ptid: returnSerial,
+                return_trace: returnTrace,
+                return_reason: returnReason,
+                notes: notes
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            bootstrap.Modal.getInstance(document.getElementById('useStockModal')).hide();
+            await loadReturns();
+            showSuccess('Return updated successfully');
+            
+            // Reset modal
+            resetUseStockModal();
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error updating return:', error);
+        alert('Error updating return');
+    }
+}
+
+function resetUseStockModal() {
+    // Show device selector again
+    const deviceSelect = document.getElementById('useStockDevice');
+    if (deviceSelect) {
+        const deviceSelectGroup = deviceSelect.closest('.mb-3');
+        if (deviceSelectGroup) {
+            deviceSelectGroup.style.display = 'block';
+        }
+    }
+    
+    // Reset modal title and button
+    const modalTitle = document.querySelector('#useStockModal .modal-title');
+    if (modalTitle) {
+        modalTitle.textContent = 'Use Stock';
+    }
+    
+    const useButton = document.querySelector('#useStockModal .btn-success');
+    if (useButton) {
+        useButton.textContent = 'Use Stock';
+        useButton.onclick = useStock;
+    }
+}
+
+async function deleteReturn(id) {
+    if (!confirm('Are you sure you want to delete this return record?')) {
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/paypoint/returns/${id}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            await loadReturns();
+            showSuccess('Return deleted successfully');
+        } else {
+            alert('Error: ' + data.error);
+        }
+    } catch (error) {
+        console.error('Error deleting return:', error);
+        alert('Error deleting return');
+    }
 }
 

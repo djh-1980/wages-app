@@ -410,3 +410,44 @@ class PaypointModel:
             'returned_devices': row[3] or 0,
             'device_types': device_types
         }
+    
+    @staticmethod
+    def update_stock(stock_id, paypoint_type, serial_ptid, trace_stock, notes):
+        """Update a stock item."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE paypoint_stock
+                SET paypoint_type = ?, serial_ptid = ?, trace_stock = ?, notes = ?
+                WHERE id = ?
+            ''', (paypoint_type, serial_ptid, trace_stock, notes, stock_id))
+            conn.commit()
+    
+    @staticmethod
+    def delete_stock(stock_id):
+        """Delete a stock item."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM paypoint_stock WHERE id = ?', (stock_id,))
+            conn.commit()
+    
+    @staticmethod
+    def update_return(return_id, job_number, customer, location, return_serial_ptid, return_trace, return_reason, notes):
+        """Update a return record."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                UPDATE paypoint_returns
+                SET job_number = ?, customer = ?, location = ?, 
+                    return_serial_ptid = ?, return_trace = ?, return_reason = ?, notes = ?
+                WHERE id = ?
+            ''', (job_number, customer, location, return_serial_ptid, return_trace, return_reason, notes, return_id))
+            conn.commit()
+    
+    @staticmethod
+    def delete_return(return_id):
+        """Delete a return record."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('DELETE FROM paypoint_returns WHERE id = ?', (return_id,))
+            conn.commit()

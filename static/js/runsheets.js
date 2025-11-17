@@ -523,7 +523,11 @@ async function viewRunSheetJobs(date) {
                                                 <div class="mb-3 d-flex justify-content-between align-items-center">
                                                     <div>
                                                         <span class="badge bg-info px-3 py-2" style="font-size: 0.8rem;">${job.activity || 'N/A'}</span>
-                                                        <span class="badge bg-warning text-dark px-2 py-1 ms-2" style="font-size: 0.75rem;">TEST BADGE</span>
+                                                        ${job.price_agreed && job.price_agreed > 0 ? `
+                                                            <span class="badge bg-warning text-dark px-2 py-1 ms-2" style="font-size: 0.75rem;">
+                                                                Agreed: £${job.price_agreed.toFixed(2)}
+                                                            </span>
+                                                        ` : ''}
                                                     </div>
                                                     ${job.pay_amount ? `<strong class="text-success">£${job.pay_amount.toFixed(2)}</strong>` : '<span class="text-muted small">No pay data</span>'}
                                                 </div>

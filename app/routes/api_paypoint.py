@@ -269,6 +269,95 @@ def api_get_summary():
         }), 500
 
 
+@paypoint_bp.route('/stock/<int:stock_id>', methods=['PUT'])
+def api_update_stock(stock_id):
+    """Update a stock item."""
+    try:
+        data = request.json
+        PaypointModel.update_stock(
+            stock_id,
+            data.get('paypoint_type'),
+            data.get('serial_ptid'),
+            data.get('trace_stock'),
+            data.get('notes')
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Stock updated successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@paypoint_bp.route('/stock/<int:stock_id>', methods=['DELETE'])
+def api_delete_stock(stock_id):
+    """Delete a stock item."""
+    try:
+        PaypointModel.delete_stock(stock_id)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Stock deleted successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@paypoint_bp.route('/returns/<int:return_id>', methods=['PUT'])
+def api_update_return(return_id):
+    """Update a return record."""
+    try:
+        data = request.json
+        PaypointModel.update_return(
+            return_id,
+            data.get('job_number'),
+            data.get('customer'),
+            data.get('location'),
+            data.get('return_serial_ptid'),
+            data.get('return_trace'),
+            data.get('return_reason'),
+            data.get('notes')
+        )
+        
+        return jsonify({
+            'success': True,
+            'message': 'Return updated successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@paypoint_bp.route('/returns/<int:return_id>', methods=['DELETE'])
+def api_delete_return(return_id):
+    """Delete a return record."""
+    try:
+        PaypointModel.delete_return(return_id)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Return deleted successfully'
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @paypoint_bp.route('/initialize', methods=['POST'])
 def api_initialize_tables():
     """Initialize Paypoint database tables."""
