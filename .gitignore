@@ -28,6 +28,10 @@ RunSheets/
 credentials.json
 token.json
 
+# SSL certificates (local development only)
+cert.pem
+key.pem
+
 # Generated output files
 output/*.csv
 output/*.txt

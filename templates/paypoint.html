@@ -179,11 +179,21 @@
                     </div>
                     <div class="mb-3">
                         <label for="serialPtid" class="form-label">Serial / TID *</label>
-                        <input type="text" class="form-control" id="serialPtid" required placeholder="e.g., PP001-2025">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="serialPtid" required placeholder="e.g., PP001-2025">
+                            <button class="btn btn-outline-primary" type="button" onclick="scanBarcode('serialPtid')" title="Scan barcode">
+                                <i class="bi bi-upc-scan"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label for="traceStock" class="form-label">Trace / Stock *</label>
-                        <input type="text" class="form-control" id="traceStock" required placeholder="e.g., TRC-001">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="traceStock" required placeholder="e.g., TRC-001">
+                            <button class="btn btn-outline-primary" type="button" onclick="scanBarcode('traceStock')" title="Scan barcode">
+                                <i class="bi bi-upc-scan"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label for="deviceNotes" class="form-label">Notes</label>
@@ -229,11 +239,21 @@
                     </div>
                     <div class="mb-3">
                         <label for="useStockReturnSerial" class="form-label">Return Serial</label>
-                        <input type="text" class="form-control" id="useStockReturnSerial" placeholder="Serial of device being returned">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="useStockReturnSerial" placeholder="Serial of device being returned">
+                            <button class="btn btn-outline-primary" type="button" onclick="scanBarcode('useStockReturnSerial')" title="Scan barcode">
+                                <i class="bi bi-upc-scan"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label for="useStockReturnTrace" class="form-label">Return Trace</label>
-                        <input type="text" class="form-control" id="useStockReturnTrace" placeholder="Return trace number">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="useStockReturnTrace" placeholder="Return trace number">
+                            <button class="btn btn-outline-primary" type="button" onclick="scanBarcode('useStockReturnTrace')" title="Scan barcode">
+                                <i class="bi bi-upc-scan"></i>
+                            </button>
+                        </div>
                     </div>
                     <div class="mb-3">
                         <label for="useStockReturnReason" class="form-label">Return Reason</label>
@@ -259,8 +279,40 @@
         </div>
     </div>
 </div>
+
+<!-- Barcode Scanner Modal -->
+<div class="modal fade" id="barcodeScannerModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-upc-scan me-2"></i>Scan Barcode
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div id="barcodeScannerContainer" style="position: relative;">
+                    <video id="barcodeVideo" style="width: 100%; max-height: 400px; background: #000; border-radius: 8px;"></video>
+                    <div id="scannerOverlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; height: 2px; background: red; box-shadow: 0 0 10px red;"></div>
+                </div>
+                <div id="scannerStatus" class="mt-3 text-center">
+                    <p class="text-muted">Position barcode in front of camera</p>
+                </div>
+                <div id="scannerResult" class="mt-3" style="display: none;">
+                    <div class="alert alert-success">
+                        <strong>Scanned:</strong> <span id="scannedValue"></span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
+<script src="https://unpkg.com/@zxing/library@latest"></script>
 <script src="{{ url_for('static', filename='js/paypoint.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}

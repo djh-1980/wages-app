@@ -1018,12 +1018,24 @@ def api_restore_database():
             }), 404
         
         # Create a backup of current database before restoring
+        import gzip
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        current_backup = Path('data/database/backups') / f'pre_restore_backup_{timestamp}.db'
-        shutil.copy2(DB_PATH, current_backup)
+        current_backup = Path('data/database/backups') / f'pre_restore_backup_{timestamp}.db.gz'
         
-        # Restore the backup
-        shutil.copy2(backup_path, DB_PATH)
+        # Compress current database before backup
+        with open(DB_PATH, 'rb') as f_in:
+            with gzip.open(current_backup, 'wb', compresslevel=9) as f_out:
+                shutil.copyfileobj(f_in, f_out)
+        
+        # Restore the backup (decompress if needed)
+        if str(backup_path).endswith('.gz'):
+            # Decompress the backup
+            with gzip.open(backup_path, 'rb') as f_in:
+                with open(DB_PATH, 'wb') as f_out:
+                    shutil.copyfileobj(f_in, f_out)
+        else:
+            # Direct copy for uncompressed backups
+            shutil.copy2(backup_path, DB_PATH)
         
         log_settings_action('RESTORE_DATABASE', f'Database restored from {filename}')
         

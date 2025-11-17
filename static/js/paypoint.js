@@ -858,3 +858,228 @@ function formatDate(dateString) {
     }
 }
 
+// Barcode Scanner Functions
+let currentScanTargetField = null;
+let barcodeStream = null;
+let detectedBarcodes = [];
+let lastDetectedCode = null;
+
+async function quickScan() {
+    // Show modal asking which field to fill
+    const modal = new bootstrap.Modal(document.getElementById('barcodeScannerModal'));
+    modal.show();
+    
+    document.getElementById('scannerResult').style.display = 'none';
+    document.getElementById('scannerStatus').innerHTML = `
+        <div class="alert alert-info">
+            <strong>Which field do you want to fill?</strong>
+            <div class="mt-3 d-grid gap-2">
+                <button class="btn btn-primary" onclick="scanBarcode('serialPtid')">
+                    <i class="bi bi-upc-scan me-2"></i>Scan for Serial / TID
+                </button>
+                <button class="btn btn-primary" onclick="scanBarcode('traceStock')">
+                    <i class="bi bi-upc-scan me-2"></i>Scan for Trace / Stock
+                </button>
+                <button class="btn btn-secondary" data-bs-dismiss="modal">
+                    Cancel
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+async function scanBarcode(targetFieldId) {
+    currentScanTargetField = targetFieldId;
+    
+    // Show the scanner modal
+    const modal = new bootstrap.Modal(document.getElementById('barcodeScannerModal'));
+    modal.show();
+    
+    // Reset UI
+    document.getElementById('scannerResult').style.display = 'none';
+    document.getElementById('scannerStatus').innerHTML = '<p class="text-muted">Initializing camera...</p>';
+    
+    // Start camera when modal is shown
+    document.getElementById('barcodeScannerModal').addEventListener('shown.bs.modal', function () {
+        startBarcodeScanner();
+    }, { once: true });
+    
+    // Stop camera when modal is hidden
+    document.getElementById('barcodeScannerModal').addEventListener('hidden.bs.modal', function () {
+        stopBarcodeScanner();
+    }, { once: true });
+}
+
+async function startBarcodeScanner() {
+    const video = document.getElementById('barcodeVideo');
+    
+    try {
+        // Request camera access (rear camera preferred on mobile)
+        const constraints = {
+            video: {
+                facingMode: { ideal: 'environment' },
+                width: { ideal: 1280 },
+                height: { ideal: 720 }
+            }
+        };
+        
+        barcodeStream = await navigator.mediaDevices.getUserMedia(constraints);
+        video.srcObject = barcodeStream;
+        video.play();
+        
+        document.getElementById('scannerStatus').innerHTML = '<p class="text-muted">Position barcode in front of camera</p>';
+        
+        // Start barcode detection
+        detectBarcode(video);
+    } catch (error) {
+        console.error('Camera access error:', error);
+        document.getElementById('scannerStatus').innerHTML = `
+            <div class="alert alert-warning">
+                <i class="bi bi-exclamation-triangle"></i> 
+                <strong>Camera not available</strong>
+                <p class="mb-2 mt-2">Camera access requires HTTPS or may be blocked. Please enter barcode manually:</p>
+                <div class="input-group">
+                    <input type="text" class="form-control" id="manualBarcodeInput" placeholder="Enter barcode manually">
+                    <button class="btn btn-primary" onclick="useManualBarcode()">Use This</button>
+                </div>
+            </div>
+        `;
+    }
+}
+
+function detectBarcode(video) {
+    // Use ZXing (industry standard - same as Podfather app)
+    if (typeof ZXing !== 'undefined') {
+        console.log('Starting ZXing barcode scanner...');
+        
+        const codeReader = new ZXing.BrowserMultiFormatReader();
+        
+        codeReader.decodeFromVideoDevice(undefined, video, (result, err) => {
+            if (result) {
+                const code = result.getText();
+                const format = result.getBarcodeFormat();
+                
+                console.log('Barcode detected:', code, 'Format:', format);
+                
+                // Require 3 consecutive identical reads for accuracy
+                detectedBarcodes.push(code);
+                
+                if (detectedBarcodes.length >= 3) {
+                    // Check if last 3 reads are identical
+                    const last3 = detectedBarcodes.slice(-3);
+                    if (last3[0] === last3[1] && last3[1] === last3[2]) {
+                        codeReader.reset();
+                        handleBarcodeDetected(code, format);
+                        detectedBarcodes = [];
+                    } else {
+                        // Show progress
+                        document.getElementById('scannerStatus').innerHTML = `
+                            <p class="text-warning">
+                                <i class="bi bi-hourglass-split"></i> Reading... Hold steady (${detectedBarcodes.length}/3)
+                            </p>
+                        `;
+                    }
+                }
+            }
+            
+            if (err && !(err instanceof ZXing.NotFoundException)) {
+                console.error('ZXing error:', err);
+            }
+        });
+    } else {
+        console.error('ZXing library not loaded');
+        document.getElementById('scannerStatus').innerHTML = '<p class="text-danger">Scanner library not loaded. Please refresh the page.</p>';
+    }
+}
+
+function handleBarcodeDetected(barcode, format) {
+    console.log('Barcode confirmed:', barcode, 'Format:', format);
+    
+    // Stop scanning
+    stopBarcodeScanner();
+    
+    // Show result with options
+    document.getElementById('scannedValue').textContent = barcode;
+    document.getElementById('scannerResult').style.display = 'block';
+    document.getElementById('scannerStatus').innerHTML = `
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle"></i> Barcode detected: <strong>${barcode}</strong>
+            <div class="text-muted small mt-1">Format: ${format || 'Unknown'}</div>
+            <div class="mt-3 d-flex gap-2">
+                <button class="btn btn-success" onclick="confirmBarcode('${barcode}')">
+                    <i class="bi bi-check"></i> Use This
+                </button>
+                <button class="btn btn-warning" onclick="rescanBarcode()">
+                    <i class="bi bi-arrow-clockwise"></i> Scan Again
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function confirmBarcode(barcode) {
+    // Fill the target field
+    if (currentScanTargetField) {
+        document.getElementById(currentScanTargetField).value = barcode;
+    }
+    
+    // Close modal
+    bootstrap.Modal.getInstance(document.getElementById('barcodeScannerModal')).hide();
+}
+
+function rescanBarcode() {
+    // Reset and restart scanner
+    detectedBarcodes = [];
+    document.getElementById('scannerResult').style.display = 'none';
+    document.getElementById('scannerStatus').innerHTML = '<p class="text-muted">Position barcode in front of camera</p>';
+    startBarcodeScanner();
+}
+
+function editBarcode(barcode) {
+    document.getElementById('scannerStatus').innerHTML = `
+        <div class="alert alert-info">
+            <strong>Edit Barcode</strong>
+            <div class="input-group mt-2">
+                <input type="text" class="form-control" id="editBarcodeInput" value="${barcode}">
+                <button class="btn btn-primary" onclick="confirmBarcode(document.getElementById('editBarcodeInput').value)">
+                    <i class="bi bi-check"></i> Use This
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+function stopBarcodeScanner() {
+    // Stop ZXing if running
+    if (typeof ZXing !== 'undefined' && ZXing.BrowserMultiFormatReader) {
+        try {
+            const codeReader = new ZXing.BrowserMultiFormatReader();
+            codeReader.reset();
+        } catch (e) {
+            console.log('Error stopping scanner:', e);
+        }
+    }
+    
+    if (barcodeStream) {
+        barcodeStream.getTracks().forEach(track => track.stop());
+        barcodeStream = null;
+    }
+    
+    const video = document.getElementById('barcodeVideo');
+    if (video) {
+        video.srcObject = null;
+    }
+}
+
+function useManualBarcode() {
+    const manualInput = document.getElementById('manualBarcodeInput');
+    const barcode = manualInput.value.trim();
+    
+    if (!barcode) {
+        alert('Please enter a barcode');
+        return;
+    }
+    
+    handleBarcodeDetected(barcode);
+}
+
