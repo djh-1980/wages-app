@@ -139,4 +139,97 @@
         font-size: 0.875rem;
         padding: 0.5rem 1rem;
     }
+    
+    /* Fix squashed text in summary cards */
+    .summary-cards .card-body {
+        padding: 1.25rem !important;
+        text-align: center !important;
+    }
+    
+    .summary-cards h3 {
+        font-size: 1.75rem !important;
+        line-height: 1.2 !important;
+        white-space: nowrap !important;
+        overflow: visible !important;
+        text-align: center !important;
+    }
+    
+    .summary-cards .card-title {
+        font-size: 0.875rem !important;
+        margin-bottom: 0.75rem !important;
+    }
+    
+    .summary-cards p,
+    .summary-cards small {
+        font-size: 0.8rem !important;
+        line-height: 1.4 !important;
+    }
+    
+    /* Convert tab navigation to dropdown on mobile */
+    .nav-pills {
+        position: relative !important;
+        background: white !important;
+        border-radius: 12px !important;
+        border: 2px solid #e2e8f0 !important;
+        padding: 0 !important;
+        overflow: hidden !important;
+    }
+    
+    /* Hide all non-active tabs initially */
+    .nav-pills .nav-link:not(.active) {
+        display: none !important;
+    }
+    
+    /* Show active tab as dropdown trigger */
+    .nav-pills .nav-link.active {
+        width: 100% !important;
+        padding: 1rem 1.25rem !important;
+        font-size: 1rem !important;
+        border-radius: 0 !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: space-between !important;
+        background: white !important;
+        color: var(--tvs-primary, #4a6fa5) !important;
+        font-weight: 600 !important;
+        border: none !important;
+        cursor: pointer !important;
+    }
+    
+    .nav-pills .nav-link.active::after {
+        content: '▼' !important;
+        font-size: 0.75rem !important;
+        margin-left: auto !important;
+    }
+    
+    /* Show all tabs when nav-pills is clicked/expanded */
+    .nav-pills.show .nav-link {
+        display: flex !important;
+        width: 100% !important;
+        padding: 1rem 1.25rem !important;
+        font-size: 1rem !important;
+        text-align: left !important;
+        border-radius: 0 !important;
+        align-items: center !important;
+        gap: 0.75rem !important;
+        background: white !important;
+        border: none !important;
+        border-top: 1px solid #f1f5f9 !important;
+        color: #64748b !important;
+    }
+    
+    .nav-pills.show .nav-link.active {
+        background: #f8f9fa !important;
+        color: var(--tvs-primary, #4a6fa5) !important;
+    }
+    
+    .nav-pills.show .nav-link.active::after {
+        content: '▲' !important;
+    }
+    
+    .nav-pills .nav-link i,
+    .nav-pills .nav-link .bi {
+        font-size: 1.25rem !important;
+        min-width: 24px !important;
+    }
 }

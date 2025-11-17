@@ -1700,3 +1700,33 @@ function exportCustomReportCSV() {
     
     showSuccess('CSV export functionality coming soon!');
 }
+
+// Mobile dropdown navigation for tabs
+document.addEventListener('DOMContentLoaded', function() {
+    if (window.innerWidth <= 768) {
+        const navPills = document.querySelector('.nav-pills');
+        if (navPills) {
+            // Click on nav-pills container to toggle dropdown
+            navPills.addEventListener('click', function(e) {
+                // Only toggle if clicking the active tab or container
+                if (e.target.classList.contains('active') || e.target === navPills) {
+                    navPills.classList.toggle('show');
+                }
+            });
+            
+            // When clicking a non-active tab, switch to it and close dropdown
+            navPills.querySelectorAll('.nav-link:not(.active)').forEach(link => {
+                link.addEventListener('click', function() {
+                    navPills.classList.remove('show');
+                });
+            });
+            
+            // Close dropdown when clicking outside
+            document.addEventListener('click', function(e) {
+                if (!navPills.contains(e.target)) {
+                    navPills.classList.remove('show');
+                }
+            });
+        }
+    }
+});

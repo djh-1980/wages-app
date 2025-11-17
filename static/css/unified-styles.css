@@ -599,21 +599,70 @@ body {
         position: relative;
     }
     
-    /* Scroll indicator */
+    /* Scroll indicator - more visible */
     .unified-table-container .table-responsive::after {
-        content: '← Scroll →';
-        position: absolute;
-        bottom: 8px;
-        right: 8px;
-        background: rgba(0,0,0,0.7);
+        content: '👈 Swipe to see more 👉';
+        position: sticky;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(74, 111, 165, 0.95);
         color: white;
-        padding: 4px 8px;
-        border-radius: 4px;
-        font-size: 10px;
-        font-weight: 500;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
         pointer-events: none;
-        opacity: 0.8;
+        opacity: 1;
         z-index: 20;
+        display: inline-block;
+        margin: 8px auto;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        animation: pulse 2s infinite;
+    }
+    
+    @keyframes pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+    
+    /* Apply scroll indicator to ALL table-responsive containers */
+    .table-responsive::after,
+    .card-body .table-responsive::after {
+        content: '👈 Swipe to see more 👉';
+        position: sticky;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(74, 111, 165, 0.95);
+        color: white;
+        padding: 8px 16px;
+        border-radius: 20px;
+        font-size: 12px;
+        font-weight: 600;
+        pointer-events: none;
+        opacity: 1;
+        z-index: 20;
+        display: inline-block;
+        margin: 8px auto;
+        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+        animation: pulse 2s infinite;
+    }
+    
+    /* Ensure all tables scroll on mobile */
+    .table-responsive,
+    .card-body .table-responsive {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        width: 100% !important;
+        max-width: 100% !important;
+    }
+    
+    .table-responsive table,
+    .card-body .table-responsive table {
+        min-width: 800px !important;
+        width: max-content !important;
     }
     
     /* Table styling */
@@ -720,5 +769,80 @@ body {
         font-size: 14px;
         font-weight: 500;
         box-shadow: var(--shadow-lg);
+    }
+}
+
+/* Mobile Summary Card Icons - Clean up messy icons */
+@media screen and (max-width: 768px) {
+    /* Fix oversized icon containers in summary cards */
+    .summary-cards .card .bg-primary,
+    .summary-cards .card .bg-success,
+    .summary-cards .card .bg-info,
+    .summary-cards .card .bg-warning,
+    .summary-cards .card .bg-danger,
+    .summary-cards .card [class*="bg-"] {
+        font-size: 1.5rem !important;
+        width: 48px !important;
+        height: 48px !important;
+        min-width: 48px !important;
+        min-height: 48px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        border-radius: 12px !important;
+        padding: 0 !important;
+        flex-shrink: 0 !important;
+    }
+    
+    /* Icons inside colored backgrounds */
+    .summary-cards .card .bg-primary i,
+    .summary-cards .card .bg-success i,
+    .summary-cards .card .bg-info i,
+    .summary-cards .card .bg-warning i,
+    .summary-cards .card .bg-danger i,
+    .summary-cards .card [class*="bg-"] i,
+    .summary-cards .card .bg-primary .bi,
+    .summary-cards .card .bg-success .bi,
+    .summary-cards .card .bg-info .bi,
+    .summary-cards .card .bg-warning .bi,
+    .summary-cards .card .bg-danger .bi,
+    .summary-cards .card [class*="bg-"] .bi {
+        font-size: 1.5rem !important;
+        width: auto !important;
+        height: auto !important;
+    }
+}
+
+/* Mobile Table Scrolling - All Mobile Devices (up to 768px) */
+@media screen and (max-width: 768px) {
+    /* Enable horizontal scrolling for Paypoint and Reports tables only */
+    #paypoint .table-responsive,
+    #reports .table-responsive,
+    .paypoint-table-container .table-responsive,
+    .reports-table-container .table-responsive {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+    }
+    
+    /* Let tables size naturally - only force width on large tables */
+    #paypoint .table-responsive table,
+    #reports .table-responsive table,
+    .paypoint-table-container .table-responsive table,
+    .reports-table-container .table-responsive table {
+        width: 100% !important;
+        margin-bottom: 0 !important;
+    }
+    
+    /* Only force min-width on tables with many columns (6+) */
+    #paypoint .table-responsive table:has(th:nth-child(6)),
+    #reports .table-responsive table:has(th:nth-child(6)),
+    .paypoint-table-container .table-responsive table:has(th:nth-child(6)),
+    .reports-table-container .table-responsive table:has(th:nth-child(6)) {
+        min-width: 800px !important;
+        width: max-content !important;
     }
 }
