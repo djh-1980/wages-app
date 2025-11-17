@@ -371,27 +371,36 @@ def api_reorganize_runsheets():
 
 @data_bp.route('/backup', methods=['POST'])
 def api_backup_database():
-    """Create a backup of the database."""
+    """Create a compressed backup of the database."""
     try:
+        import gzip
+        
         # Create backups directory if it doesn't exist
         backup_dir = Path('data/database/backups')
         backup_dir.mkdir(parents=True, exist_ok=True)
         
         # Create backup filename with timestamp
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        backup_file = backup_dir / f'payslips_backup_{timestamp}.db'
+        backup_file = backup_dir / f'payslips_backup_{timestamp}.db.gz'
         
-        # Copy database
-        shutil.copy2('data/database/payslips.db', backup_file)
+        # Compress and copy database
+        with open('data/database/payslips.db', 'rb') as f_in:
+            with gzip.open(backup_file, 'wb', compresslevel=9) as f_out:
+                shutil.copyfileobj(f_in, f_out)
         
-        # Get file size
+        # Get compressed file size
         size_mb = backup_file.stat().st_size / (1024 * 1024)
+        
+        # Get original size for comparison
+        original_size_mb = Path('data/database/payslips.db').stat().st_size / (1024 * 1024)
+        compression_ratio = (1 - (size_mb / original_size_mb)) * 100 if original_size_mb > 0 else 0
         
         return jsonify({
             'success': True,
-            'message': f'Backup created successfully',
+            'message': f'Backup created successfully (compressed {compression_ratio:.1f}%)',
             'filename': backup_file.name,
             'size_mb': round(size_mb, 2),
+            'original_size_mb': round(original_size_mb, 2),
             'path': str(backup_file)
         })
     except Exception as e:
@@ -422,10 +431,13 @@ def api_upload_backup():
             }), 400
         
         # Validate file extension
-        if not file.filename.endswith('.db'):
+        is_compressed = file.filename.endswith('.db.gz') or file.filename.endswith('.gz')
+        is_db = file.filename.endswith('.db')
+        
+        if not (is_compressed or is_db):
             return jsonify({
                 'success': False,
-                'error': 'Invalid file type. Only .db files are allowed'
+                'error': 'Invalid file type. Only .db or .db.gz files are allowed'
             }), 400
         
         # Create backups directory if it doesn't exist
@@ -435,7 +447,10 @@ def api_upload_backup():
         # Create filename with timestamp
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
         original_name = Path(file.filename).stem
-        backup_file = backup_dir / f'{original_name}_{timestamp}.db'
+        if file.filename.endswith('.db.gz'):
+            original_name = Path(original_name).stem  # Remove .db from .db.gz
+        
+        backup_file = backup_dir / f'{original_name}_{timestamp}.db.gz' if is_compressed else backup_dir / f'{original_name}_{timestamp}.db'
         
         # Save the uploaded file
         file.save(str(backup_file))
@@ -443,26 +458,54 @@ def api_upload_backup():
         # Get file size
         size_mb = backup_file.stat().st_size / (1024 * 1024)
         
-        # Verify it's a valid SQLite database
+        # Verify it's a valid SQLite database (decompress if needed)
         try:
-            conn = sqlite3.connect(str(backup_file))
-            cursor = conn.cursor()
-            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
-            tables = cursor.fetchall()
-            conn.close()
+            import gzip
+            import tempfile
             
-            if not tables:
-                backup_file.unlink()  # Delete invalid file
-                return jsonify({
-                    'success': False,
-                    'error': 'Invalid database file - no tables found'
-                }), 400
-        except sqlite3.Error as e:
+            if is_compressed:
+                # Decompress to temp file for validation
+                with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+                    with gzip.open(backup_file, 'rb') as f_in:
+                        shutil.copyfileobj(f_in, tmp_file)
+                    temp_db_path = tmp_file.name
+                
+                try:
+                    conn = sqlite3.connect(temp_db_path)
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                    tables = cursor.fetchall()
+                    conn.close()
+                    
+                    if not tables:
+                        backup_file.unlink()
+                        Path(temp_db_path).unlink()
+                        return jsonify({
+                            'success': False,
+                            'error': 'Invalid database file - no tables found'
+                        }), 400
+                finally:
+                    if Path(temp_db_path).exists():
+                        Path(temp_db_path).unlink()
+            else:
+                conn = sqlite3.connect(str(backup_file))
+                cursor = conn.cursor()
+                cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+                tables = cursor.fetchall()
+                conn.close()
+                
+                if not tables:
+                    backup_file.unlink()
+                    return jsonify({
+                        'success': False,
+                        'error': 'Invalid database file - no tables found'
+                    }), 400
+        except (sqlite3.Error, gzip.BadGzipFile) as e:
             if backup_file.exists():
-                backup_file.unlink()  # Delete invalid file
+                backup_file.unlink()
             return jsonify({
                 'success': False,
-                'error': f'Invalid SQLite database file: {str(e)}'
+                'error': f'Invalid database file: {str(e)}'
             }), 400
         
         return jsonify({
@@ -914,28 +957,30 @@ def api_list_backups():
             })
         
         backups = []
-        for backup_file in backup_dir.glob('*.db'):
-            stat = backup_file.stat()
-            
-            # Try to parse timestamp from filename (format: *_YYYYMMDD_HHMMSS.db)
-            created_timestamp = stat.st_mtime  # Default to file modification time
-            try:
-                import re
-                match = re.search(r'_(\d{8})_(\d{6})\.db$', backup_file.name)
-                if match:
-                    date_str = match.group(1)  # YYYYMMDD
-                    time_str = match.group(2)  # HHMMSS
-                    # Parse to datetime
-                    dt = datetime.strptime(f'{date_str}_{time_str}', '%Y%m%d_%H%M%S')
-                    created_timestamp = dt.timestamp()
-            except:
-                pass  # Fall back to file mtime if parsing fails
-            
-            backups.append({
-                'filename': backup_file.name,
-                'size': stat.st_size,
-                'created': created_timestamp
-            })
+        # Look for both .db and .db.gz files
+        for pattern in ['*.db', '*.db.gz']:
+            for backup_file in backup_dir.glob(pattern):
+                stat = backup_file.stat()
+                
+                # Try to parse timestamp from filename (format: *_YYYYMMDD_HHMMSS.db or .db.gz)
+                created_timestamp = stat.st_mtime  # Default to file modification time
+                try:
+                    import re
+                    match = re.search(r'_(\d{8})_(\d{6})\.db', backup_file.name)
+                    if match:
+                        date_str = match.group(1)  # YYYYMMDD
+                        time_str = match.group(2)  # HHMMSS
+                        # Parse to datetime
+                        dt = datetime.strptime(f'{date_str}_{time_str}', '%Y%m%d_%H%M%S')
+                        created_timestamp = dt.timestamp()
+                except:
+                    pass  # Fall back to file mtime if parsing fails
+                
+                backups.append({
+                    'filename': backup_file.name,
+                    'size': stat.st_size,
+                    'created': created_timestamp
+                })
         
         # Sort by creation time, newest first
         backups.sort(key=lambda x: x['created'], reverse=True)

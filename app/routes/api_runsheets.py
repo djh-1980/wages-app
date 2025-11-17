@@ -148,6 +148,7 @@ def api_add_extra_job():
         job_address = data.get('job_address') or data.get('location', '')
         status = data.get('status', 'extra')
         pay_amount = data.get('pay_amount')
+        agreed_price = data.get('agreed_price')
         
         if not date or not job_number or not customer:
             return jsonify({'success': False, 'error': 'Date, job number, and customer are required'}), 400
@@ -155,7 +156,7 @@ def api_add_extra_job():
         job_id = RunsheetModel.add_extra_job(
             date=date, job_number=job_number, customer=customer,
             activity=activity, job_address=job_address, status=status,
-            pay_amount=pay_amount
+            pay_amount=pay_amount, agreed_price=agreed_price
         )
         
         return jsonify({'success': True, 'job_id': job_id})

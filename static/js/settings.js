@@ -840,8 +840,11 @@ async function uploadBackup(input) {
     if (!file) return;
     
     // Validate file extension
-    if (!file.name.endsWith('.db')) {
-        showError('Please select a valid database backup file (.db)');
+    const validExtensions = ['.db', '.db.gz', '.gz'];
+    const isValid = validExtensions.some(ext => file.name.endsWith(ext));
+    
+    if (!isValid) {
+        showError('Please select a valid database backup file (.db or .db.gz)');
         input.value = '';
         return;
     }
@@ -865,15 +868,24 @@ async function uploadBackup(input) {
     `;
     
     try {
+        console.log('Starting backup upload:', file.name, 'Size:', file.size);
         const formData = new FormData();
         formData.append('backup_file', file);
         
+        console.log('Sending request to /api/data/upload-backup');
         const response = await fetch('/api/data/upload-backup', {
             method: 'POST',
             body: formData
         });
         
+        console.log('Response status:', response.status);
+        
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        
         const result = await response.json();
+        console.log('Upload result:', result);
         
         if (result.success) {
             statusDiv.innerHTML = `

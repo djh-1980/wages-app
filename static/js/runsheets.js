@@ -409,6 +409,16 @@ async function viewRunSheetJobs(date) {
         const data = await response.json();
         
         if (data.jobs && data.jobs.length > 0) {
+            // Debug: log first job to see what data we have
+            console.log('First job data:', data.jobs[0]);
+            
+            // Debug: find job 4290172
+            const job4290172 = data.jobs.find(j => j.job_number === '4290172');
+            if (job4290172) {
+                console.log('Job 4290172 data:', job4290172);
+                console.log('Job 4290172 price_agreed:', job4290172.price_agreed);
+            }
+            
             // Create modal content
             let modalHTML = `
                 <div class="modal fade" id="runsheetJobsModal" tabindex="-1">
@@ -463,9 +473,12 @@ async function viewRunSheetJobs(date) {
                                                     <td>${job.customer || 'N/A'}</td>
                                                     <td><span class="badge bg-info">${job.activity || 'N/A'}</span></td>
                                                     <td><small>${job.job_address || 'N/A'}, ${job.postcode || ''}</small></td>
-                                                    <td><span class="status-badge" id="status-${job.id}">${statusBadge}</span></td>
+                                                    <td>
+                                                        <span class="status-badge" id="status-${job.id}">${statusBadge}</span>
+                                                        ${job.price_agreed && job.price_agreed > 0 ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-currency-pound"></i> £${job.price_agreed.toFixed(2)}</span></div>` : ''}
+                                                    </td>
                                                     <td class="text-end">
-                                                        ${job.pay_amount ? `<strong class="text-success">${CurrencyFormatter.format(job.pay_amount)}</strong>` : '<span class="text-muted">No pay data</span>'}
+                                                        ${job.pay_amount ? `<strong class="${job.price_agreed && job.pay_amount < job.price_agreed ? 'text-danger' : 'text-success'}">${CurrencyFormatter.format(job.pay_amount)}${job.price_agreed && job.pay_amount < job.price_agreed ? ' <i class="bi bi-exclamation-triangle-fill"></i>' : ''}</strong>` : '<span class="text-muted">No pay data</span>'}
                                                     </td>
                                                     <td class="text-end">
                                                         <div class="btn-group btn-group-sm" role="group">
@@ -508,8 +521,11 @@ async function viewRunSheetJobs(date) {
                                                     <div class="status-badge-container ms-2" id="status-${job.id}">${statusBadge}</div>
                                                 </div>
                                                 <div class="mb-3 d-flex justify-content-between align-items-center">
-                                                    <span class="badge bg-info px-3 py-2" style="font-size: 0.8rem;">${job.activity || 'N/A'}</span>
-                                                    ${job.pay_amount ? `<strong class="text-success">${CurrencyFormatter.format(job.pay_amount)}</strong>` : '<span class="text-muted small">No pay data</span>'}
+                                                    <div>
+                                                        <span class="badge bg-info px-3 py-2" style="font-size: 0.8rem;">${job.activity || 'N/A'}</span>
+                                                        <span class="badge bg-warning text-dark px-2 py-1 ms-2" style="font-size: 0.75rem;">TEST BADGE</span>
+                                                    </div>
+                                                    ${job.pay_amount ? `<strong class="text-success">£${job.pay_amount.toFixed(2)}</strong>` : '<span class="text-muted small">No pay data</span>'}
                                                 </div>
                                                 <p class="mb-3 small text-muted" style="font-size: 0.85rem; line-height: 1.4;">${job.job_address || 'N/A'}${job.postcode ? ', ' + job.postcode : ''}</p>
                                                 <div class="d-grid gap-3">
@@ -565,13 +581,19 @@ async function viewRunSheetJobs(date) {
                                                 <option value="">Select customer...</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-3 col-12">
+                                        <div class="col-md-2 col-12">
                                             <label class="form-label mb-2 fw-semibold" style="font-size: 0.9rem;">Activity</label>
                                             <select class="form-select py-3" id="newActivity-${date}" style="font-size: 1rem;">
                                                 <option value="">Select activity...</option>
                                             </select>
                                         </div>
-                                        <div class="col-md-3 col-12">
+                                        <div class="col-md-2 col-12">
+                                            <label class="form-label mb-2 fw-semibold" style="font-size: 0.9rem;">
+                                                <i class="bi bi-currency-pound me-1"></i>Agreed Price
+                                            </label>
+                                            <input type="number" class="form-control py-3" id="newAgreedPrice-${date}" placeholder="0.00" step="0.01" min="0" style="font-size: 1rem;">
+                                        </div>
+                                        <div class="col-md-2 col-12">
                                             <label class="form-label mb-2 fw-semibold" style="font-size: 0.9rem;">Address</label>
                                             <input type="text" class="form-control py-3" id="newAddress-${date}" placeholder="Job address" style="font-size: 1rem;">
                                         </div>
@@ -818,6 +840,7 @@ function hideAddJobForm(date) {
     document.getElementById(`newCustomer-${date}`).value = '';
     document.getElementById(`newActivity-${date}`).value = '';
     document.getElementById(`newAddress-${date}`).value = '';
+    document.getElementById(`newAgreedPrice-${date}`).value = '';
 }
 
 // Add extra job
@@ -826,6 +849,7 @@ async function addExtraJob(date) {
     const customer = document.getElementById(`newCustomer-${date}`).value.trim();
     const activity = document.getElementById(`newActivity-${date}`).value.trim();
     const address = document.getElementById(`newAddress-${date}`).value.trim();
+    const agreedPrice = document.getElementById(`newAgreedPrice-${date}`).value.trim();
     
     if (!jobNumber || !customer) {
         alert('Job Number and Customer are required');
@@ -844,7 +868,8 @@ async function addExtraJob(date) {
                 customer: customer,
                 activity: activity,
                 job_address: address,
-                status: 'extra'
+                status: 'extra',
+                agreed_price: agreedPrice ? parseFloat(agreedPrice) : null
             })
         });
         
