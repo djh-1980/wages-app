@@ -419,6 +419,17 @@ class RunSheetImporter:
                         ))
                         print(f"  Updated job {job.get('job_number')} (preserved status: {existing_status})")
                     else:
+                        # Check if this job was previously deleted
+                        cursor.execute("""
+                            SELECT id FROM deleted_jobs 
+                            WHERE job_number = ? AND date = ?
+                        """, (job.get('job_number'), job.get('date')))
+                        
+                        if cursor.fetchone():
+                            print(f"  Skipping job {job.get('job_number')} - previously deleted by user")
+                            skipped_count += 1
+                            continue
+                        
                         # New job - insert with default pending status
                         cursor.execute("""
                             INSERT INTO run_sheet_jobs (

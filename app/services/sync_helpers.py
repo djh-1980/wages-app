@@ -16,7 +16,15 @@ def get_latest_runsheet_date():
     try:
         conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
-        cursor.execute("SELECT MAX(date) FROM run_sheet_jobs WHERE date IS NOT NULL AND date != ''")
+        # Convert DD/MM/YYYY to YYYY-MM-DD for proper sorting, then convert back
+        cursor.execute("""
+            SELECT date 
+            FROM run_sheet_jobs 
+            WHERE date IS NOT NULL AND date != ''
+            ORDER BY 
+                substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2) DESC
+            LIMIT 1
+        """)
         result = cursor.fetchone()
         conn.close()
         
@@ -160,8 +168,9 @@ def should_send_notification(sync_summary):
 
 
 def format_sync_email(sync_summary):
-    """Format sync summary as email HTML."""
+    """Format sync summary as email HTML with enhanced details."""
     now = datetime.now().strftime('%d/%m/%Y %H:%M')
+    today_date = datetime.now().strftime('%A, %d %B %Y')
     
     # Determine overall status
     if len(sync_summary['errors']) > 0:
@@ -173,6 +182,12 @@ def format_sync_email(sync_summary):
     else:
         status = "ℹ️ NO NEW FILES"
         status_color = "#2196f3"
+    
+    # Get additional context
+    total_files = sync_summary.get('runsheets_downloaded', 0) + sync_summary.get('payslips_downloaded', 0)
+    sync_duration = sync_summary.get('duration_seconds', 0)
+    latest_runsheet_date = sync_summary.get('latest_runsheet_date', 'N/A')
+    latest_payslip_week = sync_summary.get('latest_payslip_week', 'N/A')
     
     html = f"""
     <html>
@@ -187,13 +202,17 @@ def format_sync_email(sync_summary):
             .stat-number {{ font-size: 32px; font-weight: bold; color: #2196f3; }}
             .stat-label {{ color: #666; font-size: 14px; }}
             .error {{ color: #f44336; padding: 10px; background-color: #ffebee; border-left: 4px solid #f44336; margin: 10px 0; }}
+            .info-box {{ background-color: #e3f2fd; border-left: 4px solid #2196f3; padding: 12px; margin: 10px 0; }}
+            .success-box {{ background-color: #e8f5e9; border-left: 4px solid #4caf50; padding: 12px; margin: 10px 0; }}
             .footer {{ margin-top: 30px; padding-top: 20px; border-top: 1px solid #ddd; color: #666; font-size: 12px; }}
+            .quick-link {{ display: inline-block; background-color: #2196f3; color: white; padding: 10px 20px; text-decoration: none; border-radius: 5px; margin: 5px; }}
         </style>
     </head>
     <body>
         <div class="header">
             <h1>{status}</h1>
             <p>Wages App Auto-Sync Report</p>
+            <p><strong>{today_date}</strong></p>
             <p>{now}</p>
         </div>
         
@@ -225,6 +244,31 @@ def format_sync_email(sync_summary):
             </div>
     """
     
+    # Add latest data info
+    if latest_runsheet_date != 'N/A' or latest_payslip_week != 'N/A':
+        html += """
+            <div class="section">
+                <h2>📅 Latest Data</h2>
+        """
+        if latest_runsheet_date != 'N/A':
+            html += f'<div class="info-box"><strong>Latest Runsheet:</strong> {latest_runsheet_date}</div>'
+        if latest_payslip_week != 'N/A':
+            html += f'<div class="info-box"><strong>Latest Payslip:</strong> {latest_payslip_week}</div>'
+        html += "</div>"
+    
+    # Add sync performance
+    if sync_duration > 0:
+        html += f"""
+            <div class="section">
+                <h2>⚡ Performance</h2>
+                <div class="info-box">
+                    <strong>Sync Duration:</strong> {sync_duration} seconds<br>
+                    <strong>Files Processed:</strong> {total_files}<br>
+                    <strong>Average Time per File:</strong> {round(sync_duration / total_files, 2) if total_files > 0 else 0} seconds
+                </div>
+            </div>
+        """
+    
     # Add errors section if any
     if sync_summary['errors']:
         html += """
@@ -233,6 +277,29 @@ def format_sync_email(sync_summary):
         """
         for error in sync_summary['errors']:
             html += f'<div class="error">{error}</div>'
+        html += "</div>"
+    
+    # Add success details if files were processed
+    if total_files > 0:
+        html += """
+            <div class="section">
+                <h2>✅ What Was Processed</h2>
+        """
+        if sync_summary['runsheets_downloaded'] > 0:
+            html += f"""
+                <div class="success-box">
+                    <strong>Runsheets:</strong> {sync_summary['runsheets_downloaded']} file(s) downloaded<br>
+                    <strong>Jobs Imported:</strong> {sync_summary['runsheets_imported']} job(s)
+                </div>
+            """
+        if sync_summary['payslips_downloaded'] > 0:
+            html += f"""
+                <div class="success-box">
+                    <strong>Payslips:</strong> {sync_summary['payslips_downloaded']} file(s) downloaded<br>
+                    <strong>Payslips Imported:</strong> {sync_summary['payslips_imported']}<br>
+                    <strong>Jobs Updated with Pay Data:</strong> {sync_summary['jobs_synced']}
+                </div>
+            """
         html += "</div>"
     
     # Add next steps
@@ -244,11 +311,17 @@ def format_sync_email(sync_summary):
                     <li>Review any runsheets that need status updates (DNCO, missed, etc.)</li>
                     <li>Verify payslip totals match your expectations</li>
                 </ul>
+                <div style="text-align: center; margin-top: 20px;">
+                    <a href="http://localhost:5000/wages" class="quick-link">📊 View Wages</a>
+                    <a href="http://localhost:5000/runsheets" class="quick-link">📋 View Runsheets</a>
+                    <a href="http://localhost:5000/settings" class="quick-link">⚙️ Settings</a>
+                </div>
             </div>
             
             <div class="footer">
-                <p>This is an automated message from your Wages App sync service.</p>
-                <p>Next sync will run automatically based on the schedule.</p>
+                <p><strong>This is an automated message from your Wages App sync service.</strong></p>
+                <p>Next sync will run automatically based on your schedule.</p>
+                <p style="color: #999; font-size: 11px;">Sync completed at {now}</p>
             </div>
         </div>
     </body>

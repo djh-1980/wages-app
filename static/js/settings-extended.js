@@ -165,23 +165,28 @@ async function loadPeriodicSyncStatus() {
             const nextSyncDiv = document.getElementById('nextSyncTime');
             const nextSyncValue = document.getElementById('nextSyncTimeValue');
             
-            toggle.checked = status.is_running;
-            label.textContent = status.is_running ? 'Enabled' : 'Disabled';
+            // Only update if elements exist (new sync UI handles this)
+            if (toggle) {
+                toggle.checked = status.is_running;
+            }
+            if (label) {
+                label.textContent = status.is_running ? 'Enabled' : 'Disabled';
+            }
             
             if (status.is_running) {
-                info.style.display = 'block';
-                badge.style.display = 'inline-block';
+                if (info) info.style.display = 'block';
+                if (badge) badge.style.display = 'inline-block';
                 
                 // Show next sync time if available
-                if (status.next_sync_estimate) {
+                if (status.next_sync_estimate && nextSyncValue && nextSyncDiv) {
                     const nextSync = new Date(status.next_sync_estimate);
                     nextSyncValue.textContent = nextSync.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
                     nextSyncDiv.style.display = 'block';
                 }
             } else {
-                info.style.display = 'none';
-                badge.style.display = 'none';
-                nextSyncDiv.style.display = 'none';
+                if (info) info.style.display = 'none';
+                if (badge) badge.style.display = 'none';
+                if (nextSyncDiv) nextSyncDiv.style.display = 'none';
             }
         }
     } catch (error) {
@@ -254,20 +259,32 @@ async function loadDatabaseStats() {
         const stats = await response.json();
         
         if (stats.success) {
-            document.getElementById('dbPayslips').textContent = stats.payslips || '-';
-            document.getElementById('dbRunSheets').textContent = stats.runsheets || '-';
-            document.getElementById('dbJobs').textContent = stats.jobs || '-';
-            document.getElementById('dbSize').textContent = stats.size || '-';
-            document.getElementById('totalRecords').textContent = stats.total_records || '-';
+            const dbPayslips = document.getElementById('dbPayslips');
+            const dbRunSheets = document.getElementById('dbRunSheets');
+            const dbJobs = document.getElementById('dbJobs');
+            const dbSize = document.getElementById('dbSize');
+            const totalRecords = document.getElementById('totalRecords');
+            
+            if (dbPayslips) dbPayslips.textContent = stats.payslips || '-';
+            if (dbRunSheets) dbRunSheets.textContent = stats.runsheets || '-';
+            if (dbJobs) dbJobs.textContent = stats.jobs || '-';
+            if (dbSize) dbSize.textContent = stats.size || '-';
+            if (totalRecords) totalRecords.textContent = stats.total_records || '-';
         }
     } catch (error) {
         console.error('Failed to load database stats:', error);
-        // Set fallback values
-        document.getElementById('dbPayslips').textContent = '-';
-        document.getElementById('dbRunSheets').textContent = '-';
-        document.getElementById('dbJobs').textContent = '-';
-        document.getElementById('dbSize').textContent = '-';
-        document.getElementById('totalRecords').textContent = '-';
+        // Set fallback values only if elements exist
+        const dbPayslips = document.getElementById('dbPayslips');
+        const dbRunSheets = document.getElementById('dbRunSheets');
+        const dbJobs = document.getElementById('dbJobs');
+        const dbSize = document.getElementById('dbSize');
+        const totalRecords = document.getElementById('totalRecords');
+        
+        if (dbPayslips) dbPayslips.textContent = '-';
+        if (dbRunSheets) dbRunSheets.textContent = '-';
+        if (dbJobs) dbJobs.textContent = '-';
+        if (dbSize) dbSize.textContent = '-';
+        if (totalRecords) totalRecords.textContent = '-';
     }
 }
 

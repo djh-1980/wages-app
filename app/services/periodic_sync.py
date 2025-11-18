@@ -37,6 +37,36 @@ class PeriodicSyncService:
         self.payslip_completed_this_week = False  # Stop payslip checks after processing
         self.sync_started_today = False  # Track if 18:00 sync has started
         
+        # Retry logic with exponential backoff
+        self.retry_count = 0
+        self.max_retries = 3
+        self.retry_delays = [5, 15, 30]  # minutes
+        self.last_error = None
+        
+        # Pause/Resume functionality
+        self.is_paused = False
+        self.pause_until = None
+        
+        # Current sync state tracking
+        self.current_state = 'idle'  # idle, running, completed, failed, paused
+        self.sync_history = []  # Last 7 days of sync results
+        self.files_pending = 0
+        
+        # Configurable sync times (loaded from settings)
+        self.sync_start_time = "18:00"
+        self.payslip_sync_day = 1  # Tuesday (0=Monday)
+        self.payslip_sync_start = 6  # 06:00
+        self.payslip_sync_end = 14  # 14:00
+        
+        # Notification preferences
+        self.notify_on_success = True
+        self.notify_on_error_only = False
+        self.notify_on_new_files_only = False
+        
+        # Selective sync control
+        self.auto_sync_runsheets_enabled = True
+        self.auto_sync_payslips_enabled = True
+        
         # Setup logging
         self.logger = logging.getLogger('periodic_sync')
         handler = logging.FileHandler('logs/periodic_sync.log')
@@ -44,24 +74,75 @@ class PeriodicSyncService:
         handler.setFormatter(formatter)
         self.logger.addHandler(handler)
         self.logger.setLevel(logging.INFO)
+        
+        # Load configuration from settings
+        self._load_config()
+    
+    def _load_config(self):
+        """Load sync configuration from settings."""
+        try:
+            from ..models.settings import SettingsModel
+            
+            # Load configurable times
+            self.sync_start_time = SettingsModel.get_setting('sync_start_time') or "18:00"
+            self.sync_interval_minutes = int(SettingsModel.get_setting('sync_interval_minutes') or 15)
+            
+            # Payslip sync settings
+            payslip_day = SettingsModel.get_setting('payslip_sync_day')
+            if payslip_day:
+                days = {'Monday': 0, 'Tuesday': 1, 'Wednesday': 2, 'Thursday': 3, 'Friday': 4}
+                self.payslip_sync_day = days.get(payslip_day, 1)
+            
+            self.payslip_sync_start = int(SettingsModel.get_setting('payslip_sync_start') or 6)
+            self.payslip_sync_end = int(SettingsModel.get_setting('payslip_sync_end') or 14)
+            
+            # Notification preferences
+            self.notify_on_success = SettingsModel.get_setting('notify_on_success') != 'false'
+            self.notify_on_error_only = SettingsModel.get_setting('notify_on_error_only') == 'true'
+            self.notify_on_new_files_only = SettingsModel.get_setting('notify_on_new_files_only') == 'true'
+            
+            # Selective sync
+            self.auto_sync_runsheets_enabled = SettingsModel.get_setting('auto_sync_runsheets_enabled') != 'false'
+            self.auto_sync_payslips_enabled = SettingsModel.get_setting('auto_sync_payslips_enabled') != 'false'
+            
+            self.logger.info(f"Config loaded: start={self.sync_start_time}, interval={self.sync_interval_minutes}min")
+        except Exception as e:
+            self.logger.warning(f"Could not load config, using defaults: {e}")
     
     def start_periodic_sync(self):
-        """Start the periodic sync service - syncs at 18:00 daily, then every 15 mins until complete."""
+        """Start the periodic sync service - syncs at configured time daily, then every N mins until complete."""
         if self.is_running:
             self.logger.info("Periodic sync already running")
             return
         
         self.is_running = True
-        self.logger.info(f"Starting periodic sync service (18:00 daily, then every {self.sync_interval_minutes} minutes until complete)")
+        self.current_state = 'idle'
+        self.logger.info(f"Starting periodic sync service ({self.sync_start_time} daily, then every {self.sync_interval_minutes} minutes until complete)")
         
-        # Schedule daily sync at 18:00
-        schedule.every().day.at("18:00").do(self._start_daily_sync)
+        # Check if today's runsheet already exists in database
+        # Note: Runsheets are for the NEXT day, so if we have today's date or later, we're done
+        today_date = datetime.now().strftime('%d/%m/%Y')
+        latest_runsheet = get_latest_runsheet_date()
+        if latest_runsheet:
+            # Convert DD/MM/YYYY to comparable format
+            latest_parts = latest_runsheet.split('/')
+            today_parts = today_date.split('/')
+            latest_comparable = f"{latest_parts[2]}{latest_parts[1]}{latest_parts[0]}"
+            today_comparable = f"{today_parts[2]}{today_parts[1]}{today_parts[0]}"
+            
+            if latest_comparable >= today_comparable:
+                self.runsheet_completed_today = True
+                self.logger.info(f"Latest runsheet ({latest_runsheet}) is today or later - marking as completed")
         
-        # Check if we should start syncing now (if past 18:00 today and not completed)
+        # Schedule daily sync at configured time
+        schedule.every().day.at(self.sync_start_time).do(self._start_daily_sync)
+        
+        # Check if we should start syncing now (if past start time today and not completed)
         now = datetime.now()
-        if now.hour >= 18 and not self.runsheet_completed_today:
-            # Already past 18:00 today, start interval syncing
-            self.logger.info("Past 18:00 - starting sync checks now")
+        start_hour = int(self.sync_start_time.split(':')[0])
+        if now.hour >= start_hour and not self.runsheet_completed_today:
+            # Already past start time today, start interval syncing
+            self.logger.info(f"Past {self.sync_start_time} - starting sync checks now")
             schedule.every(self.sync_interval_minutes).minutes.do(self.sync_latest).tag('interval-sync')
         
         # Start the scheduler in a separate thread
@@ -69,16 +150,20 @@ class PeriodicSyncService:
         self.sync_thread.start()
     
     def _start_daily_sync(self):
-        """Start daily sync at 18:00 - runs every 15 mins until runsheet processed."""
+        """Start daily sync at configured time - runs every N mins until runsheet processed."""
         # Clear any existing interval jobs
         schedule.clear('interval-sync')
         
-        self.logger.info("18:00 - Starting daily sync cycle")
+        self.logger.info(f"{self.sync_start_time} - Starting daily sync cycle")
+        
+        # Reset retry counter for new day
+        self.retry_count = 0
+        self.last_error = None
         
         # Run the sync immediately
         self.sync_latest()
         
-        # Schedule interval syncing every 15 minutes (will auto-stop when completed)
+        # Schedule interval syncing every N minutes (will auto-stop when completed)
         schedule.every(self.sync_interval_minutes).minutes.do(self.sync_latest).tag('interval-sync')
     
     def stop_periodic_sync(self):
@@ -93,8 +178,76 @@ class PeriodicSyncService:
             schedule.run_pending()
             time.sleep(60)  # Check every minute
     
-    def sync_latest(self):
+    def pause_sync(self, duration_minutes=None):
+        """Pause auto-sync temporarily."""
+        self.is_paused = True
+        self.current_state = 'paused'
+        
+        if duration_minutes:
+            self.pause_until = datetime.now() + timedelta(minutes=duration_minutes)
+            self.logger.info(f"Sync paused for {duration_minutes} minutes until {self.pause_until.strftime('%H:%M')}")
+            # Schedule auto-resume
+            schedule.once().at(self.pause_until.strftime('%H:%M')).do(self.resume_sync).tag('auto-resume')
+        else:
+            self.pause_until = None
+            self.logger.info("Sync paused indefinitely")
+    
+    def resume_sync(self):
+        """Resume auto-sync."""
+        self.is_paused = False
+        self.pause_until = None
+        self.current_state = 'idle'
+        schedule.clear('auto-resume')
+        self.logger.info("Sync resumed")
+        return True
+    
+    def get_health_status(self):
+        """Get comprehensive health check status."""
+        try:
+            from ..models.settings import SettingsModel
+            import os
+            from pathlib import Path
+            
+            # Check Gmail authentication
+            token_path = Path('token.json')
+            gmail_authenticated = token_path.exists()
+            
+            # Check database
+            db_accessible = Path(DB_PATH).exists()
+            
+            # Check disk space
+            stat = os.statvfs('.')
+            free_space_gb = (stat.f_bavail * stat.f_frsize) / (1024**3)
+            disk_space_ok = free_space_gb > 1  # At least 1GB free
+            
+            return {
+                'gmail_authenticated': gmail_authenticated,
+                'database_accessible': db_accessible,
+                'sync_service_running': self.is_running,
+                'sync_service_paused': self.is_paused,
+                'disk_space_gb': round(free_space_gb, 2),
+                'disk_space_ok': disk_space_ok,
+                'last_error': self.last_error,
+                'current_state': self.current_state,
+                'retry_count': self.retry_count,
+                'healthy': gmail_authenticated and db_accessible and disk_space_ok
+            }
+        except Exception as e:
+            return {
+                'healthy': False,
+                'error': str(e)
+            }
+    
+    def sync_latest(self, dry_run=False):
         """Intelligent sync - only downloads and processes NEW files."""
+        
+        # Check if paused
+        if self.is_paused:
+            if self.pause_until and datetime.now() >= self.pause_until:
+                self.resume_sync()
+            else:
+                self.logger.info("Sync is paused - skipping")
+                return
         
         # Reset tracking at midnight each day
         now = datetime.now()
@@ -134,37 +287,52 @@ class PeriodicSyncService:
         }
         
         try:
+            self._sync_start_time = datetime.now()
             self.logger.info("Starting intelligent sync - checking for new files")
             
-            # Step 2: Download new runsheets (only during 18:00-06:00 window)
-            if not self.runsheet_completed_today and (now.hour >= 18 or now.hour <= 6):
+            # Step 2: Download new runsheets (only during configured window and if enabled)
+            start_hour = int(self.sync_start_time.split(':')[0])
+            if (self.auto_sync_runsheets_enabled and 
+                not self.runsheet_completed_today and 
+                (now.hour >= start_hour or now.hour <= 6)):
                 self.logger.info(f"Runsheet window ({now.strftime('%H:%M')}) - checking for new runsheets")
                 
                 # Look for recent runsheets (last 7 days, includes today's)
                 self.logger.info(f"Looking for recent runsheets (last 7 days)")
                 
                 try:
-                    runsheet_result = subprocess.run(
-                        [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', '--recent'],
-                        capture_output=True,
-                        text=True,
-                        timeout=120
-                    )
-                    if runsheet_result.returncode == 0:
-                        # Count new files downloaded
-                        output_lines = runsheet_result.stdout.split('\n')
-                        for line in output_lines:
-                            if 'Downloaded:' in line:
-                                sync_summary['runsheets_downloaded'] += 1
-                        self.logger.info(f"Downloaded {sync_summary['runsheets_downloaded']} new runsheets")
+                    if dry_run:
+                        self.logger.info("[DRY RUN] Would download runsheets")
+                    else:
+                        runsheet_result = subprocess.run(
+                            [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', '--recent'],
+                            capture_output=True,
+                            text=True,
+                            timeout=120
+                        )
+                        if runsheet_result.returncode == 0:
+                            # Count new files downloaded
+                            output_lines = runsheet_result.stdout.split('\n')
+                            for line in output_lines:
+                                if 'Downloaded:' in line:
+                                    sync_summary['runsheets_downloaded'] += 1
+                            self.logger.info(f"Downloaded {sync_summary['runsheets_downloaded']} new runsheets")
+                            self.retry_count = 0  # Reset on success
+                        else:
+                            raise Exception(f"Download failed with code {runsheet_result.returncode}")
                 except Exception as e:
                     sync_summary['errors'].append(f"Runsheet download failed: {str(e)}")
                     self.logger.error(f"Runsheet download error: {e}")
+                    self.last_error = str(e)
+                    self._handle_retry('runsheet_download')
             elif self.runsheet_completed_today:
                 self.logger.info("Runsheet already processed today - skipping until tomorrow")
             
-            # Step 3: Download new payslips (Tuesdays 06:00-14:00)
-            if not self.payslip_completed_this_week and now.weekday() == 1 and 6 <= now.hour <= 14:  # Tuesday
+            # Step 3: Download new payslips (configured day and time window, if enabled)
+            if (self.auto_sync_payslips_enabled and 
+                not self.payslip_completed_this_week and 
+                now.weekday() == self.payslip_sync_day and 
+                self.payslip_sync_start <= now.hour <= self.payslip_sync_end):
                 self.logger.info("Payslip window (Tuesday 06:00-14:00) - checking for new payslips")
                 
                 # Get the latest payslip week from database
@@ -270,10 +438,23 @@ class PeriodicSyncService:
                     sync_summary['errors'].append(f"Payslip import failed: {str(e)}")
                     self.logger.error(f"Payslip import error: {e}")
             
-            self.last_sync_time = datetime.now()
+            sync_end_time = datetime.now()
+            self.last_sync_time = sync_end_time
+            self.current_state = 'completed' if not sync_summary['errors'] else 'failed'
             
-            # Step 7: Send email notification if anything was processed
-            if should_send_notification(sync_summary):
+            # Calculate sync duration
+            if hasattr(self, '_sync_start_time'):
+                sync_summary['duration_seconds'] = int((sync_end_time - self._sync_start_time).total_seconds())
+            
+            # Add latest data info
+            sync_summary['latest_runsheet_date'] = get_latest_runsheet_date()
+            sync_summary['latest_payslip_week'] = get_latest_payslip_week()
+            
+            # Add to sync history
+            self._add_to_history(sync_summary)
+            
+            # Step 7: Send email notification based on preferences
+            if self._should_notify(sync_summary):
                 self._send_sync_notification(sync_summary)
             
             self.logger.info(f"Sync completed: {sync_summary}")
@@ -281,6 +462,9 @@ class PeriodicSyncService:
         except Exception as e:
             self.logger.error(f"Periodic sync failed: {str(e)}")
             sync_summary['errors'].append(str(e))
+            self.last_error = str(e)
+            self.current_state = 'failed'
+            self._handle_retry('sync_general')
     
     def _should_sync(self):
         """Determine if sync is needed based on time and data patterns."""
@@ -470,20 +654,94 @@ class PeriodicSyncService:
             self.logger.error(f"Recent runsheet sync failed: {str(e)}")
             return False
     
+    def _handle_retry(self, operation):
+        """Handle retry logic with exponential backoff."""
+        if self.retry_count < self.max_retries:
+            delay = self.retry_delays[self.retry_count]
+            self.retry_count += 1
+            self.logger.info(f"Scheduling retry {self.retry_count}/{self.max_retries} in {delay} minutes for {operation}")
+            schedule.every(delay).minutes.do(self.sync_latest).tag('retry-sync')
+        else:
+            self.logger.error(f"Max retries ({self.max_retries}) reached for {operation}")
+            self.retry_count = 0
+    
+    def _should_notify(self, sync_summary):
+        """Determine if notification should be sent based on preferences."""
+        has_errors = len(sync_summary['errors']) > 0
+        has_new_files = (sync_summary['runsheets_downloaded'] > 0 or 
+                        sync_summary['payslips_downloaded'] > 0)
+        
+        # Always notify on errors if not error-only mode
+        if has_errors and not self.notify_on_error_only:
+            return True
+        
+        # Error-only mode
+        if self.notify_on_error_only:
+            return has_errors
+        
+        # New files only mode
+        if self.notify_on_new_files_only:
+            return has_new_files
+        
+        # Success notifications
+        if self.notify_on_success and has_new_files:
+            return True
+        
+        return should_send_notification(sync_summary)
+    
+    def _add_to_history(self, sync_summary):
+        """Add sync result to history (keep last 7 days)."""
+        history_entry = {
+            'timestamp': datetime.now().isoformat(),
+            'runsheets': sync_summary['runsheets_downloaded'],
+            'payslips': sync_summary['payslips_downloaded'],
+            'errors': len(sync_summary['errors']),
+            'success': len(sync_summary['errors']) == 0
+        }
+        self.sync_history.append(history_entry)
+        
+        # Keep only last 50 entries (roughly 7 days at 15min intervals)
+        if len(self.sync_history) > 50:
+            self.sync_history = self.sync_history[-50:]
+    
     def get_sync_status(self):
         """Get current sync status for API."""
         next_sync = self._estimate_next_sync()
         return {
             'is_running': self.is_running,
+            'is_paused': self.is_paused,
+            'pause_until': self.pause_until.isoformat() if self.pause_until else None,
+            'current_state': self.current_state,
             'last_sync_time': self.last_sync_time.isoformat() if self.last_sync_time else None,
             'sync_interval_minutes': self.sync_interval_minutes,
-            'next_sync_estimate': next_sync
+            'sync_start_time': self.sync_start_time,
+            'next_sync_estimate': next_sync,
+            'retry_count': self.retry_count,
+            'last_error': self.last_error,
+            'sync_history': self.sync_history[-10:],  # Last 10 entries
+            'runsheet_completed_today': self.runsheet_completed_today,
+            'payslip_completed_this_week': self.payslip_completed_this_week,
+            'auto_sync_runsheets_enabled': self.auto_sync_runsheets_enabled,
+            'auto_sync_payslips_enabled': self.auto_sync_payslips_enabled
         }
     
     def _estimate_next_sync(self):
         """Estimate when the next sync will occur."""
         if not self.is_running:
             return None
+        
+        # If runsheet is completed today, next sync is tomorrow at configured start time
+        if self.runsheet_completed_today:
+            now = datetime.now()
+            tomorrow = now + timedelta(days=1)
+            start_time_parts = self.sync_start_time.split(':')
+            next_sync = tomorrow.replace(
+                hour=int(start_time_parts[0]),
+                minute=int(start_time_parts[1]),
+                second=0,
+                microsecond=0
+            )
+            return next_sync.isoformat()
         
         # If we have a last sync time, calculate from that
         if self.last_sync_time:
@@ -500,9 +758,11 @@ class PeriodicSyncService:
             from .gmail_notifier import gmail_notifier
             from ..models.settings import SettingsModel
             
-            # Get recipient email from settings, fallback to environment, then default
+            # Get recipient email from settings (priority order: notification_email, userEmail, environment, default)
             import os
-            recipient_email = SettingsModel.get_setting('userEmail')
+            recipient_email = SettingsModel.get_setting('notification_email')
+            if not recipient_email:
+                recipient_email = SettingsModel.get_setting('userEmail')
             if not recipient_email:
                 recipient_email = os.environ.get('NOTIFICATION_EMAIL', 'danielhanson1980@gmail.com')
             

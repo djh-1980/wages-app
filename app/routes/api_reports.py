@@ -1014,19 +1014,85 @@ def api_weekly_summary_export_pdf():
         from datetime import datetime, timedelta
         from flask import send_file
         from ..services.weekly_summary_pdf_service import WeeklySummaryPDFService
+        from datetime import datetime, timedelta
         
         # Get the week_start parameter
-        week_start = request.json.get('week_start') if request.json else None
+        week_start_param = request.json.get('week_start') if request.json else None
         
-        # Fetch the weekly summary data (reuse the logic from api_weekly_summary)
-        # We'll make a request to get the data
+        # Get week data (duplicate logic from api_weekly_summary to avoid HTTP call)
+        if not week_start_param:
+            # Default to the most recent payslip's week
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT period_end
+                    FROM payslips
+                    ORDER BY period_end DESC
+                    LIMIT 1
+                """)
+                result = cursor.fetchone()
+                
+                if result and result['period_end']:
+                    try:
+                        saturday = datetime.strptime(result['period_end'], '%d/%m/%Y')
+                        sunday = saturday - timedelta(days=6)
+                        week_start_param = sunday.strftime('%Y-%m-%d')
+                    except:
+                        return jsonify({'error': 'No valid payslip data found'}), 404
+                else:
+                    return jsonify({'error': 'No payslip data found'}), 404
+        
+        # Convert to DD/MM/YYYY
+        try:
+            dt = datetime.strptime(week_start_param, '%Y-%m-%d')
+            week_start = dt.strftime('%d/%m/%Y')
+        except:
+            week_start = week_start_param
+        
+        # Calculate week end
+        start_dt = datetime.strptime(week_start, '%d/%m/%Y')
+        end_dt = start_dt + timedelta(days=6)
+        week_end = end_dt.strftime('%d/%m/%Y')
+        
+        # Check if payslip exists for this week
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT week_number, tax_year
+                FROM payslips
+                WHERE period_end = ?
+                LIMIT 1
+            """, (week_end,))
+            
+            payslip_info = cursor.fetchone()
+            
+            if not payslip_info:
+                return jsonify({
+                    'error': 'No payslip found for this week',
+                    'message': f'Week ending {week_end} does not have a payslip. PDF can only be generated for weeks with payslip records.'
+                }), 404
+        
+        # If we get here, we have a valid week with a payslip
+        # Make internal request to get full data (disable SSL verification for localhost)
         import requests
-        base_url = request.url_root.rstrip('/')
-        params = {'week_start': week_start} if week_start else {}
+        import urllib3
+        urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
         
-        # Get the data from the weekly-summary endpoint
-        response = requests.get(f"{base_url}/api/weekly-summary", params=params)
-        data = response.json()
+        base_url = request.url_root.rstrip('/')
+        
+        try:
+            response = requests.get(
+                f"{base_url}/api/weekly-summary?week_start={week_start_param}",
+                verify=False,  # Disable SSL verification for localhost
+                timeout=10
+            )
+            response.raise_for_status()
+            data = response.json()
+        except requests.exceptions.RequestException as req_err:
+            return jsonify({
+                'error': 'Failed to fetch weekly data',
+                'message': str(req_err)
+            }), 500
         
         # Generate PDF
         pdf_service = WeeklySummaryPDFService()
@@ -1038,7 +1104,14 @@ def api_weekly_summary_export_pdf():
                         mimetype='application/pdf')
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        error_details = traceback.format_exc()
+        current_app.logger.error(f"PDF generation error: {error_details}")
+        return jsonify({
+            'error': 'PDF generation failed',
+            'message': str(e),
+            'details': error_details if current_app.debug else None
+        }), 500
 
 
 @reports_bp.route('/weekly-summary')
@@ -1123,16 +1196,25 @@ def api_weekly_summary():
                 count = row['count']
                 pay = row['total_pay'] or 0
                 
-                status_breakdown[status] = {
-                    'count': count,
-                    'earnings': round(pay, 2)
-                }
-                total_jobs += count
-                if status not in ['DNCO', 'dnco', 'missed']:
-                    total_earnings += pay
-                
-                if status in ['DNCO', 'dnco']:
+                # Normalize DNCO to uppercase
+                if status.upper() == 'DNCO':
+                    status = 'DNCO'
+                    pay = 0  # DNCO jobs should always show £0 earnings
                     dnco_count += count
+                
+                # Aggregate counts if status already exists (handles case variations)
+                if status in status_breakdown:
+                    status_breakdown[status]['count'] += count
+                    status_breakdown[status]['earnings'] += round(pay, 2)
+                else:
+                    status_breakdown[status] = {
+                        'count': count,
+                        'earnings': round(pay, 2)
+                    }
+                
+                total_jobs += count
+                if status not in ['DNCO', 'missed']:
+                    total_earnings += pay
             
             # Get deductions from payslip for this week
             cursor.execute("""
@@ -1168,29 +1250,25 @@ def api_weekly_summary():
             total_earnings = total_earnings - total_deductions
             
             # Reorder status_breakdown to show in specific order
-            # Order: Completed, Extra, DNCO, PDA Licence, SASER Auto Billing
+            # Order: Completed, Extra, DNCO, PDA Licence, SASER Auto Billing, Missed, Pending
             from collections import OrderedDict
             ordered_status_breakdown = OrderedDict()
             
-            # Add in exact order requested
+            # Add in specific order (DNCO is now always uppercase)
             if 'completed' in status_breakdown:
                 ordered_status_breakdown['completed'] = status_breakdown['completed']
             if 'extra' in status_breakdown:
                 ordered_status_breakdown['extra'] = status_breakdown['extra']
-            # Handle both DNCO cases (uppercase and lowercase)
             if 'DNCO' in status_breakdown:
                 ordered_status_breakdown['DNCO'] = status_breakdown['DNCO']
-            elif 'dnco' in status_breakdown:
-                ordered_status_breakdown['dnco'] = status_breakdown['dnco']
             if 'PDA Licence' in status_breakdown:
                 ordered_status_breakdown['PDA Licence'] = status_breakdown['PDA Licence']
             if 'SASER Auto Billing' in status_breakdown:
                 ordered_status_breakdown['SASER Auto Billing'] = status_breakdown['SASER Auto Billing']
-            
-            # Add any remaining statuses not in the order list (missed, pending, etc.)
-            for status, data in status_breakdown.items():
-                if status not in ordered_status_breakdown:
-                    ordered_status_breakdown[status] = data
+            if 'missed' in status_breakdown:
+                ordered_status_breakdown['missed'] = status_breakdown['missed']
+            if 'pending' in status_breakdown:
+                ordered_status_breakdown['pending'] = status_breakdown['pending']
             
             status_breakdown = dict(ordered_status_breakdown)
             
@@ -1207,14 +1285,17 @@ def api_weekly_summary():
                 dnco_jobs = cursor.fetchall()
                 
                 # Calculate estimated loss for each DNCO job based on customer history
+                jobs_with_history = 0
+                jobs_with_default = 0
+                
                 for dnco_job in dnco_jobs:
                     customer = dnco_job['customer']
                     pay_amount = dnco_job['pay_amount']
                     
-                    if pay_amount:
-                        # Use actual pay_amount if available
+                    if pay_amount and pay_amount > 0:
+                        # Use actual pay_amount if available (shouldn't happen for DNCO)
                         estimated_dnco_loss += pay_amount
-                    else:
+                    elif customer:
                         # Look up average pay for this customer from historical completed jobs
                         cursor.execute("""
                             SELECT AVG(pay_amount) as avg_pay
@@ -1228,11 +1309,22 @@ def api_weekly_summary():
                         
                         if avg_result and avg_result['avg_pay']:
                             estimated_dnco_loss += avg_result['avg_pay']
+                            jobs_with_history += 1
                         else:
                             # If no historical data, use £15 default
                             estimated_dnco_loss += 15.0
+                            jobs_with_default += 1
+                    else:
+                        # No customer name, use default
+                        estimated_dnco_loss += 15.0
+                        jobs_with_default += 1
                 
                 estimated_dnco_loss = round(estimated_dnco_loss, 2)
+                
+                # Log for debugging
+                import logging
+                logger = logging.getLogger('api')
+                logger.info(f"DNCO Loss Calculation: {dnco_count} jobs, {jobs_with_history} with history, {jobs_with_default} with default, Total: £{estimated_dnco_loss}")
                 
                 # Add estimated loss to DNCO status breakdown
                 for status_key in ['DNCO', 'dnco']:
@@ -1426,8 +1518,20 @@ def api_weekly_summary():
             """, (week_end,))
             
             payslip_info = cursor.fetchone()
-            week_number = payslip_info['week_number'] if payslip_info else start_dt.isocalendar()[1]
-            tax_year = payslip_info['tax_year'] if payslip_info else start_dt.year
+            
+            # Always use payslip week numbers (not ISO weeks)
+            if payslip_info:
+                week_number = payslip_info['week_number']
+                tax_year = payslip_info['tax_year']
+            else:
+                # No payslip for this week - show a message
+                return jsonify({
+                    'error': 'No payslip found for this week',
+                    'message': f'Week ending {week_end} does not have a corresponding payslip record.',
+                    'week_start': week_start,
+                    'week_end': week_end,
+                    'week_label': f"{start_dt.strftime('%d %b')} - {end_dt.strftime('%d %b %Y')}"
+                }), 404
             
             # Check if weekly earnings match payslip net payment
             payslip_net_payment = payslip_info['net_payment'] if payslip_info else None

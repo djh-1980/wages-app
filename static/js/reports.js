@@ -1402,6 +1402,14 @@ function displayCustomReportData(data, reportType) {
             return sortDescending ? dateB - dateA : dateA - dateB;
         });
     }
+    
+    if (data.pending_jobs) {
+        data.pending_jobs.sort((a, b) => {
+            const dateA = parseDate(a.date);
+            const dateB = parseDate(b.date);
+            return sortDescending ? dateB - dateA : dateA - dateB;
+        });
+    }
     if (data.discrepancies) {
         data.discrepancies.sort((a, b) => {
             if (reportType === 'earnings_discrepancy') {
@@ -1501,6 +1509,56 @@ function displayCustomReport(data, reportType) {
         `;
         data.mileage.forEach(m => {
             html += `<tr><td>${m.date}</td><td>${m.job}</td><td>${m.customer}</td><td>${formatCurrency(m.amount)}</td></tr>`;
+        });
+        html += `</tbody></table></div>`;
+        
+    } else if (reportType === 'pending' && data.pending_jobs) {
+        // Pending Jobs Report
+        html += `
+            <div class="alert alert-warning mb-3">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-clock-fill me-2"></i>
+                    <strong>Pending Jobs Report</strong>
+                </div>
+                <div class="row">
+                    <div class="col-md-12">
+                        <div><strong>Total Pending Jobs:</strong> ${data.summary.total_pending}</div>
+                        <p class="mb-0 mt-2 small">These jobs have not been marked as completed, missed, or DNCO</p>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Table
+        html += `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Job Number</th>
+                            <th>Customer</th>
+                            <th>Address</th>
+                            <th>Activity</th>
+                            <th>Priority</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        data.pending_jobs.forEach(job => {
+            const priorityBadge = job.priority ? `<span class="badge bg-${job.priority === 'High' ? 'danger' : job.priority === 'Medium' ? 'warning' : 'secondary'}">${job.priority}</span>` : '-';
+            html += `
+                <tr>
+                    <td>${job.date}</td>
+                    <td><strong>${job.job_number || '-'}</strong></td>
+                    <td>${job.customer || '-'}</td>
+                    <td class="small">${job.address || '-'}</td>
+                    <td class="small">${job.activity || '-'}</td>
+                    <td>${priorityBadge}</td>
+                    <td class="small">${job.notes || '-'}</td>
+                </tr>
+            `;
         });
         html += `</tbody></table></div>`;
         

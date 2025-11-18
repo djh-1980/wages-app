@@ -981,7 +981,7 @@ async function saveAllJobStatuses(date) {
 
 // Delete a job
 async function deleteJob(jobId, date) {
-    if (!confirm('Are you sure you want to delete this job? This action cannot be undone.')) {
+    if (!confirm('⚠️ Are you sure you want to delete this job?\n\nThis will permanently remove it from the database.\n\nNote: If this job is in a runsheet PDF, it may reappear if you re-import that PDF.')) {
         return;
     }
     

@@ -166,14 +166,40 @@ def api_add_extra_job():
 
 @runsheets_bp.route('/delete-job/<int:job_id>', methods=['DELETE'])
 def api_delete_job(job_id):
-    """Delete a job from run sheets."""
+    """Delete a job from run sheets and prevent it from being re-imported."""
     try:
+        from ..database import get_db_connection
+        
+        # First, get the job details before deleting
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT job_number, date FROM run_sheet_jobs WHERE id = ?", (job_id,))
+            job = cursor.fetchone()
+            
+            if not job:
+                return jsonify({'success': False, 'error': 'Job not found'}), 404
+            
+            job_number = job['job_number']
+            date = job['date']
+            
+            # Add to deleted_jobs table to prevent re-import
+            cursor.execute("""
+                INSERT OR IGNORE INTO deleted_jobs (job_number, date)
+                VALUES (?, ?)
+            """, (job_number, date))
+            
+            conn.commit()
+        
+        # Now delete the job
         success = RunsheetModel.delete_job(job_id)
         
         if success:
-            return jsonify({'success': True, 'message': 'Job deleted successfully'})
+            return jsonify({
+                'success': True, 
+                'message': f'Job {job_number} deleted and will not be re-imported'
+            })
         else:
-            return jsonify({'success': False, 'error': 'Job not found'}), 404
+            return jsonify({'success': False, 'error': 'Failed to delete job'}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 

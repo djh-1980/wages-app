@@ -186,6 +186,17 @@ class AttendanceModel:
             return False
     
     @staticmethod
+    def get_attendance_dates():
+        """Get all dates with attendance records (sick days, personal days, etc.)."""
+        try:
+            query = "SELECT date FROM attendance ORDER BY date DESC"
+            rows = execute_query(query, fetch_all=True)
+            return [row[0] for row in rows]
+        except Exception as e:
+            print(f"Error getting attendance dates: {e}")
+            return []
+    
+    @staticmethod
     def clear_all_records():
         """Clear all attendance records and return count of deleted records."""
         try:

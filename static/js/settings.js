@@ -1,3 +1,34 @@
+/**
+ * Copy email template for requesting files from manager
+ */
+function copyManagerRequestEmail() {
+    const template = `Subject: Request for Historical Runsheets and Payslips
+
+Hi [Manager Name],
+
+I'm updating my wages records and need copies of some historical runsheets and payslips that I don't have in my email.
+
+Could you please send me PDF copies of:
+- Runsheets from [DATE RANGE]
+- Payslips from [DATE RANGE]
+
+These will help me keep my records complete and accurate.
+
+Thank you!
+
+Best regards,
+[Your Name]`;
+
+    // Copy to clipboard
+    navigator.clipboard.writeText(template).then(() => {
+        showStatus('Email template copied to clipboard!', 'success');
+    }).catch(() => {
+        // Fallback: show in modal
+        alert(template);
+        showStatus('Email template displayed (clipboard not available)', 'info');
+    });
+}
+
 // Load all settings on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadAllSettings();

@@ -908,6 +908,215 @@ def api_force_sync():
         }), 500
 
 
+@data_bp.route('/periodic-sync/pause', methods=['POST'])
+def api_pause_periodic_sync():
+    """Pause the periodic sync service temporarily."""
+    try:
+        from ..services.periodic_sync import periodic_sync_service
+        
+        data = request.json or {}
+        duration_minutes = data.get('duration_minutes')
+        
+        periodic_sync_service.pause_sync(duration_minutes)
+        
+        log_settings_action('PERIODIC_SYNC', f'Sync paused for {duration_minutes or "indefinite"} minutes')
+        return jsonify({
+            'success': True,
+            'message': f'Sync paused {"for " + str(duration_minutes) + " minutes" if duration_minutes else "indefinitely"}',
+            'pause_until': periodic_sync_service.pause_until.isoformat() if periodic_sync_service.pause_until else None
+        })
+        
+    except Exception as e:
+        log_settings_action('PERIODIC_SYNC', f'Failed to pause sync: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/periodic-sync/resume', methods=['POST'])
+def api_resume_periodic_sync():
+    """Resume the periodic sync service."""
+    try:
+        from ..services.periodic_sync import periodic_sync_service
+        
+        success = periodic_sync_service.resume_sync()
+        
+        if success:
+            log_settings_action('PERIODIC_SYNC', 'Sync resumed')
+            return jsonify({
+                'success': True,
+                'message': 'Sync resumed successfully'
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': 'Failed to resume sync'
+            }), 400
+            
+    except Exception as e:
+        log_settings_action('PERIODIC_SYNC', f'Failed to resume sync: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/periodic-sync/health', methods=['GET'])
+def api_get_sync_health():
+    """Get comprehensive health check for sync service."""
+    try:
+        from ..services.periodic_sync import periodic_sync_service
+        
+        health_status = periodic_sync_service.get_health_status()
+        
+        return jsonify({
+            'success': True,
+            'health': health_status
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/periodic-sync/config', methods=['GET'])
+def api_get_sync_config():
+    """Get current sync configuration."""
+    try:
+        from ..services.periodic_sync import periodic_sync_service
+        
+        # Get notification email from settings
+        notification_email = SettingsModel.get_setting('notification_email') or SettingsModel.get_setting('userEmail')
+        
+        config = {
+            'sync_start_time': periodic_sync_service.sync_start_time,
+            'sync_interval_minutes': periodic_sync_service.sync_interval_minutes,
+            'payslip_sync_day': periodic_sync_service.payslip_sync_day,
+            'payslip_sync_start': periodic_sync_service.payslip_sync_start,
+            'payslip_sync_end': periodic_sync_service.payslip_sync_end,
+            'notification_email': notification_email,
+            'notify_on_success': periodic_sync_service.notify_on_success,
+            'notify_on_error_only': periodic_sync_service.notify_on_error_only,
+            'notify_on_new_files_only': periodic_sync_service.notify_on_new_files_only,
+            'auto_sync_runsheets_enabled': periodic_sync_service.auto_sync_runsheets_enabled,
+            'auto_sync_payslips_enabled': periodic_sync_service.auto_sync_payslips_enabled
+        }
+        
+        return jsonify({
+            'success': True,
+            'config': config
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/periodic-sync/config', methods=['POST'])
+def api_update_sync_config():
+    """Update sync configuration."""
+    try:
+        from ..services.periodic_sync import periodic_sync_service
+        
+        data = request.json
+        
+        # Update settings in database
+        if 'sync_start_time' in data:
+            SettingsModel.set_setting('sync_start_time', data['sync_start_time'])
+        if 'sync_interval_minutes' in data:
+            SettingsModel.set_setting('sync_interval_minutes', str(data['sync_interval_minutes']))
+        if 'payslip_sync_day' in data:
+            SettingsModel.set_setting('payslip_sync_day', data['payslip_sync_day'])
+        if 'payslip_sync_start' in data:
+            SettingsModel.set_setting('payslip_sync_start', str(data['payslip_sync_start']))
+        if 'payslip_sync_end' in data:
+            SettingsModel.set_setting('payslip_sync_end', str(data['payslip_sync_end']))
+        if 'notification_email' in data:
+            SettingsModel.set_setting('notification_email', data['notification_email'])
+        if 'notify_on_success' in data:
+            SettingsModel.set_setting('notify_on_success', str(data['notify_on_success']).lower())
+        if 'notify_on_error_only' in data:
+            SettingsModel.set_setting('notify_on_error_only', str(data['notify_on_error_only']).lower())
+        if 'notify_on_new_files_only' in data:
+            SettingsModel.set_setting('notify_on_new_files_only', str(data['notify_on_new_files_only']).lower())
+        if 'auto_sync_runsheets_enabled' in data:
+            SettingsModel.set_setting('auto_sync_runsheets_enabled', str(data['auto_sync_runsheets_enabled']).lower())
+        if 'auto_sync_payslips_enabled' in data:
+            SettingsModel.set_setting('auto_sync_payslips_enabled', str(data['auto_sync_payslips_enabled']).lower())
+        
+        # Reload configuration in sync service
+        periodic_sync_service._load_config()
+        
+        log_settings_action('PERIODIC_SYNC', f'Configuration updated: {data}')
+        
+        return jsonify({
+            'success': True,
+            'message': 'Sync configuration updated successfully'
+        })
+        
+    except Exception as e:
+        log_settings_action('PERIODIC_SYNC', f'Failed to update config: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/periodic-sync/test-notification', methods=['POST'])
+def api_test_sync_notification():
+    """Send a test sync notification email."""
+    try:
+        from ..services.periodic_sync import periodic_sync_service
+        from ..services.sync_helpers import get_latest_runsheet_date, get_latest_payslip_week
+        
+        # Get notification email from settings
+        notification_email = SettingsModel.get_setting('notification_email')
+        if not notification_email:
+            notification_email = SettingsModel.get_setting('userEmail')
+        
+        if not notification_email:
+            return jsonify({
+                'success': False,
+                'error': 'No notification email configured. Please set one in the sync configuration.'
+            }), 400
+        
+        # Create a test sync summary
+        test_summary = {
+            'runsheets_downloaded': 1,
+            'runsheets_imported': 15,
+            'payslips_downloaded': 0,
+            'payslips_imported': 0,
+            'jobs_synced': 0,
+            'errors': [],
+            'duration_seconds': 12,
+            'latest_runsheet_date': get_latest_runsheet_date() or '18/11/2025',
+            'latest_payslip_week': get_latest_payslip_week() or 'Week 33, 2025'
+        }
+        
+        # Send test notification
+        periodic_sync_service._send_sync_notification(test_summary)
+        
+        log_settings_action('PERIODIC_SYNC', f'Test notification sent to {notification_email}')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Test notification sent to {notification_email}',
+            'email': notification_email
+        })
+        
+    except Exception as e:
+        log_settings_action('PERIODIC_SYNC', f'Failed to send test notification: {str(e)}', 'ERROR')
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @data_bp.route('/sync-runsheets-payslips', methods=['POST'])
 def api_sync_runsheets_payslips():
     """Sync runsheet data with payslip data to update prices and addresses."""
@@ -1333,6 +1542,45 @@ def api_generate_custom_report():
                         'estimated_loss': round(total_loss, 2)
                     },
                     'dnco_jobs': dnco_jobs_with_estimates
+                }
+                
+            elif report_type == 'pending':
+                # Pending Jobs Report - Exclude jobs from sick/personal days
+                if year and week:
+                    # Use week_dates for filtering
+                    cursor.execute(f"""
+                        SELECT date, job_number, customer, job_address, activity, priority, notes
+                        FROM run_sheet_jobs
+                        WHERE (status IS NULL OR status = 'pending')
+                        AND date NOT IN (SELECT date FROM attendance)
+                        {date_filter}
+                        ORDER BY date DESC, job_number
+                    """, week_dates_filter)
+                else:
+                    cursor.execute(f"""
+                        SELECT date, job_number, customer, job_address, activity, priority, notes
+                        FROM run_sheet_jobs
+                        WHERE (status IS NULL OR status = 'pending')
+                        AND date NOT IN (SELECT date FROM attendance)
+                        {date_filter}
+                        ORDER BY date DESC, job_number
+                    """)
+                pending_jobs = cursor.fetchall()
+                
+                report_data = {
+                    'total_records': len(pending_jobs),
+                    'summary': {
+                        'total_pending': len(pending_jobs)
+                    },
+                    'pending_jobs': [{
+                        'date': job[0],
+                        'job_number': job[1],
+                        'customer': job[2],
+                        'address': job[3],
+                        'activity': job[4],
+                        'priority': job[5],
+                        'notes': job[6]
+                    } for job in pending_jobs]
                 }
                 
             elif report_type == 'earnings_discrepancy':

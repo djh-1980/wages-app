@@ -195,7 +195,7 @@ class WeeklySummaryPDFService:
         
         # Status Breakdown (Left Column) - in specific order
         status_data = [['Status', 'Count', '£']]
-        status_order = ['completed', 'extra', 'DNCO', 'dnco', 'PDA Licence', 'SASER Auto Billing', 'missed', 'pending']
+        status_order = ['completed', 'extra', 'DNCO', 'PDA Licence', 'SASER Auto Billing', 'missed', 'pending']
         status_breakdown = data.get('status_breakdown', {})
         
         for status in status_order:
@@ -205,7 +205,7 @@ class WeeklySummaryPDFService:
                 
                 # Add estimated loss for DNCO
                 earnings_display = f"£{info.get('earnings', 0):.2f}"
-                if status in ['DNCO', 'dnco'] and info.get('estimated_loss'):
+                if status == 'DNCO' and info.get('estimated_loss'):
                     earnings_display = f"£{info.get('earnings', 0):.2f}\n(Est: £{info.get('estimated_loss', 0):.2f})"
                 
                 status_data.append([status_label, str(info.get('count', 0)), earnings_display])
