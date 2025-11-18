@@ -91,6 +91,23 @@ body {
     box-shadow: var(--shadow-md);
 }
 
+/* Nav Pills & Tabs - Desktop styles (blue active state) */
+@media screen and (min-width: 769px) {
+    .nav-pills .nav-link.active,
+    .nav-tabs .nav-link.active {
+        background-color: var(--primary-color) !important;
+        color: white !important;
+        border-color: var(--primary-color) !important;
+    }
+
+    .nav-pills .nav-link,
+    .nav-tabs .nav-link {
+        border: 1px solid #dee2e6;
+        border-radius: var(--radius-md);
+        margin-bottom: 4px;
+    }
+}
+
 /* Summary Cards - Unified System */
 .summary-cards {
     margin-bottom: var(--spacing-xl);
@@ -397,16 +414,117 @@ body {
         margin-left: 0;
     }
     
-    /* Summary cards responsive */
+    /* Summary cards responsive - Stack vertically on mobile */
     .summary-cards {
         display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        grid-template-columns: 1fr;
         gap: var(--spacing-md);
         margin-bottom: var(--spacing-lg);
     }
     
     .summary-cards .col-md-3 {
         margin-bottom: 0;
+    }
+    
+    /* Nav pills - Better mobile layout (match nav-tabs style) */
+    .nav-pills,
+    ul.nav-pills {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+        margin-bottom: var(--spacing-lg) !important;
+        flex-wrap: nowrap !important;
+    }
+    
+    .nav-pills .nav-item,
+    ul.nav-pills .nav-item {
+        width: 100% !important;
+        flex: none !important;
+    }
+    
+    .nav-pills .nav-link {
+        width: 100%;
+        padding: 12px 8px;
+        font-size: 14px;
+        text-align: center;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        border: 1px solid #dee2e6 !important;
+        border-radius: var(--radius-lg) !important;
+    }
+    
+    .nav-pills .nav-link.active,
+    ul.nav-pills .nav-item .nav-link.active,
+    .nav-pills .nav-item .nav-link.active,
+    .nav-pills .nav-item .nav-link.active.show {
+        background-color: #0d6efd !important;
+        color: #ffffff !important;
+        border-color: #0d6efd !important;
+    }
+    
+    .nav-pills .nav-link.active i,
+    ul.nav-pills .nav-item .nav-link.active i,
+    .nav-pills .nav-link.active .bi {
+        color: #ffffff !important;
+    }
+    
+    .nav-pills .nav-link i {
+        display: block;
+        font-size: 18px;
+        margin-bottom: 4px;
+    }
+    
+    /* Nav tabs - Match nav-pills style (uniform 2x2 grid) */
+    .nav-tabs,
+    ul.nav-tabs {
+        display: grid !important;
+        grid-template-columns: 1fr 1fr !important;
+        gap: 8px !important;
+        border-bottom: none !important;
+        margin-bottom: var(--spacing-lg) !important;
+        flex-wrap: nowrap !important;
+    }
+    
+    .nav-tabs .nav-item,
+    ul.nav-tabs .nav-item {
+        width: 100% !important;
+        margin-bottom: 0 !important;
+        flex: none !important;
+    }
+    
+    .nav-tabs .nav-link {
+        width: 100%;
+        padding: 12px 8px;
+        font-size: 14px;
+        text-align: center;
+        border: 1px solid #dee2e6 !important;
+        border-radius: var(--radius-lg) !important;
+        margin: 0 !important;
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+    
+    .nav-tabs .nav-link.active,
+    ul.nav-tabs .nav-item .nav-link.active,
+    .nav-tabs .nav-item .nav-link.active,
+    .nav-tabs .nav-item .nav-link.active.show {
+        background-color: #0d6efd !important;
+        color: #ffffff !important;
+        border-color: #0d6efd !important;
+    }
+    
+    .nav-tabs .nav-link.active i,
+    ul.nav-tabs .nav-item .nav-link.active i,
+    .nav-tabs .nav-link.active .bi {
+        color: #ffffff !important;
+    }
+    
+    .nav-tabs .nav-link i {
+        display: block;
+        font-size: 18px;
+        margin-bottom: 4px;
     }
     
     /* Tab content */
@@ -487,10 +605,10 @@ body {
         padding: 14px 20px;
     }
     
-    /* Summary cards - 2x2 grid */
+    /* Summary cards - Stack vertically on mobile */
     .summary-cards {
         display: grid;
-        grid-template-columns: 1fr 1fr;
+        grid-template-columns: 1fr;
         gap: 12px;
         margin-bottom: var(--spacing-lg);
     }
@@ -651,18 +769,24 @@ body {
     
     /* Ensure all tables scroll on mobile */
     .table-responsive,
-    .card-body .table-responsive {
+    .card-body .table-responsive,
+    #payslips .table-responsive,
+    #wages .table-responsive {
         overflow-x: auto !important;
         overflow-y: hidden !important;
         -webkit-overflow-scrolling: touch !important;
-        width: 100% !important;
+        display: block !important;
         max-width: 100% !important;
+        width: 100% !important;
     }
     
     .table-responsive table,
-    .card-body .table-responsive table {
-        min-width: 800px !important;
+    .card-body .table-responsive table,
+    #payslips .table-responsive table,
+    #wages .table-responsive table {
+        min-width: 600px !important;
         width: max-content !important;
+        margin-bottom: 0 !important;
     }
     
     /* Table styling */
@@ -815,7 +939,51 @@ body {
 
 /* Mobile Table Scrolling - All Mobile Devices (up to 768px) */
 @media screen and (max-width: 768px) {
-    /* Enable horizontal scrolling for Paypoint and Reports tables only */
+    /* Enable horizontal scrolling for Wages and Payslips tables */
+    #wages .table-responsive,
+    #payslips .table-responsive {
+        overflow-x: auto !important;
+        overflow-y: hidden !important;
+        -webkit-overflow-scrolling: touch !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+    }
+    
+    /* Force min-width on Wages and Payslips tables to enable scrolling */
+    #wages .table-responsive table,
+    #payslips .table-responsive table {
+        min-width: 600px !important;
+        width: max-content !important;
+        margin-bottom: 0 !important;
+    }
+    
+    /* Payslip Details Modal - Enable both horizontal and vertical scrolling */
+    #payslipModal .modal-body {
+        max-height: 70vh !important;
+        overflow-y: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+    }
+    
+    #payslipModal .modal-body .table-responsive,
+    #payslipModal .table-responsive {
+        overflow-x: auto !important;
+        overflow-y: visible !important;
+        -webkit-overflow-scrolling: touch !important;
+        width: 100% !important;
+        max-width: 100% !important;
+        display: block !important;
+    }
+    
+    #payslipModal .modal-body .table-responsive table,
+    #payslipModal .table-responsive table,
+    #payslipModal table {
+        min-width: 600px !important;
+        width: max-content !important;
+        margin-bottom: 0 !important;
+    }
+    
+    /* Enable horizontal scrolling for Paypoint and Reports tables */
     #paypoint .table-responsive,
     #reports .table-responsive,
     .paypoint-table-container .table-responsive,
@@ -828,21 +996,37 @@ body {
         display: block !important;
     }
     
-    /* Let tables size naturally - only force width on large tables */
+    /* Force min-width on ALL Paypoint tables including Van Stock and Returns */
     #paypoint .table-responsive table,
+    #paypoint table,
+    #devicesTable,
+    #returnsTable,
     #reports .table-responsive table,
     .paypoint-table-container .table-responsive table,
     .reports-table-container .table-responsive table {
-        width: 100% !important;
+        min-width: 1000px !important;
+        width: 1000px !important;
         margin-bottom: 0 !important;
+        display: table !important;
     }
     
-    /* Only force min-width on tables with many columns (6+) */
-    #paypoint .table-responsive table:has(th:nth-child(6)),
-    #reports .table-responsive table:has(th:nth-child(6)),
-    .paypoint-table-container .table-responsive table:has(th:nth-child(6)),
-    .reports-table-container .table-responsive table:has(th:nth-child(6)) {
-        min-width: 800px !important;
-        width: max-content !important;
+    /* Override fixed column widths on Paypoint tables for mobile scrolling */
+    #paypoint .table-responsive table th,
+    #paypoint .table-responsive table td,
+    #paypoint table th,
+    #paypoint table td {
+        min-width: 120px !important;
+        white-space: nowrap !important;
+        padding: 8px !important;
+    }
+    
+    /* Ensure parent containers allow scrolling */
+    #paypoint .content-card,
+    #paypoint .stock-section-card,
+    #paypoint .returns-section-card,
+    #paypoint .card-body,
+    .stock-section-card,
+    .returns-section-card {
+        overflow: visible !important;
     }
 }
