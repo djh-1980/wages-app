@@ -87,43 +87,58 @@ class RunsheetSyncService:
             
             pay_updated_count = cursor.rowcount
             
-            # Update address information for jobs with N/A addresses
+            # Update address and customer information
+            # Overwrite if runsheet has N/A or if payslip has better data (longer, more complete)
             cursor.execute("""
                 UPDATE run_sheet_jobs 
                 SET 
-                    job_address = (
-                        SELECT j.location 
-                        FROM job_items j 
-                        WHERE j.job_number = run_sheet_jobs.job_number
-                        AND j.location IS NOT NULL 
-                        AND j.location != ''
-                        AND j.location != 'N/A'
-                        LIMIT 1
-                    ),
-                    customer = COALESCE(
-                        (SELECT j.client 
-                         FROM job_items j 
-                         WHERE j.job_number = run_sheet_jobs.job_number
-                         AND j.client IS NOT NULL 
-                         AND j.client != ''
-                         AND j.client != 'N/A'
-                         LIMIT 1), 
-                        customer
-                    )
+                    job_address = CASE 
+                        WHEN (run_sheet_jobs.job_address IN ('N/A', '', 'n/a', 'N/a') OR run_sheet_jobs.job_address IS NULL)
+                        THEN (
+                            SELECT j.location 
+                            FROM job_items j 
+                            WHERE j.job_number = run_sheet_jobs.job_number
+                            AND j.location IS NOT NULL 
+                            AND j.location != ''
+                            AND j.location NOT IN ('N/A', 'SCS', 'TVS', 'IFM')
+                            AND LENGTH(j.location) > 5
+                            LIMIT 1
+                        )
+                        WHEN (
+                            SELECT LENGTH(j.location) 
+                            FROM job_items j 
+                            WHERE j.job_number = run_sheet_jobs.job_number
+                            AND j.location IS NOT NULL
+                            AND j.location NOT IN ('N/A', 'SCS', 'TVS', 'IFM')
+                            LIMIT 1
+                        ) > LENGTH(run_sheet_jobs.job_address)
+                        THEN (
+                            SELECT j.location 
+                            FROM job_items j 
+                            WHERE j.job_number = run_sheet_jobs.job_number
+                            AND j.location IS NOT NULL 
+                            AND LENGTH(j.location) > LENGTH(run_sheet_jobs.job_address)
+                            LIMIT 1
+                        )
+                        ELSE run_sheet_jobs.job_address
+                    END,
+                    customer = CASE 
+                        WHEN (run_sheet_jobs.customer IN ('N/A', '', 'n/a', 'N/a') OR run_sheet_jobs.customer IS NULL)
+                        THEN (
+                            SELECT j.client 
+                            FROM job_items j 
+                            WHERE j.job_number = run_sheet_jobs.job_number
+                            AND j.client IS NOT NULL 
+                            AND j.client != ''
+                            AND j.client != 'N/A'
+                            LIMIT 1
+                        )
+                        ELSE run_sheet_jobs.customer
+                    END
                 WHERE run_sheet_jobs.job_number IS NOT NULL
-                AND (
-                    run_sheet_jobs.job_address IN ('N/A', '', 'n/a', 'N/a') 
-                    OR run_sheet_jobs.job_address IS NULL
-                    OR run_sheet_jobs.customer IN ('N/A', '', 'n/a', 'N/a') 
-                    OR run_sheet_jobs.customer IS NULL
-                )
                 AND EXISTS (
                     SELECT 1 FROM job_items j 
                     WHERE j.job_number = run_sheet_jobs.job_number
-                    AND (
-                        (j.location IS NOT NULL AND j.location != '' AND j.location != 'N/A')
-                        OR (j.client IS NOT NULL AND j.client != '' AND j.client != 'N/A')
-                    )
                 )
             """)
             

@@ -18,7 +18,10 @@ import PyPDF2
 import sqlite3
 
 # If modifying these scopes, delete the file token.json.
-SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
+SCOPES = [
+    'https://www.googleapis.com/auth/gmail.readonly',
+    'https://www.googleapis.com/auth/gmail.send'  # For sending notification emails
+]
 
 class GmailRunSheetDownloader:
     def __init__(self, download_dir='RunSheets'):
@@ -608,9 +611,9 @@ class GmailRunSheetDownloader:
         print(f"✓ Found {len(messages)} payslip emails (Tuesdays at 1300)")
         print()
         
-        # Download attachments to PaySlips folder
-        payslip_dir = Path('PaySlips')
-        payslip_dir.mkdir(exist_ok=True)
+        # Download attachments to data/documents/payslips folder
+        payslip_dir = Path('data/documents/payslips')
+        payslip_dir.mkdir(parents=True, exist_ok=True)
         
         print("📥 Downloading payslips...")
         total_downloaded = 0
@@ -645,6 +648,13 @@ class GmailRunSheetDownloader:
                                 # Extract year from filename (e.g., "Week30 2025.pdf" -> "2025")
                                 import re
                                 year_match = re.search(r'(\d{4})', filename)
+                                year = year_match.group(1) if year_match else datetime.now().year
+                                
+                                # Create year folder and filepath
+                                year_dir = payslip_dir / str(year)
+                                year_dir.mkdir(exist_ok=True)
+                                filepath = year_dir / filename
+                                
                                 if filepath.exists():
                                     print(f"  ⏭️  Already exists: {filename}")
                                     # Still add to downloaded list so it gets processed

@@ -291,11 +291,11 @@ window.loadPayslips = async function(taxYear = '') {
         });
         
         tbody.innerHTML = data.map(p => `
-            <tr>
+            <tr data-payslip-id="${p.id}" data-week="${p.week_number}" data-year="${p.tax_year.split('/')[0]}" data-gross="${p.gross_subcontractor_payment || 0}" data-net="${p.net_payment || 0}">
                 <td><span class="badge bg-primary">${p.tax_year}</span></td>
                 <td>Week ${p.week_number}</td>
                 <td>${p.pay_date || 'N/A'}</td>
-                <td class="text-end"><strong class="text-success">${formatCurrency(p.net_payment)}</strong></td>
+                <td class="text-end"><strong class="text-success">${formatCurrency(p.net_payment)}</strong><span class="verbal-match-indicator"></span></td>
                 <td class="text-center"><span class="badge bg-info">${p.job_count || 0} jobs</span></td>
                 <td class="text-center">
                     <button class="btn btn-sm btn-outline-primary" onclick="viewPayslip(${p.id})">
@@ -304,6 +304,35 @@ window.loadPayslips = async function(taxYear = '') {
                 </td>
             </tr>
         `).join('');
+        
+        // Check for verbal confirmations and add indicators
+        if (typeof checkVerbalMatch === 'function') {
+            const rows = tbody.querySelectorAll('tr[data-payslip-id]');
+            rows.forEach(async (row) => {
+                const payslipId = parseInt(row.dataset.payslipId);
+                const weekNumber = parseInt(row.dataset.week);
+                const year = parseInt(row.dataset.year);
+                const grossPay = parseFloat(row.dataset.gross) || 0;
+                const netPay = parseFloat(row.dataset.net) || 0;
+                
+                const matchInfo = await checkVerbalMatch(payslipId, `Week ${weekNumber}, ${year}`, grossPay, netPay);
+                
+                if (matchInfo && matchInfo.hasConfirmation) {
+                    const indicator = row.querySelector('.verbal-match-indicator');
+                    if (indicator) {
+                        indicator.className = 'verbal-match-indicator ms-2';
+                        indicator.style.cursor = 'pointer';
+                        
+                        if (matchInfo.matched) {
+                            indicator.innerHTML = '<i class="bi bi-check-circle-fill text-success" title="Matches verbal confirmation"></i>';
+                        } else {
+                            const diff = matchInfo.difference;
+                            indicator.innerHTML = `<i class="bi bi-exclamation-triangle-fill text-warning" title="Difference: £${Math.abs(diff).toFixed(2)} ${diff > 0 ? 'more' : 'less'} than verbal"></i>`;
+                        }
+                    }
+                }
+            });
+        }
         
     } catch (error) {
         console.error('Error loading payslips:', error);

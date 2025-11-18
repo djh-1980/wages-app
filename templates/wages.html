@@ -17,6 +17,11 @@
                 </h1>
                 <p>Track earnings, payslips, and financial analytics</p>
             </div>
+            <div>
+                <button class="btn btn-primary" onclick="showVerbalPayModal()">
+                    <i class="bi bi-telephone-plus me-1"></i>Add Verbal Confirmation
+                </button>
+            </div>
         </div>
     </div>
 
@@ -231,10 +236,62 @@
         </div>
     </div>
 </div>
+
+<!-- Verbal Pay Confirmation Modal -->
+<div class="modal fade" id="verbalPayModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-telephone text-primary me-2"></i>
+                    Verbal Pay Confirmation
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <p class="text-muted mb-3">
+                    <i class="bi bi-info-circle me-1"></i>
+                    Record the amount your boss told you on Tuesday. This will be compared with the payslip in 2 weeks.
+                </p>
+                
+                <form id="verbalPayForm">
+                    <div class="mb-3">
+                        <label class="form-label">Week Number *</label>
+                        <input type="number" class="form-control" id="verbalWeekNumber" min="1" max="53" required>
+                        <small class="text-muted">The week you're being paid for</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Year *</label>
+                        <input type="number" class="form-control" id="verbalYear" min="2020" max="2030" required>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Verbal Amount (£) *</label>
+                        <input type="number" class="form-control" id="verbalAmount" step="0.01" min="0" required>
+                        <small class="text-muted">The amount your boss told you</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="verbalNotes" rows="2" placeholder="Optional notes..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveVerbalConfirmation()">
+                    <i class="bi bi-check-circle me-1"></i>Save Confirmation
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
 <script src="{{ url_for('static', filename='js/wages-init.js') }}?v={{ range(1000, 9999) | random }}"></script>
+<script src="{{ url_for('static', filename='js/verbal-pay.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}

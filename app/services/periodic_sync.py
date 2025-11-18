@@ -3,25 +3,39 @@ Periodic Sync Service
 Handles automatic background syncing of recent files only.
 Older files can be processed manually when needed.
 """
-
-import schedule
-import time
-import threading
 import logging
-from datetime import datetime, timedelta
-from pathlib import Path
+import threading
+import time
+import schedule
 import subprocess
 import sys
-from ..database import DB_PATH
 import sqlite3
+from datetime import datetime, timedelta
+from pathlib import Path
+from .sync_helpers import (
+    get_latest_runsheet_date,
+    get_latest_payslip_week,
+    sync_payslips_to_runsheets,
+    should_send_notification,
+    format_sync_email
+)
+from ..database import DB_PATH
 
 class PeriodicSyncService:
     def __init__(self):
         self.is_running = False
         self.sync_thread = None
         self.last_sync_time = None
-        self.sync_interval_minutes = 30  # Sync every 30 minutes
+        self.sync_interval_minutes = 15  # Sync every 15 minutes
         self.real_time_processing = False  # Disable file monitoring, use simple sync
+        
+        # Track what's been processed today/this week to avoid re-checking
+        self.last_runsheet_date_processed = None
+        self.last_payslip_week_processed = None
+        self.last_check_date = None  # Reset tracking daily
+        self.runsheet_completed_today = False  # Stop runsheet checks after processing
+        self.payslip_completed_this_week = False  # Stop payslip checks after processing
+        self.sync_started_today = False  # Track if 18:00 sync has started
         
         # Setup logging
         self.logger = logging.getLogger('periodic_sync')
@@ -32,20 +46,40 @@ class PeriodicSyncService:
         self.logger.setLevel(logging.INFO)
     
     def start_periodic_sync(self):
-        """Start the periodic sync service - syncs latest runsheet + payslip every 30 mins."""
+        """Start the periodic sync service - syncs at 18:00 daily, then every 15 mins until complete."""
         if self.is_running:
             self.logger.info("Periodic sync already running")
             return
         
         self.is_running = True
-        self.logger.info(f"Starting periodic sync service (every {self.sync_interval_minutes} minutes)")
+        self.logger.info(f"Starting periodic sync service (18:00 daily, then every {self.sync_interval_minutes} minutes until complete)")
         
-        # Schedule the sync job
-        schedule.every(self.sync_interval_minutes).minutes.do(self.sync_latest)
+        # Schedule daily sync at 18:00
+        schedule.every().day.at("18:00").do(self._start_daily_sync)
+        
+        # Check if we should start syncing now (if past 18:00 today and not completed)
+        now = datetime.now()
+        if now.hour >= 18 and not self.runsheet_completed_today:
+            # Already past 18:00 today, start interval syncing
+            self.logger.info("Past 18:00 - starting sync checks now")
+            schedule.every(self.sync_interval_minutes).minutes.do(self.sync_latest).tag('interval-sync')
         
         # Start the scheduler in a separate thread
         self.sync_thread = threading.Thread(target=self._run_scheduler, daemon=True)
         self.sync_thread.start()
+    
+    def _start_daily_sync(self):
+        """Start daily sync at 18:00 - runs every 15 mins until runsheet processed."""
+        # Clear any existing interval jobs
+        schedule.clear('interval-sync')
+        
+        self.logger.info("18:00 - Starting daily sync cycle")
+        
+        # Run the sync immediately
+        self.sync_latest()
+        
+        # Schedule interval syncing every 15 minutes (will auto-stop when completed)
+        schedule.every(self.sync_interval_minutes).minutes.do(self.sync_latest).tag('interval-sync')
     
     def stop_periodic_sync(self):
         """Stop the periodic sync service."""
@@ -60,47 +94,212 @@ class PeriodicSyncService:
             time.sleep(60)  # Check every minute
     
     def sync_latest(self):
-        """Sync latest runsheet and payslip from Gmail."""
+        """Intelligent sync - only downloads and processes NEW files."""
+        
+        # Reset tracking at midnight each day
+        now = datetime.now()
+        current_date = now.strftime('%Y-%m-%d')
+        
+        if self.last_check_date != current_date:
+            self.logger.info(f"New day detected - resetting all tracking (was {self.last_check_date}, now {current_date})")
+            self.last_runsheet_date_processed = None
+            self.last_check_date = current_date
+            self.runsheet_completed_today = False
+            self.sync_started_today = False
+            
+            # Stop any running interval syncs from yesterday
+            schedule.clear('interval-sync')
+            self.logger.info("Cleared interval syncs - waiting for 18:00 to start new cycle")
+        
+        # Reset payslip tracking on Tuesdays (start of new week)
+        if now.weekday() == 1:  # Tuesday
+            latest_payslip_week = get_latest_payslip_week()
+            if latest_payslip_week != self.last_payslip_week_processed:
+                self.logger.info(f"New week detected - resetting payslip tracking")
+                self.payslip_completed_this_week = False
+        
+        # If runsheet already completed today, stop checking
+        if self.runsheet_completed_today:
+            self.logger.info("Runsheet already processed today - stopping sync until tomorrow")
+            schedule.clear('interval-sync')  # Stop the interval checks
+            return
+        
+        sync_summary = {
+            'runsheets_downloaded': 0,
+            'runsheets_imported': 0,
+            'payslips_downloaded': 0,
+            'payslips_imported': 0,
+            'jobs_synced': 0,
+            'errors': []
+        }
+        
         try:
-            self.logger.info("Starting periodic sync - downloading latest files from Gmail")
+            self.logger.info("Starting intelligent sync - checking for new files")
             
-            # Download latest runsheet
-            runsheet_result = subprocess.run(
-                [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', '--recent'],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
+            # Step 2: Download new runsheets (only during 18:00-06:00 window)
+            if not self.runsheet_completed_today and (now.hour >= 18 or now.hour <= 6):
+                self.logger.info(f"Runsheet window ({now.strftime('%H:%M')}) - checking for new runsheets")
+                
+                # Get the latest runsheet date from database
+                latest_runsheet_date = get_latest_runsheet_date()
+                
+                # Calculate tomorrow's date (the next runsheet we expect)
+                from datetime import timedelta
+                if latest_runsheet_date:
+                    # Parse DD/MM/YYYY format
+                    parts = latest_runsheet_date.split('/')
+                    if len(parts) == 3:
+                        last_date = datetime(int(parts[2]), int(parts[1]), int(parts[0]))
+                        next_date = last_date + timedelta(days=1)
+                        search_date = next_date.strftime('%Y/%m/%d')
+                        self.logger.info(f"Latest runsheet: {latest_runsheet_date}, looking for: {next_date.strftime('%d/%m/%Y')}")
+                    else:
+                        # Fallback to today
+                        search_date = now.strftime('%Y/%m/%d')
+                        self.logger.warning(f"Invalid date format, using today: {search_date}")
+                else:
+                    # No runsheets yet, search from today
+                    search_date = now.strftime('%Y/%m/%d')
+                    self.logger.info(f"No runsheets in database, searching from: {search_date}")
+                
+                try:
+                    runsheet_result = subprocess.run(
+                        [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', f'--date={search_date}'],
+                        capture_output=True,
+                        text=True,
+                        timeout=120
+                    )
+                    if runsheet_result.returncode == 0:
+                        # Count new files downloaded
+                        output_lines = runsheet_result.stdout.split('\n')
+                        for line in output_lines:
+                            if 'Downloaded:' in line:
+                                sync_summary['runsheets_downloaded'] += 1
+                        self.logger.info(f"Downloaded {sync_summary['runsheets_downloaded']} new runsheets")
+                except Exception as e:
+                    sync_summary['errors'].append(f"Runsheet download failed: {str(e)}")
+                    self.logger.error(f"Runsheet download error: {e}")
+            elif self.runsheet_completed_today:
+                self.logger.info("Runsheet already processed today - skipping until tomorrow")
             
-            # Download latest payslip
-            payslip_result = subprocess.run(
-                [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--payslips', '--recent'],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
+            # Step 3: Download new payslips (Tuesdays 06:00-14:00)
+            if not self.payslip_completed_this_week and now.weekday() == 1 and 6 <= now.hour <= 14:  # Tuesday
+                self.logger.info("Payslip window (Tuesday 06:00-14:00) - checking for new payslips")
+                
+                # Get the latest payslip week from database
+                latest_payslip_week = get_latest_payslip_week()
+                
+                # Calculate next week number
+                if latest_payslip_week:
+                    # Parse "Week X, YYYY" format
+                    import re
+                    match = re.search(r'Week (\d+), (\d{4})', latest_payslip_week)
+                    if match:
+                        last_week = int(match.group(1))
+                        last_year = int(match.group(2))
+                        next_week = last_week + 1
+                        # Simple increment (doesn't handle year rollover, but good enough)
+                        if next_week > 52:
+                            next_week = 1
+                            last_year += 1
+                        self.logger.info(f"Latest payslip: {latest_payslip_week}, looking for: Week {next_week}, {last_year}")
+                        # Search from this Tuesday
+                        search_date = now.strftime('%Y/%m/%d')
+                    else:
+                        search_date = now.strftime('%Y/%m/%d')
+                        self.logger.warning(f"Invalid payslip format, using today: {search_date}")
+                else:
+                    # No payslips yet, search from today
+                    search_date = now.strftime('%Y/%m/%d')
+                    self.logger.info(f"No payslips in database, searching from: {search_date}")
+                
+                try:
+                    payslip_result = subprocess.run(
+                        [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--payslips', f'--date={search_date}'],
+                        capture_output=True,
+                        text=True,
+                        timeout=120
+                    )
+                    if payslip_result.returncode == 0:
+                        output_lines = payslip_result.stdout.split('\n')
+                        for line in output_lines:
+                            if 'Downloaded:' in line:
+                                sync_summary['payslips_downloaded'] += 1
+                        self.logger.info(f"Downloaded {sync_summary['payslips_downloaded']} new payslips")
+                except Exception as e:
+                    sync_summary['errors'].append(f"Payslip download failed: {str(e)}")
+                    self.logger.error(f"Payslip download error: {e}")
+            elif self.payslip_completed_this_week and now.weekday() == 1 and 6 <= now.hour <= 14:
+                self.logger.info("Payslip already processed this week - skipping until next Tuesday")
             
-            # Import any new files (modified today)
-            import_result = subprocess.run(
-                [sys.executable, 'scripts/production/import_run_sheets.py', '--recent', '0'],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
+            # Step 4: Import new runsheets (only if downloaded)
+            if sync_summary['runsheets_downloaded'] > 0:
+                self.logger.info(f"Importing {sync_summary['runsheets_downloaded']} new runsheets")
+                try:
+                    import_result = subprocess.run(
+                        [sys.executable, 'scripts/production/import_run_sheets.py', '--recent', '0'],
+                        capture_output=True,
+                        text=True,
+                        timeout=600  # 10 minutes for large batches
+                    )
+                    if import_result.returncode == 0:
+                        output_lines = import_result.stdout.split('\n')
+                        for line in output_lines:
+                            if 'Imported' in line and 'jobs' in line:
+                                # Extract job count from output
+                                import re
+                                match = re.search(r'Imported (\d+) jobs', line)
+                                if match:
+                                    sync_summary['runsheets_imported'] = int(match.group(1))
+                        self.logger.info(f"Imported {sync_summary['runsheets_imported']} runsheet jobs")
+                        
+                        # Mark runsheet as completed for today
+                        self.runsheet_completed_today = True
+                        self.logger.info("Runsheet processing complete - will not check again until tomorrow")
+                except Exception as e:
+                    sync_summary['errors'].append(f"Runsheet import failed: {str(e)}")
+                    self.logger.error(f"Runsheet import error: {e}")
             
-            # Import payslips
-            payslip_import = subprocess.run(
-                [sys.executable, 'scripts/production/extract_payslips.py', '--recent', '0'],
-                capture_output=True,
-                text=True,
-                timeout=60
-            )
+            # Step 5: Import new payslips (only if downloaded)
+            if sync_summary['payslips_downloaded'] > 0:
+                self.logger.info("Importing new payslips")
+                try:
+                    payslip_import = subprocess.run(
+                        [sys.executable, 'scripts/production/extract_payslips.py', '--recent', '0'],
+                        capture_output=True,
+                        text=True,
+                        timeout=120
+                    )
+                    if payslip_import.returncode == 0:
+                        self.logger.info("Payslip import successful")
+                        sync_summary['payslips_imported'] = 1
+                        
+                        # Step 6: Sync payslip data to runsheets
+                        self.logger.info("Syncing payslip data to runsheets")
+                        jobs_synced = sync_payslips_to_runsheets()
+                        sync_summary['jobs_synced'] = jobs_synced
+                        self.logger.info(f"Synced {jobs_synced} jobs with pay data")
+                        
+                        # Mark payslip as completed for this week
+                        self.payslip_completed_this_week = True
+                        new_latest = get_latest_payslip_week()
+                        self.last_payslip_week_processed = new_latest
+                        self.logger.info(f"Payslip processing complete ({new_latest}) - will not check again until next week")
+                except Exception as e:
+                    sync_summary['errors'].append(f"Payslip import failed: {str(e)}")
+                    self.logger.error(f"Payslip import error: {e}")
             
             self.last_sync_time = datetime.now()
-            self.logger.info(f"Periodic sync completed at {self.last_sync_time}")
+            
+            # Step 7: Send email notification if anything was processed
+            if should_send_notification(sync_summary):
+                self._send_sync_notification(sync_summary)
+            
+            self.logger.info(f"Sync completed: {sync_summary}")
             
         except Exception as e:
             self.logger.error(f"Periodic sync failed: {str(e)}")
+            sync_summary['errors'].append(str(e))
     
     def _should_sync(self):
         """Determine if sync is needed based on time and data patterns."""
@@ -313,6 +512,38 @@ class PeriodicSyncService:
             next_sync = datetime.now() + timedelta(minutes=self.sync_interval_minutes)
         
         return next_sync.isoformat()
+    
+    def _send_sync_notification(self, sync_summary):
+        """Send email notification about sync results using Gmail API."""
+        try:
+            from .gmail_notifier import gmail_notifier
+            from ..models.settings import SettingsModel
+            
+            # Get recipient email from settings, fallback to environment, then default
+            import os
+            recipient_email = SettingsModel.get_setting('userEmail')
+            if not recipient_email:
+                recipient_email = os.environ.get('NOTIFICATION_EMAIL', 'danielhanson1980@gmail.com')
+            
+            self.logger.info(f"Sending sync notification to {recipient_email}")
+            
+            # Send via Gmail API
+            success = gmail_notifier.send_sync_notification(sync_summary, recipient_email)
+            
+            if success:
+                self.logger.info("✅ Email notification sent successfully")
+            else:
+                self.logger.warning("⚠️ Email notification failed to send")
+                
+            # Also save email to file as backup
+            email_html = format_sync_email(sync_summary)
+            email_file = Path('logs/sync_notifications') / f"sync_{datetime.now().strftime('%Y%m%d_%H%M%S')}.html"
+            email_file.parent.mkdir(parents=True, exist_ok=True)
+            email_file.write_text(email_html)
+            self.logger.info(f"Email backup saved to: {email_file}")
+            
+        except Exception as e:
+            self.logger.error(f"Failed to send notification: {e}")
     
     def force_sync_now(self):
         """Force an immediate sync (for manual trigger)."""

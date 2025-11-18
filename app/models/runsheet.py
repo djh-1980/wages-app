@@ -221,7 +221,9 @@ class RunsheetModel:
     @staticmethod
     def update_job_status(job_id, status):
         """Update a single job's status."""
-        if status not in ['completed', 'missed', 'dnco', 'extra', 'pending']:
+        # Normalize status to lowercase for validation
+        status_lower = status.lower() if status else ''
+        if status_lower not in ['completed', 'missed', 'dnco', 'extra', 'pending']:
             raise ValueError('Invalid status')
         
         query = """
@@ -229,6 +231,7 @@ class RunsheetModel:
             SET status = ?
             WHERE id = ?
         """
+        # Save the original case (to preserve DNCO vs dnco)
         rows_affected = execute_query(query, (status, job_id))
         return rows_affected > 0
     

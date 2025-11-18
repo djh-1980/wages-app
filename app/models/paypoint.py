@@ -277,7 +277,8 @@ class PaypointModel:
             SELECT 
                 r.id, r.job_number, r.paypoint_type, r.return_serial_ptid, r.return_trace,
                 r.return_date, r.return_reason, r.return_notes,
-                d.deployment_date, d.customer, d.location
+                d.deployment_date, d.customer, d.location,
+                d.serial_ptid as original_tid, d.trace_stock as original_trace
             FROM paypoint_returns r
             JOIN paypoint_deployments d ON r.deployment_id = d.id
             ORDER BY r.return_date DESC
@@ -299,7 +300,9 @@ class PaypointModel:
                 'return_notes': row[7],
                 'deployment_date': row[8],
                 'customer': row[9],
-                'location': row[10]
+                'location': row[10],
+                'original_tid': row[11],
+                'original_trace': row[12]
             })
         
         return returns
@@ -336,6 +339,8 @@ class PaypointModel:
                 'paypoint_type': return_item['paypoint_type'],
                 'serial_ptid': return_item['return_serial_ptid'],
                 'trace_stock': return_item['return_trace'],
+                'original_tid': return_item['original_tid'],
+                'original_trace': return_item['original_trace'],
                 'customer': return_item['customer'],
                 'location': return_item['location'],
                 'notes': return_item['return_notes'],
@@ -433,15 +438,25 @@ class PaypointModel:
     
     @staticmethod
     def update_return(return_id, job_number, customer, location, return_serial_ptid, return_trace, return_reason, notes):
-        """Update a return record."""
+        """Update a return record and its associated deployment."""
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            
+            # Update the return record (only fields that exist in paypoint_returns)
             cursor.execute('''
                 UPDATE paypoint_returns
-                SET job_number = ?, customer = ?, location = ?, 
-                    return_serial_ptid = ?, return_trace = ?, return_reason = ?, notes = ?
+                SET job_number = ?, return_serial_ptid = ?, return_trace = ?, 
+                    return_reason = ?, return_notes = ?
                 WHERE id = ?
-            ''', (job_number, customer, location, return_serial_ptid, return_trace, return_reason, notes, return_id))
+            ''', (job_number, return_serial_ptid, return_trace, return_reason, notes, return_id))
+            
+            # Update the deployment record (customer and location are stored there)
+            cursor.execute('''
+                UPDATE paypoint_deployments
+                SET customer = ?, location = ?
+                WHERE id = (SELECT deployment_id FROM paypoint_returns WHERE id = ?)
+            ''', (customer, location, return_id))
+            
             conn.commit()
     
     @staticmethod

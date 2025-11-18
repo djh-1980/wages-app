@@ -35,13 +35,30 @@ function loadProfile() {
     document.getElementById('niNumber').value = localStorage.getItem('niNumber') || '';
 }
 
-function saveProfile() {
+async function saveProfile() {
+    const userEmail = document.getElementById('userEmail').value;
+    
+    // Save to localStorage
     localStorage.setItem('userName', document.getElementById('userName').value);
-    localStorage.setItem('userEmail', document.getElementById('userEmail').value);
+    localStorage.setItem('userEmail', userEmail);
     localStorage.setItem('userPhone', document.getElementById('userPhone').value);
     localStorage.setItem('hourlyRate', document.getElementById('hourlyRate').value);
     localStorage.setItem('taxCode', document.getElementById('taxCode').value);
     localStorage.setItem('niNumber', document.getElementById('niNumber').value);
+    
+    // Also save email to backend database for sync notifications
+    if (userEmail) {
+        try {
+            await fetch('/api/settings/user-email', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: userEmail })
+            });
+        } catch (error) {
+            console.error('Error saving email to backend:', error);
+        }
+    }
+    
     showSuccess('Profile saved successfully!');
 }
 

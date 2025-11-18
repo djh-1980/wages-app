@@ -280,9 +280,11 @@ class PayslipExtractor:
                 location_match = re.search(r'\|[^|]+\|\s*([^|]+?)\s*\|', desc)
                 if location_match:
                     location_text = location_match.group(1).strip()
-                    # Clean up location: remove dates, codes, and extra info
+                    # Clean up location: remove units/rate patterns, dates, codes, and extra info
+                    location_text = re.sub(r'\s+\d+\.\d+\s+£[\d,]+\.\d+.*$', '', location_text)  # Remove "1.00 £22.50 ..." pattern
                     location_text = re.sub(r'\s+\d{2}/\d{2}/\d{4}.*$', '', location_text)  # Remove dates and after
-                    location_text = re.sub(r'\s+(SCS|TVS|IFM|Limited|Rico)\s*', ' ', location_text)  # Remove codes
+                    location_text = re.sub(r'\s+(SCS|TVS|IFM|Rico)\s+', ' ', location_text)  # Remove codes (but keep "Limited" as it's part of company names)
+                    location_text = re.sub(r'^\s*(SCS|TVS|IFM|Rico)\s+', '', location_text)  # Remove codes at start
                     location_text = ' '.join(location_text.split())  # Normalize whitespace
                     if location_text:
                         job_item['location'] = location_text
@@ -463,7 +465,7 @@ class PayslipExtractor:
             print(f"  ✗ Error: {e}")
             return None
     
-    def process_all_payslips(self, payslips_dir: str = "PaySlips"):
+    def process_all_payslips(self, payslips_dir: str = "data/documents/payslips", recent_days: int = None):
         """Process all payslip PDFs in the directory."""
         payslips_path = Path(payslips_dir)
         
@@ -473,6 +475,14 @@ class PayslipExtractor:
         
         # Find all PDF files
         pdf_files = sorted(payslips_path.rglob("*.pdf"))
+        
+        # Filter by modification date if recent_days is specified
+        if recent_days is not None:
+            from datetime import datetime, timedelta
+            cutoff_time = datetime.now() - timedelta(days=recent_days)
+            original_count = len(pdf_files)
+            pdf_files = [f for f in pdf_files if datetime.fromtimestamp(f.stat().st_mtime) > cutoff_time]
+            print(f"Filtering to files modified in last {recent_days} days: {len(pdf_files)}/{original_count} files")
         
         print(f"Found {len(pdf_files)} PDF files")
         print("=" * 60)
@@ -600,16 +610,16 @@ def main():
             
             if result:
                 print(f"\n✓ Successfully processed {file_path.name}")
+                # Sync to runsheets after processing
+                extractor._sync_to_runsheets()
                 sys.exit(0)
             else:
                 print(f"\n⚠️  Failed to process {file_path.name}")
                 sys.exit(1)
         else:
             # Process all payslips (with optional filters)
-            if args.directory:
-                extractor.process_all_payslips(args.directory)
-            else:
-                extractor.process_all_payslips()
+            payslips_dir = args.directory if args.directory else "data/documents/payslips"
+            extractor.process_all_payslips(payslips_dir, recent_days=args.recent)
             extractor.get_summary_stats()
     finally:
         extractor.close()

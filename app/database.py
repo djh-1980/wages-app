@@ -64,6 +64,23 @@ def init_database():
             )
         """)
         
+        # Initialize verbal pay confirmations table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS verbal_pay_confirmations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                week_number INTEGER NOT NULL,
+                year INTEGER NOT NULL,
+                verbal_amount REAL NOT NULL,
+                confirmation_date TEXT NOT NULL,
+                notes TEXT,
+                payslip_id INTEGER,
+                payslip_amount REAL,
+                matched BOOLEAN DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(week_number, year)
+            )
+        """)
+        
         conn.commit()
 
 

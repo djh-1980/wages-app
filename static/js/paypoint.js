@@ -401,25 +401,45 @@ function updateReturnsTable() {
         return;
     }
     
-    tbody.innerHTML = currentReturns.map(returnItem => `
-        <tr style="border-bottom: 1px solid #f0f0f0;">
-            <td>${formatDate(returnItem.return_date)}</td>
-            <td><strong style="color: #0d6efd;">${returnItem.job_number}</strong></td>
-            <td style="font-weight: 500;">${returnItem.paypoint_type}</td>
-            <td><code style="background: #f8f9fa; padding: 0.25rem 0.5rem; border-radius: 4px; color: #d63384;">${returnItem.return_serial_ptid}</code></td>
-            <td><span class="badge" style="background: linear-gradient(135deg, #17a2b8, #138496); font-size: 0.85rem;">${returnItem.return_trace}</span></td>
-            <td style="color: #6c757d;">${returnItem.location || '-'}</td>
-            <td><span class="badge bg-secondary" style="font-size: 0.85rem;">${returnItem.return_reason || '-'}</span></td>
-            <td>
-                <button class="btn btn-sm btn-outline-primary" onclick="editReturn(${returnItem.id})" title="Edit">
-                    <i class="bi bi-pencil"></i>
-                </button>
-                <button class="btn btn-sm btn-outline-danger" onclick="deleteReturn(${returnItem.id})" title="Delete">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = currentReturns.map(returnItem => {
+        // Show both original and returned TID if different
+        let tidDisplay = `<code style="background: #f8f9fa; padding: 0.25rem 0.5rem; border-radius: 4px; color: #d63384;">${returnItem.return_serial_ptid}</code>`;
+        if (returnItem.original_tid && returnItem.original_tid !== returnItem.return_serial_ptid) {
+            tidDisplay = `
+                <div style="font-size: 0.75rem; color: #6c757d; margin-bottom: 2px;">Original: <code style="background: #fff3cd; padding: 0.15rem 0.4rem; border-radius: 3px; color: #856404;">${returnItem.original_tid}</code></div>
+                <div style="font-size: 0.75rem; color: #6c757d;">Returned: <code style="background: #d1ecf1; padding: 0.15rem 0.4rem; border-radius: 3px; color: #0c5460;">${returnItem.return_serial_ptid}</code></div>
+            `;
+        }
+        
+        // Show both original and returned trace if different
+        let traceDisplay = `<span class="badge" style="background: linear-gradient(135deg, #17a2b8, #138496); font-size: 0.85rem;">${returnItem.return_trace}</span>`;
+        if (returnItem.original_trace && returnItem.original_trace !== returnItem.return_trace) {
+            traceDisplay = `
+                <div style="margin-bottom: 3px;"><span class="badge bg-secondary" style="font-size: 0.75rem;">${returnItem.original_trace}</span></div>
+                <div><span class="badge" style="background: linear-gradient(135deg, #17a2b8, #138496); font-size: 0.75rem;">${returnItem.return_trace}</span></div>
+            `;
+        }
+        
+        return `
+            <tr style="border-bottom: 1px solid #f0f0f0;">
+                <td>${formatDate(returnItem.return_date)}</td>
+                <td><strong style="color: #0d6efd;">${returnItem.job_number}</strong></td>
+                <td style="font-weight: 500;">${returnItem.paypoint_type}</td>
+                <td>${tidDisplay}</td>
+                <td>${traceDisplay}</td>
+                <td style="color: #6c757d;">${returnItem.location || '-'}</td>
+                <td><span class="badge bg-secondary" style="font-size: 0.85rem;">${returnItem.return_reason || '-'}</span></td>
+                <td>
+                    <button class="btn btn-sm btn-outline-primary" onclick="editReturn(${returnItem.id})" title="Edit">
+                        <i class="bi bi-pencil"></i>
+                    </button>
+                    <button class="btn btn-sm btn-outline-danger" onclick="deleteReturn(${returnItem.id})" title="Delete">
+                        <i class="bi bi-trash"></i>
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 /**
@@ -461,26 +481,46 @@ function updateAuditTable() {
         return;
     }
     
-    tbody.innerHTML = currentAuditHistory.map(audit => `
-        <tr>
-            <td>${formatDate(audit.date)}</td>
-            <td>
-                <span class="badge ${audit.type === 'deployment' ? 'bg-success' : 'bg-warning'}">
-                    ${audit.type.toUpperCase()}
-                </span>
-            </td>
-            <td><strong>${audit.job_number}</strong></td>
-            <td>${audit.paypoint_type}</td>
-            <td><code>${audit.serial_ptid}</code></td>
-            <td><span class="badge bg-secondary">${audit.trace_stock}</span></td>
-            <td>${audit.customer || '-'}</td>
-            <td>
-                <span class="badge ${getStatusBadgeClass(audit.status)}">
-                    ${audit.status.toUpperCase()}
-                </span>
-            </td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = currentAuditHistory.map(audit => {
+        // For returns, show both original and return TID
+        let tidDisplay = `<code>${audit.serial_ptid}</code>`;
+        if (audit.type === 'return' && audit.original_tid && audit.original_tid !== audit.serial_ptid) {
+            tidDisplay = `
+                <div><small class="text-muted">Original:</small> <code>${audit.original_tid}</code></div>
+                <div><small class="text-muted">Returned:</small> <code>${audit.serial_ptid}</code></div>
+            `;
+        }
+        
+        // For returns, show both original and return trace
+        let traceDisplay = `<span class="badge bg-secondary">${audit.trace_stock}</span>`;
+        if (audit.type === 'return' && audit.original_trace && audit.original_trace !== audit.trace_stock) {
+            traceDisplay = `
+                <div><span class="badge bg-secondary">${audit.original_trace}</span> <small class="text-muted">→</small></div>
+                <div><span class="badge bg-info">${audit.trace_stock}</span></div>
+            `;
+        }
+        
+        return `
+            <tr>
+                <td>${formatDate(audit.date)}</td>
+                <td>
+                    <span class="badge ${audit.type === 'deployment' ? 'bg-success' : 'bg-warning'}">
+                        ${audit.type.toUpperCase()}
+                    </span>
+                </td>
+                <td><strong>${audit.job_number}</strong></td>
+                <td>${audit.paypoint_type}</td>
+                <td>${tidDisplay}</td>
+                <td>${traceDisplay}</td>
+                <td>${audit.customer || '-'}</td>
+                <td>
+                    <span class="badge ${getStatusBadgeClass(audit.status)}">
+                        ${audit.status.toUpperCase()}
+                    </span>
+                </td>
+            </tr>
+        `;
+    }).join('');
 }
 
 /**

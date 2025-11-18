@@ -18,6 +18,22 @@ import os
 settings_bp = Blueprint('settings_api', __name__, url_prefix='/api/settings')
 
 
+@settings_bp.route('/user-email', methods=['POST'])
+def api_save_user_email():
+    """Save user email for sync notifications."""
+    try:
+        data = request.json
+        email = data.get('email')
+        
+        if not email:
+            return jsonify({'error': 'Email is required'}), 400
+        
+        SettingsModel.set_setting('userEmail', email)
+        return jsonify({'success': True, 'message': 'Email saved for notifications'})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
 @settings_bp.route('/groups', methods=['GET', 'POST'])
 def api_settings_groups():
     """Manage client and job type groupings."""

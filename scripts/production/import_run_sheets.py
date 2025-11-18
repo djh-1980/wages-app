@@ -667,21 +667,35 @@ def main():
                 sys.exit(1)
                 
         elif args.recent:
-            # Only import recent files
+            # Only import recent files - use find command for performance
             from datetime import datetime, timedelta
+            import subprocess
             cutoff_date = datetime.now() - timedelta(days=args.recent)
             
             print(f"Only importing files modified after {cutoff_date.strftime('%Y-%m-%d')}")
             
-            # Filter files by modification time
-            run_sheets_path = Path('RunSheets')
-            files = []
-            for ext in ['*.pdf', '*.PDF']:
-                for file_path in run_sheets_path.rglob(ext):
+            # Use find command for fast file discovery (much faster than Python rglob)
+            run_sheets_path = Path('data/documents/runsheets')
+            
+            # Find files modified in last N days using system find command
+            try:
+                result = subprocess.run(
+                    ['find', str(run_sheets_path), '-name', '*.pdf', '-mtime', f'-{args.recent + 1}', '-type', 'f'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                file_paths = [Path(p.strip()) for p in result.stdout.split('\n') if p.strip()]
+            except:
+                # Fallback to Python method if find fails
+                files = []
+                for file_path in run_sheets_path.rglob('*.pdf'):
                     if datetime.fromtimestamp(file_path.stat().st_mtime) > cutoff_date:
                         files.append(file_path)
+                file_paths = files
             
-            print(f"Found {len(files)} recent files")
+            print(f"Found {len(file_paths)} recent files")
+            files = file_paths
             
             imported = 0
             for file_path in files:
