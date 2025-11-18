@@ -18,18 +18,53 @@ import os
 settings_bp = Blueprint('settings_api', __name__, url_prefix='/api/settings')
 
 
-@settings_bp.route('/user-email', methods=['POST'])
-def api_save_user_email():
-    """Save user email for sync notifications."""
+@settings_bp.route('/profile', methods=['GET'])
+def api_get_profile():
+    """Get user profile."""
+    try:
+        profile = {
+            'userName': SettingsModel.get_setting('userName'),
+            'userEmail': SettingsModel.get_setting('userEmail'),
+            'userPhone': SettingsModel.get_setting('userPhone'),
+            'utrNumber': SettingsModel.get_setting('utrNumber'),
+            'addressLine1': SettingsModel.get_setting('addressLine1'),
+            'addressLine2': SettingsModel.get_setting('addressLine2'),
+            'city': SettingsModel.get_setting('city'),
+            'postcode': SettingsModel.get_setting('postcode'),
+            'niNumber': SettingsModel.get_setting('niNumber')
+        }
+        return jsonify({'success': True, 'profile': profile})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/profile', methods=['POST'])
+def api_save_profile():
+    """Save user profile."""
     try:
         data = request.json
-        email = data.get('email')
         
-        if not email:
-            return jsonify({'error': 'Email is required'}), 400
+        # Save each field
+        if 'userName' in data:
+            SettingsModel.set_setting('userName', data['userName'])
+        if 'userEmail' in data:
+            SettingsModel.set_setting('userEmail', data['userEmail'])
+        if 'userPhone' in data:
+            SettingsModel.set_setting('userPhone', data['userPhone'])
+        if 'utrNumber' in data:
+            SettingsModel.set_setting('utrNumber', data['utrNumber'])
+        if 'addressLine1' in data:
+            SettingsModel.set_setting('addressLine1', data['addressLine1'])
+        if 'addressLine2' in data:
+            SettingsModel.set_setting('addressLine2', data['addressLine2'])
+        if 'city' in data:
+            SettingsModel.set_setting('city', data['city'])
+        if 'postcode' in data:
+            SettingsModel.set_setting('postcode', data['postcode'])
+        if 'niNumber' in data:
+            SettingsModel.set_setting('niNumber', data['niNumber'])
         
-        SettingsModel.set_setting('userEmail', email)
-        return jsonify({'success': True, 'message': 'Email saved for notifications'})
+        return jsonify({'success': True, 'message': 'Profile saved successfully'})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 

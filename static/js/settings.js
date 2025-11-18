@@ -26,40 +26,61 @@ function loadAllSettings() {
 }
 
 // ===== PROFILE =====
-function loadProfile() {
-    document.getElementById('userName').value = localStorage.getItem('userName') || '';
-    document.getElementById('userEmail').value = localStorage.getItem('userEmail') || '';
-    document.getElementById('userPhone').value = localStorage.getItem('userPhone') || '';
-    document.getElementById('hourlyRate').value = localStorage.getItem('hourlyRate') || '';
-    document.getElementById('taxCode').value = localStorage.getItem('taxCode') || '';
-    document.getElementById('niNumber').value = localStorage.getItem('niNumber') || '';
+async function loadProfile() {
+    try {
+        const response = await fetch('/api/settings/profile');
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.profile) {
+                document.getElementById('userName').value = data.profile.userName || '';
+                document.getElementById('userEmail').value = data.profile.userEmail || '';
+                document.getElementById('userPhone').value = data.profile.userPhone || '';
+                document.getElementById('utrNumber').value = data.profile.utrNumber || '';
+                document.getElementById('addressLine1').value = data.profile.addressLine1 || '';
+                document.getElementById('addressLine2').value = data.profile.addressLine2 || '';
+                document.getElementById('city').value = data.profile.city || '';
+                document.getElementById('postcode').value = data.profile.postcode || '';
+                document.getElementById('niNumber').value = data.profile.niNumber || '';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading profile:', error);
+    }
 }
 
 async function saveProfile() {
-    const userEmail = document.getElementById('userEmail').value;
+    const profileData = {
+        userName: document.getElementById('userName').value,
+        userEmail: document.getElementById('userEmail').value,
+        userPhone: document.getElementById('userPhone').value,
+        utrNumber: document.getElementById('utrNumber').value,
+        addressLine1: document.getElementById('addressLine1').value,
+        addressLine2: document.getElementById('addressLine2').value,
+        city: document.getElementById('city').value,
+        postcode: document.getElementById('postcode').value,
+        niNumber: document.getElementById('niNumber').value
+    };
     
-    // Save to localStorage
-    localStorage.setItem('userName', document.getElementById('userName').value);
-    localStorage.setItem('userEmail', userEmail);
-    localStorage.setItem('userPhone', document.getElementById('userPhone').value);
-    localStorage.setItem('hourlyRate', document.getElementById('hourlyRate').value);
-    localStorage.setItem('taxCode', document.getElementById('taxCode').value);
-    localStorage.setItem('niNumber', document.getElementById('niNumber').value);
-    
-    // Also save email to backend database for sync notifications
-    if (userEmail) {
-        try {
-            await fetch('/api/settings/user-email', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ email: userEmail })
-            });
-        } catch (error) {
-            console.error('Error saving email to backend:', error);
+    // Save to backend database
+    try {
+        const response = await fetch('/api/settings/profile', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(profileData)
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            console.log('Profile saved to database:', data);
+            showSuccess('Profile saved successfully!');
+        } else {
+            console.error('Failed to save profile to backend:', response.status);
+            showError('Failed to save profile. Please try again.');
         }
+    } catch (error) {
+        console.error('Error saving profile to backend:', error);
+        showError('Failed to save profile. Please try again.');
     }
-    
-    showSuccess('Profile saved successfully!');
 }
 
 // ===== AUTO-SYNC =====
@@ -1104,6 +1125,7 @@ function showStatus(message) {
 function showSuccess(message) {
     const status = document.getElementById('settingsStatus');
     if (status) {
+        status.style.display = 'block';
         status.innerHTML = `<div class="alert alert-success"><i class="bi bi-check-circle"></i> ${message}</div>`;
         status.style.display = 'block';
         setTimeout(() => status.style.display = 'none', 3000);
@@ -1115,6 +1137,7 @@ function showSuccess(message) {
 function showError(message) {
     const status = document.getElementById('settingsStatus');
     if (status) {
+        status.style.display = 'block';
         status.innerHTML = `<div class="alert alert-danger"><i class="bi bi-x-circle"></i> ${message}</div>`;
         status.style.display = 'block';
     } else {

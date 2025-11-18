@@ -117,6 +117,22 @@ function displayWeeklySummary(data) {
         weekLabel.textContent = `Week ${data.week_number} - ${data.week_label}`;
     }
     
+    // Check for verbal confirmation for this week
+    let verbalConfirmation = null;
+    if (data.week_number && typeof checkVerbalMatch === 'function') {
+        // Fetch verbal confirmation asynchronously
+        fetch(`/api/verbal-pay/confirmations/week/${data.week_number}/year/2025`)
+            .then(response => response.json())
+            .then(result => {
+                if (result.success && result.confirmation) {
+                    verbalConfirmation = result.confirmation;
+                    // Update the earnings card with verbal info
+                    updateEarningsCardWithVerbal(verbalConfirmation, data.summary.total_earnings);
+                }
+            })
+            .catch(error => console.error('Error fetching verbal confirmation:', error));
+    }
+    
     // Check for missing mileage data and show alert
     const missingMileageDates = data.summary.missing_mileage_dates || [];
     const hasMissingMileage = missingMileageDates.length > 0;
@@ -216,18 +232,34 @@ function displayWeeklySummary(data) {
         'pending': { label: 'Pending', class: 'secondary' }
     };
     
+    // Merge DNCO and dnco entries
+    const mergedBreakdown = {...data.status_breakdown};
+    if (mergedBreakdown['DNCO'] && mergedBreakdown['dnco']) {
+        // Merge dnco into DNCO
+        mergedBreakdown['DNCO'] = {
+            count: mergedBreakdown['DNCO'].count + mergedBreakdown['dnco'].count,
+            earnings: mergedBreakdown['DNCO'].earnings + mergedBreakdown['dnco'].earnings,
+            estimated_loss: (mergedBreakdown['DNCO'].estimated_loss || 0) + (mergedBreakdown['dnco'].estimated_loss || 0)
+        };
+        delete mergedBreakdown['dnco'];
+    } else if (mergedBreakdown['dnco']) {
+        // Only dnco exists, rename it to DNCO
+        mergedBreakdown['DNCO'] = mergedBreakdown['dnco'];
+        delete mergedBreakdown['dnco'];
+    }
+    
     // Define the order we want to display statuses
-    const statusOrder = ['completed', 'extra', 'DNCO', 'dnco', 'PDA Licence', 'SASER Auto Billing', 'missed', 'pending'];
+    const statusOrder = ['completed', 'extra', 'DNCO', 'PDA Licence', 'SASER Auto Billing', 'missed', 'pending'];
     
     // First, display statuses in the specified order
     for (const status of statusOrder) {
-        if (data.status_breakdown[status]) {
-            const info = data.status_breakdown[status];
+        if (mergedBreakdown[status]) {
+            const info = mergedBreakdown[status];
             const config = statusConfig[status] || { label: status, class: 'secondary' };
             
             // Show estimated loss for DNCO jobs
             let earningsDisplay = formatCurrency(info.earnings);
-            if ((status === 'DNCO' || status === 'dnco') && info.estimated_loss) {
+            if (status === 'DNCO' && info.estimated_loss) {
                 earningsDisplay = `${formatCurrency(info.earnings)}<br><small class="text-danger">Est. loss: ${formatCurrency(info.estimated_loss)}</small>`;
             }
             
@@ -242,7 +274,7 @@ function displayWeeklySummary(data) {
     }
     
     // Then add any remaining statuses not in the order list
-    for (const [status, info] of Object.entries(data.status_breakdown)) {
+    for (const [status, info] of Object.entries(mergedBreakdown)) {
         if (!statusOrder.includes(status)) {
             const config = statusConfig[status] || { label: status, class: 'secondary' };
             statusHTML += `
@@ -348,6 +380,41 @@ function displayWeeklySummary(data) {
             <td class="text-end"><span class="badge bg-info">${type.count}</span></td>
         </tr>
     `).join('');
+}
+
+// Update earnings card with verbal confirmation info
+function updateEarningsCardWithVerbal(verbalConfirmation, totalEarnings) {
+    const formatCurrency = (value) => {
+        if (typeof CurrencyFormatter !== 'undefined') {
+            return CurrencyFormatter.format(value);
+        }
+        return '£' + (value || 0).toFixed(2);
+    };
+    
+    const summaryCards = document.getElementById('weeklySummaryCards');
+    const earningsCard = summaryCards.querySelector('.col-md-3:nth-child(2) .card-body');
+    
+    if (earningsCard) {
+        const verbalAmount = verbalConfirmation.verbal_amount;
+        const matched = Math.abs(verbalAmount - totalEarnings) < 0.01;
+        const difference = totalEarnings - verbalAmount;
+        
+        let verbalHTML = '';
+        if (matched) {
+            verbalHTML = `<small class="text-success"><i class="bi bi-check-circle-fill"></i> Matches verbal (${formatCurrency(verbalAmount)})</small>`;
+        } else {
+            const diffText = difference > 0 ? `+${formatCurrency(difference)}` : formatCurrency(difference);
+            verbalHTML = `<small class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Verbal: ${formatCurrency(verbalAmount)} (${diffText})</small>`;
+        }
+        
+        // Find and update the earnings discrepancy text
+        const existingSmall = earningsCard.querySelector('small');
+        if (existingSmall) {
+            existingSmall.outerHTML = verbalHTML;
+        } else {
+            earningsCard.innerHTML += `<br>${verbalHTML}`;
+        }
+    }
 }
 
 // Export weekly summary as PDF

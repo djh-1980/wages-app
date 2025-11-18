@@ -140,31 +140,12 @@ class PeriodicSyncService:
             if not self.runsheet_completed_today and (now.hour >= 18 or now.hour <= 6):
                 self.logger.info(f"Runsheet window ({now.strftime('%H:%M')}) - checking for new runsheets")
                 
-                # Get the latest runsheet date from database
-                latest_runsheet_date = get_latest_runsheet_date()
-                
-                # Calculate tomorrow's date (the next runsheet we expect)
-                from datetime import timedelta
-                if latest_runsheet_date:
-                    # Parse DD/MM/YYYY format
-                    parts = latest_runsheet_date.split('/')
-                    if len(parts) == 3:
-                        last_date = datetime(int(parts[2]), int(parts[1]), int(parts[0]))
-                        next_date = last_date + timedelta(days=1)
-                        search_date = next_date.strftime('%Y/%m/%d')
-                        self.logger.info(f"Latest runsheet: {latest_runsheet_date}, looking for: {next_date.strftime('%d/%m/%Y')}")
-                    else:
-                        # Fallback to today
-                        search_date = now.strftime('%Y/%m/%d')
-                        self.logger.warning(f"Invalid date format, using today: {search_date}")
-                else:
-                    # No runsheets yet, search from today
-                    search_date = now.strftime('%Y/%m/%d')
-                    self.logger.info(f"No runsheets in database, searching from: {search_date}")
+                # Look for recent runsheets (last 7 days, includes today's)
+                self.logger.info(f"Looking for recent runsheets (last 7 days)")
                 
                 try:
                     runsheet_result = subprocess.run(
-                        [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', f'--date={search_date}'],
+                        [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', '--recent'],
                         capture_output=True,
                         text=True,
                         timeout=120

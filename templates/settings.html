@@ -132,21 +132,29 @@
                             <label class="form-label">Email</label>
                             <input type="email" class="form-control" id="userEmail" placeholder="your@email.com">
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-12">
                             <label class="form-label">Phone</label>
                             <input type="tel" class="form-control" id="userPhone" placeholder="+44 7XXX XXXXXX">
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Hourly Rate (£)</label>
-                            <input type="number" class="form-control" id="hourlyRate" placeholder="15.00" step="0.01">
+                        <div class="col-md-12">
+                            <label class="form-label">Address Line 1</label>
+                            <input type="text" class="form-control" id="addressLine1" placeholder="Street address">
                         </div>
-                        <div class="col-md-4">
-                            <label class="form-label">Tax Code</label>
-                            <input type="text" class="form-control" id="taxCode" placeholder="1257L">
+                        <div class="col-md-12">
+                            <label class="form-label">Address Line 2</label>
+                            <input type="text" class="form-control" id="addressLine2" placeholder="Apartment, suite, etc. (optional)">
                         </div>
                         <div class="col-md-6">
-                            <label class="form-label">Address</label>
-                            <input type="text" class="form-control" id="userAddress" placeholder="Your address">
+                            <label class="form-label">City</label>
+                            <input type="text" class="form-control" id="city" placeholder="City">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">Postcode</label>
+                            <input type="text" class="form-control" id="postcode" placeholder="LA1 1XX">
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">UTR Number</label>
+                            <input type="text" class="form-control" id="utrNumber" placeholder="1234567890">
                         </div>
                         <div class="col-md-6">
                             <label class="form-label">NI Number</label>
@@ -155,7 +163,7 @@
                     </div>
                     
                     <div class="mt-3">
-                        <button class="btn btn-primary" onclick="saveProfile()">
+                        <button type="button" class="btn btn-primary" onclick="saveProfile()">
                             <i class="bi bi-save me-1"></i>Save Profile
                         </button>
                     </div>

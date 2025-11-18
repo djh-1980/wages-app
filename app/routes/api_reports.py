@@ -1336,7 +1336,8 @@ def api_weekly_summary():
                     
                 if day['jobs'] > 0:  # Day has jobs
                     mileage_info = mileage_dict.get(day['date'])
-                    if not mileage_info or mileage_info['mileage'] == 0:
+                    # Only flag as missing if no record exists (not if mileage is 0 - could be working from home)
+                    if not mileage_info:
                         missing_mileage_dates.append(day['date'])
             
             # Top customers this week
