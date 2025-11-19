@@ -119,20 +119,22 @@ class PeriodicSyncService:
         self.current_state = 'idle'
         self.logger.info(f"Starting periodic sync service ({self.sync_start_time} daily, then every {self.sync_interval_minutes} minutes until complete)")
         
-        # Check if today's runsheet already exists in database
-        # Note: Runsheets are for the NEXT day, so if we have today's date or later, we're done
-        today_date = datetime.now().strftime('%d/%m/%Y')
+        # Check if tomorrow's runsheet already exists in database
+        # Note: Runsheets are for the NEXT day, so if we have tomorrow's date or later, we're done
+        tomorrow_date = (datetime.now() + timedelta(days=1)).strftime('%d/%m/%Y')
         latest_runsheet = get_latest_runsheet_date()
         if latest_runsheet:
             # Convert DD/MM/YYYY to comparable format
             latest_parts = latest_runsheet.split('/')
-            today_parts = today_date.split('/')
+            tomorrow_parts = tomorrow_date.split('/')
             latest_comparable = f"{latest_parts[2]}{latest_parts[1]}{latest_parts[0]}"
-            today_comparable = f"{today_parts[2]}{today_parts[1]}{today_parts[0]}"
+            tomorrow_comparable = f"{tomorrow_parts[2]}{tomorrow_parts[1]}{tomorrow_parts[0]}"
             
-            if latest_comparable >= today_comparable:
+            if latest_comparable >= tomorrow_comparable:
                 self.runsheet_completed_today = True
-                self.logger.info(f"Latest runsheet ({latest_runsheet}) is today or later - marking as completed")
+                self.logger.info(f"Latest runsheet ({latest_runsheet}) is tomorrow or later - marking as completed")
+            else:
+                self.logger.info(f"Latest runsheet ({latest_runsheet}) is before tomorrow ({tomorrow_date}) - sync needed")
         
         # Schedule daily sync at configured time
         schedule.every().day.at(self.sync_start_time).do(self._start_daily_sync)
