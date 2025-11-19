@@ -271,11 +271,29 @@ class PeriodicSyncService:
                 self.logger.info(f"New week detected - resetting payslip tracking")
                 self.payslip_completed_this_week = False
         
-        # If runsheet already completed today, stop checking
-        if self.runsheet_completed_today:
-            self.logger.info("Runsheet already processed today - stopping sync until tomorrow")
-            schedule.clear('interval-sync')  # Stop the interval checks
-            return
+        # Check if we've already processed tomorrow's runsheet
+        # Runsheets arrive in the evening for the NEXT day
+        # So we should check: have we processed tomorrow's runsheet yet?
+        tomorrow = (now + timedelta(days=1)).strftime('%d-%m-%Y')
+        latest_runsheet = get_latest_runsheet_date()
+        
+        if latest_runsheet:
+            # Convert latest runsheet date (DD-MM-YYYY) to comparable format
+            latest_parts = latest_runsheet.split('-')
+            latest_comparable = f"{latest_parts[2]}{latest_parts[1]}{latest_parts[0]}"
+            
+            tomorrow_parts = tomorrow.split('-')
+            tomorrow_comparable = f"{tomorrow_parts[2]}{tomorrow_parts[1]}{tomorrow_parts[0]}"
+            
+            # If we already have tomorrow's runsheet, we're done until tomorrow evening
+            if latest_comparable >= tomorrow_comparable:
+                self.logger.info(f"Already have tomorrow's runsheet ({latest_runsheet}) - stopping sync until tomorrow evening")
+                schedule.clear('interval-sync')
+                return
+            else:
+                self.logger.info(f"Latest runsheet is {latest_runsheet}, still need tomorrow's ({tomorrow})")
+        else:
+            self.logger.info("No runsheets in database yet")
         
         sync_summary = {
             'runsheets_downloaded': 0,
