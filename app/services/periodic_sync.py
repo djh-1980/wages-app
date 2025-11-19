@@ -61,7 +61,7 @@ class PeriodicSyncService:
         # Notification preferences
         self.notify_on_success = True
         self.notify_on_error_only = False
-        self.notify_on_new_files_only = False
+        self.notify_on_new_files_only = True  # Default to only notify on new files
         
         # Selective sync control
         self.auto_sync_runsheets_enabled = True
@@ -473,8 +473,12 @@ class PeriodicSyncService:
             self._add_to_history(sync_summary)
             
             # Step 7: Send email notification based on preferences
-            if self._should_notify(sync_summary):
-                self._send_sync_notification(sync_summary)
+            # Only send notification if we actually imported NEW jobs (not re-processed existing ones)
+            if sync_summary.get('runsheets_imported', 0) > 0 or sync_summary.get('payslips_imported', 0) > 0:
+                if self._should_notify(sync_summary):
+                    self._send_sync_notification(sync_summary)
+            else:
+                self.logger.info("No new jobs imported - skipping notification")
             
             self.logger.info(f"Sync completed: {sync_summary}")
             
@@ -741,7 +745,9 @@ class PeriodicSyncService:
             'runsheet_completed_today': self.runsheet_completed_today,
             'payslip_completed_this_week': self.payslip_completed_this_week,
             'auto_sync_runsheets_enabled': self.auto_sync_runsheets_enabled,
-            'auto_sync_payslips_enabled': self.auto_sync_payslips_enabled
+            'auto_sync_payslips_enabled': self.auto_sync_payslips_enabled,
+            'latest_runsheet_date': get_latest_runsheet_date(),
+            'latest_payslip_week': get_latest_payslip_week()
         }
     
     def _estimate_next_sync(self):

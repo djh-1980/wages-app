@@ -139,6 +139,9 @@ function updateSyncStatusUI(status) {
         nextSyncTime.style.display = 'none';
     }
     
+    // Update latest data processed
+    updateLatestDataDisplay(status);
+    
     // Update sync history
     if (status.sync_history && status.sync_history.length > 0) {
         updateSyncHistory(status.sync_history);
@@ -184,6 +187,40 @@ function updateSyncHistory(history) {
     html += '</div>';
     
     historyList.innerHTML = html;
+}
+
+/**
+ * Update latest data display
+ */
+function updateLatestDataDisplay(status) {
+    const latestDataContainer = document.getElementById('latestDataContainer');
+    const latestRunsheetDate = document.getElementById('latestRunsheetDate');
+    const latestPayslipWeek = document.getElementById('latestPayslipWeek');
+    
+    if (!latestDataContainer || !latestRunsheetDate || !latestPayslipWeek) {
+        return;
+    }
+    
+    // Show the container if sync is running
+    if (status.is_running) {
+        latestDataContainer.style.display = 'block';
+        
+        // Update latest runsheet date from sync status
+        if (status.latest_runsheet_date) {
+            latestRunsheetDate.textContent = status.latest_runsheet_date;
+        } else {
+            latestRunsheetDate.textContent = 'None';
+        }
+        
+        // Update latest payslip week from sync status
+        if (status.latest_payslip_week) {
+            latestPayslipWeek.textContent = status.latest_payslip_week;
+        } else {
+            latestPayslipWeek.textContent = 'None';
+        }
+    } else {
+        latestDataContainer.style.display = 'none';
+    }
 }
 
 /**

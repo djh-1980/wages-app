@@ -92,23 +92,44 @@ async function syncPayslips() {
 
 async function syncLatest() {
     try {
-        updateSyncStatus('Running', 'Syncing latest from Gmail...');
+        // Show loading state
+        const button = event.target.closest('button');
+        const originalText = button.innerHTML;
+        button.innerHTML = '<i class="bi bi-arrow-repeat spin"></i> Syncing...';
+        button.disabled = true;
         
         const response = await fetch('/api/data/sync-runsheets', { method: 'POST' });
         const result = await response.json();
         
         if (result.success) {
-            updateSyncStatus('Complete', 'Latest files synced successfully');
-            showSuccess('✅ Latest runsheet + payslip synced successfully!');
-            updateLastSyncTime();
-            loadDatabaseStats(); // Refresh stats
+            // Show success briefly
+            button.innerHTML = '<i class="bi bi-check-circle text-success"></i> Success!';
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }, 2000);
+            
+            // Refresh sync status
+            if (typeof loadSyncStatus === 'function') {
+                loadSyncStatus();
+            }
         } else {
-            updateSyncStatus('Error', 'Sync failed');
-            showError(`❌ Sync failed: ${result.error}`);
+            button.innerHTML = '<i class="bi bi-x-circle text-danger"></i> Failed';
+            setTimeout(() => {
+                button.innerHTML = originalText;
+                button.disabled = false;
+            }, 2000);
+            console.error('Sync failed:', result.error);
         }
     } catch (error) {
-        updateSyncStatus('Error', 'Connection error');
-        showError(`❌ Sync failed: ${error.message}`);
+        const button = event.target.closest('button');
+        const originalText = '<i class="bi bi-cloud-download"></i> Manual Sync';
+        button.innerHTML = '<i class="bi bi-x-circle text-danger"></i> Error';
+        setTimeout(() => {
+            button.innerHTML = originalText;
+            button.disabled = false;
+        }, 2000);
+        console.error('Sync error:', error.message);
     }
 }
 
