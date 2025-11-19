@@ -139,13 +139,18 @@ class PeriodicSyncService:
         # Schedule daily sync at configured time
         schedule.every().day.at(self.sync_start_time).do(self._start_daily_sync)
         
-        # Check if we should start syncing now (if past start time today and not completed)
-        now = datetime.now()
+        # Schedule fixed 15-minute intervals from start time
         start_hour = int(self.sync_start_time.split(':')[0])
-        if now.hour >= start_hour and not self.runsheet_completed_today:
-            # Already past start time today, start interval syncing
-            self.logger.info(f"Past {self.sync_start_time} - starting sync checks now")
-            schedule.every(self.sync_interval_minutes).minutes.do(self.sync_latest).tag('interval-sync')
+        start_minute = int(self.sync_start_time.split(':')[1])
+        
+        # Schedule every 15 minutes: 19:00, 19:15, 19:30, 19:45, 20:00, etc.
+        for minutes_offset in range(0, 24*60, self.sync_interval_minutes):  # Every 15 mins for 24 hours
+            sync_hour = (start_hour + (start_minute + minutes_offset) // 60) % 24
+            sync_minute = (start_minute + minutes_offset) % 60
+            sync_time = f"{sync_hour:02d}:{sync_minute:02d}"
+            schedule.every().day.at(sync_time).do(self.sync_latest).tag('interval-sync')
+        
+        self.logger.info(f"Scheduled sync every {self.sync_interval_minutes} minutes starting from {self.sync_start_time}")
         
         # Start the scheduler in a separate thread
         self.sync_thread = threading.Thread(target=self._run_scheduler, daemon=True)
