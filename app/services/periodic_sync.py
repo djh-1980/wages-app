@@ -278,8 +278,9 @@ class PeriodicSyncService:
         latest_runsheet = get_latest_runsheet_date()
         
         if latest_runsheet:
-            # Convert latest runsheet date (DD-MM-YYYY) to comparable format
-            latest_parts = latest_runsheet.split('-')
+            # Convert latest runsheet date to comparable format (handle both / and - separators)
+            separator = '/' if '/' in latest_runsheet else '-'
+            latest_parts = latest_runsheet.split(separator)
             latest_comparable = f"{latest_parts[2]}{latest_parts[1]}{latest_parts[0]}"
             
             tomorrow_parts = tomorrow.split('-')
@@ -745,30 +746,61 @@ class PeriodicSyncService:
     
     def _estimate_next_sync(self):
         """Estimate when the next sync will occur."""
-        if not self.is_running:
-            return None
-        
-        # If runsheet is completed today, next sync is tomorrow at configured start time
-        if self.runsheet_completed_today:
+        try:
+            if not self.is_running:
+                return None
+            
+            # Check if we already have tomorrow's runsheet
             now = datetime.now()
-            tomorrow = now + timedelta(days=1)
-            start_time_parts = self.sync_start_time.split(':')
-            next_sync = tomorrow.replace(
-                hour=int(start_time_parts[0]),
-                minute=int(start_time_parts[1]),
-                second=0,
-                microsecond=0
-            )
+            tomorrow = (now + timedelta(days=1)).strftime('%d-%m-%Y')
+            latest_runsheet = get_latest_runsheet_date()
+            
+            if latest_runsheet:
+                # Convert dates to comparable format (handle both / and - separators)
+                separator = '/' if '/' in latest_runsheet else '-'
+                latest_parts = latest_runsheet.split(separator)
+                latest_comparable = f"{latest_parts[2]}{latest_parts[1]}{latest_parts[0]}"
+                
+                tomorrow_parts = tomorrow.split('-')
+                tomorrow_comparable = f"{tomorrow_parts[2]}{tomorrow_parts[1]}{tomorrow_parts[0]}"
+                
+                # If we already have tomorrow's runsheet, next sync is tomorrow at start time
+                if latest_comparable >= tomorrow_comparable:
+                    tomorrow_date = now + timedelta(days=1)
+                    start_time_parts = self.sync_start_time.split(':')
+                    next_sync = tomorrow_date.replace(
+                        hour=int(start_time_parts[0]),
+                        minute=int(start_time_parts[1]),
+                        second=0,
+                        microsecond=0
+                    )
+                    return next_sync.isoformat()
+            
+            # Otherwise, next sync is based on interval
+            if self.last_sync_time:
+                next_sync = self.last_sync_time + timedelta(minutes=self.sync_interval_minutes)
+            else:
+                # If no last sync yet, check if we're past start time today
+                start_time_parts = self.sync_start_time.split(':')
+                start_hour = int(start_time_parts[0])
+                start_minute = int(start_time_parts[1])
+                
+                if now.hour > start_hour or (now.hour == start_hour and now.minute >= start_minute):
+                    # Past start time today, next sync is in X minutes
+                    next_sync = now + timedelta(minutes=self.sync_interval_minutes)
+                else:
+                    # Before start time today, next sync is at start time
+                    next_sync = now.replace(
+                        hour=start_hour,
+                        minute=start_minute,
+                        second=0,
+                        microsecond=0
+                    )
+            
             return next_sync.isoformat()
-        
-        # If we have a last sync time, calculate from that
-        if self.last_sync_time:
-            next_sync = self.last_sync_time + timedelta(minutes=self.sync_interval_minutes)
-        else:
-            # If no last sync yet, estimate from now
-            next_sync = datetime.now() + timedelta(minutes=self.sync_interval_minutes)
-        
-        return next_sync.isoformat()
+        except Exception as e:
+            self.logger.error(f"Error estimating next sync: {e}")
+            return None
     
     def _send_sync_notification(self, sync_summary):
         """Send email notification about sync results using Gmail API."""
