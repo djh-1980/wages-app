@@ -303,6 +303,9 @@ class PeriodicSyncService:
         else:
             self.logger.info("No runsheets in database yet")
         
+        # Clear any existing retry jobs to prevent multiple simultaneous syncs
+        schedule.clear('retry-sync')
+        
         sync_summary = {
             'runsheets_downloaded': 0,
             'runsheets_imported': 0,
@@ -330,6 +333,8 @@ class PeriodicSyncService:
                     if dry_run:
                         self.logger.info("[DRY RUN] Would download runsheets")
                     else:
+                        # Small delay to ensure Gmail API is ready
+                        time.sleep(2)
                         runsheet_result = subprocess.run(
                             [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--runsheets', '--recent'],
                             capture_output=True,
@@ -345,10 +350,15 @@ class PeriodicSyncService:
                             self.logger.info(f"Downloaded {sync_summary['runsheets_downloaded']} new runsheets")
                             self.retry_count = 0  # Reset on success
                         else:
-                            raise Exception(f"Download failed with code {runsheet_result.returncode}")
+                            error_msg = f"Download failed with code {runsheet_result.returncode}"
+                            if runsheet_result.stderr:
+                                error_msg += f": {runsheet_result.stderr}"
+                            raise Exception(error_msg)
                 except Exception as e:
                     sync_summary['errors'].append(f"Runsheet download failed: {str(e)}")
                     self.logger.error(f"Runsheet download error: {e}")
+                    if hasattr(runsheet_result, 'stderr') and runsheet_result.stderr:
+                        self.logger.error(f"Download stderr: {runsheet_result.stderr}")
                     self.last_error = str(e)
                     self._handle_retry('runsheet_download')
             elif self.runsheet_completed_today:
@@ -482,6 +492,8 @@ class PeriodicSyncService:
             # Step 7: Send email notification based on preferences
             # Only send notification if we actually imported NEW jobs (not re-processed existing ones)
             if sync_summary.get('runsheets_imported', 0) > 0 or sync_summary.get('payslips_imported', 0) > 0:
+                # Reset retry count on successful sync
+                self.retry_count = 0
                 if self._should_notify(sync_summary):
                     self._send_sync_notification(sync_summary)
             else:
