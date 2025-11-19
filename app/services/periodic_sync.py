@@ -784,26 +784,23 @@ class PeriodicSyncService:
                     )
                     return next_sync.isoformat()
             
-            # Otherwise, next sync is based on interval
-            if self.last_sync_time:
-                next_sync = self.last_sync_time + timedelta(minutes=self.sync_interval_minutes)
+            # Otherwise, calculate next sync on fixed 15-minute intervals from start time
+            start_time_parts = self.sync_start_time.split(':')
+            start_hour = int(start_time_parts[0])
+            start_minute = int(start_time_parts[1])
+            
+            # Calculate minutes since start time today
+            start_time_today = now.replace(hour=start_hour, minute=start_minute, second=0, microsecond=0)
+            
+            if now < start_time_today:
+                # Before start time today, next sync is at start time
+                next_sync = start_time_today
             else:
-                # If no last sync yet, check if we're past start time today
-                start_time_parts = self.sync_start_time.split(':')
-                start_hour = int(start_time_parts[0])
-                start_minute = int(start_time_parts[1])
-                
-                if now.hour > start_hour or (now.hour == start_hour and now.minute >= start_minute):
-                    # Past start time today, next sync is in X minutes
-                    next_sync = now + timedelta(minutes=self.sync_interval_minutes)
-                else:
-                    # Before start time today, next sync is at start time
-                    next_sync = now.replace(
-                        hour=start_hour,
-                        minute=start_minute,
-                        second=0,
-                        microsecond=0
-                    )
+                # Past start time, find next 15-minute interval
+                minutes_since_start = int((now - start_time_today).total_seconds() / 60)
+                intervals_passed = minutes_since_start // self.sync_interval_minutes
+                next_interval_minutes = (intervals_passed + 1) * self.sync_interval_minutes
+                next_sync = start_time_today + timedelta(minutes=next_interval_minutes)
             
             return next_sync.isoformat()
         except Exception as e:
