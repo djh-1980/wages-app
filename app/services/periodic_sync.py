@@ -723,7 +723,9 @@ class PeriodicSyncService:
         
         # New files only mode
         if self.notify_on_new_files_only:
-            return has_new_files
+            has_imported_files = (sync_summary.get('runsheets_imported', 0) > 0 or 
+                                sync_summary.get('payslips_imported', 0) > 0)
+            return has_imported_files
         
         # Success notifications
         if self.notify_on_success and has_new_files:
