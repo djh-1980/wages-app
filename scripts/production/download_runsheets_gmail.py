@@ -108,7 +108,10 @@ class GmailRunSheetDownloader:
             
             if target_path.exists():
                 if pdf_path.exists():
-                    pdf_path.unlink()  # Delete duplicate
+                    try:
+                        pdf_path.unlink()  # Delete duplicate
+                    except FileNotFoundError:
+                        pass  # File already deleted, continue
                 return target_path
             
             pdf_path.rename(target_path)
@@ -136,7 +139,10 @@ class GmailRunSheetDownloader:
             # Handle duplicates
             if target_path.exists():
                 if pdf_path.exists():
-                    pdf_path.unlink()  # Delete duplicate
+                    try:
+                        pdf_path.unlink()  # Delete duplicate
+                    except FileNotFoundError:
+                        pass  # File already deleted, continue
                 return target_path
             
             pdf_path.rename(target_path)
