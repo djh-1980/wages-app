@@ -2011,3 +2011,58 @@ def api_generate_custom_report_pdf():
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@data_bp.route('/run-master-sync', methods=['POST'])
+def api_run_master_sync():
+    """Run the master sync script."""
+    log_settings_action('RUN_MASTER_SYNC', 'Starting master sync script')
+    
+    try:
+        # Get the project root directory
+        project_root = Path(__file__).parent.parent.parent
+        script_path = project_root / 'scripts' / 'sync_master.py'
+        
+        if not script_path.exists():
+            return jsonify({
+                'success': False, 
+                'error': 'Master sync script not found'
+            }), 404
+        
+        # Run the master sync script
+        result = subprocess.run(
+            [sys.executable, str(script_path)],
+            cwd=str(project_root),
+            capture_output=True,
+            text=True,
+            timeout=300  # 5 minute timeout
+        )
+        
+        if result.returncode == 0:
+            log_settings_action('RUN_MASTER_SYNC', 'Master sync completed successfully')
+            return jsonify({
+                'success': True,
+                'message': 'Master sync completed successfully',
+                'output': result.stdout
+            })
+        else:
+            log_settings_action('RUN_MASTER_SYNC', f'Master sync failed: {result.stderr}')
+            return jsonify({
+                'success': False,
+                'error': f'Master sync failed: {result.stderr}',
+                'output': result.stdout
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        log_settings_action('RUN_MASTER_SYNC', 'Master sync timed out')
+        return jsonify({
+            'success': False,
+            'error': 'Master sync timed out (exceeded 5 minutes)'
+        }), 408
+        
+    except Exception as e:
+        log_settings_action('RUN_MASTER_SYNC', f'Master sync error: {str(e)}')
+        return jsonify({
+            'success': False,
+            'error': f'Error running master sync: {str(e)}'
+        }), 500

@@ -1,4 +1,20 @@
 /**
+ * Copy master sync command to clipboard
+ */
+function copyMasterSyncCommand() {
+    const command = `cd /Users/danielhanson/CascadeProjects/Wages-App
+python3 scripts/sync_master.py`;
+    
+    navigator.clipboard.writeText(command).then(() => {
+        showStatus('Master sync command copied to clipboard!', 'success');
+    }).catch(() => {
+        // Fallback: show in modal
+        alert(command);
+        showStatus('Master sync command displayed (clipboard not available)', 'info');
+    });
+}
+
+/**
  * Copy email template for requesting files from manager
  */
 function copyManagerRequestEmail() {

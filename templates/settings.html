@@ -407,6 +407,43 @@
 
                     <div id="syncDataStatus" class="mb-4" style="display: none;"></div>
 
+                    <!-- Master Sync Command -->
+                    <div class="settings-card-section mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0"><i class="bi bi-terminal me-2"></i>Master Sync Command</h6>
+                        </div>
+                        <div class="card-body">
+                            <div class="alert alert-primary">
+                                <div class="d-flex align-items-start">
+                                    <i class="bi bi-lightning-charge fs-5 me-2"></i>
+                                    <div>
+                                        <strong>One-Command Complete Sync</strong>
+                                        <p class="mb-2 small">Run the master sync script for complete end-to-end synchronization:</p>
+                                        <div class="bg-dark text-light p-2 rounded mb-2 font-monospace small">
+                                            <code>cd /Users/danielhanson/CascadeProjects/Wages-App</code><br>
+                                            <code>python3 scripts/sync_master.py</code>
+                                        </div>
+                                        <p class="mb-0 small">
+                                            <strong>What it does:</strong> Downloads runsheets & payslips → Imports to database → Syncs pay data → Handles PayPoint audits (£0) → Provides detailed report
+                                        </p>
+                                        <div class="mt-2">
+                                            <small class="text-muted">
+                                                <i class="bi bi-info-circle me-1"></i>
+                                                <strong>Special handling:</strong> PayPoint Van Stock Audit jobs are automatically set to £0 and marked as completed (not DNCO)
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div class="text-center">
+                                <button class="btn btn-outline-primary" onclick="copyMasterSyncCommand()">
+                                    <i class="bi bi-clipboard"></i> Copy Command to Terminal
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- File Upload Section -->
                     <div class="settings-card-section">
                         <div class="card-header">

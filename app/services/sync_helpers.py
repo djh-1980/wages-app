@@ -13,8 +13,9 @@ DB_PATH = "data/database/payslips.db"
 
 def get_latest_runsheet_date():
     """Get the most recent runsheet date from database."""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=5.0)
         cursor = conn.cursor()
         # Convert DD/MM/YYYY to YYYY-MM-DD for proper sorting, then convert back
         cursor.execute("""
@@ -26,7 +27,6 @@ def get_latest_runsheet_date():
             LIMIT 1
         """)
         result = cursor.fetchone()
-        conn.close()
         
         if result and result[0]:
             return result[0]
@@ -34,12 +34,16 @@ def get_latest_runsheet_date():
     except Exception as e:
         print(f"Error getting latest runsheet date: {e}")
         return None
+    finally:
+        if conn:
+            conn.close()
 
 
 def get_latest_payslip_week():
     """Get the most recent payslip week number from database."""
+    conn = None
     try:
-        conn = sqlite3.connect(DB_PATH)
+        conn = sqlite3.connect(DB_PATH, timeout=5.0)
         cursor = conn.cursor()
         cursor.execute("""
             SELECT week_number, tax_year 
@@ -50,7 +54,6 @@ def get_latest_payslip_week():
             LIMIT 1
         """)
         result = cursor.fetchone()
-        conn.close()
         
         if result:
             return f"Week {result[0]}, {result[1]}"
@@ -58,16 +61,60 @@ def get_latest_payslip_week():
     except Exception as e:
         print(f"Error getting latest payslip week: {e}")
         return None
+    finally:
+        if conn:
+            conn.close()
 
 
 def sync_payslips_to_runsheets():
     """Sync payslip data to runsheet jobs. Returns count of jobs updated."""
-    try:
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        
-        # Update pay information
-        cursor.execute("""
+    import time
+    import os
+    
+    # Clear any existing lock files first
+    wal_file = f"{DB_PATH}-wal"
+    shm_file = f"{DB_PATH}-shm"
+    for lock_file in [wal_file, shm_file]:
+        if os.path.exists(lock_file):
+            try:
+                os.remove(lock_file)
+                print(f"Removed lock file: {lock_file}")
+            except:
+                pass
+    
+    conn = None
+    max_retries = 3
+    
+    for attempt in range(max_retries):
+        try:
+            print(f"Sync attempt {attempt + 1}/{max_retries}...")
+            
+            # Use DELETE mode to avoid WAL complications
+            conn = sqlite3.connect(DB_PATH, timeout=60.0)
+            conn.execute('PRAGMA journal_mode=DELETE')
+            conn.execute('PRAGMA busy_timeout=60000')
+            conn.execute('PRAGMA synchronous=NORMAL')
+            cursor = conn.cursor()
+            
+            # First, handle PayPoint Van Stock Audit jobs (set to £0)
+            cursor.execute("""
+                UPDATE run_sheet_jobs 
+                SET 
+                    pay_amount = 0.0,
+                    pay_rate = 0.0,
+                    pay_units = 1.0,
+                    status = CASE WHEN status = 'DNCO' THEN 'completed' ELSE status END,
+                    pay_updated_at = CURRENT_TIMESTAMP
+                WHERE customer LIKE '%PayPoint - Van Stock Audit%'
+                AND (pay_amount IS NULL OR status = 'DNCO')
+            """)
+            
+            paypoint_updated = cursor.rowcount
+            if paypoint_updated > 0:
+                print(f"Set {paypoint_updated} PayPoint audit jobs to £0")
+            
+            # Update pay information
+            cursor.execute("""
             UPDATE run_sheet_jobs 
             SET 
                 pay_amount = (
@@ -113,12 +160,12 @@ def sync_payslips_to_runsheets():
                 SELECT 1 FROM job_items j 
                 WHERE j.job_number = run_sheet_jobs.job_number
             )
-        """)
-        
-        jobs_updated = cursor.rowcount
-        
-        # Update addresses (only N/A or if payslip has better data)
-        cursor.execute("""
+            """)
+            
+            jobs_updated = cursor.rowcount
+            
+            # Update addresses (only N/A or if payslip has better data)
+            cursor.execute("""
             UPDATE run_sheet_jobs 
             SET 
                 job_address = CASE 
@@ -143,15 +190,27 @@ def sync_payslips_to_runsheets():
                 AND j.location IS NOT NULL
                 AND j.location NOT IN ('N/A', 'SCS', 'TVS', 'IFM')
             )
-        """)
-        
-        conn.commit()
-        conn.close()
-        
-        return jobs_updated
-    except Exception as e:
-        print(f"Error syncing payslips to runsheets: {e}")
-        return 0
+            """)
+            
+            conn.commit()
+            
+            print(f"✅ Successfully updated {jobs_updated} runsheet jobs with pay data")
+            return jobs_updated
+            
+        except Exception as e:
+            print(f"❌ Sync attempt {attempt + 1} failed: {e}")
+            if conn:
+                conn.close()
+                conn = None
+            
+            if attempt < max_retries - 1:
+                print(f"   Retrying in 2 seconds...")
+                time.sleep(2)
+            else:
+                print(f"❌ All {max_retries} sync attempts failed")
+                return 0
+    
+    return 0
 
 
 def should_send_notification(sync_summary):

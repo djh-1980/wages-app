@@ -194,12 +194,19 @@ async function checkNotifications() {
 document.addEventListener('DOMContentLoaded', function() {
     // Allow Enter key to search
     const searchInput = document.getElementById('globalSearchInput');
+    const searchButton = document.getElementById('globalSearchButton');
+    
     if (searchInput) {
         searchInput.addEventListener('keypress', function(e) {
             if (e.key === 'Enter') {
                 performGlobalSearch();
             }
         });
+    }
+    
+    // Add click event listener to search button
+    if (searchButton) {
+        searchButton.addEventListener('click', performGlobalSearch);
     }
     
     // Mark notifications as read when viewing run sheets page

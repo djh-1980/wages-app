@@ -445,12 +445,42 @@ class PeriodicSyncService:
                     sync_summary['errors'].append(f"Runsheet import failed: {str(e)}")
                     self.logger.error(f"Runsheet import error: {e}")
             
-            # Step 5: Import new payslips (only if downloaded)
-            if sync_summary['payslips_downloaded'] > 0:
+            # Step 5: Import new payslips (if downloaded OR if unprocessed files exist)
+            should_import_payslips = sync_summary['payslips_downloaded'] > 0
+            
+            # Also check for unprocessed payslip files from recent downloads
+            if not should_import_payslips and (now.weekday() == self.payslip_sync_day and 
+                                             self.payslip_sync_start <= now.hour <= self.payslip_sync_end):
+                # Check if there are recent payslip files that haven't been processed
+                try:
+                    from pathlib import Path
+                    import os
+                    import time
+                    
+                    payslip_dir = Path('data/documents/payslips')
+                    recent_files = []
+                    
+                    # Look for PDF files modified in the last 24 hours
+                    if payslip_dir.exists():
+                        for pdf_file in payslip_dir.rglob('*.pdf'):
+                            # Check if file was modified in last 24 hours
+                            file_mtime = os.path.getmtime(pdf_file)
+                            hours_since_modified = (time.time() - file_mtime) / 3600
+                            if hours_since_modified <= 24:
+                                recent_files.append(pdf_file)
+                    
+                    if recent_files:
+                        should_import_payslips = True
+                        self.logger.info(f"Found {len(recent_files)} recent payslip files to process")
+                        
+                except Exception as e:
+                    self.logger.warning(f"Could not check for unprocessed payslips: {e}")
+            
+            if should_import_payslips:
                 self.logger.info("Importing new payslips")
                 try:
                     payslip_import = subprocess.run(
-                        [sys.executable, 'scripts/production/extract_payslips.py', '--recent', '0'],
+                        [sys.executable, 'scripts/production/extract_payslips.py', '--recent', '1'],
                         capture_output=True,
                         text=True,
                         timeout=120

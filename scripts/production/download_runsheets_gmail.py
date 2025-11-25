@@ -180,8 +180,8 @@ class GmailRunSheetDownloader:
                     try:
                         flow = InstalledAppFlow.from_client_secrets_file(
                             str(credentials_path), SCOPES)
-                        # Use run_console instead of run_local_server for headless environments
-                        creds = flow.run_console()
+                        # Use run_local_server for authentication
+                        creds = flow.run_local_server(port=0)
                         
                         # Save the new credentials
                         with open(token_path, 'w') as token:
@@ -191,6 +191,7 @@ class GmailRunSheetDownloader:
                         
                     except Exception as auth_e:
                         print(f"❌ Re-authentication failed: {auth_e}")
+                        print("Please delete token.json and run the script manually to re-authenticate")
                         return False
             else:
                 if not credentials_path.exists():
