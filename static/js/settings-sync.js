@@ -65,9 +65,9 @@ function updateSyncStatusUI(status) {
     const nextSyncValue = document.getElementById('nextSyncTimeValue');
     const historyContainer = document.getElementById('syncHistoryContainer');
     
-    // Check if elements exist
+    // Check if elements exist - if not, skip this functionality
     if (!toggle || !badge || !label) {
-        console.warn('Required UI elements not found');
+        // Elements don't exist, skip sync status updates
         return;
     }
     
@@ -292,6 +292,11 @@ function updateHealthStatusUI(health) {
 function updateHealthIcon(iconId, textId, isHealthy, text) {
     const icon = document.getElementById(iconId);
     const textEl = document.getElementById(textId);
+    
+    // Check if elements exist before updating
+    if (!icon || !textEl) {
+        return;
+    }
     
     if (isHealthy) {
         icon.className = icon.className.replace(/text-\w+/, 'text-success');

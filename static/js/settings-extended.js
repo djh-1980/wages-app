@@ -732,8 +732,154 @@ async function deleteAttendanceGroup(ids) {
     }
 }
 
+// Missing settings functions
+async function loadAllSettings() {
+    // Load all settings data
+    console.log('Loading all settings...');
+}
+
+async function saveProfile() {
+    const profileData = {
+        name: document.getElementById('userName')?.value,
+        email: document.getElementById('userEmail')?.value,
+        phone: document.getElementById('userPhone')?.value,
+        address_line1: document.getElementById('addressLine1')?.value,
+        address_line2: document.getElementById('addressLine2')?.value,
+        city: document.getElementById('city')?.value,
+        postcode: document.getElementById('postcode')?.value,
+        utr_number: document.getElementById('utrNumber')?.value,
+        ni_number: document.getElementById('niNumber')?.value
+    };
+    
+    try {
+        const response = await fetch('/api/profile/save', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(profileData)
+        });
+        
+        const result = await response.json();
+        if (result.success) {
+            showStatus('Profile saved successfully', 'success');
+        } else {
+            showStatus(`Failed to save profile: ${result.error}`, 'danger');
+        }
+    } catch (error) {
+        showStatus(`Error saving profile: ${error.message}`, 'danger');
+    }
+}
+
+async function backupDatabase() {
+    try {
+        showStatus('Creating database backup...', 'info');
+        const response = await fetch('/api/system/backup', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            showStatus('Database backup created successfully', 'success');
+            loadBackupsList();
+        } else {
+            showStatus(`Backup failed: ${result.error}`, 'danger');
+        }
+    } catch (error) {
+        showStatus(`Backup error: ${error.message}`, 'danger');
+    }
+}
+
+async function optimizeDatabase() {
+    try {
+        showStatus('Optimizing database...', 'info');
+        const response = await fetch('/api/system/optimize', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            showStatus('Database optimized successfully', 'success');
+        } else {
+            showStatus(`Optimization failed: ${result.error}`, 'danger');
+        }
+    } catch (error) {
+        showStatus(`Optimization error: ${error.message}`, 'danger');
+    }
+}
+
+async function validateDatabase() {
+    try {
+        showStatus('Validating database integrity...', 'info');
+        const response = await fetch('/api/system/validate', { method: 'POST' });
+        const result = await response.json();
+        
+        if (result.success) {
+            showStatus('Database validation completed successfully', 'success');
+        } else {
+            showStatus(`Validation failed: ${result.error}`, 'danger');
+        }
+    } catch (error) {
+        showStatus(`Validation error: ${error.message}`, 'danger');
+    }
+}
+
+async function loadBackupsList() {
+    const container = document.getElementById('backupsList');
+    if (!container) return;
+    
+    try {
+        const response = await fetch('/api/system/backups');
+        const result = await response.json();
+        
+        if (result.success) {
+            // Display backups list
+            container.innerHTML = result.backups.map(backup => `
+                <div class="list-group-item d-flex justify-content-between align-items-center">
+                    <div>
+                        <strong>${backup.name}</strong>
+                        <small class="text-muted d-block">${backup.date}</small>
+                    </div>
+                    <button class="btn btn-sm btn-outline-primary" onclick="downloadBackup('${backup.name}')">
+                        <i class="bi bi-download"></i>
+                    </button>
+                </div>
+            `).join('');
+        }
+    } catch (error) {
+        container.innerHTML = '<div class="text-danger">Error loading backups</div>';
+    }
+}
+
+function clearCache() {
+    if (confirm('This will clear your browser cache and reload the page. Continue?')) {
+        localStorage.clear();
+        sessionStorage.clear();
+        location.reload(true);
+    }
+}
+
+function viewSystemLogs() {
+    window.open('/api/system/logs', '_blank');
+}
+
+function copyManagerRequestEmail() {
+    const emailText = `Subject: Request for Historical Payslips and Runsheets
+
+Hi [Manager Name],
+
+Could you please send me the historical payslips and runsheets for the periods I'm missing in my records?
+
+I can accept them in PDF format via email, and I'll import them into my system.
+
+Thanks!
+
+Best regards,
+[Your Name]`;
+    
+    navigator.clipboard.writeText(emailText).then(() => {
+        showStatus('Email template copied to clipboard', 'success');
+    });
+}
+
 // Initialize on page load
 document.addEventListener('DOMContentLoaded', function() {
     loadAllSettings();
-    loadAttendanceRecords();
+    if (document.getElementById('attendanceRecordsList')) {
+        loadAttendanceRecords();
+    }
 });
