@@ -142,6 +142,9 @@ function updateSyncStatusUI(status) {
     // Update latest data processed
     updateLatestDataDisplay(status);
     
+    // Update current activity status
+    updateCurrentActivityDisplay(status);
+    
     // Update sync history
     if (status.sync_history && status.sync_history.length > 0) {
         updateSyncHistory(status.sync_history);
@@ -201,9 +204,8 @@ function updateLatestDataDisplay(status) {
         return;
     }
     
-    // Show the container if sync is running
+    // Data is always shown in the compact row, just update the values
     if (status.is_running) {
-        latestDataContainer.style.display = 'block';
         
         // Update latest runsheet date from sync status
         if (status.latest_runsheet_date) {
@@ -218,8 +220,6 @@ function updateLatestDataDisplay(status) {
         } else {
             latestPayslipWeek.textContent = 'None';
         }
-    } else {
-        latestDataContainer.style.display = 'none';
     }
 }
 
@@ -263,8 +263,11 @@ function updateHealthStatusUI(health) {
     
     if (!health) return;
     
-    // Always show health status when we have data
-    container.style.display = 'block';
+    // Show the compact status row
+    const compactRow = document.getElementById('compactStatusRow');
+    if (compactRow) {
+        compactRow.style.display = 'block';
+    }
     
     // Gmail status
     updateHealthIcon('gmailHealthIcon', 'gmailHealthText', health.gmail_authenticated, 'Gmail');
@@ -495,3 +498,113 @@ style.textContent = `
     }
 `;
 document.head.appendChild(style);
+
+/**
+ * Update current activity status display
+ */
+function updateCurrentActivityDisplay(status) {
+    const activityContainer = document.getElementById('currentActivityStatus');
+    const activitySpinner = document.getElementById('activitySpinner');
+    const activityIcon = document.getElementById('activityIcon');
+    const activityTitle = document.getElementById('activityTitle');
+    const activityDescription = document.getElementById('activityDescription');
+    const activityTime = document.getElementById('activityTime');
+    
+    if (!activityContainer) return;
+    
+    // Show the activity container
+    activityContainer.style.display = 'block';
+    
+    // Update based on current state
+    if (!status.is_running) {
+        activityContainer.className = 'alert alert-secondary border-0';
+        activitySpinner.style.display = 'none';
+        activityIcon.className = 'bi bi-pause-circle me-2';
+        activityTitle.textContent = 'Auto-Sync Disabled';
+        activityDescription.textContent = 'Automatic sync service is not running';
+        activityTime.textContent = '';
+    } else if (status.is_paused) {
+        activityContainer.className = 'alert alert-warning border-0';
+        activitySpinner.style.display = 'none';
+        activityIcon.className = 'bi bi-pause-circle-fill me-2';
+        activityTitle.textContent = 'Sync Paused';
+        if (status.pause_until) {
+            const pauseUntil = new Date(status.pause_until);
+            activityDescription.textContent = `Paused until ${pauseUntil.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })}`;
+        } else {
+            activityDescription.textContent = 'Sync is paused indefinitely';
+        }
+        activityTime.textContent = '';
+    } else {
+        switch(status.current_state) {
+            case 'running':
+                activityContainer.className = 'alert alert-primary border-0';
+                activitySpinner.style.display = 'inline-block';
+                activityIcon.className = 'bi bi-cloud-download me-2';
+                activityTitle.textContent = 'Sync Running';
+                activityDescription.textContent = 'Downloading and processing files from Gmail...';
+                activityTime.textContent = 'Now';
+                break;
+                
+            case 'completed':
+                activityContainer.className = 'alert alert-success border-0';
+                activitySpinner.style.display = 'none';
+                activityIcon.className = 'bi bi-check-circle-fill me-2';
+                activityTitle.textContent = 'Sync Complete';
+                if (status.last_sync_time) {
+                    const lastSync = new Date(status.last_sync_time);
+                    activityDescription.textContent = `Last sync completed successfully`;
+                    activityTime.textContent = lastSync.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                } else {
+                    activityDescription.textContent = 'Sync completed successfully';
+                    activityTime.textContent = '';
+                }
+                break;
+                
+            case 'failed':
+                activityContainer.className = 'alert alert-danger border-0';
+                activitySpinner.style.display = 'none';
+                activityIcon.className = 'bi bi-exclamation-triangle-fill me-2';
+                activityTitle.textContent = 'Sync Error';
+                activityDescription.textContent = status.last_error || 'An error occurred during sync';
+                if (status.retry_count > 0) {
+                    activityDescription.textContent += ` (Retry ${status.retry_count}/3)`;
+                }
+                activityTime.textContent = '';
+                break;
+                
+            default: // idle
+                activityContainer.className = 'alert alert-info border-0';
+                activitySpinner.style.display = 'none';
+                activityIcon.className = 'bi bi-clock me-2';
+                activityTitle.textContent = 'Waiting for Next Sync';
+                
+                // Determine what we're waiting for
+                const now = new Date();
+                const today = now.toLocaleDateString('en-GB');
+                const latestRunsheet = status.latest_runsheet_date;
+                
+                if (latestRunsheet) {
+                    // Convert DD/MM/YYYY to comparable format
+                    const [day, month, year] = latestRunsheet.split('/');
+                    const runsheetDate = new Date(year, month - 1, day);
+                    const tomorrow = new Date(now);
+                    tomorrow.setDate(tomorrow.getDate() + 1);
+                    
+                    if (runsheetDate >= tomorrow) {
+                        activityDescription.textContent = `Already have tomorrow's runsheet (${latestRunsheet})`;
+                        if (status.next_sync_estimate) {
+                            const nextSync = new Date(status.next_sync_estimate);
+                            activityTime.textContent = nextSync.toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+                        }
+                    } else {
+                        activityDescription.textContent = `Looking for tomorrow's runsheet`;
+                        activityTime.textContent = 'Next: 15 min';
+                    }
+                } else {
+                    activityDescription.textContent = 'Waiting for sync schedule';
+                    activityTime.textContent = '';
+                }
+        }
+    }
+}

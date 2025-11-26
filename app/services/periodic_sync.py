@@ -35,7 +35,7 @@ class PeriodicSyncService:
         self.last_check_date = None  # Reset tracking daily
         self.runsheet_completed_today = False  # Stop runsheet checks after processing
         self.payslip_completed_this_week = False  # Stop payslip checks after processing
-        self.sync_started_today = False  # Track if 18:00 sync has started
+        self.sync_started_today = False  # Track if daily sync has started
         
         # Retry logic with exponential backoff
         self.retry_count = 0
@@ -53,7 +53,7 @@ class PeriodicSyncService:
         self.files_pending = 0
         
         # Configurable sync times (loaded from settings)
-        self.sync_start_time = "18:00"
+        self.sync_start_time = "19:00"
         self.payslip_sync_day = 1  # Tuesday (0=Monday)
         self.payslip_sync_start = 6  # 06:00
         self.payslip_sync_end = 14  # 14:00
@@ -84,7 +84,7 @@ class PeriodicSyncService:
             from ..models.settings import SettingsModel
             
             # Load configurable times
-            self.sync_start_time = SettingsModel.get_setting('sync_start_time') or "18:00"
+            self.sync_start_time = SettingsModel.get_setting('sync_start_time') or "19:00"
             self.sync_interval_minutes = int(SettingsModel.get_setting('sync_interval_minutes') or 15)
             
             # Payslip sync settings
@@ -256,6 +256,14 @@ class PeriodicSyncService:
                 self.logger.info("Sync is paused - skipping")
                 return
         
+        # Prevent multiple sync instances from running simultaneously
+        if self.current_state == 'running':
+            self.logger.info("Sync already running - skipping to prevent duplicate instances")
+            return
+        
+        # Set state to running to prevent other instances
+        self.current_state = 'running'
+        
         # Reset tracking at midnight each day
         now = datetime.now()
         current_date = now.strftime('%Y-%m-%d')
@@ -269,7 +277,7 @@ class PeriodicSyncService:
             
             # Stop any running interval syncs from yesterday
             schedule.clear('interval-sync')
-            self.logger.info("Cleared interval syncs - waiting for 18:00 to start new cycle")
+            self.logger.info(f"Cleared interval syncs - waiting for {self.sync_start_time} to start new cycle")
         
         # Reset payslip tracking on Tuesdays (start of new week)
         if now.weekday() == 1:  # Tuesday
@@ -519,7 +527,10 @@ class PeriodicSyncService:
             # Add to sync history
             self._add_to_history(sync_summary)
             
-            # Step 7: Send email notification based on preferences
+            # Step 7: Check if we should stop syncing after successful completion
+            self._check_completion_and_stop(sync_summary)
+            
+            # Step 8: Send email notification based on preferences
             # Only send notification if we actually imported NEW jobs (not re-processed existing ones)
             if sync_summary.get('runsheets_imported', 0) > 0 or sync_summary.get('payslips_imported', 0) > 0:
                 # Reset retry count on successful sync
@@ -537,6 +548,43 @@ class PeriodicSyncService:
             self.last_error = str(e)
             self.current_state = 'failed'
             self._handle_retry('sync_general')
+        finally:
+            # Ensure state is reset if not explicitly set to completed
+            if self.current_state == 'running':
+                self.current_state = 'idle'
+    
+    def _check_completion_and_stop(self, sync_summary):
+        """Check if sync is complete and should stop running until next scheduled time."""
+        now = datetime.now()
+        tomorrow = (now + timedelta(days=1)).strftime('%d-%m-%Y')
+        
+        # Check if we successfully got tomorrow's runsheet
+        if self.runsheet_completed_today:
+            latest_runsheet = get_latest_runsheet_date()
+            if latest_runsheet:
+                # Convert latest runsheet date to comparable format
+                separator = '/' if '/' in latest_runsheet else '-'
+                latest_parts = latest_runsheet.split(separator)
+                latest_comparable = f"{latest_parts[2]}{latest_parts[1]}{latest_parts[0]}"
+                
+                tomorrow_parts = tomorrow.split('-')
+                tomorrow_comparable = f"{tomorrow_parts[2]}{tomorrow_parts[1]}{tomorrow_parts[0]}"
+                
+                # If we have tomorrow's runsheet, stop interval syncing
+                if latest_comparable >= tomorrow_comparable:
+                    self.logger.info(f"✅ SUCCESS: Got tomorrow's runsheet ({latest_runsheet}) - stopping interval sync until next day")
+                    schedule.clear('interval-sync')
+                    self.current_state = 'completed'
+                    return True
+        
+        # Check if we successfully got this week's payslip (Tuesday only)
+        if now.weekday() == 1 and self.payslip_completed_this_week:  # Tuesday
+            self.logger.info(f"✅ SUCCESS: Got this week's payslip - stopping interval sync until runsheet time")
+            schedule.clear('interval-sync')
+            self.current_state = 'completed'
+            return True
+        
+        return False
     
     def _should_sync(self):
         """Determine if sync is needed based on time and data patterns."""

@@ -235,47 +235,69 @@
                                 </div>
                             </div>
 
-                            <!-- Health Status -->
-                            <div id="syncHealthStatus" class="alert alert-light border" style="display: none;">
-                                <div class="row g-2 text-center">
-                                    <div class="col-3">
-                                        <i class="bi bi-envelope fs-5" id="gmailHealthIcon"></i>
-                                        <div><small id="gmailHealthText">Gmail</small></div>
+                            <!-- Current Activity Status -->
+                            <div id="currentActivityStatus" class="alert alert-info border-0" style="display: none;">
+                                <div class="d-flex align-items-center">
+                                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status" id="activitySpinner" style="display: none;">
+                                        <span class="visually-hidden">Loading...</span>
                                     </div>
-                                    <div class="col-3">
-                                        <i class="bi bi-database fs-5" id="dbHealthIcon"></i>
-                                        <div><small id="dbHealthText">Database</small></div>
+                                    <i class="bi bi-clock me-2" id="activityIcon"></i>
+                                    <div class="flex-grow-1">
+                                        <strong><small id="activityTitle">Sync Status</small></strong>
+                                        <div><small class="text-muted" id="activityDescription">Checking sync status...</small></div>
                                     </div>
-                                    <div class="col-3">
-                                        <i class="bi bi-hdd fs-5" id="diskHealthIcon"></i>
-                                        <div><small id="diskHealthText">Disk</small></div>
-                                    </div>
-                                    <div class="col-3">
-                                        <i class="bi bi-activity fs-5" id="serviceHealthIcon"></i>
-                                        <div><small id="serviceHealthText">Service</small></div>
+                                    <div class="text-end">
+                                        <small class="text-muted" id="activityTime">--:--</small>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Latest Data -->
-                            <div id="latestDataContainer" style="display: none;">
-                                <hr>
-                                <div class="mb-2">
-                                    <strong><small>Latest Data Processed</small></strong>
-                                </div>
-                                <div class="row g-2 text-center">
-                                    <div class="col-6">
-                                        <div class="p-2 bg-light rounded">
-                                            <i class="bi bi-file-earmark-text text-primary"></i>
-                                            <div><small class="text-muted">Latest Runsheet</small></div>
-                                            <div><strong><small id="latestRunsheetDate">-</small></strong></div>
+                            <!-- Compact Status Row -->
+                            <div id="compactStatusRow" class="row g-3" style="display: none;">
+                                <!-- Health Status -->
+                                <div class="col-md-6">
+                                    <div id="syncHealthStatus" class="alert alert-light border mb-0">
+                                        <div class="mb-1"><strong><small>System Health</small></strong></div>
+                                        <div class="row g-2 text-center">
+                                            <div class="col-3">
+                                                <i class="bi bi-envelope" id="gmailHealthIcon"></i>
+                                                <div><small id="gmailHealthText">Gmail</small></div>
+                                            </div>
+                                            <div class="col-3">
+                                                <i class="bi bi-database" id="dbHealthIcon"></i>
+                                                <div><small id="dbHealthText">Database</small></div>
+                                            </div>
+                                            <div class="col-3">
+                                                <i class="bi bi-hdd" id="diskHealthIcon"></i>
+                                                <div><small id="diskHealthText">Disk</small></div>
+                                            </div>
+                                            <div class="col-3">
+                                                <i class="bi bi-activity" id="serviceHealthIcon"></i>
+                                                <div><small id="serviceHealthText">Service</small></div>
+                                            </div>
                                         </div>
                                     </div>
-                                    <div class="col-6">
-                                        <div class="p-2 bg-light rounded">
-                                            <i class="bi bi-receipt text-success"></i>
-                                            <div><small class="text-muted">Latest Payslip</small></div>
-                                            <div><strong><small id="latestPayslipWeek">-</small></strong></div>
+                                </div>
+                                
+                                <!-- Latest Data -->
+                                <div class="col-md-6">
+                                    <div id="latestDataContainer" class="alert alert-light border mb-0">
+                                        <div class="mb-1"><strong><small>Latest Data Processed</small></strong></div>
+                                        <div class="row g-2 text-center">
+                                            <div class="col-6">
+                                                <div class="p-2 bg-white rounded border">
+                                                    <i class="bi bi-file-earmark-text text-primary"></i>
+                                                    <div><small class="text-muted">Runsheet</small></div>
+                                                    <div><strong><small id="latestRunsheetDate">-</small></strong></div>
+                                                </div>
+                                            </div>
+                                            <div class="col-6">
+                                                <div class="p-2 bg-white rounded border">
+                                                    <i class="bi bi-receipt text-success"></i>
+                                                    <div><small class="text-muted">Payslip</small></div>
+                                                    <div><strong><small id="latestPayslipWeek">-</small></strong></div>
+                                                </div>
+                                            </div>
                                         </div>
                                     </div>
                                 </div>
