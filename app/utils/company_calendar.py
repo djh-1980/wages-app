@@ -17,9 +17,42 @@ class CompanyCalendar:
     - Pay date: ~2 weeks after week ending
     """
     
-    # Company year constants
-    YEAR_START_2025 = datetime(2025, 3, 9)  # Sunday
-    WEEK_1_END_2025 = datetime(2025, 3, 22)  # Saturday
+    # Base year definition (2025 is our reference)
+    BASE_YEAR = 2025
+    BASE_YEAR_START = datetime(2025, 3, 9)   # Sunday
+    BASE_WEEK_1_END = datetime(2025, 3, 22)  # Saturday
+    
+    # Legacy constants for backward compatibility
+    YEAR_START_2025 = BASE_YEAR_START
+    WEEK_1_END_2025 = BASE_WEEK_1_END
+    
+    @classmethod
+    def calculate_company_year_start(cls, tax_year: int) -> Tuple[datetime, datetime]:
+        """
+        Automatically calculate company year start and Week 1 end for any tax year.
+        
+        Pattern: Company years start on the Sunday closest to mid-March.
+        
+        Args:
+            tax_year: Tax year to calculate
+            
+        Returns:
+            Tuple of (year_start_sunday, week_1_end_saturday)
+        """
+        # Based on actual payslip data, find the Sunday that results in Week 1 ending around March 22-26
+        # The pattern seems to be: find the Sunday that makes Week 1 end on the Saturday closest to March 22-25
+        
+        # Start with March 22nd as the target Week 1 ending
+        target_week_1_end = datetime(tax_year, 3, 22)
+        
+        # Find the Saturday on or after March 22nd
+        days_to_saturday = (5 - target_week_1_end.weekday()) % 7  # Saturday = 5
+        week_1_end = target_week_1_end + timedelta(days=days_to_saturday)
+        
+        # Week 1 starts on the Sunday before
+        year_start = week_1_end - timedelta(days=6)
+        
+        return year_start, week_1_end
     
     @classmethod
     def get_week_dates(cls, week_number: int, tax_year: int = 2025) -> Tuple[datetime, datetime]:
@@ -33,16 +66,13 @@ class CompanyCalendar:
         Returns:
             Tuple of (sunday_start, saturday_end)
         """
-        if tax_year == 2025:
-            # Calculate from Week 1 ending date
-            week_1_saturday = cls.WEEK_1_END_2025
-            target_saturday = week_1_saturday + timedelta(weeks=week_number - 1)
-            target_sunday = target_saturday - timedelta(days=6)
-            
-            return target_sunday, target_saturday
-        else:
-            # For other years, we'd need to define their start dates
-            raise ValueError(f"Tax year {tax_year} not implemented yet")
+        # Calculate company year boundaries automatically
+        year_start, week_1_saturday = cls.calculate_company_year_start(tax_year)
+        
+        target_saturday = week_1_saturday + timedelta(weeks=week_number - 1)
+        target_sunday = target_saturday - timedelta(days=6)
+        
+        return target_sunday, target_saturday
     
     @classmethod
     def get_week_number_from_date(cls, date: datetime, tax_year: int = 2025) -> int:
@@ -56,20 +86,18 @@ class CompanyCalendar:
         Returns:
             Company week number
         """
-        if tax_year == 2025:
-            week_1_saturday = cls.WEEK_1_END_2025
-            
-            # Find the Saturday of the week containing this date
-            days_since_saturday = (date.weekday() + 2) % 7  # Convert to days since Saturday
-            week_saturday = date - timedelta(days=days_since_saturday)
-            
-            # Calculate week number
-            days_diff = (week_saturday - week_1_saturday).days
-            week_number = (days_diff // 7) + 1
-            
-            return max(1, week_number)
-        else:
-            raise ValueError(f"Tax year {tax_year} not implemented yet")
+        # Calculate company year boundaries automatically
+        year_start, week_1_saturday = cls.calculate_company_year_start(tax_year)
+        
+        # Find the Saturday of the week containing this date
+        days_since_saturday = (date.weekday() + 2) % 7  # Convert to days since Saturday
+        week_saturday = date - timedelta(days=days_since_saturday)
+        
+        # Calculate week number
+        days_diff = (week_saturday - week_1_saturday).days
+        week_number = (days_diff // 7) + 1
+        
+        return max(1, week_number)
     
     @classmethod
     def parse_date_string(cls, date_str: str) -> datetime:
@@ -141,11 +169,9 @@ class CompanyCalendar:
         """
         period_end = cls.parse_date_string(period_end_str)
         
-        # Determine tax year
-        if period_end >= cls.YEAR_START_2025:
-            tax_year = 2025
-        else:
-            tax_year = 2024  # Or whatever previous year logic
+        # Determine tax year (for now, assume everything is 2025)
+        # TODO: Add support for other tax years when needed
+        tax_year = 2025
         
         week_number = cls.get_week_number_from_date(period_end, tax_year)
         return week_number, tax_year
