@@ -1119,12 +1119,13 @@ def api_weekly_summary():
     """Get weekly summary report (Sunday to Saturday)."""
     try:
         from datetime import datetime, timedelta
+        from ..utils.company_calendar import company_calendar
         
         # Get week parameter (format: YYYY-MM-DD for the Sunday of the week)
         week_start = request.args.get('week_start')
         
         if not week_start:
-            # Default to the most recent payslip's week (using period_end)
+            # Default to the most recent payslip's week using company calendar
             with get_db_connection() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
@@ -1137,29 +1138,33 @@ def api_weekly_summary():
                 result = cursor.fetchone()
                 
                 if result and result['period_end']:
-                    # period_end is Saturday, calculate Sunday (start of week)
-                    try:
-                        saturday = datetime.strptime(result['period_end'], '%d/%m/%Y')
-                        sunday = saturday - timedelta(days=6)
-                        week_start = sunday.strftime('%d/%m/%Y')
-                    except:
-                        # Fallback
-                        week_start = '19/10/2025'
+                    # Use company calendar to get proper week dates
+                    week_number = result['week_number']
+                    tax_year = result['tax_year']
+                    sunday, saturday = company_calendar.get_week_dates(week_number, tax_year)
+                    week_start = company_calendar.format_date_string(sunday)
                 else:
-                    week_start = '19/10/2025'
+                    # Fallback to current week
+                    current_week, current_year = company_calendar.get_current_week()
+                    sunday, saturday = company_calendar.get_week_dates(current_week, current_year)
+                    week_start = company_calendar.format_date_string(sunday)
         else:
             # Convert from YYYY-MM-DD to DD/MM/YYYY
             try:
                 dt = datetime.strptime(week_start, '%Y-%m-%d')
                 week_start = dt.strftime('%d/%m/%Y')
             except:
-                pass
+                return jsonify({'error': 'Invalid week_start format'}), 400
         
-        # Calculate week end (Saturday)
+        # Calculate week end using company calendar (ensures Sunday-Saturday)
         try:
-            start_dt = datetime.strptime(week_start, '%d/%m/%Y')
+            start_dt = company_calendar.parse_date_string(week_start)
+            # Validate it's a Sunday
+            if start_dt.weekday() != 6:  # Sunday = 6
+                return jsonify({'error': 'Week start must be a Sunday'}), 400
+            
             end_dt = start_dt + timedelta(days=6)
-            week_end = end_dt.strftime('%d/%m/%Y')
+            week_end = company_calendar.format_date_string(end_dt)
         except:
             return jsonify({'error': 'Invalid week_start format'}), 400
         
@@ -1526,19 +1531,10 @@ def api_weekly_summary():
             else:
                 # No payslip for this week - check if we have runsheet jobs
                 if total_jobs > 0:
-                    # We have runsheet data but no payslip - calculate week number manually
-                    # Use company year structure: Week 1 ending 22/03/2025 (Saturday)
-                    from datetime import datetime, timedelta
-                    
+                    # We have runsheet data but no payslip - use company calendar to calculate week
                     try:
-                        week_1_end = datetime(2025, 3, 22)  # First Saturday
-                        current_saturday = datetime.strptime(week_end, '%d/%m/%Y')
-                        
-                        # Calculate week number
-                        days_diff = (current_saturday - week_1_end).days
-                        calculated_week = (days_diff // 7) + 1
-                        
-                        week_number = calculated_week if calculated_week > 0 else None
+                        saturday_date = company_calendar.parse_date_string(week_end)
+                        week_number = company_calendar.get_week_number_from_date(saturday_date, 2025)
                         tax_year = 2025
                     except:
                         week_number = None
@@ -1585,11 +1581,18 @@ def api_weekly_summary():
             if payslip_net_payment is not None:
                 earnings_discrepancy = round(total_earnings - payslip_net_payment, 2)
             
+            # Generate proper week label using company calendar
+            if week_number:
+                week_label = company_calendar.get_week_label(week_number, tax_year or 2025)
+            else:
+                week_label = f"{start_dt.strftime('%d %b')} - {end_dt.strftime('%d %b %Y')}"
+            
             return jsonify({
                 'week_start': week_start,
                 'week_end': week_end,
-                'week_label': f"{start_dt.strftime('%d %b')} - {end_dt.strftime('%d %b %Y')}",
+                'week_label': week_label,
                 'week_number': week_number,
+                'tax_year': tax_year,
                 'summary': {
                     'total_jobs': total_jobs,
                     'total_earnings': round(total_earnings, 2),

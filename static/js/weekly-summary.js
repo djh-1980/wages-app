@@ -48,8 +48,18 @@ window.currentWeek = function() {
 
 window.previousWeek = function() {
     if (!currentWeekStart) return;
-    const date = new Date(currentWeekStart);
+    
+    // Ensure we navigate by exactly 7 days to maintain Sunday-to-Saturday structure
+    const date = new Date(currentWeekStart + 'T00:00:00');
     date.setDate(date.getDate() - 7);
+    
+    // Ensure the result is still a Sunday
+    if (date.getDay() !== 0) {
+        console.warn('Previous week calculation resulted in non-Sunday, adjusting...');
+        const daysToSunday = date.getDay();
+        date.setDate(date.getDate() - daysToSunday);
+    }
+    
     currentWeekStart = date.toISOString().split('T')[0];
     loadWeeklySummary();
 }
@@ -59,8 +69,18 @@ window.nextWeek = function() {
         window.currentWeek();
         return;
     }
-    const date = new Date(currentWeekStart);
+    
+    // Ensure we navigate by exactly 7 days to maintain Sunday-to-Saturday structure
+    const date = new Date(currentWeekStart + 'T00:00:00');
     date.setDate(date.getDate() + 7);
+    
+    // Ensure the result is still a Sunday
+    if (date.getDay() !== 0) {
+        console.warn('Next week calculation resulted in non-Sunday, adjusting...');
+        const daysToSunday = date.getDay();
+        date.setDate(date.getDate() - daysToSunday);
+    }
+    
     currentWeekStart = date.toISOString().split('T')[0];
     loadWeeklySummary();
 }
