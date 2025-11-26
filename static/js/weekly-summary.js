@@ -51,10 +51,22 @@ window.previousWeek = function() {
     
     console.log('Previous week navigation from:', currentWeekStart);
     
-    // Use UK timezone utilities for safe navigation
-    currentWeekStart = window.UKTimezone.navigateWeeks(currentWeekStart, -1);
-    console.log('Final currentWeekStart:', currentWeekStart);
+    // Simple date arithmetic - subtract exactly 7 days
+    const parts = currentWeekStart.split('-');
+    const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    date.setDate(date.getDate() - 7);
     
+    // Ensure it's still a Sunday (day 0)
+    if (date.getDay() !== 0) {
+        const daysToSunday = date.getDay();
+        date.setDate(date.getDate() - daysToSunday);
+    }
+    
+    currentWeekStart = date.getFullYear() + '-' + 
+                     String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                     String(date.getDate()).padStart(2, '0');
+    
+    console.log('Final currentWeekStart:', currentWeekStart);
     loadWeeklySummary();
 }
 
@@ -64,8 +76,21 @@ window.nextWeek = function() {
         return;
     }
     
-    // Use UK timezone utilities for safe navigation
-    currentWeekStart = window.UKTimezone.navigateWeeks(currentWeekStart, 1);
+    // Simple date arithmetic - add exactly 7 days
+    const parts = currentWeekStart.split('-');
+    const date = new Date(parseInt(parts[0]), parseInt(parts[1]) - 1, parseInt(parts[2]));
+    date.setDate(date.getDate() + 7);
+    
+    // Ensure it's still a Sunday (day 0)
+    if (date.getDay() !== 0) {
+        const daysToSunday = date.getDay();
+        date.setDate(date.getDate() - daysToSunday);
+    }
+    
+    currentWeekStart = date.getFullYear() + '-' + 
+                     String(date.getMonth() + 1).padStart(2, '0') + '-' + 
+                     String(date.getDate()).padStart(2, '0');
+    
     loadWeeklySummary();
 }
 
