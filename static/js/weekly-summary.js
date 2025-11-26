@@ -66,7 +66,12 @@ window.nextWeek = function() {
 }
 
 // Load weekly summary data from API
-async function loadWeeklySummary() {
+async function loadWeeklySummary(weekStart = null) {
+    // Update currentWeekStart if a new week is provided
+    if (weekStart) {
+        currentWeekStart = weekStart;
+        console.log('Updated currentWeekStart to:', currentWeekStart);
+    }
     try {
         const url = currentWeekStart 
             ? `/api/weekly-summary?week_start=${currentWeekStart}`
@@ -79,18 +84,52 @@ async function loadWeeklySummary() {
         
         console.log('Weekly summary data received:', data);
         
+        // Handle redirect to latest available week
+        if (data.redirect && data.latest_week_start) {
+            console.log('Redirecting to latest week:', data.latest_week_start);
+            console.log('Current week start:', currentWeekStart);
+            console.log('Message:', data.message || 'Redirecting to latest available week');
+            
+            // Convert DD/MM/YYYY to YYYY-MM-DD for comparison
+            const [day, month, year] = data.latest_week_start.split('/');
+            const isoDate = `${year}-${month.padStart(2, '0')}-${day.padStart(2, '0')}`;
+            console.log('Target ISO date:', isoDate);
+            
+            // Prevent infinite loops by checking if we're already trying this week
+            if (currentWeekStart === isoDate) {
+                console.error('Infinite redirect detected - already on target week, stopping');
+                showError('Unable to load weekly summary - the latest available week also has no data');
+                return;
+            }
+            
+            // Set a flag to prevent multiple redirects
+            if (window.weeklyRedirectCount && window.weeklyRedirectCount > 3) {
+                console.error('Too many redirects, stopping');
+                showError('Unable to load weekly summary - multiple redirect attempts failed');
+                return;
+            }
+            
+            window.weeklyRedirectCount = (window.weeklyRedirectCount || 0) + 1;
+            console.log('Redirect attempt:', window.weeklyRedirectCount);
+            
+            loadWeeklySummary(isoDate);
+            return;
+        }
+        
         if (data.error) {
             console.error('API returned error:', data.error);
             showError('Error loading weekly summary: ' + data.error);
             return;
         }
         
-        // Store the week start for navigation
-        if (!currentWeekStart) {
-            // Convert DD/MM/YYYY to YYYY-MM-DD
-            const parts = data.week_start.split('/');
-            currentWeekStart = `${parts[2]}-${parts[1]}-${parts[0]}`;
-        }
+        // Reset redirect counter on successful load
+        window.weeklyRedirectCount = 0;
+        
+        // Always update currentWeekStart to match the actual data being displayed
+        // Convert DD/MM/YYYY to YYYY-MM-DD
+        const parts = data.week_start.split('/');
+        currentWeekStart = `${parts[2]}-${parts[1]}-${parts[0]}`;
+        console.log('Updated currentWeekStart to match displayed data:', currentWeekStart);
         
         displayWeeklySummary(data);
     } catch (error) {

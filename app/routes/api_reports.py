@@ -1524,14 +1524,60 @@ def api_weekly_summary():
                 week_number = payslip_info['week_number']
                 tax_year = payslip_info['tax_year']
             else:
-                # No payslip for this week - show a message
-                return jsonify({
-                    'error': 'No payslip found for this week',
-                    'message': f'Week ending {week_end} does not have a corresponding payslip record.',
-                    'week_start': week_start,
-                    'week_end': week_end,
-                    'week_label': f"{start_dt.strftime('%d %b')} - {end_dt.strftime('%d %b %Y')}"
-                }), 404
+                # No payslip for this week - check if we have runsheet jobs
+                if total_jobs > 0:
+                    # We have runsheet data but no payslip - calculate week number manually
+                    # Use company year structure: Week 1 ending 22/03/2025 (Saturday)
+                    from datetime import datetime, timedelta
+                    
+                    try:
+                        week_1_end = datetime(2025, 3, 22)  # First Saturday
+                        current_saturday = datetime.strptime(week_end, '%d/%m/%Y')
+                        
+                        # Calculate week number
+                        days_diff = (current_saturday - week_1_end).days
+                        calculated_week = (days_diff // 7) + 1
+                        
+                        week_number = calculated_week if calculated_week > 0 else None
+                        tax_year = 2025
+                    except:
+                        week_number = None
+                        tax_year = None
+                else:
+                    # No runsheet jobs either - redirect to latest available week
+                    cursor.execute("""
+                        SELECT week_number, tax_year, period_end
+                        FROM payslips 
+                        WHERE period_end IS NOT NULL 
+                        ORDER BY tax_year DESC, week_number DESC 
+                        LIMIT 1
+                    """)
+                    latest_payslip = cursor.fetchone()
+                    
+                    if latest_payslip:
+                        # Redirect to the latest available week
+                        try:
+                            latest_saturday = datetime.strptime(latest_payslip['period_end'], '%d/%m/%Y')
+                            latest_sunday = latest_saturday - timedelta(days=6)
+                            latest_week_start = latest_sunday.strftime('%d/%m/%Y')
+                            
+                            # Return a redirect response with the latest week
+                            return jsonify({
+                                'redirect': True,
+                                'latest_week_start': latest_week_start,
+                                'message': f'Week ending {week_end} not available. Showing latest week: {latest_payslip["week_number"]}'
+                            })
+                        except:
+                            pass
+                    
+                    # Fallback error message
+                    return jsonify({
+                        'error': 'No data found for this week',
+                        'message': f'Week ending {week_end} has no runsheet or payslip data.',
+                        'week_start': week_start,
+                        'week_end': week_end,
+                        'week_label': f"{start_dt.strftime('%d %b')} - {end_dt.strftime('%d %b %Y')}"
+                    }), 404
             
             # Check if weekly earnings match payslip net payment
             payslip_net_payment = payslip_info['net_payment'] if payslip_info else None
