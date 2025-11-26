@@ -2066,3 +2066,75 @@ def api_run_master_sync():
             'success': False,
             'error': f'Error running master sync: {str(e)}'
         }), 500
+
+
+@data_bp.route('/latest-sync-data', methods=['GET'])
+def api_latest_sync_data():
+    """Get latest runsheet and payslip data."""
+    try:
+        conn = sqlite3.connect(DB_PATH, timeout=5.0)
+        cursor = conn.cursor()
+        
+        # Get latest runsheet date (convert DD/MM/YYYY to sortable format)
+        cursor.execute("""
+            SELECT date
+            FROM run_sheet_jobs
+            WHERE date IS NOT NULL
+            ORDER BY 
+                CAST(SUBSTR(date, 7, 4) AS INTEGER) DESC,  -- Year
+                CAST(SUBSTR(date, 4, 2) AS INTEGER) DESC,  -- Month  
+                CAST(SUBSTR(date, 1, 2) AS INTEGER) DESC   -- Day
+            LIMIT 1
+        """)
+        result = cursor.fetchone()
+        latest_runsheet = result[0] if result else None
+        
+        # Get latest payslip week
+        cursor.execute("""
+            SELECT week_number, tax_year
+            FROM payslips
+            ORDER BY tax_year DESC, week_number DESC
+            LIMIT 1
+        """)
+        payslip_result = cursor.fetchone()
+        latest_payslip = f"Week {payslip_result[0]}, {payslip_result[1]}" if payslip_result else None
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'latest_runsheet': latest_runsheet,
+            'latest_payslip': latest_payslip
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
+@data_bp.route('/sync-log', methods=['GET'])
+def api_sync_log():
+    """Get the sync log contents."""
+    try:
+        log_path = Path(__file__).parent.parent.parent / 'logs' / 'auto_sync.log'
+        
+        if log_path.exists():
+            with open(log_path, 'r') as f:
+                # Read last 100 lines
+                lines = f.readlines()
+                log_content = ''.join(lines[-100:]) if lines else 'No log entries'
+        else:
+            log_content = 'Log file not found - sync may not have run yet'
+        
+        return jsonify({
+            'success': True,
+            'log': log_content
+        })
+        
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500

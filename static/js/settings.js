@@ -1,4 +1,99 @@
 /**
+ * Run master sync manually from settings page
+ */
+async function runMasterSyncManual() {
+    const btn = document.getElementById('manualSyncBtn');
+    const originalText = btn.innerHTML;
+    
+    try {
+        // Update button state
+        btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Running...';
+        btn.disabled = true;
+        
+        // Clear log window
+        const logWindow = document.getElementById('syncLogWindow');
+        logWindow.innerHTML = '<div class="text-info">Starting master sync...</div>';
+        
+        showStatus('Starting master sync...', 'info');
+        
+        const response = await fetch('/api/data/run-master-sync', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showStatus('Master sync completed successfully!', 'success');
+            // Display output in log window
+            if (result.output) {
+                logWindow.innerHTML = `<div class="text-success">✅ Sync completed successfully!</div><pre class="mt-2">${result.output}</pre>`;
+            }
+            // Refresh latest data
+            loadLatestSyncData();
+        } else {
+            showStatus(`Master sync failed: ${result.error}`, 'danger');
+            logWindow.innerHTML = `<div class="text-danger">❌ Sync failed: ${result.error}</div>`;
+        }
+    } catch (error) {
+        showStatus(`Error running master sync: ${error.message}`, 'danger');
+        logWindow.innerHTML = `<div class="text-danger">❌ Error: ${error.message}</div>`;
+    } finally {
+        // Restore button
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+/**
+ * Load latest sync data (runsheet and payslip dates)
+ */
+async function loadLatestSyncData() {
+    try {
+        const response = await fetch('/api/data/latest-sync-data');
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('latestRunsheetDate').textContent = data.latest_runsheet || 'No data';
+            document.getElementById('latestPayslipWeek').textContent = data.latest_payslip || 'No data';
+        }
+    } catch (error) {
+        console.error('Error loading latest sync data:', error);
+    }
+}
+
+/**
+ * Refresh sync log from server
+ */
+async function refreshSyncLog() {
+    try {
+        const response = await fetch('/api/data/sync-log');
+        const data = await response.json();
+        
+        const logWindow = document.getElementById('syncLogWindow');
+        if (data.success && data.log) {
+            logWindow.innerHTML = `<pre>${data.log}</pre>`;
+            // Scroll to bottom
+            logWindow.scrollTop = logWindow.scrollHeight;
+        } else {
+            logWindow.innerHTML = '<div class="text-muted">No log data available</div>';
+        }
+    } catch (error) {
+        console.error('Error refreshing sync log:', error);
+        document.getElementById('syncLogWindow').innerHTML = '<div class="text-danger">Error loading log</div>';
+    }
+}
+
+/**
+ * Clear sync log
+ */
+function clearSyncLog() {
+    document.getElementById('syncLogWindow').innerHTML = '<div class="text-muted">Log cleared</div>';
+}
+
+/**
  * Copy master sync command to clipboard
  */
 function copyMasterSyncCommand() {
@@ -62,6 +157,12 @@ document.addEventListener('DOMContentLoaded', function() {
         attendanceTab.addEventListener('shown.bs.tab', function() {
             loadAttendanceRecords();
         });
+    }
+    
+    // Load sync data if on sync tab
+    if (document.getElementById('latestRunsheetDate')) {
+        loadLatestSyncData();
+        refreshSyncLog();
     }
 });
 

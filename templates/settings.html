@@ -183,141 +183,76 @@
                         </div>
                     </div>
 
-                    <!-- Periodic Sync Control - Enhanced -->
+                    <!-- Master Sync Dashboard -->
                     <div class="settings-card-section mb-4">
                         <div class="card-header">
-                            <h6 class="mb-0"><i class="bi bi-clock me-2"></i>Automatic Sync</h6>
+                            <h6 class="mb-0"><i class="bi bi-lightning-charge me-2"></i>Master Sync System</h6>
                         </div>
                         <div class="card-body">
-                            <!-- Main Toggle -->
-                            <div class="d-flex justify-content-between align-items-center mb-3">
-                                <div class="flex-grow-1">
-                                    <p class="mb-1">
-                                        <strong>Automatic Sync Service</strong>
-                                        <span id="autoSyncBadge" class="badge bg-secondary ms-2">
-                                            <i class="bi bi-circle-fill"></i> <span id="autoSyncBadgeText">Checking...</span>
-                                        </span>
-                                    </p>
-                                    <small class="text-muted">Intelligent sync that downloads and imports files automatically</small>
-                                    <div id="nextSyncTime" class="mt-1" style="display: none;">
-                                        <small class="text-info"><i class="bi bi-clock"></i> Next sync: <span id="nextSyncTimeValue">--:--</span></small>
+                            <!-- Status and Manual Control -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-8">
+                                    <div class="d-flex align-items-center">
+                                        <div class="me-3">
+                                            <span class="badge bg-success">
+                                                <i class="bi bi-check-circle"></i> Automated
+                                            </span>
+                                        </div>
+                                        <div>
+                                            <strong>Cron Schedule Active</strong>
+                                            <div><small class="text-muted">Daily at 8:00 PM & 9:00 PM + Tuesday 9:00 AM</small></div>
+                                        </div>
                                     </div>
                                 </div>
-                                <div class="form-check form-switch">
-                                    <input class="form-check-input" type="checkbox" id="periodicSyncToggle" onchange="togglePeriodicSync()">
-                                    <label class="form-check-label" for="periodicSyncToggle">
-                                        <span id="periodicSyncLabel">Enable</span>
-                                    </label>
-                                </div>
-                            </div>
-
-                            <!-- Sync Controls -->
-                            <div id="syncControls" class="row g-2 mb-3" style="display: none;">
-                                <div class="col-md-3">
-                                    <button class="btn btn-sm btn-outline-primary w-100" onclick="syncLatest()">
-                                        <i class="bi bi-cloud-download"></i> Manual Sync
-                                    </button>
-                                </div>
-                                <div class="col-md-3">
-                                    <button class="btn btn-sm btn-outline-warning w-100" onclick="pauseSync()" id="pauseSyncBtn">
-                                        <i class="bi bi-pause-circle"></i> Pause
-                                    </button>
-                                </div>
-                                <div class="col-md-3">
-                                    <button class="btn btn-sm btn-outline-success w-100" onclick="resumeSync()" id="resumeSyncBtn" style="display: none;">
-                                        <i class="bi bi-play-circle"></i> Resume
-                                    </button>
-                                </div>
-                                <div class="col-md-3">
-                                    <button class="btn btn-sm btn-outline-primary w-100" onclick="showSyncConfig()">
-                                        <i class="bi bi-gear"></i> Configure
+                                <div class="col-md-4 text-end">
+                                    <button class="btn btn-primary" onclick="runMasterSyncManual()" id="manualSyncBtn">
+                                        <i class="bi bi-play-circle me-1"></i>Run Sync Now
                                     </button>
                                 </div>
                             </div>
 
-                            <!-- Current Activity Status -->
-                            <div id="currentActivityStatus" class="alert alert-info border-0" style="display: none;">
-                                <div class="d-flex align-items-center">
-                                    <div class="spinner-border spinner-border-sm text-primary me-2" role="status" id="activitySpinner" style="display: none;">
-                                        <span class="visually-hidden">Loading...</span>
-                                    </div>
-                                    <i class="bi bi-clock me-2" id="activityIcon"></i>
-                                    <div class="flex-grow-1">
-                                        <strong><small id="activityTitle">Sync Status</small></strong>
-                                        <div><small class="text-muted" id="activityDescription">Checking sync status...</small></div>
-                                    </div>
-                                    <div class="text-end">
-                                        <small class="text-muted" id="activityTime">--:--</small>
-                                    </div>
-                                </div>
-                            </div>
-
-                            <!-- Compact Status Row -->
-                            <div id="compactStatusRow" class="row g-3" style="display: none;">
-                                <!-- Health Status -->
+                            <!-- Latest Data Status -->
+                            <div class="row g-3 mb-4">
                                 <div class="col-md-6">
-                                    <div id="syncHealthStatus" class="alert alert-light border mb-0">
-                                        <div class="mb-1"><strong><small>System Health</small></strong></div>
-                                        <div class="row g-2 text-center">
-                                            <div class="col-3">
-                                                <i class="bi bi-envelope" id="gmailHealthIcon"></i>
-                                                <div><small id="gmailHealthText">Gmail</small></div>
-                                            </div>
-                                            <div class="col-3">
-                                                <i class="bi bi-database" id="dbHealthIcon"></i>
-                                                <div><small id="dbHealthText">Database</small></div>
-                                            </div>
-                                            <div class="col-3">
-                                                <i class="bi bi-hdd" id="diskHealthIcon"></i>
-                                                <div><small id="diskHealthText">Disk</small></div>
-                                            </div>
-                                            <div class="col-3">
-                                                <i class="bi bi-activity" id="serviceHealthIcon"></i>
-                                                <div><small id="serviceHealthText">Service</small></div>
+                                    <div class="bg-light rounded p-3">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-file-earmark-text text-primary fs-4 me-3"></i>
+                                            <div>
+                                                <strong>Latest Runsheet</strong>
+                                                <div class="text-muted" id="latestRunsheetDate">Loading...</div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
-                                
-                                <!-- Latest Data -->
                                 <div class="col-md-6">
-                                    <div id="latestDataContainer" class="alert alert-light border mb-0">
-                                        <div class="mb-1"><strong><small>Latest Data Processed</small></strong></div>
-                                        <div class="row g-2 text-center">
-                                            <div class="col-6">
-                                                <div class="p-2 bg-white rounded border">
-                                                    <i class="bi bi-file-earmark-text text-primary"></i>
-                                                    <div><small class="text-muted">Runsheet</small></div>
-                                                    <div><strong><small id="latestRunsheetDate">-</small></strong></div>
-                                                </div>
-                                            </div>
-                                            <div class="col-6">
-                                                <div class="p-2 bg-white rounded border">
-                                                    <i class="bi bi-receipt text-success"></i>
-                                                    <div><small class="text-muted">Payslip</small></div>
-                                                    <div><strong><small id="latestPayslipWeek">-</small></strong></div>
-                                                </div>
+                                    <div class="bg-light rounded p-3">
+                                        <div class="d-flex align-items-center">
+                                            <i class="bi bi-receipt text-success fs-4 me-3"></i>
+                                            <div>
+                                                <strong>Latest Payslip</strong>
+                                                <div class="text-muted" id="latestPayslipWeek">Loading...</div>
                                             </div>
                                         </div>
                                     </div>
                                 </div>
                             </div>
 
-                            <!-- Sync History -->
-                            <div id="syncHistoryContainer" style="display: none;">
-                                <hr>
+                            <!-- Live Log Window -->
+                            <div class="mb-3">
                                 <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <strong><small>Recent Sync Activity</small></strong>
-                                    <button class="btn btn-sm btn-link" onclick="toggleSyncHistory()">
-                                        <i class="bi bi-chevron-down" id="syncHistoryToggleIcon"></i>
-                                    </button>
-                                </div>
-                                <div id="syncHistoryList" style="display: none; max-height: 200px; overflow-y: auto;">
-                                    <div class="text-center text-muted py-2">
-                                        <small>No recent activity</small>
+                                    <strong>Live Sync Log</strong>
+                                    <div>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="refreshSyncLog()">
+                                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary" onclick="clearSyncLog()">
+                                            <i class="bi bi-trash"></i> Clear
+                                        </button>
                                     </div>
                                 </div>
-                            </div>
+                                <div id="syncLogWindow" class="bg-dark text-light p-3 rounded" style="height: 300px; overflow-y: auto; font-family: monospace; font-size: 0.85rem;">
+                                    <div class="text-muted">Sync log will appear here...</div>
+                                </div>
                         </div>
                     </div>
 
@@ -423,45 +358,6 @@
                                         <i class="bi bi-save me-1"></i>Save Configuration
                                     </button>
                                 </div>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="syncDataStatus" class="mb-4" style="display: none;"></div>
-
-                    <!-- Master Sync Command -->
-                    <div class="settings-card-section mb-4">
-                        <div class="card-header">
-                            <h6 class="mb-0"><i class="bi bi-terminal me-2"></i>Master Sync Command</h6>
-                        </div>
-                        <div class="card-body">
-                            <div class="alert alert-primary">
-                                <div class="d-flex align-items-start">
-                                    <i class="bi bi-lightning-charge fs-5 me-2"></i>
-                                    <div>
-                                        <strong>One-Command Complete Sync</strong>
-                                        <p class="mb-2 small">Run the master sync script for complete end-to-end synchronization:</p>
-                                        <div class="bg-dark text-light p-2 rounded mb-2 font-monospace small">
-                                            <code>cd /Users/danielhanson/CascadeProjects/Wages-App</code><br>
-                                            <code>python3 scripts/sync_master.py</code>
-                                        </div>
-                                        <p class="mb-0 small">
-                                            <strong>What it does:</strong> Downloads runsheets & payslips → Imports to database → Syncs pay data → Handles PayPoint audits (£0) → Provides detailed report
-                                        </p>
-                                        <div class="mt-2">
-                                            <small class="text-muted">
-                                                <i class="bi bi-info-circle me-1"></i>
-                                                <strong>Special handling:</strong> PayPoint Van Stock Audit jobs are automatically set to £0 and marked as completed (not DNCO)
-                                            </small>
-                                        </div>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="text-center">
-                                <button class="btn btn-outline-primary" onclick="copyMasterSyncCommand()">
-                                    <i class="bi bi-clipboard"></i> Copy Command to Terminal
-                                </button>
                             </div>
                         </div>
                     </div>
