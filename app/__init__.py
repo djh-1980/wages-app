@@ -6,6 +6,9 @@ from flask import Flask
 from .database import init_database
 from .config import get_config, Config
 from .utils.logging_utils import LoggerManager
+import os
+import pytz
+from datetime import datetime
 
 
 def create_app(config_name=None):
@@ -25,6 +28,10 @@ def create_app(config_name=None):
     
     # Initialize configuration
     config_class.init_app(app)
+    
+    # Set application timezone to UK
+    os.environ['TZ'] = 'Europe/London'
+    app.config['TIMEZONE'] = pytz.timezone('Europe/London')
     
     # Initialize logging system
     LoggerManager.initialize(

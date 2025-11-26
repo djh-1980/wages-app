@@ -5,6 +5,7 @@ Handles all company-specific week calculations, payslip dates, and calendar logi
 
 from datetime import datetime, timedelta
 from typing import Tuple, Optional
+from .timezone_utils import UK_TZ, now_uk, to_uk_timezone
 
 class CompanyCalendar:
     """
@@ -146,12 +147,12 @@ class CompanyCalendar:
     @classmethod
     def get_current_week(cls) -> Tuple[int, int]:
         """
-        Get current company week number and tax year.
+        Get current company week number and tax year (in UK timezone).
         
         Returns:
             Tuple of (week_number, tax_year)
         """
-        today = datetime.now()
+        today = now_uk()  # Use UK timezone
         
         # Determine tax year (simplified - assumes 2025 for now)
         tax_year = 2025

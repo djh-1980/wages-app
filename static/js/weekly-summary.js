@@ -49,18 +49,12 @@ window.currentWeek = function() {
 window.previousWeek = function() {
     if (!currentWeekStart) return;
     
-    // Ensure we navigate by exactly 7 days to maintain Sunday-to-Saturday structure
-    const date = new Date(currentWeekStart + 'T00:00:00');
-    date.setDate(date.getDate() - 7);
+    console.log('Previous week navigation from:', currentWeekStart);
     
-    // Ensure the result is still a Sunday
-    if (date.getDay() !== 0) {
-        console.warn('Previous week calculation resulted in non-Sunday, adjusting...');
-        const daysToSunday = date.getDay();
-        date.setDate(date.getDate() - daysToSunday);
-    }
+    // Use UK timezone utilities for safe navigation
+    currentWeekStart = window.UKTimezone.navigateWeeks(currentWeekStart, -1);
+    console.log('Final currentWeekStart:', currentWeekStart);
     
-    currentWeekStart = date.toISOString().split('T')[0];
     loadWeeklySummary();
 }
 
@@ -70,18 +64,8 @@ window.nextWeek = function() {
         return;
     }
     
-    // Ensure we navigate by exactly 7 days to maintain Sunday-to-Saturday structure
-    const date = new Date(currentWeekStart + 'T00:00:00');
-    date.setDate(date.getDate() + 7);
-    
-    // Ensure the result is still a Sunday
-    if (date.getDay() !== 0) {
-        console.warn('Next week calculation resulted in non-Sunday, adjusting...');
-        const daysToSunday = date.getDay();
-        date.setDate(date.getDate() - daysToSunday);
-    }
-    
-    currentWeekStart = date.toISOString().split('T')[0];
+    // Use UK timezone utilities for safe navigation
+    currentWeekStart = window.UKTimezone.navigateWeeks(currentWeekStart, 1);
     loadWeeklySummary();
 }
 
