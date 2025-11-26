@@ -2118,7 +2118,8 @@ def api_latest_sync_data():
 def api_sync_log():
     """Get the sync log contents."""
     try:
-        log_path = Path(__file__).parent.parent.parent / 'logs' / 'auto_sync.log'
+        # Use unified sync log
+        log_path = Path(__file__).parent.parent.parent / 'logs' / 'sync.log'
         
         if log_path.exists():
             with open(log_path, 'r') as f:

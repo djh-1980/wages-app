@@ -12,6 +12,7 @@ from datetime import datetime
 from pathlib import Path
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
+from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 import PyPDF2
@@ -152,7 +153,22 @@ class GmailRunSheetDownloader:
             return pdf_path
     
     def authenticate(self):
-        """Authenticate with Gmail API."""
+        """Authenticate with Gmail API using service account or OAuth."""
+        # Try service account first (more reliable for automation)
+        service_account_path = Path('service-account.json')
+        if service_account_path.exists():
+            try:
+                print("🔐 Using service account authentication...")
+                creds = service_account.Credentials.from_service_account_file(
+                    str(service_account_path), scopes=SCOPES)
+                self.service = build('gmail', 'v1', credentials=creds)
+                print("✅ Service account authentication successful")
+                return True
+            except Exception as e:
+                print(f"❌ Service account authentication failed: {e}")
+                print("🔄 Falling back to OAuth...")
+        
+        # Fall back to OAuth authentication
         creds = None
         token_path = Path('token.json')
         credentials_path = Path('credentials.json')

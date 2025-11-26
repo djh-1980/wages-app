@@ -15,6 +15,9 @@ from pathlib import Path
 # Add app to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+# Import unified logger
+from app.utils.sync_logger import sync_logger
+
 class MasterSync:
     def __init__(self):
         self.base_dir = Path(__file__).parent.parent
@@ -353,6 +356,9 @@ class MasterSync:
         """Run the complete sync process"""
         start_time = time.time()
         
+        # Log to unified sync log
+        sync_logger.log_sync_start("Master")
+        
         print("🚀 MASTER SYNC SYSTEM")
         print("=" * 60)
         print(f"Started: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -378,6 +384,18 @@ class MasterSync:
         # Final summary
         elapsed = time.time() - start_time
         success = len(self.results['errors']) == 0
+        
+        # Log to unified sync log
+        sync_logger.log_download_result(
+            self.results['runsheets_downloaded'], 
+            self.results['payslips_downloaded']
+        )
+        sync_logger.log_import_result(
+            self.results['runsheet_jobs_imported'], 
+            self.results['payslip_jobs_imported']
+        )
+        sync_logger.log_sync_result(self.results['jobs_synced'])
+        sync_logger.log_sync_complete(success, elapsed, self.results['errors'] if not success else None)
         
         print(f"\n{'✅ SUCCESS' if success else '⚠️  COMPLETED WITH ERRORS'}")
         print(f"Total time: {elapsed:.1f} seconds")
