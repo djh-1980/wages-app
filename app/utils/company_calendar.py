@@ -27,18 +27,21 @@ class CompanyCalendar:
     WEEK_1_END_2025 = BASE_WEEK_1_END
     
     @classmethod
-    def calculate_company_year_start(cls, tax_year: int) -> Tuple[datetime, datetime]:
+    def calculate_company_year_start(cls, tax_year) -> Tuple[datetime, datetime]:
         """
         Automatically calculate company year start and Week 1 end for any tax year.
         
         Pattern: Company years start on the Sunday closest to mid-March.
         
         Args:
-            tax_year: Tax year to calculate
+            tax_year: Tax year to calculate (int or str)
             
         Returns:
             Tuple of (year_start_sunday, week_1_end_saturday)
         """
+        # Convert tax_year to int if it's a string (from database)
+        tax_year = int(tax_year)
+        
         # Based on actual payslip data, find the Sunday that results in Week 1 ending around March 22-26
         # The pattern seems to be: find the Sunday that makes Week 1 end on the Saturday closest to March 22-25
         
@@ -55,7 +58,7 @@ class CompanyCalendar:
         return year_start, week_1_end
     
     @classmethod
-    def get_week_dates(cls, week_number: int, tax_year: int = 2025) -> Tuple[datetime, datetime]:
+    def get_week_dates(cls, week_number: int, tax_year = 2025) -> Tuple[datetime, datetime]:
         """
         Get the start (Sunday) and end (Saturday) dates for a given week number.
         
@@ -75,7 +78,7 @@ class CompanyCalendar:
         return target_sunday, target_saturday
     
     @classmethod
-    def get_week_number_from_date(cls, date: datetime, tax_year: int = 2025) -> int:
+    def get_week_number_from_date(cls, date: datetime, tax_year = 2025) -> int:
         """
         Calculate company week number from any date.
         
