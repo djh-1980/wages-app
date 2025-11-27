@@ -7,12 +7,32 @@ from datetime import datetime
 import os
 
 # Version Information
-APP_VERSION = "2.1.0"
+APP_VERSION = "2.2.0"
 BUILD_DATE = "2025.11.27"
 RELEASE_DATE = datetime(2025, 11, 27)
 
 # Changelog - Add new entries at the top
 CHANGELOG = [
+    {
+        "version": "2.2.0",
+        "date": "November 27, 2025",
+        "type": "minor",  # major, minor, patch
+        "changes": [
+            "🎨 Complete mobile UI overhaul - standardized responsive layouts across all pages",
+            "📱 Fixed Reports page navigation pills to display all options on mobile (no more dropdown)",
+            "📊 Enhanced Custom Report Generator with clean 3-line mobile layout",
+            "🔧 Fixed Missing Run Sheets attendance API integration and 7-day work schedule support",
+            "📋 Standardized all report sections with consistent mobile-friendly controls",
+            "🎯 Improved mobile button layouts on Profile, Sync, and Attendance pages",
+            "📱 Added mobile table scrolling support across Reports, Paypoint, and Weekly Summary",
+            "🚫 Removed all 'swipe to see more' messages for cleaner interface",
+            "🔒 Enhanced security by properly handling service account credentials",
+            "📊 Added Paypoint report with complete PDF export functionality",
+            "🧹 Cleaned barcode prefixes from database (removed C| and D| prefixes)",
+            "🎨 Unified UI styling across Reports, Wages, and Runsheets pages",
+            "📱 Enhanced backup list mobile styling for better user experience"
+        ]
+    },
     {
         "version": "2.1.0",
         "date": "November 27, 2025",
