@@ -440,6 +440,24 @@ def api_upload_backup():
                 'error': 'Invalid file type. Only .db or .db.gz files are allowed'
             }), 400
         
+        # Check file content to help diagnose issues
+        file_content_start = file.read(100)  # Read first 100 bytes
+        file.seek(0)  # Reset file pointer
+        
+        # Check if it looks like JSON (common when download fails)
+        if file_content_start.startswith(b'{"') or file_content_start.startswith(b'[{'):
+            return jsonify({
+                'success': False,
+                'error': f'Invalid database file: The uploaded file appears to be JSON data, not a database backup. This usually means the backup download failed on the server. File starts with: {file_content_start[:50].decode("utf-8", errors="ignore")}'
+            }), 400
+        
+        # Check if it looks like HTML (error page)
+        if file_content_start.startswith(b'<!DOCTYPE') or file_content_start.startswith(b'<html'):
+            return jsonify({
+                'success': False,
+                'error': 'Invalid database file: The uploaded file appears to be an HTML page, not a database backup. This usually means there was an error during download.'
+            }), 400
+        
         # Create backups directory if it doesn't exist
         backup_dir = Path('data/database/backups')
         backup_dir.mkdir(parents=True, exist_ok=True)
@@ -465,10 +483,23 @@ def api_upload_backup():
             
             if is_compressed:
                 # Decompress to temp file for validation
-                with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
-                    with gzip.open(backup_file, 'rb') as f_in:
-                        shutil.copyfileobj(f_in, tmp_file)
-                    temp_db_path = tmp_file.name
+                try:
+                    with tempfile.NamedTemporaryFile(suffix='.db', delete=False) as tmp_file:
+                        with gzip.open(backup_file, 'rb') as f_in:
+                            shutil.copyfileobj(f_in, tmp_file)
+                        temp_db_path = tmp_file.name
+                except gzip.BadGzipFile:
+                    backup_file.unlink()
+                    return jsonify({
+                        'success': False,
+                        'error': 'Invalid database file: The uploaded file is not a valid gzipped database backup. Please ensure you upload a .db.gz file created by the backup system.'
+                    }), 400
+                except Exception as e:
+                    backup_file.unlink()
+                    return jsonify({
+                        'success': False,
+                        'error': f'Invalid database file: Unable to decompress the uploaded file. {str(e)}'
+                    }), 400
                 
                 try:
                     conn = sqlite3.connect(temp_db_path)
@@ -1269,25 +1300,19 @@ def api_download_backup(filename):
         from pathlib import Path
         import os
         
-        # Try multiple possible locations
-        possible_paths = [
-            Path('data/database/backups') / filename,
-            Path('../data/database/backups') / filename,
-            Path(__file__).parent.parent.parent / 'data' / 'database' / 'backups' / filename
-        ]
+        # Use the same path resolution as backup creation
+        backup_dir = Path('data/database/backups')
+        backup_path = backup_dir / filename
         
-        backup_path = None
-        for path in possible_paths:
-            print(f"Trying path: {path.resolve()}")
-            if path.exists():
-                backup_path = path
-                print(f"Found backup at: {path.resolve()}")
-                break
+        # If relative path doesn't work, try absolute path from project root
+        if not backup_path.exists():
+            project_root = Path(__file__).parent.parent.parent
+            backup_path = project_root / 'data' / 'database' / 'backups' / filename
         
-        if not backup_path:
+        if not backup_path.exists():
             return jsonify({
                 'success': False,
-                'error': f'Backup file not found: {filename}. Tried paths: {[str(p) for p in possible_paths]}'
+                'error': f'Backup file not found: {filename}. Tried: {backup_dir.resolve()} and {project_root / "data" / "database" / "backups" if "project_root" in locals() else "N/A"}'
             }), 404
         
         # Security check - ensure the file is within a backups directory
