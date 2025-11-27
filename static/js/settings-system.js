@@ -309,7 +309,7 @@ async function restoreBackup(filename) {
     try {
         showStatus('Restoring database from backup... This may take a moment.');
         
-        const response = await fetch('/api/data/restore-backup', {
+        const response = await fetch('/api/data/restore', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ filename: filename })
