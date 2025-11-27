@@ -317,7 +317,7 @@ function displayWeeklySummary(data) {
     }
     
     // Define the order we want to display statuses
-    const statusOrder = ['completed', 'extra', 'DNCO', 'PDA Licence', 'SASER Auto Billing', 'missed', 'pending'];
+    const statusOrder = ['completed', 'extra', 'DNCO', 'missed', 'PDA Licence', 'SASER Auto Billing', 'pending'];
     
     // First, display statuses in the specified order
     for (const status of statusOrder) {
