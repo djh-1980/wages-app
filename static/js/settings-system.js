@@ -224,9 +224,9 @@ async function loadBackupsList() {
 }
 
 function downloadBackup(filename) {
-    // Create a download link for the backup file
+    // Create a download link using the API endpoint
     const link = document.createElement('a');
-    link.href = `/data/database/backups/${filename}`;
+    link.href = `/api/data/backups/download/${encodeURIComponent(filename)}`;
     link.download = filename;
     document.body.appendChild(link);
     link.click();
