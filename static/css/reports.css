@@ -41,6 +41,78 @@
     background: var(--primary-gradient, linear-gradient(135deg, #4a6fa5 0%, #2c5282 50%, #1a365d 100%));
 }
 
+/* Mobile Navigation Pills - Match Runsheets Layout */
+@media screen and (max-width: 430px) {
+    /* Make navigation pills responsive grid - more specific selector */
+    #reportTabs.nav-pills {
+        display: grid !important;
+        grid-template-columns: repeat(2, 1fr) !important;
+        gap: 0.5rem !important;
+        margin-bottom: 1rem !important;
+        flex-direction: unset !important;
+    }
+    
+    #reportTabs.nav-pills .nav-item {
+        margin: 0 !important;
+        width: 100% !important;
+        flex: none !important;
+    }
+    
+    #reportTabs.nav-pills .nav-link {
+        margin: 0 !important;
+        padding: 0.75rem 0.5rem !important;
+        font-size: 0.875rem !important;
+        text-align: center !important;
+        border-radius: 8px !important;
+        white-space: nowrap !important;
+        overflow: hidden !important;
+        text-overflow: ellipsis !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        min-height: 48px !important;
+        width: 100% !important;
+    }
+    
+    #reportTabs.nav-pills .nav-link i {
+        margin-right: 0.25rem !important;
+        font-size: 0.875rem !important;
+    }
+    
+    /* Force all nav items to be visible */
+    #reportTabs.nav-pills .nav-item {
+        display: block !important;
+    }
+    
+    /* Adjust grid for 6 items (3x2 layout) */
+    #reportTabs.nav-pills:has(.nav-item:nth-child(5)) {
+        grid-template-columns: repeat(3, 1fr) !important;
+    }
+}
+
+/* Also add styles for larger mobile screens */
+@media screen and (max-width: 768px) and (min-width: 431px) {
+    #reportTabs.nav-pills {
+        display: grid !important;
+        grid-template-columns: repeat(3, 1fr) !important;
+        gap: 0.5rem !important;
+        margin-bottom: 1rem !important;
+    }
+    
+    #reportTabs.nav-pills .nav-item {
+        margin: 0 !important;
+        width: 100% !important;
+    }
+    
+    #reportTabs.nav-pills .nav-link {
+        margin: 0 !important;
+        padding: 0.75rem 0.5rem !important;
+        font-size: 0.875rem !important;
+        text-align: center !important;
+        width: 100% !important;
+    }
+}
+
 /* Weekly Summary Styles - TVS Theme */
 .weekly-hero {
     background: linear-gradient(135deg, #4a6fa5 0%, #2c5282 50%, #1a365d 100%) !important;
