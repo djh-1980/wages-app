@@ -175,7 +175,6 @@ async function loadSummary() {
  * Update summary cards
  */
 function updateSummaryCards(summary) {
-    document.getElementById('totalDevices').textContent = summary.total_devices || 0;
     document.getElementById('availableDevices').textContent = summary.available_devices || 0;
     const returnedEl = document.getElementById('returnedDevices');
     if (returnedEl) {
@@ -1092,9 +1091,20 @@ function handleBarcodeDetected(barcode, format) {
 }
 
 function confirmBarcode(barcode) {
+    // Strip common barcode prefixes (C|, D|, etc.)
+    let cleanBarcode = barcode;
+    if (barcode.includes('|')) {
+        const parts = barcode.split('|');
+        if (parts.length === 2 && parts[0].length <= 2) {
+            // If format is like "C|123456" or "D|789012", use the part after |
+            cleanBarcode = parts[1];
+            console.log(`Stripped barcode prefix: "${barcode}" → "${cleanBarcode}"`);
+        }
+    }
+    
     // Fill the target field
     if (currentScanTargetField) {
-        document.getElementById(currentScanTargetField).value = barcode;
+        document.getElementById(currentScanTargetField).value = cleanBarcode;
     }
     
     // Close modal
@@ -1194,6 +1204,9 @@ async function updateStock(id) {
     }
     
     try {
+        console.log('Updating stock with ID:', id);
+        console.log('Data:', { paypointType, serialPtid, traceStock, notes });
+        
         const response = await fetch(`/api/paypoint/stock/${id}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
@@ -1205,11 +1218,13 @@ async function updateStock(id) {
             })
         });
         
+        console.log('Response status:', response.status);
         const data = await response.json();
+        console.log('Response data:', data);
         
         if (data.success) {
             bootstrap.Modal.getInstance(document.getElementById('addStockModal')).hide();
-            await loadStock();
+            await loadDevices();
             showSuccess('Stock updated successfully');
             
             // Reset modal
@@ -1218,11 +1233,12 @@ async function updateStock(id) {
             addButton.textContent = 'Add Stock';
             addButton.onclick = addStock;
         } else {
-            alert('Error: ' + data.error);
+            console.error('API Error:', data.error);
+            alert('Error: ' + (data.error || 'Unknown error occurred'));
         }
     } catch (error) {
         console.error('Error updating stock:', error);
-        alert('Error updating stock');
+        alert('Error updating stock: ' + error.message);
     }
 }
 
@@ -1239,7 +1255,7 @@ async function deleteStock(id) {
         const data = await response.json();
         
         if (data.success) {
-            await loadStock();
+            await loadDevices();
             showSuccess('Stock deleted successfully');
         } else {
             alert('Error: ' + data.error);

@@ -21,9 +21,11 @@
     </div>
 
     <!-- Report Tabs -->
-    <div class="content-card">
-        <div class="content-card-header unified-tabs">
-            <ul class="nav nav-pills" id="reportTabs" role="tablist">
+    <div class="row">
+        <div class="col-12">
+            <div class="card table-card">
+                <div class="card-body">
+                    <ul class="nav nav-pills" id="reportTabs" role="tablist">
     <li class="nav-item" role="presentation">
         <button class="nav-link active" id="weekly-summary-tab" data-bs-toggle="pill" data-bs-target="#weekly-summary" type="button">
             <i class="bi bi-calendar-week"></i> Weekly Summary
@@ -937,6 +939,7 @@
                             <option value="pending" selected>Pending Jobs</option>
                             <option value="dnco">DNCO Report</option>
                             <option value="earnings_discrepancy">Earnings Discrepancy</option>
+                            <option value="paypoint">Paypoint Report</option>
                         </select>
                         <select class="form-select form-select-sm" id="yearSelect" style="width: auto;" onchange="generateCustomReport()">
                         </select>
@@ -1043,6 +1046,12 @@
         </div>
     </div>
 </div>
+
+                </div>
+            </div>
+        </div>
+    </div>
+
 {% endblock %}
 
 {% block extra_js %}

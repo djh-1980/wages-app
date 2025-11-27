@@ -1679,6 +1679,123 @@ function displayCustomReport(data, reportType) {
             html += `<div class="col-md-3 mb-2"><span class="badge bg-warning">${d.date}</span></div>`;
         });
         html += `</div>`;
+        
+    } else if (reportType === 'paypoint' && data) {
+        // Paypoint Report - Stock, Deployments, and Returns
+        html += `
+            <div class="alert alert-info mb-3">
+                <strong><i class="bi bi-device-hdd me-2"></i>Paypoint Stock Management Report</strong>
+                <p class="mb-0 mt-2">Overview of stock levels, deployments, and returns</p>
+            </div>
+            
+            <!-- Summary Cards -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card bg-primary text-white">
+                        <div class="card-body text-center">
+                            <h4>${data.summary.total_stock || 0}</h4>
+                            <small>Total Stock</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-success text-white">
+                        <div class="card-body text-center">
+                            <h4>${data.summary.available_stock || 0}</h4>
+                            <small>Available</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-warning text-white">
+                        <div class="card-body text-center">
+                            <h4>${data.summary.deployments_count || 0}</h4>
+                            <small>Deployments</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card bg-info text-white">
+                        <div class="card-body text-center">
+                            <h4>${data.summary.returns_count || 0}</h4>
+                            <small>Returns</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // Deployments Table
+        if (data.deployments && data.deployments.length > 0) {
+            html += `
+                <h5><i class="bi bi-box-arrow-right text-warning"></i> Recent Deployments</h5>
+                <div class="table-responsive mb-4">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Date</th>
+                                <th>Job Number</th>
+                                <th>Customer</th>
+                                <th>Device Type</th>
+                                <th>Serial/TID</th>
+                                <th>Trace/Stock</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            data.deployments.forEach(d => {
+                const deployDate = d.deployment_date ? new Date(d.deployment_date).toLocaleDateString('en-GB') : 'N/A';
+                html += `
+                    <tr>
+                        <td>${deployDate}</td>
+                        <td>${d.job_number || 'N/A'}</td>
+                        <td>${d.customer || 'N/A'}</td>
+                        <td>${d.paypoint_type || 'N/A'}</td>
+                        <td><span class="badge bg-secondary">${d.serial_ptid || 'N/A'}</span></td>
+                        <td><span class="badge bg-info">${d.trace_stock || 'N/A'}</span></td>
+                        <td><span class="badge bg-${d.status === 'deployed' ? 'warning' : 'success'}">${d.status || 'N/A'}</span></td>
+                    </tr>
+                `;
+            });
+            html += `</tbody></table></div>`;
+        }
+        
+        // Returns Table
+        if (data.returns && data.returns.length > 0) {
+            html += `
+                <h5><i class="bi bi-arrow-down-circle text-info"></i> Recent Returns</h5>
+                <div class="table-responsive">
+                    <table class="table table-striped table-hover">
+                        <thead class="table-dark">
+                            <tr>
+                                <th>Return Date</th>
+                                <th>Job Number</th>
+                                <th>Device Type</th>
+                                <th>Return Serial/TID</th>
+                                <th>Return Trace</th>
+                                <th>Reason</th>
+                                <th>Customer</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+            `;
+            data.returns.forEach(r => {
+                const returnDate = r.return_date ? new Date(r.return_date).toLocaleDateString('en-GB') : 'N/A';
+                html += `
+                    <tr>
+                        <td>${returnDate}</td>
+                        <td>${r.job_number || 'N/A'}</td>
+                        <td>${r.paypoint_type || 'N/A'}</td>
+                        <td><span class="badge bg-secondary">${r.return_serial_ptid || 'N/A'}</span></td>
+                        <td><span class="badge bg-info">${r.return_trace || 'N/A'}</span></td>
+                        <td>${r.return_reason || 'N/A'}</td>
+                        <td>${r.customer || 'N/A'}</td>
+                    </tr>
+                `;
+            });
+            html += `</tbody></table></div>`;
+        }
     }
     
     outputDiv.innerHTML = html;
@@ -1696,7 +1813,6 @@ async function exportCustomReportPDF() {
     }
     
     try {
-        showSuccess('Generating PDF...');
         
         const response = await fetch('/api/data/reports/custom/pdf', {
             method: 'POST',

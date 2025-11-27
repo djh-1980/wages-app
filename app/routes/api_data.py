@@ -1760,6 +1760,53 @@ def api_generate_custom_report():
                     'dates': [{'date': d[0]} for d in missing_dates]
                 }
                 
+            elif report_type == 'paypoint':
+                # Paypoint Report - Stock, Deployments, and Returns
+                from app.models.paypoint import PaypointModel
+                
+                # Get stock summary
+                stock_summary = PaypointModel.get_stock_summary()
+                
+                # Get deployments for the period
+                deployments = PaypointModel.get_deployments(limit=100)
+                
+                # Get returns for the period  
+                returns = PaypointModel.get_returns(limit=100)
+                
+                # Filter by date if specified
+                if date_filter:
+                    # Convert date filter for paypoint date formats
+                    filtered_deployments = []
+                    filtered_returns = []
+                    
+                    for deployment in deployments:
+                        if deployment.get('deployment_date'):
+                            # Check if deployment date matches filter
+                            filtered_deployments.append(deployment)
+                    
+                    for return_item in returns:
+                        if return_item.get('return_date'):
+                            # Check if return date matches filter
+                            filtered_returns.append(return_item)
+                    
+                    deployments = filtered_deployments
+                    returns = filtered_returns
+                
+                report_data = {
+                    'total_records': len(deployments) + len(returns),
+                    'summary': {
+                        'total_stock': stock_summary.get('total_devices', 0),
+                        'available_stock': stock_summary.get('available_devices', 0),
+                        'deployed_devices': len([d for d in deployments if d.get('status') == 'deployed']),
+                        'returned_devices': len(returns),
+                        'deployments_count': len(deployments),
+                        'returns_count': len(returns)
+                    },
+                    'deployments': deployments,
+                    'returns': returns,
+                    'stock_summary': stock_summary
+                }
+                
             elif report_type == 'comprehensive':
                 # Comprehensive Report
                 cursor.execute(f"SELECT COUNT(*), SUM(gross_pay), SUM(net_pay) FROM payslips WHERE 1=1 {date_filter}")
@@ -1898,6 +1945,26 @@ def api_generate_custom_report_pdf():
                     },
                     'dnco_jobs': dnco_jobs_with_estimates
                 }
+                
+            elif report_type == 'paypoint':
+                # Paypoint Report - Get stock, deployments, and returns
+                from app.models.paypoint import PaypointModel
+                
+                stock_summary = PaypointModel.get_stock_summary()
+                deployments = PaypointModel.get_deployments(limit=100)
+                returns = PaypointModel.get_returns(limit=100)
+                
+                report_data = {
+                    'summary': {
+                        'total_stock': stock_summary.get('total_devices', 0),
+                        'available_stock': stock_summary.get('available_devices', 0),
+                        'deployments_count': len(deployments),
+                        'returns_count': len(returns)
+                    },
+                    'deployments': deployments,
+                    'returns': returns
+                }
+                
             else:
                 return jsonify({'success': False, 'error': f'PDF export not supported for {report_type}'}), 400
         
@@ -1934,16 +2001,18 @@ def api_generate_custom_report_pdf():
                 pass
         
         # Header table with logo, branding and date info
+        report_title = "DNCO Report" if report_type == 'dnco' else "Paypoint Stock Report"
+        
         if logo_element:
             header_data = [
                 [logo_element,
-                 Paragraph('<b><font size=14 color="#1a73e8">TVS - Technical Courier Management System</font></b><br/><font size=12>DNCO Report</font>', styles['Normal']), 
+                 Paragraph(f'<b><font size=14 color="#1a73e8">TVS - Technical Courier Management System</font></b><br/><font size=12>{report_title}</font>', styles['Normal']), 
                  Paragraph(f'<b>Period:</b> {date_range_text}<br/><b>Generated:</b> {datetime.now().strftime("%d/%m/%Y %H:%M")}', styles['Normal'])]
             ]
             header_table = Table(header_data, colWidths=[0.6*inch, 4.4*inch, 3*inch])
         else:
             header_data = [
-                [Paragraph('<b><font size=14 color="#1a73e8">TVS - Technical Courier Management System</font></b><br/><font size=12>DNCO Report</font>', styles['Normal']), 
+                [Paragraph(f'<b><font size=14 color="#1a73e8">TVS - Technical Courier Management System</font></b><br/><font size=12>{report_title}</font>', styles['Normal']), 
                  Paragraph(f'<b>Period:</b> {date_range_text}<br/><b>Generated:</b> {datetime.now().strftime("%d/%m/%Y %H:%M")}', styles['Normal'])]
             ]
             header_table = Table(header_data, colWidths=[5*inch, 3*inch])
@@ -2009,6 +2078,110 @@ def api_generate_custom_report_pdf():
                 ('FONTSIZE', (0, 1), (-1, -1), 7),
             ]))
             elements.append(jobs_table)
+        
+        # Paypoint report content
+        elif report_type == 'paypoint':
+            # Summary section
+            if 'summary' in report_data:
+                summary_data = [[
+                    Paragraph(f'<b>Stock Summary:</b> Total: {report_data["summary"]["total_stock"]} | Available: {report_data["summary"]["available_stock"]}', styles['Normal']),
+                    Paragraph(f'<b>Activity:</b> Deployments: {report_data["summary"]["deployments_count"]} | Returns: {report_data["summary"]["returns_count"]}', styles['Normal'])
+                ]]
+                summary_table = Table(summary_data, colWidths=[4*inch, 4*inch])
+                summary_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (0, 0), colors.HexColor('#d1ecf1')),
+                    ('BACKGROUND', (1, 0), (1, 0), colors.HexColor('#d4edda')),
+                    ('TEXTCOLOR', (0, 0), (-1, -1), colors.black),
+                    ('LEFTPADDING', (0, 0), (-1, -1), 8),
+                    ('RIGHTPADDING', (0, 0), (-1, -1), 8),
+                    ('TOPPADDING', (0, 0), (-1, -1), 6),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 6),
+                    ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+                ]))
+                elements.append(summary_table)
+                elements.append(Spacer(1, 8))
+            
+            # Deployments table
+            if 'deployments' in report_data and report_data['deployments']:
+                elements.append(Paragraph('<b>Recent Deployments</b>', styles['Heading2']))
+                elements.append(Spacer(1, 4))
+                
+                deploy_data = [['Date', 'Job Number', 'Customer', 'Device Type', 'Serial/TID', 'Trace/Stock', 'Status']]
+                for deployment in report_data['deployments']:  # Include all deployments
+                    deploy_date = deployment.get('deployment_date', '')
+                    if deploy_date:
+                        try:
+                            deploy_date = datetime.fromisoformat(deploy_date.replace('Z', '+00:00')).strftime('%d/%m/%Y')
+                        except:
+                            pass
+                    
+                    customer = deployment.get('customer', '')[:20] if deployment.get('customer') else ''
+                    
+                    deploy_data.append([
+                        deploy_date,
+                        deployment.get('job_number', ''),
+                        customer,
+                        deployment.get('paypoint_type', ''),
+                        deployment.get('serial_ptid', ''),
+                        deployment.get('trace_stock', ''),
+                        deployment.get('status', '')
+                    ])
+                
+                deploy_table = Table(deploy_data, colWidths=[0.7*inch, 0.9*inch, 1.5*inch, 0.9*inch, 1*inch, 1*inch, 0.7*inch])
+                deploy_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#343a40')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 8),
+                    ('FONTSIZE', (0, 1), (-1, -1), 7),
+                    ('TOPPADDING', (0, 0), (-1, -1), 3),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ]))
+                elements.append(deploy_table)
+                elements.append(Spacer(1, 8))
+            
+            # Returns table
+            if 'returns' in report_data and report_data['returns']:
+                elements.append(Paragraph('<b>Recent Returns</b>', styles['Heading2']))
+                elements.append(Spacer(1, 4))
+                
+                return_data = [['Return Date', 'Job Number', 'Device Type', 'Return Serial/TID', 'Return Trace', 'Reason']]
+                for return_item in report_data['returns']:  # Include all returns
+                    return_date = return_item.get('return_date', '')
+                    if return_date:
+                        try:
+                            return_date = datetime.fromisoformat(return_date.replace('Z', '+00:00')).strftime('%d/%m/%Y')
+                        except:
+                            pass
+                    
+                    reason = return_item.get('return_reason', '')[:25] if return_item.get('return_reason') else ''
+                    
+                    return_data.append([
+                        return_date,
+                        return_item.get('job_number', ''),
+                        return_item.get('paypoint_type', ''),
+                        return_item.get('return_serial_ptid', ''),
+                        return_item.get('return_trace', ''),
+                        reason
+                    ])
+                
+                return_table = Table(return_data, colWidths=[0.9*inch, 0.9*inch, 0.9*inch, 1.2*inch, 1.2*inch, 1.7*inch])
+                return_table.setStyle(TableStyle([
+                    ('BACKGROUND', (0, 0), (-1, 0), colors.HexColor('#343a40')),
+                    ('TEXTCOLOR', (0, 0), (-1, 0), colors.whitesmoke),
+                    ('ALIGN', (0, 0), (-1, -1), 'LEFT'),
+                    ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+                    ('FONTSIZE', (0, 0), (-1, 0), 8),
+                    ('FONTSIZE', (0, 1), (-1, -1), 7),
+                    ('TOPPADDING', (0, 0), (-1, -1), 3),
+                    ('BOTTOMPADDING', (0, 0), (-1, -1), 3),
+                    ('BACKGROUND', (0, 1), (-1, -1), colors.white),
+                    ('GRID', (0, 0), (-1, -1), 0.5, colors.grey),
+                ]))
+                elements.append(return_table)
         
         # Build PDF
         doc.build(elements)
