@@ -136,8 +136,9 @@
                 <h5 class="card-title mb-4">
                     <i class="bi bi-calendar-week text-info"></i> Daily Breakdown
                 </h5>
-                <div class="table-responsive">
-                    <table class="table table-hover align-middle">
+                <div class="mobile-table-container">
+                    <div class="table-responsive">
+                        <table class="table table-hover align-middle mobile-scrollable-table">
                         <thead class="table-light">
                             <tr>
                                 <th>Day</th>
@@ -155,7 +156,8 @@
                         <tbody id="weeklyDailyBreakdown">
                             <!-- Populated by JavaScript -->
                         </tbody>
-                    </table>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
@@ -730,19 +732,26 @@
     <div class="tab-pane fade" id="discrepancies" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-exclamation-triangle text-danger"></i> <span id="discrepancyTitle">Wages vs Run Sheets Discrepancies</span>
-                        </h5>
-                        <p class="text-muted mb-0" id="discrepancyDescription">Compare payslip jobs with run sheet jobs to find mismatches</p>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <select class="form-select form-select-sm" id="discrepancyType" style="width: auto;" onchange="changeDiscrepancyType()">
-                            <option value="wages">Wages vs Run Sheets</option>
-                            <option value="mileage">Missing Mileage</option>
-                        </select>
-                        <select class="form-select form-select-sm" id="discrepancyYear" style="width: auto;" onchange="loadDiscrepancyReport()">
+                <!-- Header -->
+                <div class="mb-3">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-exclamation-triangle text-danger"></i> <span id="discrepancyTitle">Wages vs Run Sheets Discrepancies</span>
+                    </h5>
+                    <p class="text-muted mb-0" id="discrepancyDescription">Compare payslip jobs with run sheet jobs to find mismatches</p>
+                </div>
+                
+                <!-- Report Type Selection - Full Width -->
+                <div class="mb-3">
+                    <select class="form-select report-type-selector" id="discrepancyType" onchange="changeDiscrepancyType()">
+                        <option value="wages">Wages vs Run Sheets</option>
+                        <option value="mileage">Missing Mileage</option>
+                    </select>
+                </div>
+                
+                <!-- Date Filters Row -->
+                <div class="row mb-3">
+                    <div class="col-6">
+                        <select class="form-select form-select-sm" id="discrepancyYear" onchange="loadDiscrepancyReport()">
                             <option value="">All Years</option>
                             <option value="2025">2025</option>
                             <option value="2024">2024</option>
@@ -750,7 +759,9 @@
                             <option value="2022">2022</option>
                             <option value="2021">2021</option>
                         </select>
-                        <select class="form-select form-select-sm" id="discrepancyMonth" style="width: auto;" onchange="loadDiscrepancyReport()">
+                    </div>
+                    <div class="col-6">
+                        <select class="form-select form-select-sm" id="discrepancyMonth" onchange="loadDiscrepancyReport()">
                             <option value="">All Months</option>
                             <option value="01">January</option>
                             <option value="02">February</option>
@@ -765,24 +776,36 @@
                             <option value="11">November</option>
                             <option value="12">December</option>
                         </select>
-                        <button class="btn btn-primary btn-sm" onclick="loadDiscrepancyReport()">
+                    </div>
+                </div>
+                
+                <!-- Action Buttons Row -->
+                <div class="row mb-3">
+                    <div class="col-4">
+                        <button class="btn btn-primary w-100" onclick="loadDiscrepancyReport()">
                             <i class="bi bi-arrow-clockwise"></i> Refresh
                         </button>
-                        <button class="btn btn-danger btn-sm" onclick="generateDiscrepancyPDF()">
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-danger w-100" onclick="generateDiscrepancyPDF()">
                             <i class="bi bi-file-earmark-pdf"></i> PDF
                         </button>
-                        <button class="btn btn-success btn-sm" onclick="generateDiscrepancyCSV()">
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-success w-100" onclick="generateDiscrepancyCSV()">
                             <i class="bi bi-file-earmark-spreadsheet"></i> CSV
                         </button>
                     </div>
                 </div>
                 
-                <div id="discrepancyReportContent">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
+                <div class="report-table-container">
+                    <div id="discrepancyReportContent">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-3 text-muted">Loading discrepancy report...</p>
                         </div>
-                        <p class="mt-3 text-muted">Loading discrepancy report...</p>
                     </div>
                 </div>
             </div>
@@ -793,15 +816,18 @@
     <div class="tab-pane fade" id="missing-runsheets" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-calendar-x text-warning"></i> Missing Run Sheets
-                        </h5>
-                        <p class="text-muted mb-0">Find dates where you have no run sheet records</p>
-                    </div>
-                    <div class="d-flex gap-2">
-                        <select class="form-select form-select-sm" id="missingRunSheetsYear" style="width: auto;" onchange="loadMissingRunSheets()">
+                <!-- Header -->
+                <div class="mb-3">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-calendar-x text-warning"></i> Missing Run Sheets
+                    </h5>
+                    <p class="text-muted mb-0">Find dates where you have no run sheet records</p>
+                </div>
+                
+                <!-- Filters and Actions Row -->
+                <div class="row mb-3">
+                    <div class="col-8">
+                        <select class="form-select" id="missingRunSheetsYear" onchange="loadMissingRunSheets()">
                             <option value="">All Years</option>
                             <option value="2025">2025</option>
                             <option value="2024">2024</option>
@@ -809,18 +835,22 @@
                             <option value="2022">2022</option>
                             <option value="2021">2021</option>
                         </select>
-                        <button class="btn btn-primary btn-sm" onclick="loadMissingRunSheets()">
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-primary w-100" onclick="loadMissingRunSheets()">
                             <i class="bi bi-arrow-clockwise"></i> Refresh
                         </button>
                     </div>
                 </div>
                 
-                <div id="missingRunSheetsContent">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
+                <div class="report-table-container">
+                    <div id="missingRunSheetsContent">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-3 text-muted">Analyzing dates...</p>
                         </div>
-                        <p class="mt-3 text-muted">Analyzing dates...</p>
                     </div>
                 </div>
             </div>
@@ -831,24 +861,29 @@
     <div class="tab-pane fade" id="missing-payslips" role="tabpanel">
         <div class="card">
             <div class="card-body">
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div>
-                        <h5 class="card-title mb-0">
-                            <i class="bi bi-file-earmark-x text-danger"></i> Missing Payslips
-                        </h5>
-                        <p class="text-muted mb-0">Find weeks where you have no payslip records</p>
-                    </div>
-                    <button class="btn btn-primary" onclick="loadMissingPayslips()">
+                <!-- Header -->
+                <div class="mb-3">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-file-earmark-x text-danger"></i> Missing Payslips
+                    </h5>
+                    <p class="text-muted mb-0">Find weeks where you have no payslip records</p>
+                </div>
+                
+                <!-- Action Button Row -->
+                <div class="mb-3">
+                    <button class="btn btn-primary w-100" onclick="loadMissingPayslips()">
                         <i class="bi bi-arrow-clockwise"></i> Refresh
                     </button>
                 </div>
                 
-                <div id="missingPayslipsContent">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
+                <div class="report-table-container">
+                    <div id="missingPayslipsContent">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-3 text-muted">Analyzing weeks...</p>
                         </div>
-                        <p class="mt-3 text-muted">Analyzing weeks...</p>
                     </div>
                 </div>
             </div>
@@ -933,45 +968,64 @@
                     </div>
                 </div>
                 
-                <div class="d-flex justify-content-between align-items-center mb-3">
-                    <div class="d-flex gap-2 align-items-center">
-                        <select class="form-select form-select-sm" id="reportType" style="width: auto;" onchange="updateReportPreview()">
-                            <option value="pending" selected>Pending Jobs</option>
-                            <option value="dnco">DNCO Report</option>
-                            <option value="earnings_discrepancy">Earnings Discrepancy</option>
-                            <option value="paypoint">Paypoint Report</option>
+                <!-- Report Type Selection - Full Width -->
+                <div class="mb-3">
+                    <select class="form-select" id="reportType" onchange="updateReportPreview()">
+                        <option value="pending" selected>Pending Jobs</option>
+                        <option value="dnco">DNCO Report</option>
+                        <option value="earnings_discrepancy">Earnings Discrepancy</option>
+                        <option value="paypoint">Paypoint Report</option>
+                    </select>
+                </div>
+                
+                <!-- Date Filters Row -->
+                <div class="row mb-3">
+                    <div class="col-3">
+                        <select class="form-select form-select-sm" id="yearSelect" onchange="generateCustomReport()">
                         </select>
-                        <select class="form-select form-select-sm" id="yearSelect" style="width: auto;" onchange="generateCustomReport()">
+                    </div>
+                    <div class="col-3">
+                        <select class="form-select form-select-sm" id="monthSelect" onchange="selectMonth()">
                         </select>
-                        <select class="form-select form-select-sm" id="monthSelect" style="width: auto;" onchange="selectMonth()">
+                    </div>
+                    <div class="col-3">
+                        <select class="form-select form-select-sm" id="weekSelect" onchange="selectWeek()">
                         </select>
-                        <span class="text-muted">or</span>
-                        <select class="form-select form-select-sm" id="weekSelect" style="width: auto;" onchange="selectWeek()">
-                        </select>
-                        <button class="btn btn-outline-secondary btn-sm" id="sortToggle" onclick="toggleReportSort()" title="Toggle sort order">
+                    </div>
+                    <div class="col-3">
+                        <button class="btn btn-outline-secondary btn-sm w-100" id="sortToggle" onclick="toggleReportSort()" title="Toggle sort order">
                             <i class="bi bi-sort-down" id="sortIcon"></i>
                         </button>
                     </div>
-                    
-                    <div class="d-flex gap-2">
-                        <button class="btn btn-primary btn-sm" onclick="generateCustomReport()">
+                </div>
+                
+                <!-- Action Buttons Row - Full Width -->
+                <div class="row mb-3">
+                    <div class="col-4">
+                        <button class="btn btn-primary w-100" onclick="generateCustomReport()">
                             <i class="bi bi-arrow-clockwise"></i> Refresh
                         </button>
-                        <button class="btn btn-danger btn-sm" onclick="exportCustomReportPDF()">
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-danger w-100" onclick="exportCustomReportPDF()">
                             <i class="bi bi-file-earmark-pdf"></i> PDF
                         </button>
-                        <button class="btn btn-success btn-sm" onclick="exportCustomReportCSV()">
+                    </div>
+                    <div class="col-4">
+                        <button class="btn btn-success w-100" onclick="exportCustomReportCSV()">
                             <i class="bi bi-file-earmark-spreadsheet"></i> CSV
                         </button>
                     </div>
                 </div>
                 
-                <div id="customReportOutput">
-                    <div class="text-center py-5">
-                        <div class="spinner-border text-primary" role="status">
-                            <span class="visually-hidden">Loading...</span>
+                <div class="mobile-table-container">
+                    <div id="customReportOutput">
+                        <div class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading...</span>
+                            </div>
+                            <p class="mt-3 text-muted">Select a report type to generate...</p>
                         </div>
-                        <p class="mt-3 text-muted">Select a report type to generate...</p>
                     </div>
                 </div>
             </div>

@@ -523,8 +523,35 @@ async function loadMissingRunSheets() {
         // Get attendance records to exclude
         const attendanceUrl = yearFilter ? `/api/attendance?year=${yearFilter}` : '/api/attendance';
         const attendanceResponse = await fetch(attendanceUrl);
-        const attendanceRecords = await attendanceResponse.json();
-        const attendanceDates = new Set(attendanceRecords.map(r => r.date));
+        const attendanceData = await attendanceResponse.json();
+        
+        // Handle different response formats and ensure we have an array
+        let attendanceRecords = [];
+        if (Array.isArray(attendanceData)) {
+            attendanceRecords = attendanceData;
+        } else if (attendanceData && Array.isArray(attendanceData.records)) {
+            attendanceRecords = attendanceData.records;
+        } else if (attendanceData && Array.isArray(attendanceData.data)) {
+            attendanceRecords = attendanceData.data;
+        }
+        
+        // Create attendance dates set with proper format normalization
+        const attendanceDates = new Set();
+        attendanceRecords.forEach(record => {
+            if (record && record.date) {
+                let dateStr = record.date;
+                // Normalize different date formats to DD/MM/YYYY
+                if (dateStr.includes('-')) {
+                    // Convert YYYY-MM-DD to DD/MM/YYYY
+                    const [year, month, day] = dateStr.split('-');
+                    dateStr = `${day.padStart(2, '0')}/${month.padStart(2, '0')}/${year}`;
+                }
+                attendanceDates.add(dateStr);
+            }
+        });
+        
+        console.log('Attendance records found:', attendanceRecords.length);
+        console.log('Attendance dates:', Array.from(attendanceDates).slice(0, 5)); // Show first 5 for debugging
         
         // Extract dates from the response
         let dates = [];
@@ -575,9 +602,17 @@ async function loadMissingRunSheets() {
                     const year = missingDate.getFullYear();
                     const dateStr = `${day}/${month}/${year}`;
                     
-                    // Only add if not in attendance records
-                    if (!attendanceDates.has(dateStr)) {
+                    // Only add if not in attendance records and not a weekend
+                    const dayOfWeek = missingDate.getDay();
+                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday = 0, Saturday = 6
+                    
+                    if (!attendanceDates.has(dateStr) && !isWeekend) {
                         missingDates.push(dateStr);
+                        console.log(`Missing date found: ${dateStr} (not in attendance)`);
+                    } else if (attendanceDates.has(dateStr)) {
+                        console.log(`Date ${dateStr} excluded (attendance record exists)`);
+                    } else if (isWeekend) {
+                        console.log(`Date ${dateStr} excluded (weekend)`);
                     }
                 }
             }
@@ -591,8 +626,9 @@ async function loadMissingRunSheets() {
             <div class="alert alert-info">
                 <h6>Run Sheets Analysis</h6>
                 <p><strong>Total Run Sheets:</strong> ${dates.length}</p>
+                <p><strong>Attendance Records:</strong> ${attendanceRecords.length} (${attendanceDates.size} unique dates)</p>
                 <p><strong>Date Range:</strong> ${firstDate} to ${lastDate}</p>
-                <p class="text-warning"><strong>Missing Days:</strong> ${missingDates.length}</p>
+                <p class="text-warning"><strong>Missing Days:</strong> ${missingDates.length} (excluding weekends and attendance)</p>
             </div>
         `;
         
@@ -1875,32 +1911,6 @@ function exportCustomReportCSV() {
     showSuccess('CSV export functionality coming soon!');
 }
 
-// Mobile dropdown navigation for tabs
 document.addEventListener('DOMContentLoaded', function() {
-    if (window.innerWidth <= 768) {
-        const navPills = document.querySelector('.nav-pills');
-        if (navPills) {
-            // Click on nav-pills container to toggle dropdown
-            navPills.addEventListener('click', function(e) {
-                // Only toggle if clicking the active tab or container
-                if (e.target.classList.contains('active') || e.target === navPills) {
-                    navPills.classList.toggle('show');
-                }
-            });
-            
-            // When clicking a non-active tab, switch to it and close dropdown
-            navPills.querySelectorAll('.nav-link:not(.active)').forEach(link => {
-                link.addEventListener('click', function() {
-                    navPills.classList.remove('show');
-                });
-            });
-            
-            // Close dropdown when clicking outside
-            document.addEventListener('click', function(e) {
-                if (!navPills.contains(e.target)) {
-                    navPills.classList.remove('show');
-                }
-            });
-        }
-    }
+    // Initialize reports page
 });

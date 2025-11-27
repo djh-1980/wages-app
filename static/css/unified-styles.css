@@ -838,55 +838,6 @@ body {
         position: relative;
     }
     
-    /* Scroll indicator - more visible */
-    .unified-table-container .table-responsive::after {
-        content: '👈 Swipe to see more 👉';
-        position: sticky;
-        bottom: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(74, 111, 165, 0.95);
-        color: white;
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
-        pointer-events: none;
-        opacity: 1;
-        z-index: 20;
-        display: inline-block;
-        margin: 8px auto;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        animation: pulse 2s infinite;
-    }
-    
-    @keyframes pulse {
-        0%, 100% { opacity: 1; }
-        50% { opacity: 0.7; }
-    }
-    
-    /* Apply scroll indicator to ALL table-responsive containers */
-    .table-responsive::after,
-    .card-body .table-responsive::after {
-        content: '👈 Swipe to see more 👉';
-        position: sticky;
-        bottom: 0;
-        left: 50%;
-        transform: translateX(-50%);
-        background: rgba(74, 111, 165, 0.95);
-        color: white;
-        padding: 8px 16px;
-        border-radius: 20px;
-        font-size: 12px;
-        font-weight: 600;
-        pointer-events: none;
-        opacity: 1;
-        z-index: 20;
-        display: inline-block;
-        margin: 8px auto;
-        box-shadow: 0 2px 8px rgba(0,0,0,0.2);
-        animation: pulse 2s infinite;
-    }
     
     /* Ensure all tables scroll on mobile */
     .table-responsive,

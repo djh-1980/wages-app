@@ -41,77 +41,6 @@
     background: var(--primary-gradient, linear-gradient(135deg, #4a6fa5 0%, #2c5282 50%, #1a365d 100%));
 }
 
-/* Mobile Navigation Pills - Match Runsheets Layout */
-@media screen and (max-width: 430px) {
-    /* Make navigation pills responsive grid - more specific selector */
-    #reportTabs.nav-pills {
-        display: grid !important;
-        grid-template-columns: repeat(2, 1fr) !important;
-        gap: 0.5rem !important;
-        margin-bottom: 1rem !important;
-        flex-direction: unset !important;
-    }
-    
-    #reportTabs.nav-pills .nav-item {
-        margin: 0 !important;
-        width: 100% !important;
-        flex: none !important;
-    }
-    
-    #reportTabs.nav-pills .nav-link {
-        margin: 0 !important;
-        padding: 0.75rem 0.5rem !important;
-        font-size: 0.875rem !important;
-        text-align: center !important;
-        border-radius: 8px !important;
-        white-space: nowrap !important;
-        overflow: hidden !important;
-        text-overflow: ellipsis !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: center !important;
-        min-height: 48px !important;
-        width: 100% !important;
-    }
-    
-    #reportTabs.nav-pills .nav-link i {
-        margin-right: 0.25rem !important;
-        font-size: 0.875rem !important;
-    }
-    
-    /* Force all nav items to be visible */
-    #reportTabs.nav-pills .nav-item {
-        display: block !important;
-    }
-    
-    /* Adjust grid for 6 items (3x2 layout) */
-    #reportTabs.nav-pills:has(.nav-item:nth-child(5)) {
-        grid-template-columns: repeat(3, 1fr) !important;
-    }
-}
-
-/* Also add styles for larger mobile screens */
-@media screen and (max-width: 768px) and (min-width: 431px) {
-    #reportTabs.nav-pills {
-        display: grid !important;
-        grid-template-columns: repeat(3, 1fr) !important;
-        gap: 0.5rem !important;
-        margin-bottom: 1rem !important;
-    }
-    
-    #reportTabs.nav-pills .nav-item {
-        margin: 0 !important;
-        width: 100% !important;
-    }
-    
-    #reportTabs.nav-pills .nav-link {
-        margin: 0 !important;
-        padding: 0.75rem 0.5rem !important;
-        font-size: 0.875rem !important;
-        text-align: center !important;
-        width: 100% !important;
-    }
-}
 
 /* Weekly Summary Styles - TVS Theme */
 .weekly-hero {
@@ -237,71 +166,162 @@
         line-height: 1.4 !important;
     }
     
-    /* Convert tab navigation to dropdown on mobile */
-    .nav-pills {
-        position: relative !important;
-        background: white !important;
-        border-radius: 12px !important;
-        border: 2px solid #e2e8f0 !important;
-        padding: 0 !important;
-        overflow: hidden !important;
-    }
-    
-    /* Hide all non-active tabs initially */
-    .nav-pills .nav-link:not(.active) {
-        display: none !important;
-    }
-    
-    /* Show active tab as dropdown trigger */
-    .nav-pills .nav-link.active {
-        width: 100% !important;
-        padding: 1rem 1.25rem !important;
-        font-size: 1rem !important;
-        border-radius: 0 !important;
-        display: flex !important;
-        align-items: center !important;
-        justify-content: space-between !important;
-        background: white !important;
-        color: var(--tvs-primary, #4a6fa5) !important;
-        font-weight: 600 !important;
-        border: none !important;
-        cursor: pointer !important;
-    }
-    
-    .nav-pills .nav-link.active::after {
-        content: '▼' !important;
-        font-size: 0.75rem !important;
-        margin-left: auto !important;
-    }
-    
-    /* Show all tabs when nav-pills is clicked/expanded */
-    .nav-pills.show .nav-link {
-        display: flex !important;
-        width: 100% !important;
-        padding: 1rem 1.25rem !important;
-        font-size: 1rem !important;
-        text-align: left !important;
-        border-radius: 0 !important;
-        align-items: center !important;
-        gap: 0.75rem !important;
-        background: white !important;
-        border: none !important;
-        border-top: 1px solid #f1f5f9 !important;
-        color: #64748b !important;
-    }
-    
-    .nav-pills.show .nav-link.active {
-        background: #f8f9fa !important;
-        color: var(--tvs-primary, #4a6fa5) !important;
-    }
-    
-    .nav-pills.show .nav-link.active::after {
-        content: '▲' !important;
-    }
     
     .nav-pills .nav-link i,
     .nav-pills .nav-link .bi {
         font-size: 1.25rem !important;
         min-width: 24px !important;
     }
+    
+    /* Mobile table scrolling for daily breakdown */
+    .mobile-table-container {
+        overflow: hidden;
+        width: 100%;
+        position: relative;
+    }
+    
+    .mobile-table-container .table-responsive {
+        border-radius: 0;
+        margin-bottom: 0;
+        overflow-x: auto;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e0 #f1f5f9;
+    }
+    
+    .mobile-scrollable-table {
+        min-width: 800px; /* Force horizontal scroll on mobile */
+        width: max-content;
+        margin-bottom: 0;
+        font-size: 0.875rem;
+    }
+    
+    /* Better scrollbars for mobile */
+    .mobile-table-container .table-responsive::-webkit-scrollbar {
+        height: 8px;
+    }
+    
+    .mobile-table-container .table-responsive::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+        margin: 0 8px;
+    }
+    
+    .mobile-table-container .table-responsive::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 4px;
+        border: 1px solid #f1f5f9;
+    }
+    
+    .mobile-table-container .table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #a0aec0;
+    }
+    
+    /* Custom Report Generator mobile scrolling */
+    #customReportOutput .table-responsive {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e0 #f1f5f9;
+    }
+    
+    #customReportOutput .table {
+        min-width: 600px; /* Force horizontal scroll on mobile for report tables */
+        font-size: 0.875rem;
+    }
+    
+    /* Better scrollbars for report tables */
+    #customReportOutput .table-responsive::-webkit-scrollbar {
+        height: 8px;
+    }
+    
+    #customReportOutput .table-responsive::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+        margin: 0 8px;
+    }
+    
+    #customReportOutput .table-responsive::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 4px;
+        border: 1px solid #f1f5f9;
+    }
+    
+    #customReportOutput .table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #a0aec0;
+    }
+    
+    /* Standard Report Section Layout Classes */
+    .report-controls-container {
+        /* Will be styled for consistent mobile layout */
+    }
+    
+    .report-type-selector {
+        width: 100% !important;
+        margin-bottom: 1rem;
+    }
+    
+    .report-filters-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+        align-items: center;
+    }
+    
+    .report-filters-row > * {
+        flex: 1;
+        min-width: 120px;
+    }
+    
+    .report-actions-row {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+        gap: 0.5rem;
+        margin-bottom: 1rem;
+    }
+    
+    .report-actions-row .btn {
+        width: 100%;
+    }
+    
+    /* Standard table scrolling for all report sections */
+    .report-table-container {
+        overflow: hidden;
+        width: 100%;
+        position: relative;
+    }
+    
+    .report-table-container .table-responsive {
+        overflow-x: auto !important;
+        -webkit-overflow-scrolling: touch !important;
+        scrollbar-width: thin;
+        scrollbar-color: #cbd5e0 #f1f5f9;
+    }
+    
+    .report-table-container .table {
+        min-width: 600px;
+        font-size: 0.875rem;
+    }
+    
+    .report-table-container .table-responsive::-webkit-scrollbar {
+        height: 8px;
+    }
+    
+    .report-table-container .table-responsive::-webkit-scrollbar-track {
+        background: #f1f5f9;
+        border-radius: 4px;
+        margin: 0 8px;
+    }
+    
+    .report-table-container .table-responsive::-webkit-scrollbar-thumb {
+        background: #cbd5e0;
+        border-radius: 4px;
+        border: 1px solid #f1f5f9;
+    }
+    
+    .report-table-container .table-responsive::-webkit-scrollbar-thumb:hover {
+        background: #a0aec0;
+    }
+    
 }
