@@ -1,0 +1,448 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - TVS App{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings-modern.css') }}?v={{ range(1000, 9999) | random }}">
+{% endblock %}
+
+{% block content %}
+    <!-- Header -->
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1>
+                    <i class="bi bi-gear text-primary"></i>
+                    Settings
+                </h1>
+                <p>Manage your profile, preferences, and system configuration</p>
+            </div>
+            <div class="action-buttons">
+                <button class="btn btn-outline-primary" onclick="location.reload()">
+                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Global Status Message -->
+    <div id="settingsStatus" style="display: none;"></div>
+
+    <!-- Modern Card-Based Layout -->
+    <div class="settings-container">
+        
+        <!-- Profile Section -->
+        <div class="settings-section" id="profile-section">
+            <div class="section-header">
+                <div class="section-icon bg-primary">
+                    <i class="bi bi-person-fill"></i>
+                </div>
+                <div class="section-info">
+                    <h3>Profile & Account</h3>
+                    <p>Personal information and work details</p>
+                </div>
+            </div>
+            
+            <div class="settings-cards">
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-person me-2"></i>Personal Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Full Name</label>
+                                <input type="text" class="form-control" id="userName" placeholder="Daniel Hanson">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" id="userEmail" placeholder="your@email.com">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone</label>
+                                <input type="tel" class="form-control" id="userPhone" placeholder="+44 7XXX XXXXXX">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">UTR Number</label>
+                                <input type="text" class="form-control" id="utrNumber" placeholder="1234567890">
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-primary" onclick="saveProfile()">
+                                <i class="bi bi-save me-1"></i>Save Profile
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Data & Sync Section -->
+        <div class="settings-section" id="sync-section">
+            <div class="section-header">
+                <div class="section-icon bg-success">
+                    <i class="bi bi-arrow-repeat"></i>
+                </div>
+                <div class="section-info">
+                    <h3>Data & Sync</h3>
+                    <p>Gmail sync and file management</p>
+                </div>
+            </div>
+            
+            <div class="settings-cards">
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-lightning-charge me-2"></i>Master Sync System</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <strong>Automated Sync</strong>
+                                <div><small class="text-muted">Daily at 8:00 PM & 9:00 PM</small></div>
+                            </div>
+                            <button class="btn btn-primary" onclick="runMasterSyncManual()" id="manualSyncBtn">
+                                <i class="bi bi-play-circle me-1"></i>Run Sync Now
+                            </button>
+                        </div>
+                        
+                        <div class="sync-status-display">
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <div class="status-item">
+                                        <i class="bi bi-file-earmark-text text-primary"></i>
+                                        <div>
+                                            <strong>Latest Runsheet</strong>
+                                            <div class="text-muted" id="latestRunsheetDate">Loading...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="status-item">
+                                        <i class="bi bi-receipt text-success"></i>
+                                        <div>
+                                            <strong>Latest Payslip</strong>
+                                            <div class="text-muted" id="latestPayslipWeek">Loading...</div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-card">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5><i class="bi bi-terminal me-2"></i>Live Sync Log</h5>
+                            <div>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="refreshSyncLog()">
+                                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                                </button>
+                                <button class="btn btn-sm btn-outline-secondary" onclick="clearSyncLog()">
+                                    <i class="bi bi-trash"></i> Clear
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="syncLogWindow" class="sync-log-window">
+                            <div class="text-muted">Sync log will appear here...</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-envelope me-2"></i>Gmail Connection</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <p class="mb-1">Test your Gmail API connection</p>
+                                <small class="text-muted">Verify credentials and authentication status</small>
+                            </div>
+                            <button type="button" class="btn btn-outline-success" onclick="testGmailConnection()">
+                                <i class="bi bi-wifi"></i> Test Connection
+                            </button>
+                        </div>
+                        <div id="gmailTestResults" class="mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Attendance Section -->
+        <div class="settings-section" id="attendance-section">
+            <div class="section-header">
+                <div class="section-icon bg-danger">
+                    <i class="bi bi-calendar-check"></i>
+                </div>
+                <div class="section-info">
+                    <h3>Attendance Tracking</h3>
+                    <p>Track days you didn't work (holidays, sick days, absences)</p>
+                </div>
+            </div>
+            
+            <div class="settings-cards">
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-plus-circle me-2"></i>Add Attendance Record</h5>
+                    </div>
+                    <div class="card-body">
+                        <!-- Toggle between single and range -->
+                        <div class="btn-group mb-3" role="group">
+                            <input type="radio" class="btn-check" name="attendanceMode" id="singleDayMode" checked onchange="toggleAttendanceMode()">
+                            <label class="btn btn-outline-primary" for="singleDayMode">
+                                <i class="bi bi-calendar-event"></i> Single Day
+                            </label>
+                            
+                            <input type="radio" class="btn-check" name="attendanceMode" id="rangeDayMode" onchange="toggleAttendanceMode()">
+                            <label class="btn btn-outline-primary" for="rangeDayMode">
+                                <i class="bi bi-calendar-range"></i> Date Range
+                            </label>
+                        </div>
+
+                        <!-- Single Day Form -->
+                        <div id="singleDayForm">
+                            <div class="row g-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Date</label>
+                                    <input type="date" class="form-control" id="attendanceDate">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Reason</label>
+                                    <select class="form-select" id="attendanceReason">
+                                        <option value="Holiday">Holiday</option>
+                                        <option value="Sick">Sick Day</option>
+                                        <option value="Personal">Personal Day</option>
+                                        <option value="Training">Training</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Notes (Optional)</label>
+                                    <input type="text" class="form-control" id="attendanceNotes" placeholder="Additional notes...">
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <button class="btn btn-primary" onclick="addAttendanceRecord()">
+                                    <i class="bi bi-plus-circle me-1"></i>Add Record
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Date Range Form -->
+                        <div id="rangeDayForm" style="display: none;">
+                            <div class="row g-3">
+                                <div class="col-md-3">
+                                    <label class="form-label">From Date</label>
+                                    <input type="date" class="form-control" id="attendanceDateFrom">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">To Date</label>
+                                    <input type="date" class="form-control" id="attendanceDateTo">
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Reason</label>
+                                    <select class="form-select" id="attendanceReasonRange">
+                                        <option value="Holiday">Holiday</option>
+                                        <option value="Sick">Sick Day</option>
+                                        <option value="Personal">Personal Day</option>
+                                        <option value="Training">Training</option>
+                                        <option value="Other">Other</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-3">
+                                    <label class="form-label">Notes (Optional)</label>
+                                    <input type="text" class="form-control" id="attendanceNotesRange" placeholder="Additional notes...">
+                                </div>
+                            </div>
+                            <div class="mt-3">
+                                <button class="btn btn-primary" onclick="addAttendanceRange()">
+                                    <i class="bi bi-calendar-plus me-1"></i>Add Date Range
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-card">
+                    <div class="card-header">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <h5><i class="bi bi-list-ul me-2"></i>Attendance Records</h5>
+                            <select class="form-select form-select-sm" id="attendanceYearFilter" style="width: auto;" onchange="loadAttendanceRecords()">
+                                <option value="">All Years</option>
+                                <option value="2025">2025</option>
+                                <option value="2024">2024</option>
+                                <option value="2023">2023</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div id="attendanceRecordsList">
+                            <div class="text-center py-4">
+                                <div class="spinner-border text-primary" role="status"></div>
+                                <p class="mt-2 text-muted">Loading records...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- System Section -->
+        <div class="settings-section" id="system-section">
+            <div class="section-header">
+                <div class="section-icon bg-warning">
+                    <i class="bi bi-gear-fill"></i>
+                </div>
+                <div class="section-info">
+                    <h3>System Settings</h3>
+                    <p>Database management and system configuration</p>
+                </div>
+            </div>
+            
+            <div class="settings-cards">
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-database me-2"></i>Database Statistics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="db-stats-grid">
+                            <div class="db-stat-item">
+                                <div class="db-stat-value text-primary" id="dbPayslips">-</div>
+                                <div class="db-stat-label">Payslips</div>
+                            </div>
+                            <div class="db-stat-item">
+                                <div class="db-stat-value text-success" id="dbRunSheets">-</div>
+                                <div class="db-stat-label">Run Sheets</div>
+                            </div>
+                            <div class="db-stat-item">
+                                <div class="db-stat-value text-info" id="dbJobs">-</div>
+                                <div class="db-stat-label">Jobs</div>
+                            </div>
+                            <div class="db-stat-item">
+                                <div class="db-stat-value text-warning" id="dbSize">-</div>
+                                <div class="db-stat-label">DB Size</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-shield-check me-2"></i>Backup & Restore</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <button class="btn btn-primary w-100" onclick="backupDatabase()">
+                                    <i class="bi bi-download me-2"></i>Create Backup
+                                </button>
+                                <small class="text-muted d-block mt-2 text-center">Creates a timestamped backup</small>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-success w-100" onclick="document.getElementById('uploadBackupInput').click()">
+                                    <i class="bi bi-upload me-2"></i>Upload Backup
+                                </button>
+                                <input type="file" id="uploadBackupInput" accept=".db,.db.gz,.gz" style="display: none;" onchange="uploadBackup(this)">
+                                <small class="text-muted d-block mt-2 text-center">Upload a database backup file</small>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-outline-primary w-100" onclick="loadBackupsList()">
+                                    <i class="bi bi-arrow-clockwise me-2"></i>Refresh List
+                                </button>
+                                <small class="text-muted d-block mt-2 text-center">Reload available backups</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Available Backups -->
+                        <div id="backupsListContainer" class="mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong>Available Backups:</strong>
+                                <span id="backupsCount" class="badge bg-secondary">Loading...</span>
+                            </div>
+                            <div id="backupsList" class="backup-list">
+                                <div class="text-center py-3 text-muted">
+                                    <div class="spinner-border spinner-border-sm me-2"></div>
+                                    Loading backups...
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="backupStatus" class="mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-tools me-2"></i>System Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <button class="btn btn-outline-warning w-100" onclick="clearCache()">
+                                    <i class="bi bi-trash me-2"></i>Clear Browser Cache
+                                </button>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-outline-info w-100" onclick="optimizeDatabase()">
+                                    <i class="bi bi-speedometer2 me-2"></i>Optimize Database
+                                </button>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-outline-success w-100" onclick="validateDatabase()">
+                                    <i class="bi bi-check-circle me-2"></i>Validate Integrity
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- About Section -->
+        <div class="settings-section" id="about-section">
+            <div class="section-header">
+                <div class="section-icon bg-info">
+                    <i class="bi bi-info-circle"></i>
+                </div>
+                <div class="section-info">
+                    <h3>About TVS Wages</h3>
+                    <p>Application information and system details</p>
+                </div>
+            </div>
+            
+            <div class="settings-cards">
+                <div class="settings-card">
+                    <div class="card-body">
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <h6>Application Info</h6>
+                                <table class="table table-sm">
+                                    <tr><td>Version:</td><td>2.0.0</td></tr>
+                                    <tr><td>Build:</td><td>2025.11.27</td></tr>
+                                    <tr><td>Environment:</td><td>Development</td></tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Features</h6>
+                                <ul class="list-unstyled">
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Gmail Integration</li>
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>File Upload System</li>
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Mobile Responsive</li>
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Smart Sync</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/settings-modern.js') }}?v={{ range(1000, 9999) | random }}"></script>
+{% endblock %}

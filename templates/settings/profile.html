@@ -1,0 +1,116 @@
+{% extends "base.html" %}
+
+{% block title %}Profile Settings - TVS App{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings-modern.css') }}?v={{ range(1000, 9999) | random }}">
+{% endblock %}
+
+{% block content %}
+    <!-- Header -->
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1>
+                    <i class="bi bi-person-circle text-primary"></i>
+                    Profile Settings
+                </h1>
+                <p>Manage your personal information and work details</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Message -->
+    <div id="settingsStatus" style="display: none;"></div>
+
+    <!-- Profile Settings -->
+    <div class="settings-container">
+        <div class="settings-section">
+            <div class="settings-cards">
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-person me-2"></i>Personal Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Full Name</label>
+                                <input type="text" class="form-control" id="userName" placeholder="Daniel Hanson">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email</label>
+                                <input type="email" class="form-control" id="userEmail" placeholder="your@email.com">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone</label>
+                                <input type="tel" class="form-control" id="userPhone" placeholder="+44 7XXX XXXXXX">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">UTR Number</label>
+                                <input type="text" class="form-control" id="utrNumber" placeholder="1234567890">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-geo-alt me-2"></i>Address Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-12">
+                                <label class="form-label">Address Line 1</label>
+                                <input type="text" class="form-control" id="addressLine1" placeholder="Street address">
+                            </div>
+                            <div class="col-md-12">
+                                <label class="form-label">Address Line 2</label>
+                                <input type="text" class="form-control" id="addressLine2" placeholder="Apartment, suite, etc. (optional)">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">City</label>
+                                <input type="text" class="form-control" id="city" placeholder="City">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Postcode</label>
+                                <input type="text" class="form-control" id="postcode" placeholder="LA1 1XX">
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-file-text me-2"></i>Tax Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">National Insurance Number</label>
+                                <input type="text" class="form-control" id="niNumber" placeholder="AB123456C">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">UTR Number</label>
+                                <input type="text" class="form-control" id="utrNumber2" placeholder="1234567890">
+                                <small class="text-muted">For self-assessment tax returns</small>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4">
+                            <button type="button" class="btn btn-primary btn-lg" onclick="saveProfile()">
+                                <i class="bi bi-save me-2"></i>Save Profile
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary btn-lg ms-2" onclick="loadProfile()">
+                                <i class="bi bi-arrow-clockwise me-2"></i>Reset
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/settings-profile.js') }}?v={{ range(1000, 9999) | random }}"></script>
+{% endblock %}

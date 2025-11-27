@@ -72,10 +72,28 @@
                             <i class="bi bi-search"></i> Search
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/settings' %}active{% endif %}" href="/settings">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.path.startswith('/settings') %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-gear"></i> Settings
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item {% if request.path == '/settings/profile' %}active{% endif %}" href="/settings/profile">
+                                <i class="bi bi-person-circle me-2"></i>Profile
+                            </a></li>
+                            <li><a class="dropdown-item {% if request.path == '/settings/sync' %}active{% endif %}" href="/settings/sync">
+                                <i class="bi bi-arrow-repeat me-2"></i>Data & Sync
+                            </a></li>
+                            <li><a class="dropdown-item {% if request.path == '/settings/attendance' %}active{% endif %}" href="/settings/attendance">
+                                <i class="bi bi-calendar-check me-2"></i>Attendance
+                            </a></li>
+                            <li><a class="dropdown-item {% if request.path == '/settings/system' %}active{% endif %}" href="/settings/system">
+                                <i class="bi bi-gear-fill me-2"></i>System
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item {% if request.path == '/settings/about' %}active{% endif %}" href="/settings/about">
+                                <i class="bi bi-info-circle me-2"></i>About
+                            </a></li>
+                        </ul>
                     </li>
                 </ul>
             </div>

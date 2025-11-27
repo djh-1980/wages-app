@@ -9,7 +9,7 @@ from ..models.attendance import AttendanceModel
 attendance_bp = Blueprint('attendance_api', __name__, url_prefix='/api')
 
 
-@attendance_bp.route('/attendance', methods=['GET'])
+@attendance_bp.route('/attendance/records', methods=['GET'])
 def api_get_attendance():
     """Get all attendance records with optional date range filtering."""
     try:
@@ -22,12 +22,12 @@ def api_get_attendance():
             from_date=from_date, 
             to_date=to_date
         )
-        return jsonify(records)
+        return jsonify({'success': True, 'records': records})
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
-@attendance_bp.route('/attendance', methods=['POST'])
+@attendance_bp.route('/attendance/add', methods=['POST'])
 def api_add_attendance():
     """Add attendance record."""
     try:
@@ -47,7 +47,43 @@ def api_add_attendance():
         return jsonify({'error': str(e)}), 500
 
 
-@attendance_bp.route('/attendance/<int:record_id>', methods=['DELETE'])
+@attendance_bp.route('/attendance/add-range', methods=['POST'])
+def api_add_attendance_range():
+    """Add attendance records for a date range."""
+    try:
+        data = request.json
+        if not data:
+            return jsonify({'error': 'No data provided'}), 400
+            
+        date_from = data.get('date_from')
+        date_to = data.get('date_to')
+        reason = data.get('reason')
+        notes = data.get('notes', '')
+        
+        if not date_from or not date_to:
+            return jsonify({'error': 'Both date_from and date_to are required'}), 400
+        
+        # Add records for each date in the range
+        from datetime import datetime, timedelta
+        start_date = datetime.strptime(date_from, '%Y-%m-%d')
+        end_date = datetime.strptime(date_to, '%Y-%m-%d')
+        
+        count = 0
+        current_date = start_date
+        while current_date <= end_date:
+            date_str = current_date.strftime('%Y-%m-%d')
+            AttendanceModel.add_record(date_str, reason, notes)
+            count += 1
+            current_date += timedelta(days=1)
+        
+        return jsonify({'success': True, 'count': count})
+    except ValueError as e:
+        return jsonify({'error': str(e)}), 400
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@attendance_bp.route('/attendance/delete/<int:record_id>', methods=['DELETE'])
 def api_delete_attendance(record_id):
     """Delete attendance record."""
     try:

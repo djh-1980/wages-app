@@ -1,0 +1,189 @@
+{% extends "base.html" %}
+
+{% block title %}System Settings - TVS App{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings-modern.css') }}?v={{ range(1000, 9999) | random }}">
+{% endblock %}
+
+{% block content %}
+    <!-- Header -->
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1>
+                    <i class="bi bi-gear-fill text-warning"></i>
+                    System Settings
+                </h1>
+                <p>Database management and system configuration</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Status Message -->
+    <div id="settingsStatus" style="display: none;"></div>
+
+    <!-- System Settings -->
+    <div class="settings-container">
+        <div class="settings-section">
+            <div class="settings-cards">
+                <!-- Database Statistics -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-database me-2"></i>Database Statistics</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="db-stats-grid">
+                            <div class="db-stat-item">
+                                <div class="db-stat-value text-primary" id="dbPayslips">-</div>
+                                <div class="db-stat-label">Payslips</div>
+                            </div>
+                            <div class="db-stat-item">
+                                <div class="db-stat-value text-success" id="dbRunSheets">-</div>
+                                <div class="db-stat-label">Run Sheets</div>
+                            </div>
+                            <div class="db-stat-item">
+                                <div class="db-stat-value text-info" id="dbJobs">-</div>
+                                <div class="db-stat-label">Jobs</div>
+                            </div>
+                            <div class="db-stat-item">
+                                <div class="db-stat-value text-warning" id="dbSize">-</div>
+                                <div class="db-stat-label">DB Size</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Backup & Restore -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-shield-check me-2"></i>Backup & Restore</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <button class="btn btn-primary w-100" onclick="backupDatabase()">
+                                    <i class="bi bi-download me-2"></i>Create Backup
+                                </button>
+                                <small class="text-muted d-block mt-2 text-center">Creates a timestamped backup</small>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-success w-100" onclick="document.getElementById('uploadBackupInput').click()">
+                                    <i class="bi bi-upload me-2"></i>Upload Backup
+                                </button>
+                                <input type="file" id="uploadBackupInput" accept=".db,.db.gz,.gz" style="display: none;" onchange="uploadBackup(this)">
+                                <small class="text-muted d-block mt-2 text-center">Upload a database backup file</small>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-outline-primary w-100" onclick="loadBackupsList()">
+                                    <i class="bi bi-arrow-repeat me-2"></i>Refresh List
+                                </button>
+                                <small class="text-muted d-block mt-2 text-center">Reload available backups</small>
+                            </div>
+                        </div>
+                        
+                        <!-- Available Backups -->
+                        <div id="backupsListContainer" class="mt-3">
+                            <div class="d-flex justify-content-between align-items-center mb-2">
+                                <strong>Available Backups:</strong>
+                                <span id="backupsCount" class="badge bg-secondary">Loading...</span>
+                            </div>
+                            <div id="backupsList" class="backup-list">
+                                <div class="text-center py-3 text-muted">
+                                    <div class="spinner-border spinner-border-sm me-2"></div>
+                                    Loading backups...
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div id="backupStatus" class="mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- Database Maintenance -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-wrench me-2"></i>Database Maintenance</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <button class="btn btn-outline-success w-100" onclick="optimizeDatabase()">
+                                    <i class="bi bi-speedometer2 me-2"></i>Optimize Database
+                                </button>
+                                <small class="text-muted d-block mt-2 text-center">Vacuum and optimize for better performance</small>
+                            </div>
+                            <div class="col-md-6">
+                                <button class="btn btn-outline-info w-100" onclick="validateDatabase()">
+                                    <i class="bi bi-check-circle me-2"></i>Validate Integrity
+                                </button>
+                                <small class="text-muted d-block mt-2 text-center">Check database for errors</small>
+                            </div>
+                        </div>
+                        <div id="maintenanceStatus" class="mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- System Actions -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-tools me-2"></i>System Actions</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-4">
+                                <button class="btn btn-outline-warning w-100" onclick="clearCache()">
+                                    <i class="bi bi-trash me-2"></i>Clear Browser Cache
+                                </button>
+                                <small class="text-muted d-block mt-2 text-center">Clear local storage and reload</small>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-outline-secondary w-100" onclick="viewSystemLogs()">
+                                    <i class="bi bi-file-text me-2"></i>View System Logs
+                                </button>
+                                <small class="text-muted d-block mt-2 text-center">View recent system activity</small>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-outline-danger w-100" onclick="confirmClearAllData()">
+                                    <i class="bi bi-exclamation-triangle me-2"></i>Clear All Data
+                                </button>
+                                <small class="text-muted d-block mt-2 text-center">⚠️ Dangerous operation</small>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- System Information -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-info-square me-2"></i>System Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <table class="table table-sm">
+                                    <tr><td><strong>Python Version:</strong></td><td id="pythonVersion">Loading...</td></tr>
+                                    <tr><td><strong>Flask Version:</strong></td><td id="flaskVersion">Loading...</td></tr>
+                                    <tr><td><strong>Database Type:</strong></td><td>SQLite</td></tr>
+                                    <tr><td><strong>Environment:</strong></td><td>Development</td></tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-sm">
+                                    <tr><td><strong>Uptime:</strong></td><td id="systemUptime">Loading...</td></tr>
+                                    <tr><td><strong>Last Backup:</strong></td><td id="lastBackup">Loading...</td></tr>
+                                    <tr><td><strong>Last Sync:</strong></td><td id="lastSync">Loading...</td></tr>
+                                    <tr><td><strong>Status:</strong></td><td><span class="badge bg-success">Healthy</span></td></tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/settings-system.js') }}?v={{ range(1000, 9999) | random }}"></script>
+{% endblock %}

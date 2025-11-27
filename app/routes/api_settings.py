@@ -199,9 +199,15 @@ def api_get_attendance():
             from_date=from_date, 
             to_date=to_date
         )
-        return jsonify(records)
+        return jsonify({
+            'success': True,
+            'records': records
+        })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
 
 
 @settings_bp.route('/attendance', methods=['POST'])

@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}About TVS Wages - TVS App{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/settings-modern.css') }}?v={{ range(1000, 9999) | random }}">
+{% endblock %}
+
+{% block content %}
+    <!-- Header -->
+    <div class="page-header">
+        <div class="d-flex justify-content-between align-items-center">
+            <div>
+                <h1>
+                    <i class="bi bi-info-circle text-info"></i>
+                    About TVS Wages
+                </h1>
+                <p>Application information and system details</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- About Information -->
+    <div class="settings-container">
+        <div class="settings-section">
+            <div class="settings-cards">
+                <!-- Application Info -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-app-indicator me-2"></i>Application Information</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <table class="table table-sm">
+                                    <tr><td><strong>Version:</strong></td><td>{{ version_info.version if version_info else '2.0.0' }}</td></tr>
+                                    <tr><td><strong>Build:</strong></td><td>{{ version_info.build_date if version_info else '2025.11.27' }}</td></tr>
+                                    <tr><td><strong>Environment:</strong></td><td>{{ config.get('ENV', 'Development') }}</td></tr>
+                                    <tr><td><strong>License:</strong></td><td>Private Use</td></tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <table class="table table-sm">
+                                    <tr><td><strong>Developer:</strong></td><td>Daniel Hanson</td></tr>
+                                    <tr><td><strong>Framework:</strong></td><td>Flask + Bootstrap</td></tr>
+                                    <tr><td><strong>Database:</strong></td><td>SQLite</td></tr>
+                                    <tr><td><strong>Last Updated:</strong></td><td>November 2025</td></tr>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Features -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-list-check me-2"></i>Features</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <h6>Core Features</h6>
+                                <ul class="list-unstyled">
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Gmail Integration</li>
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Automated Sync</li>
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Payslip Processing</li>
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Runsheet Management</li>
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Attendance Tracking</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>Technical Features</h6>
+                                <ul class="list-unstyled">
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Mobile Responsive</li>
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>File Upload System</li>
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Database Backups</li>
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Real-time Notifications</li>
+                                    <li><i class="bi bi-check-circle text-success me-2"></i>Advanced Reporting</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Changelog -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-clock-history me-2"></i>Recent Updates</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="timeline">
+                            {% if version_info and version_info.changelog %}
+                                {% for entry in version_info.changelog %}
+                                    <div class="timeline-item">
+                                        {% if entry.type == 'major' %}
+                                            <div class="timeline-marker bg-success"></div>
+                                        {% elif entry.type == 'minor' %}
+                                            <div class="timeline-marker bg-info"></div>
+                                        {% else %}
+                                            <div class="timeline-marker bg-warning"></div>
+                                        {% endif %}
+                                        <div class="timeline-content">
+                                            <h6>Version {{ entry.version }} <small class="text-muted">{{ entry.date }}</small></h6>
+                                            <ul class="mb-0">
+                                                {% for change in entry.changes %}
+                                                    <li>{{ change }}</li>
+                                                {% endfor %}
+                                            </ul>
+                                        </div>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <!-- Fallback static content -->
+                                <div class="timeline-item">
+                                    <div class="timeline-marker bg-success"></div>
+                                    <div class="timeline-content">
+                                        <h6>Version 2.0.0 <small class="text-muted">November 27, 2025</small></h6>
+                                        <ul class="mb-0">
+                                            <li>Complete settings page redesign with separate focused pages</li>
+                                            <li>Improved mobile responsiveness and touch optimization</li>
+                                            <li>Enhanced sync log display and real-time monitoring</li>
+                                            <li>Better error handling and user feedback</li>
+                                        </ul>
+                                    </div>
+                                </div>
+                            {% endif %}
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Support & Contact -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-question-circle me-2"></i>Support & Contact</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row g-4">
+                            <div class="col-md-6">
+                                <h6>Getting Help</h6>
+                                <p class="text-muted">If you encounter any issues or need assistance:</p>
+                                <ul class="list-unstyled">
+                                    <li><i class="bi bi-bug me-2 text-danger"></i>Check the sync logs for error details</li>
+                                    <li><i class="bi bi-arrow-clockwise me-2 text-info"></i>Try refreshing the page or clearing cache</li>
+                                    <li><i class="bi bi-database me-2 text-warning"></i>Ensure database backups are current</li>
+                                    <li><i class="bi bi-wifi me-2 text-success"></i>Verify Gmail connection is working</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <h6>System Health</h6>
+                                <div class="status-item mb-3">
+                                    <i class="bi bi-heart-pulse text-success"></i>
+                                    <div>
+                                        <strong>System Status</strong>
+                                        <div><span class="badge bg-success">All Systems Operational</span></div>
+                                    </div>
+                                </div>
+                                <div class="status-item">
+                                    <i class="bi bi-shield-check text-info"></i>
+                                    <div>
+                                        <strong>Data Security</strong>
+                                        <div><span class="badge bg-info">Local Storage Only</span></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Acknowledgments -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-heart me-2"></i>Acknowledgments</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted">This application is built with the following open-source technologies:</p>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <ul class="list-unstyled">
+                                    <li><strong>Flask</strong> - Python web framework</li>
+                                    <li><strong>Bootstrap</strong> - CSS framework</li>
+                                    <li><strong>Bootstrap Icons</strong> - Icon library</li>
+                                    <li><strong>SQLite</strong> - Database engine</li>
+                                </ul>
+                            </div>
+                            <div class="col-md-6">
+                                <ul class="list-unstyled">
+                                    <li><strong>Google APIs</strong> - Gmail integration</li>
+                                    <li><strong>PDF.js</strong> - PDF processing</li>
+                                    <li><strong>Chart.js</strong> - Data visualization</li>
+                                    <li><strong>Moment.js</strong> - Date handling</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+{% endblock %}
+
+{% block extra_js %}
+<style>
+.timeline {
+    position: relative;
+    padding-left: 2rem;
+}
+
+.timeline-item {
+    position: relative;
+    margin-bottom: 2rem;
+}
+
+.timeline-item:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: -1.5rem;
+    top: 1.5rem;
+    width: 2px;
+    height: calc(100% + 1rem);
+    background: #e2e8f0;
+}
+
+.timeline-marker {
+    position: absolute;
+    left: -1.75rem;
+    top: 0.25rem;
+    width: 0.75rem;
+    height: 0.75rem;
+    border-radius: 50%;
+    border: 2px solid white;
+    box-shadow: 0 0 0 2px #e2e8f0;
+}
+
+.timeline-content h6 {
+    margin-bottom: 0.5rem;
+    color: #374151;
+}
+
+.timeline-content ul {
+    font-size: 0.9rem;
+    color: #64748b;
+}
+</style>
+{% endblock %}
