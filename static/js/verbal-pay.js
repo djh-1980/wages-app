@@ -3,6 +3,9 @@
  * Allows recording verbal pay amounts from boss and comparing with actual payslips
  */
 
+// Test that this script is loading
+console.log('🟢 verbal-pay.js loaded successfully');
+
 // Show verbal pay modal
 function showVerbalPayModal() {
     const now = new Date();
@@ -56,12 +59,26 @@ function showVerbalPayModal() {
 
 // Save verbal confirmation
 async function saveVerbalConfirmation() {
+    console.log('🔵 saveVerbalConfirmation() called');
     const weekNumber = parseInt(document.getElementById('verbalWeekNumber').value);
     const year = parseInt(document.getElementById('verbalYear').value);
-    const verbalAmount = parseFloat(document.getElementById('verbalAmount').value);
+    
+    // Clean the amount value by removing commas and other formatting
+    const amountValue = document.getElementById('verbalAmount').value;
+    const cleanAmount = amountValue.toString().replace(/,/g, '').replace(/[^\d.-]/g, '');
+    const verbalAmount = parseFloat(cleanAmount);
+    
     const notes = document.getElementById('verbalNotes').value;
     
-    if (!weekNumber || !year || !verbalAmount) {
+    // Debug logging
+    console.log('Form values:', { weekNumber, year, verbalAmount, notes });
+    console.log('Validation check:', { 
+        weekNumberValid: !isNaN(weekNumber) && weekNumber > 0,
+        yearValid: !isNaN(year) && year > 0,
+        amountValid: !isNaN(verbalAmount) && verbalAmount > 0
+    });
+    
+    if (isNaN(weekNumber) || weekNumber <= 0 || isNaN(year) || year <= 0 || isNaN(verbalAmount) || verbalAmount <= 0) {
         showError('Please fill in all required fields');
         return;
     }
@@ -198,3 +215,7 @@ function showError(message) {
         alert(message);
     }
 }
+
+// Make functions globally accessible for HTML onclick handlers
+window.showVerbalPayModal = showVerbalPayModal;
+window.saveVerbalConfirmation = saveVerbalConfirmation;

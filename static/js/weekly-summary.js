@@ -475,13 +475,18 @@ function updateEarningsCardWithVerbal(verbalConfirmation, totalEarnings) {
             verbalHTML = `<small class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Verbal: ${formatCurrency(verbalAmount)} (${diffText})</small>`;
         }
         
-        // Find and update the earnings discrepancy text
-        const existingSmall = earningsCard.querySelector('small');
-        if (existingSmall) {
-            existingSmall.outerHTML = verbalHTML;
-        } else {
-            earningsCard.innerHTML += `<br>${verbalHTML}`;
+        // Add verbal confirmation underneath existing content
+        // Check if verbal info already exists to avoid duplicates
+        const existingVerbal = earningsCard.querySelector('.verbal-confirmation');
+        if (existingVerbal) {
+            existingVerbal.remove();
         }
+        
+        // Add verbal confirmation as a new line
+        const verbalDiv = document.createElement('div');
+        verbalDiv.className = 'verbal-confirmation';
+        verbalDiv.innerHTML = verbalHTML;
+        earningsCard.appendChild(verbalDiv);
     }
 }
 
