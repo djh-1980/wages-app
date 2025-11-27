@@ -67,6 +67,7 @@ def create_app(config_name=None):
     from .routes.api_paypoint import paypoint_bp
     from .routes.api_upload import upload_bp
     from .routes.api_verbal_pay import verbal_pay_bp
+    from .routes.api_mileage import mileage_bp
     
     app.register_blueprint(main_bp)
     app.register_blueprint(payslips_bp)
@@ -82,5 +83,6 @@ def create_app(config_name=None):
     app.register_blueprint(paypoint_bp)
     app.register_blueprint(upload_bp)
     app.register_blueprint(verbal_pay_bp)
+    app.register_blueprint(mileage_bp, url_prefix='/api/mileage')
     
     return app

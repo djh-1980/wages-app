@@ -665,6 +665,62 @@
                     </div>
                 </div>
             </div>
+
+            <!-- Missing Mileage Management -->
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <div>
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-exclamation-triangle text-warning"></i> Missing Mileage Data
+                                </h5>
+                                <p class="text-muted mb-0">Days with jobs but no mileage records - potential lost allowance</p>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <select class="form-select form-select-sm" id="missingMileageYear" style="width: auto;" onchange="loadMissingMileageReport()">
+                                    <option value="">All Years</option>
+                                    <option value="2025">2025</option>
+                                    <option value="2024">2024</option>
+                                    <option value="2023">2023</option>
+                                    <option value="2022">2022</option>
+                                    <option value="2021">2021</option>
+                                </select>
+                                <select class="form-select form-select-sm" id="missingMileageMonth" style="width: auto;" onchange="loadMissingMileageReport()">
+                                    <option value="">All Months</option>
+                                    <option value="01">January</option>
+                                    <option value="02">February</option>
+                                    <option value="03">March</option>
+                                    <option value="04">April</option>
+                                    <option value="05">May</option>
+                                    <option value="06">June</option>
+                                    <option value="07">July</option>
+                                    <option value="08">August</option>
+                                    <option value="09">September</option>
+                                    <option value="10">October</option>
+                                    <option value="11">November</option>
+                                    <option value="12">December</option>
+                                </select>
+                                <button class="btn btn-primary btn-sm" onclick="loadMissingMileageReport()">
+                                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                                </button>
+                                <button class="btn btn-success btn-sm" onclick="showAddMileageModal()">
+                                    <i class="bi bi-plus-lg"></i> Add Entry
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="missingMileageReportContent">
+                            <div class="text-center py-5">
+                                <div class="spinner-border text-primary" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <p class="mt-3 text-muted">Loading missing mileage report...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -675,11 +731,15 @@
                 <div class="d-flex justify-content-between align-items-center mb-3">
                     <div>
                         <h5 class="card-title mb-0">
-                            <i class="bi bi-exclamation-triangle text-danger"></i> Wages vs Run Sheets Discrepancies
+                            <i class="bi bi-exclamation-triangle text-danger"></i> <span id="discrepancyTitle">Wages vs Run Sheets Discrepancies</span>
                         </h5>
-                        <p class="text-muted mb-0">Compare payslip jobs with run sheet jobs to find mismatches</p>
+                        <p class="text-muted mb-0" id="discrepancyDescription">Compare payslip jobs with run sheet jobs to find mismatches</p>
                     </div>
                     <div class="d-flex gap-2">
+                        <select class="form-select form-select-sm" id="discrepancyType" style="width: auto;" onchange="changeDiscrepancyType()">
+                            <option value="wages">Wages vs Run Sheets</option>
+                            <option value="mileage">Missing Mileage</option>
+                        </select>
                         <select class="form-select form-select-sm" id="discrepancyYear" style="width: auto;" onchange="loadDiscrepancyReport()">
                             <option value="">All Years</option>
                             <option value="2025">2025</option>
@@ -922,10 +982,72 @@
         <i class="bi bi-hourglass-split"></i> Generating report...
     </div>
 </div>
+
+<!-- Add Mileage Modal -->
+<div class="modal fade" id="addMileageModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">
+                    <i class="bi bi-speedometer text-primary me-2"></i>
+                    <span id="mileageModalTitle">Add Mileage Entry</span>
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <form id="mileageForm">
+                    <div class="mb-3">
+                        <label class="form-label">Date *</label>
+                        <input type="date" class="form-control" id="mileageDate" required>
+                    </div>
+                    
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">Start Mileage *</label>
+                                <input type="number" class="form-control" id="startMileage" min="0" step="0.1" required>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="mb-3">
+                                <label class="form-label">End Mileage *</label>
+                                <input type="number" class="form-control" id="endMileage" min="0" step="0.1" required>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Total Miles</label>
+                        <input type="number" class="form-control" id="totalMiles" step="0.1" readonly>
+                        <small class="text-muted">Calculated automatically</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Fuel Cost (£)</label>
+                        <input type="number" class="form-control" id="fuelCost" min="0" step="0.01" placeholder="0.00">
+                        <small class="text-muted">Optional - leave blank if no fuel purchased</small>
+                    </div>
+                    
+                    <div class="mb-3">
+                        <label class="form-label">Notes</label>
+                        <textarea class="form-control" id="mileageNotes" rows="2" placeholder="Optional notes..."></textarea>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" onclick="saveMileageEntry()">
+                    <i class="bi bi-check-circle me-1"></i>Save Entry
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/reports.js') }}"></script>
 <script src="{{ url_for('static', filename='js/weekly-summary.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/verbal-pay.js') }}?v={{ range(1000, 9999) | random }}"></script>
+<script src="{{ url_for('static', filename='js/mileage-management.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}
