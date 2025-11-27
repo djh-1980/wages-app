@@ -28,6 +28,9 @@ RunSheets/
 credentials.json
 token.json
 
+# Google Cloud Service Account (keep private)
+service-account.json
+
 # SSL certificates (local development only)
 cert.pem
 key.pem

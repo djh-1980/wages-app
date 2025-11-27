@@ -521,7 +521,7 @@ async function loadMissingRunSheets() {
         const data = await response.json();
         
         // Get attendance records to exclude
-        const attendanceUrl = yearFilter ? `/api/attendance?year=${yearFilter}` : '/api/attendance';
+        const attendanceUrl = yearFilter ? `/api/attendance/records?year=${yearFilter}` : '/api/attendance/records';
         const attendanceResponse = await fetch(attendanceUrl);
         const attendanceData = await attendanceResponse.json();
         
@@ -602,17 +602,12 @@ async function loadMissingRunSheets() {
                     const year = missingDate.getFullYear();
                     const dateStr = `${day}/${month}/${year}`;
                     
-                    // Only add if not in attendance records and not a weekend
-                    const dayOfWeek = missingDate.getDay();
-                    const isWeekend = dayOfWeek === 0 || dayOfWeek === 6; // Sunday = 0, Saturday = 6
-                    
-                    if (!attendanceDates.has(dateStr) && !isWeekend) {
+                    // Only add if not in attendance records (no weekend exclusion - works 7 days)
+                    if (!attendanceDates.has(dateStr)) {
                         missingDates.push(dateStr);
                         console.log(`Missing date found: ${dateStr} (not in attendance)`);
-                    } else if (attendanceDates.has(dateStr)) {
+                    } else {
                         console.log(`Date ${dateStr} excluded (attendance record exists)`);
-                    } else if (isWeekend) {
-                        console.log(`Date ${dateStr} excluded (weekend)`);
                     }
                 }
             }
@@ -628,7 +623,7 @@ async function loadMissingRunSheets() {
                 <p><strong>Total Run Sheets:</strong> ${dates.length}</p>
                 <p><strong>Attendance Records:</strong> ${attendanceRecords.length} (${attendanceDates.size} unique dates)</p>
                 <p><strong>Date Range:</strong> ${firstDate} to ${lastDate}</p>
-                <p class="text-warning"><strong>Missing Days:</strong> ${missingDates.length} (excluding weekends and attendance)</p>
+                <p class="text-warning"><strong>Missing Days:</strong> ${missingDates.length} (excluding attendance records)</p>
             </div>
         `;
         
