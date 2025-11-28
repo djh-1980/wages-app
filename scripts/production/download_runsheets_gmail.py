@@ -92,7 +92,7 @@ class GmailRunSheetDownloader:
             if date_str:
                 try:
                     dt = datetime.strptime(date_str, '%d/%m/%Y')
-                    month_name = dt.strftime('%B')
+                    month_name = dt.strftime('%m-%B')  # MM-MonthName format
                     organized_path = self.download_dir / str(dt.year) / month_name / f"DH_{dt.strftime('%d-%m-%Y')}.pdf"
                     if organized_path.exists():
                         return organized_path
@@ -128,8 +128,8 @@ class GmailRunSheetDownloader:
             # Parse DD/MM/YYYY
             dt = datetime.strptime(date_str, '%d/%m/%Y')
             
-            # Create year/month folder (e.g., 2025/September)
-            month_name = dt.strftime('%B')  # Full month name
+            # Create year/month folder (e.g., 2025/09-September)
+            month_name = dt.strftime('%m-%B')  # MM-MonthName format
             target_dir = self.download_dir / str(dt.year) / month_name
             target_dir.mkdir(parents=True, exist_ok=True)
             

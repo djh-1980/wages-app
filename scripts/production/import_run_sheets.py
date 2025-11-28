@@ -11,6 +11,7 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
 import csv
+import logging
 
 
 class RunSheetImporter:
@@ -18,7 +19,28 @@ class RunSheetImporter:
         self.db_path = db_path
         self.conn = None
         self.name = name
+        self.setup_logging()
         self.setup_database()
+        
+        # Enhanced activity patterns for better recognition
+        self.activity_patterns = [
+            'TECH EXCHANGE', 'NON TECH EXCHANGE', 'REPAIR WITH PARTS', 
+            'REPAIR WITHOUT PARTS', 'CONSUMABLE INSTALL', 'COLLECTION', 
+            'DELIVERY', 'INSTALL', 'MAINTENANCE', 'SURVEY', 'INSPECTION',
+            'UPGRADE', 'CONFIGURATION', 'TRAINING', 'CONSULTATION'
+        ]
+        
+        # UK postcode validation pattern
+        self.postcode_pattern = re.compile(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b')
+        
+        # Customer name cleaning patterns
+        self.customer_cleanup_patterns = [
+            (r'^Customer Signature\s*', ''),
+            (r'^Customer Print\s*', ''),
+            (r'\*\*\*[^*]*\*\*\*', ''),  # Remove ***text***
+            (r'\s+', ' '),  # Multiple spaces to single
+            (r'^\s+|\s+$', ''),  # Trim whitespace
+        ]
     
     def setup_database(self):
         """Create run_sheet_jobs table if it doesn't exist."""
@@ -54,6 +76,179 @@ class RunSheetImporter:
             pass
         
         self.conn.commit()
+    
+    def setup_logging(self):
+        """Setup logging for better debugging."""
+        logging.basicConfig(
+            level=logging.INFO,
+            format='%(asctime)s - %(levelname)s - %(message)s'
+        )
+        self.logger = logging.getLogger(__name__)
+    
+    def clean_customer_name(self, customer_line: str) -> str:
+        """Clean customer name from various formats and artifacts."""
+        customer = customer_line
+        
+        # Apply cleanup patterns
+        for pattern, replacement in self.customer_cleanup_patterns:
+            customer = re.sub(pattern, replacement, customer)
+        
+        # Remove common artifacts
+        customer = re.sub(r'^[0-9]+\s*', '', customer)  # Remove leading numbers
+        customer = re.sub(r'\s*-\s*$', '', customer)  # Remove trailing dash
+        customer = re.sub(r'^[^\w]+', '', customer)  # Remove leading non-word chars
+        
+        return customer.strip()
+    
+    def extract_activity(self, line: str) -> Optional[str]:
+        """Extract activity from line using enhanced pattern matching."""
+        line_upper = line.upper()
+        
+        # Check for exact matches first
+        for pattern in self.activity_patterns:
+            if pattern in line_upper:
+                return pattern
+        
+        # Check for partial matches or variations
+        activity_variations = {
+            'TECH': 'TECH EXCHANGE',
+            'NON TECH': 'NON TECH EXCHANGE',
+            'REPAIR': 'REPAIR WITH PARTS',
+            'CONSUMABLE': 'CONSUMABLE INSTALL',
+            'COLLECT': 'COLLECTION',
+            'DELIVER': 'DELIVERY'
+        }
+        
+        for key, activity in activity_variations.items():
+            if key in line_upper:
+                return activity
+        
+        return None
+    
+    def extract_postcode(self, line: str) -> Optional[str]:
+        """Extract and validate UK postcode from line."""
+        match = self.postcode_pattern.search(line.upper())
+        if match:
+            postcode = match.group(1)
+            # Ensure proper spacing in postcode
+            if len(postcode) >= 6 and ' ' not in postcode:
+                postcode = postcode[:-3] + ' ' + postcode[-3:]
+            return postcode
+        return None
+    
+    def clean_address_line(self, line: str) -> str:
+        """Clean individual address line."""
+        if not line:
+            return ""
+        
+        # Remove leading dots and numbers
+        clean_line = re.sub(r'^[.\d\s]*', '', line).strip()
+        
+        # Remove common artifacts
+        clean_line = re.sub(r'^[-,\s]+', '', clean_line)  # Leading punctuation
+        clean_line = re.sub(r'[-,\s]+$', '', clean_line)  # Trailing punctuation
+        
+        # Remove contact names that start with numbers
+        if re.match(r'^\d+[A-Z][a-z]', clean_line):  # e.g., "1Ellie"
+            return ""
+        
+        # Skip lines that are clearly not address parts
+        skip_patterns = [
+            r'^\d{8,}$',  # Long numbers
+            r'^[A-Z]{2,}\d+$',  # Store codes
+            r'^\+?\d{10,}$',  # Phone numbers
+            r'^MANAGER$',
+            r'^tbc[A-Z]',  # Contact names like "tbcWILLIAM"
+        ]
+        
+        for pattern in skip_patterns:
+            if re.match(pattern, clean_line):
+                return ""
+        
+        return clean_line
+    
+    def combine_address_lines(self, address_lines: List[str]) -> str:
+        """Combine and clean address lines into a coherent address."""
+        if not address_lines:
+            return ""
+        
+        # Filter out empty and invalid lines
+        valid_lines = [line for line in address_lines if line and len(line.strip()) > 1]
+        
+        if not valid_lines:
+            return ""
+        
+        # Join with commas and clean up
+        address = ', '.join(valid_lines)
+        
+        # Clean up common issues
+        address = re.sub(r',\s*,', ',', address)  # Double commas
+        address = re.sub(r'^,\s*', '', address)  # Leading comma
+        address = re.sub(r'\s*,$', '', address)  # Trailing comma
+        address = re.sub(r'\s+', ' ', address)  # Multiple spaces
+        
+        return address.strip()
+    
+    def validate_job(self, job: Dict) -> bool:
+        """Validate job data before adding to database."""
+        # Must have job number and either customer or activity
+        if not job.get('job_number'):
+            return False
+        
+        if not job.get('customer') and not job.get('activity'):
+            return False
+        
+        # Skip RICO Depot jobs with no activity (not real jobs)
+        customer = job.get('customer', '').upper()
+        activity = job.get('activity', '')
+        
+        if 'RICO' in customer and not activity:
+            return False
+        
+        # Skip PayPoint Van Stock Audits (zero pay jobs)
+        if ('PAYPOINT' in customer.upper() and 
+            ('VAN STOCK AUDIT' in customer.upper() or 'AUDIT' in activity.upper())):
+            return False
+        
+        return True
+    
+    def clean_job_data(self, job: Dict) -> Dict:
+        """Clean and standardize job data."""
+        cleaned_job = job.copy()
+        
+        # Clean customer name
+        if cleaned_job.get('customer'):
+            cleaned_job['customer'] = self.clean_customer_name(cleaned_job['customer'])
+        
+        # Standardize activity
+        if cleaned_job.get('activity'):
+            activity = cleaned_job['activity'].upper().strip()
+            # Map common variations to standard names
+            activity_mapping = {
+                'TECH EX': 'TECH EXCHANGE',
+                'NON TECH EX': 'NON TECH EXCHANGE',
+                'REPAIR W/ PARTS': 'REPAIR WITH PARTS',
+                'REPAIR W/O PARTS': 'REPAIR WITHOUT PARTS',
+            }
+            cleaned_job['activity'] = activity_mapping.get(activity, activity)
+        
+        # Clean address
+        if cleaned_job.get('job_address'):
+            address = cleaned_job['job_address']
+            # Remove excessive commas and spaces
+            address = re.sub(r',\s*,+', ',', address)
+            address = re.sub(r'\s+', ' ', address)
+            cleaned_job['job_address'] = address.strip()
+        
+        # Validate and clean postcode
+        if cleaned_job.get('postcode'):
+            postcode = cleaned_job['postcode'].upper().strip()
+            # Ensure proper format
+            if len(postcode) >= 6 and ' ' not in postcode:
+                postcode = postcode[:-3] + ' ' + postcode[-3:]
+            cleaned_job['postcode'] = postcode
+        
+        return cleaned_job
     
     def extract_text_from_pdf(self, pdf_path: str) -> str:
         """Extract all text from a PDF file."""
@@ -166,7 +361,7 @@ class RunSheetImporter:
         return job if len(job) >= 2 else None
     
     def parse_pdf_run_sheet(self, pdf_path: str) -> List[Dict]:
-        """Parse PDF format run sheet - page by page to filter by person."""
+        """Parse PDF format run sheet - handles both single and multi-driver formats."""
         jobs = []
         
         with open(pdf_path, 'rb') as file:
@@ -187,167 +382,1310 @@ class RunSheetImporter:
                 if not is_my_page:
                     continue
                 
-                # Extract header info (date, driver, jobs on run) from line 3
-                # Format: "Date 25/10/2025 Depot Warrington Driver Hanson, Daniel Jobs on Run 8"
-                header_date = None
-                header_driver = None
-                jobs_on_run = None
+                # Detect runsheet format
+                is_multi_driver = self.detect_multi_driver_format(lines)
                 
-                for line in lines[:5]:
-                    if 'Date' in line and 'Driver' in line and 'Jobs on Run' in line:
-                        date_match = re.search(r'Date\s+(\d{2}/\d{2}/\d{4})', line)
-                        if date_match:
-                            header_date = date_match.group(1)
-                        
-                        driver_match = re.search(r'Driver\s+([^J]+?)(?:\s+Jobs)', line)
-                        if driver_match:
-                            header_driver = driver_match.group(1).strip()
-                        
-                        jobs_match = re.search(r'Jobs on Run\s+(\d+)', line)
-                        if jobs_match:
-                            jobs_on_run = int(jobs_match.group(1))
+                if is_multi_driver:
+                    # Use multi-driver parsing logic
+                    page_jobs = self.parse_multi_driver_page(lines)
+                else:
+                    # Use single-driver parsing logic
+                    page_jobs = self.parse_single_driver_page(lines)
+                
+                jobs.extend(page_jobs)
+        
+        return jobs
+    
+    def detect_multi_driver_format(self, lines: List[str]) -> bool:
+        """Detect if this is a multi-driver runsheet format."""
+        # Multi-driver runsheets have specific patterns
+        for line in lines[:10]:
+            if ('SLA Window' in line or 
+                'Contact Name' in line or
+                'Activity Contact Phone' in line):
+                return True
+        return False
+    
+    def parse_multi_driver_page(self, lines: List[str]) -> List[Dict]:
+        """Parse multi-driver runsheet format with customer-specific parsing."""
+        jobs = []
+        
+        # Extract header info (date, driver, jobs on run)
+        header_date = None
+        header_driver = None
+        jobs_on_run = None
+        
+        for line in lines[:5]:
+            if 'Date' in line and 'Driver' in line and 'Jobs on Run' in line:
+                date_match = re.search(r'Date\s+(\d{2}/\d{2}/\d{4})', line)
+                if date_match:
+                    header_date = date_match.group(1)
+                
+                driver_match = re.search(r'Driver\s+([^J]+?)(?:\s+Jobs)', line)
+                if driver_match:
+                    header_driver = driver_match.group(1).strip()
+                
+                jobs_match = re.search(r'Jobs on Run\s+(\d+)', line)
+                if jobs_match:
+                    jobs_on_run = int(jobs_match.group(1))
+                break
+        
+        # Find job entries
+        for i, line in enumerate(lines):
+            if not line.strip().startswith('Job #'):
+                continue
+            
+            job = {
+                'date': header_date,
+                'driver': header_driver,
+                'jobs_on_run': jobs_on_run
+            }
+            
+            # Extract job number
+            job_match = re.search(r'Job #\s*(\d+)', line)
+            if job_match:
+                job['job_number'] = job_match.group(1)
+            
+            # Get job content for customer-specific parsing
+            job_lines = []
+            for j in range(i+1, min(i+35, len(lines))):  # Increased from 25 to 35 to capture postcodes
+                curr_line = lines[j].strip()
+                if curr_line.startswith('Job #'):
+                    break
+                job_lines.append(curr_line)
+            
+            # First, get the customer to determine parsing method
+            customer = self.extract_customer_from_lines(job_lines)
+            if customer:
+                job['customer'] = customer
+                
+                # Use customer-specific parsing
+                if 'POSTURITE' in customer.upper():
+                    self.parse_posturite_job(job, job_lines)
+                elif 'EPAY' in customer.upper():
+                    self.parse_epay_job(job, job_lines)
+                elif 'XEROX' in customer.upper():
+                    self.parse_xerox_job(job, job_lines)
+                elif 'ASTRA ZENECA' in customer.upper():
+                    self.parse_astra_zeneca_job(job, job_lines)
+                elif 'STAR TRAINS' in customer.upper():
+                    self.parse_star_trains_job(job, job_lines)
+                elif 'HSBC' in customer.upper():
+                    self.parse_hsbc_job(job, job_lines)
+                elif customer.upper() == 'COMPUTACENTER LIMITED':
+                    self.parse_computacenter_limited_job(job, job_lines)
+                elif 'JOHN LEWIS' in customer.upper():
+                    self.parse_john_lewis_job(job, job_lines)
+                elif 'PAYPOINT' in customer.upper():
+                    self.parse_paypoint_job(job, job_lines)
+                elif 'VISTA' in customer.upper():
+                    self.parse_vista_job(job, job_lines)
+                elif 'KINGFISHER' in customer.upper():
+                    self.parse_kingfisher_job(job, job_lines)
+                elif 'SECURE RETAIL' in customer.upper():
+                    self.parse_secure_retail_job(job, job_lines)
+                elif 'NCR TESCO' in customer.upper():
+                    self.parse_ncr_tesco_job(job, job_lines)
+                elif 'DHL SUPPLY CHAIN' in customer.upper():
+                    self.parse_dhl_job(job, job_lines)
+                elif 'HORIZON PROJECT' in customer.upper():
+                    self.parse_horizon_project_job(job, job_lines)
+                elif 'LEXMARK' in customer.upper() or 'FUJITSU' in customer.upper() or 'COMPUTACENTER' in customer.upper() or 'CXM' in customer.upper():
+                    self.parse_tech_job(job, job_lines)
+                else:
+                    # Generic parsing for unknown customers
+                    self.parse_generic_job(job, job_lines)
+            
+            # Validate and add job
+            if self.validate_job(job):
+                cleaned_job = self.clean_job_data(job)
+                jobs.append(cleaned_job)
+        
+        return jobs
+    
+    def extract_customer_from_lines(self, job_lines: List[str]) -> str:
+        """Extract customer name from job lines."""
+        for line in job_lines:
+            if line.startswith('Customer Signature'):
+                return line.replace('Customer Signature', '').strip()
+        return None
+    
+    def parse_posturite_job(self, job: Dict, job_lines: List[str]):
+        """Parse POSTURITE jobs - furniture installation."""
+        # Extract specific activity type
+        for line in job_lines:
+            if 'DESK INSTALL' in line:
+                job['activity'] = 'DESK INSTALL'
+                break
+            elif 'CHAIR SP INSTALL' in line:
+                job['activity'] = 'CHAIR SP INSTALL'
+                break
+        
+        if 'activity' not in job:
+            job['activity'] = 'INSTALL'  # Default fallback
+        
+        # Look for address in POSTURITE format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        contact_name = None
+        
+        for i, line in enumerate(job_lines):
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('DESK INSTALL') or line.startswith('CHAIR SP') or
+                re.match(r'^[A-Z]{3}\d+$', line) or  # DEL codes
+                line.startswith('ND ') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line)):  # dates
+                continue
+            
+            # Extract contact name (after phone number)
+            if re.match(r'^\d{11}[A-Z][A-Z\s]+$', line):  # e.g., "07709858783JOANNE CARR"
+                contact_name = re.sub(r'^\d{11}', '', line).strip()
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines (street, area, town) - continue until postcode
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    not line.startswith('hour before arrival') and  # Skip instruction continuations
+                    len(address_parts) < 6):  # Allow more address parts and continue until postcode
+                    
+                    clean_line = line.strip(' .,')
+                    if clean_line and clean_line not in address_parts:
+                        address_parts.append(clean_line)
+        
+        # Build final address with contact name first
+        final_address_parts = []
+        if contact_name:
+            final_address_parts.append(contact_name)
+        final_address_parts.extend(address_parts)
+        
+        if final_address_parts:
+            job['job_address'] = ', '.join(final_address_parts)
+    
+    def parse_epay_job(self, job: Dict, job_lines: List[str]):
+        """Parse EPAY jobs - collections."""
+        job['activity'] = 'COLLECTION'
+        
+        # Look for store name and location
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('COLLECTION') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line)):  # dates
+                continue
+            
+            # Start collecting address after phone number line
+            if re.match(r'^\d{11}[A-Z\s]+STORE', line):  # e.g., "07873640608 FOUNDRY ARMS STORE"
+                collecting_address = True
+                # Extract store name from this line
+                store_name = re.sub(r'^\d{11}\s*', '', line).strip()
+                if store_name:
+                    address_parts.append(store_name)
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines (store, street, area, town)
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    len(address_parts) < 5):  # Allow more address parts for EPAY
+                    
+                    clean_line = line.strip(' .,')
+                    if clean_line and clean_line not in address_parts:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_tech_job(self, job: Dict, job_lines: List[str]):
+        """Parse tech jobs - Lexmark, Fujitsu, Computacenter, CXM, Vista."""
+        # Determine activity type - check for NON TECH EXCHANGE first
+        activity_found = False
+        for line in job_lines:
+            if 'NON TECH EXCHANGE' in line.upper():
+                job['activity'] = 'NON TECH EXCHANGE'
+                activity_found = True
+                break
+            elif 'TECH EXCHANGE' in line.upper():
+                job['activity'] = 'TECH EXCHANGE'
+                activity_found = True
+                break
+            elif any(activity in line.upper() for activity in ['REPAIR WITH PARTS', 'REPAIR WITHOUT PARTS']):
+                for activity in ['REPAIR WITH PARTS', 'REPAIR WITHOUT PARTS']:
+                    if activity in line.upper():
+                        job['activity'] = activity
+                        activity_found = True
                         break
+                if activity_found:
+                    break
+        
+        if not activity_found:
+            job['activity'] = 'TECH EXCHANGE'  # Default for tech jobs
+        
+        # Look for location information - different structure per customer
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for i, line in enumerate(job_lines):
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('TECH EXCHANGE') or line.startswith('NON TECH EXCHANGE') or
+                re.match(r'^\d+$', line) or  # Pure numbers
+                line.startswith('ND ') or line.startswith('Priority MC') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line)):  # dates
+                continue
+            
+            # Start collecting address after contact name or company identifier
+            if (re.match(r'^\d+[A-Z][A-Z\s]+$', line) or  # e.g., "3AISTE STATKEVICIUTE"
+                'UK FOODS STORE LIMITED' in line or
+                'WM MORRISON SUPERMARKETS PLC' in line or  # Specific for Computacenter
+                'SUPERMARKETS PLC' in line or
+                'ORANGE (' in line or
+                'ERNEST JONES' in line):
+                collecting_address = True
+                # If this line contains company info, add it (clean phone numbers)
+                if any(company in line for company in ['UK FOODS STORE LIMITED', 'WM MORRISON SUPERMARKETS PLC', 'SUPERMARKETS PLC', 'ORANGE (', 'ERNEST JONES']):
+                    clean_line = re.sub(r'^[\d\s]+', '', line).strip(' .,')  # Remove phone numbers (with spaces)
+                    if clean_line and clean_line not in address_parts:
+                        address_parts.append(clean_line)
+                # Special handling for Computacenter/Morrison format
+                elif 'WM MORRISON' in line and re.search(r'^[\d\s]+', line):
+                    # This is the phone number + WM MORRISON line
+                    clean_line = re.sub(r'^[\d\s]+', '', line).strip(' .,')
+                    if clean_line and clean_line not in address_parts:
+                        address_parts.append(clean_line)
+                # Special handling for Fujitsu/Orange format - clean phone numbers
+                elif 'ORANGE (' in line and re.search(r'^[\d\s]+', line):
+                    # This is the phone number + ORANGE line
+                    clean_line = re.sub(r'^[\d\s]+', '', line).strip(' .,')
+                    if clean_line and clean_line not in address_parts:
+                        address_parts.append(clean_line)
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
                 
-                # Find job entry
-                for i, line in enumerate(lines):
-                    if not line.strip().startswith('Job #'):
-                        continue
+                # Collect address lines (company, street, area, town)
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    not line.startswith('.') and  # Skip single dots
+                    len(address_parts) < 5):  # Allow more address parts for tech jobs
                     
-                    job = {
-                        'date': header_date,
-                        'driver': header_driver,
-                        'jobs_on_run': jobs_on_run
-                    }
+                    clean_line = line.strip(' .,')
+                    if clean_line and clean_line not in address_parts:
+                        # Special handling for Morrison format - combine fragments
+                        if clean_line == 'SUPERMARKETS PLC' and address_parts:
+                            # Check if previous line was WM MORRISON (or contains it)
+                            if 'WM MORRISON' in address_parts[-1] and 'SUPERMARKETS PLC' not in address_parts[-1]:
+                                # Combine with previous WM MORRISON to make full name
+                                address_parts[-1] = address_parts[-1] + ' SUPERMARKETS PLC'
+                            else:
+                                # This is a standalone SUPERMARKETS PLC, add it
+                                address_parts.append(clean_line)
+                        elif clean_line == 'WM MORRISON':
+                            # Always add WM MORRISON (will be combined with next SUPERMARKETS PLC)
+                            address_parts.append(clean_line)
+                        else:
+                            address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_xerox_job(self, job: Dict, job_lines: List[str]):
+        """Parse Xerox jobs - delivery/technical services."""
+        # Determine activity type first
+        activity_found = False
+        for line in job_lines:
+            if 'REPAIR WITH PARTS' in line.upper():
+                job['activity'] = 'REPAIR WITH PARTS'
+                activity_found = True
+                break
+            elif 'REPAIR WITHOUT PARTS' in line.upper():
+                job['activity'] = 'REPAIR WITHOUT PARTS'
+                activity_found = True
+                break
+            elif 'CONSUMABLE INSTALL' in line.upper():
+                job['activity'] = 'CONSUMABLE INSTALL'
+                activity_found = True
+                break
+            elif 'DELIVERY' in line.upper():
+                job['activity'] = 'DELIVERY'
+                activity_found = True
+                break
+        
+        if not activity_found:
+            job['activity'] = 'DELIVERY'  # Default for Xerox
+        
+        # Look for address in Xerox format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity, dates and codes
+            if (line.startswith('DELIVERY') or line.startswith('REPAIR WITH PARTS') or
+                line.startswith('REPAIR WITHOUT PARTS') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('ND ') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name
+            if re.match(r'^\d+\s+[A-Za-z][A-Za-z0-9\s\-]+\s*$', line):  # Contact name pattern (allows space after number)
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for Xerox
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    not line.startswith('Intervention') and  # Skip intervention notes
+                    not 'ASSET' in line and  # Skip asset information
+                    len(address_parts) < 5):  # Allow more address parts for Xerox
                     
-                    # Extract job number
-                    job_match = re.search(r'Job #\s*(\d+)', line)
-                    if job_match:
-                        job['job_number'] = job_match.group(1)
+                    clean_line = line.strip(' .,')
+                    # Clean phone numbers from the beginning of lines
+                    clean_line = re.sub(r'^[\d\s]{10,}\s*', '', clean_line)
+                    if clean_line and clean_line not in address_parts:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_astra_zeneca_job(self, job: Dict, job_lines: List[str]):
+        """Parse Computacenter - Astra Zeneca jobs."""
+        job['activity'] = 'COLLECTION'  # Astra Zeneca jobs are collections
+        
+        # Look for address in Astra Zeneca format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('COLLECTION') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('ND ') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name
+            if re.match(r'^\d+[A-Za-z][A-Za-z0-9\s]+$', line):  # Contact name pattern like "1Lydia Ritter"
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for Astra Zeneca
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    not line.startswith('Collect items') and  # Skip collection instructions
+                    not re.match(r'^\d{8,}', line) and  # Skip long numbers
+                    len(address_parts) < 6):  # Allow more address parts for Astra Zeneca
                     
-                    # Parse subsequent lines for job details
-                    address_lines = []
-                    collecting_address = False
+                    clean_line = line.strip(' .,')
+                    if clean_line and clean_line not in address_parts:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_star_trains_job(self, job: Dict, job_lines: List[str]):
+        """Parse Fujitsu - Star Trains jobs."""
+        job['activity'] = 'TECH EXCHANGE'  # Common for Star Trains
+        
+        # Look for Star Trains specific information
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('TECH EXCHANGE') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('ND ') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name
+            if re.match(r'^\d+[A-Za-z][A-Za-z0-9\s]+$', line):  # Contact name pattern (allows numbers)
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for Star Trains
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    not line.startswith('ND ') and  # Skip ND codes
+                    not line.startswith('SLA:') and  # Skip SLA lines
+                    len(address_parts) < 6):  # Allow more address parts for Star Trains
                     
-                    for j in range(i+1, min(i+40, len(lines))):
-                        curr_line = lines[j].strip()
-                        
-                        # Customer - line starting with "Customer Signature" or "Customer Print"
-                        if curr_line.startswith('Customer Signature') or curr_line.startswith('Customer Print'):
-                            customer = curr_line.replace('Customer Signature', '').replace('Customer Print', '').strip()
-                            if customer:
-                                job['customer'] = customer
-                        
-                        # Activity - TECH EXCHANGE, etc.
-                        if not job.get('activity'):
-                            activity_patterns = ['TECH EXCHANGE', 'NON TECH EXCHANGE', 'REPAIR WITH PARTS', 
-                                               'REPAIR WITHOUT PARTS', 'CONSUMABLE INSTALL', 'COLLECTION', 'DELIVERY', 'INSTALL']
-                            for pattern in activity_patterns:
-                                if pattern in curr_line.upper():
-                                    job['activity'] = pattern
-                                    break
-                        
-                        # Priority - 4HR, ND 1700, etc. (comes after "Priority" label or activity)
-                        if not job.get('priority') and job.get('activity'):
-                            priority_match = re.match(r'^(4HR|8HR|6HR|ND\s+\d+)$', curr_line)
-                            if priority_match:
-                                job['priority'] = priority_match.group(1)
-                        
-                        # Address collection - starts after we see a phone number (with or without +) or "MANAGER" or contact name with number
-                        # Also starts after Ref 1 number (8 digits) or after a line like "1." or "1 " or "0MANAGER"
-                        # NEW: Also starts after contact name like "1WILLIAM HARRIS" or "tbcWILLIAM HARRIS"
-                        # But NOT store codes like "16661UK 6661UK" or "1614510810TESCO"
-                        try:
-                            if (re.match(r'^\d{10,}', curr_line) or 
-                                re.match(r'^\+\d{10,}', curr_line) or
-                                re.search(r'\d{4,}\s+\d{3,}\s+\d{3,}\s*\/\s*\d', curr_line) or  # Phone with slash like "02920 320 193 / 07741 248 780" 
-                                curr_line == 'MANAGER' or
-                                (re.match(r'^\d[A-Z0-9\s]+$', curr_line) and 
-                                 len(curr_line) > 8 and 
-                                 not re.match(r'^\d+[A-Z]+\s+\d+', curr_line) and  # Not store codes like "16661UK 6661UK"
-                                 (' ' in curr_line or re.search(r'[A-Z]{3,}', curr_line))) or  # Has space OR 3+ consecutive letters
-                                re.match(r'^tbc[A-Z\s]+$', curr_line) or  # e.g., "tbcWILLIAM HARRIS"
-                                re.match(r'^\d+\.$', curr_line) or  # e.g., "1."
-                                re.match(r'^\d+\s*$', curr_line) or  # e.g., "1 " or "1"
-                                re.match(r'^\d{8,10}$', curr_line)):  # Ref 1 number (8-10 digits)
-                                collecting_address = True
-                                # If it's a ref number, skip it but start collecting
-                                if re.match(r'^\d{8,10}$', curr_line):
-                                    continue
-                                # If it's a phone or contact or just number, skip it
-                                continue
-                        except re.error as regex_err:
-                            # Skip this line if regex fails
-                            print(f"  ⚠️  Regex error on line: {curr_line[:50]}")
-                            continue
-                        
-                        # Collect address lines (between start marker and postcode)
-                        if collecting_address:
-                            # Skip empty lines and lines that are just dots
-                            if not curr_line or re.match(r'^\.+$', curr_line):
-                                continue
-                            
-                            # Skip lines that are clearly not address (payment info, instructions, etc.)
-                            # Stop collecting if we hit instructions/notes
-                            if (curr_line.startswith('PO ') or 
-                                'Service Desk:' in curr_line or
-                                curr_line.startswith('Home User') or
-                                curr_line.startswith('Hand over') or
-                                curr_line.startswith('ALONG WITH') or
-                                curr_line.startswith('Country:') or
-                                curr_line.startswith('Summary:') or
-                                curr_line.startswith('Subject:') or
-                                curr_line.startswith('Troubleshooting:') or
-                                curr_line.startswith('Problem description') or
-                                'engineer must' in curr_line.lower() or
-                                re.search(r'\d\:\d\d', curr_line) or  # Time patterns like "9:00"
-                                re.match(r'^\d[a-z]', curr_line)):  # e.g., "1Ellie" (lowercase after digit)
-                                # Stop collecting address if we hit instructions
-                                collecting_address = False
-                                continue
-                            
-                            # UK postcode pattern
-                            postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', curr_line)
-                            if postcode_match:
-                                job['postcode'] = postcode_match.group(1)
-                                # Add this line to address if it has more than just postcode
-                                if len(curr_line) > len(job['postcode']) + 2:
-                                    clean_line = curr_line.replace(job['postcode'], '').strip()
-                                    # Remove leading dots
-                                    clean_line = re.sub(r'^\.+', '', clean_line).strip()
-                                    if clean_line:
-                                        address_lines.append(clean_line)
-                                collecting_address = False
-                            elif curr_line and not curr_line.startswith('Page '):
-                                # Skip reference codes like "16661UK 6661UK" or "1614510810TESCO"
-                                if re.match(r'^\d+[A-Z]+\s+\d+[A-Z]+$', curr_line):  # e.g., "16661UK 6661UK"
-                                    continue
-                                if re.match(r'^\d{10,}[A-Z]+$', curr_line):  # e.g., "1614510810TESCO"
-                                    continue
-                                    
-                                # Clean leading dots
-                                clean_line = re.sub(r'^\.+', '', curr_line).strip()
-                                if clean_line:
-                                    address_lines.append(clean_line)
-                        
-                        # Stop at next job or page end
-                        if curr_line.startswith('Job #') or curr_line.startswith('Page '):
-                            break
+                    clean_line = line.strip(' .,')
+                    # Clean phone numbers from the beginning of lines (including spaced phone numbers)
+                    clean_line = re.sub(r'^[\d\s]{10,}\s*', '', clean_line)
+                    if clean_line and clean_line not in address_parts:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_hsbc_job(self, job: Dict, job_lines: List[str]):
+        """Parse Computacenter - HSBC jobs."""
+        job['activity'] = 'TECH EXCHANGE'  # Common for HSBC
+        
+        # Look for HSBC specific information
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('TECH EXCHANGE') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('ND ') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name
+            if re.match(r'^\d+[A-Za-z][A-Za-z0-9\s@.]+$', line):  # Contact name pattern (allows email)
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for HSBC (skip instructions and emails)
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    not line.startswith('You must call') and  # Skip HSBC instructions
+                    not '@' in line and  # Skip email addresses
+                    not line.startswith('044 ') and  # Skip phone numbers
+                    not 'operational**' in line and  # Skip operational notes
+                    len(address_parts) < 4):  # Limit address parts for HSBC
                     
-                    # Combine address lines
-                    if address_lines:
-                        job['job_address'] = ', '.join([a for a in address_lines if a])
+                    clean_line = line.strip(' .,')
+                    # Clean phone numbers from the beginning of lines
+                    clean_line = re.sub(r'^[\d\s]{10,}\s*', '', clean_line)
+                    if clean_line and clean_line not in address_parts:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_computacenter_limited_job(self, job: Dict, job_lines: List[str]):
+        """Parse Computacenter Limited jobs."""
+        # Determine activity type - check for NON TECH EXCHANGE first
+        activity_found = False
+        for line in job_lines:
+            if 'NON TECH EXCHANGE' in line.upper():
+                job['activity'] = 'NON TECH EXCHANGE'
+                activity_found = True
+                break
+            elif 'TECH EXCHANGE' in line.upper():
+                job['activity'] = 'TECH EXCHANGE'
+                activity_found = True
+                break
+        
+        if not activity_found:
+            job['activity'] = 'TECH EXCHANGE'  # Default
+        
+        # Look for address in Computacenter Limited format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('NON TECH EXCHANGE') or line.startswith('TECH EXCHANGE') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('ND ') or
+                re.match(r'^[A-Z]{3}\d+$', line) or
+                re.match(r'^\d{8,}$', line)):  # long numbers
+                continue
+            
+            # Start collecting address after contact name
+            if re.match(r'^\d+[A-Za-z][A-Za-z0-9\s]+$', line):  # Contact name pattern like "1Martina Baker"
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for Computacenter Limited
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    not line.startswith('RSG-VA') and  # Skip RSG instructions
+                    not line.startswith('(') and  # Skip codes like "(008102783"
+                    not re.match(r'^\d{10,}$', line) and  # Skip lines that are ONLY long numbers
+                    len(address_parts) < 4):  # Limit address parts for Computacenter Limited
                     
-                    # Add job if valid
-                    # Skip RICO Depot jobs with no activity (not real jobs - just depot visits)
-                    if job.get('job_number') and job.get('customer'):
-                        customer = job.get('customer', '').upper()
-                        activity = job.get('activity', '')
-                        
-                        # Skip RICO Depots without activity
-                        if 'RICO' in customer and not activity:
-                            continue
-                        
-                        jobs.append(job)
+                    clean_line = line.strip(' .,')
+                    # Clean long phone numbers from the beginning of lines (but keep short numbers like "210")
+                    clean_line = re.sub(r'^[\d\s/]{8,}\s*', '', clean_line).strip()
+                    if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_john_lewis_job(self, job: Dict, job_lines: List[str]):
+        """Parse Computacenter John Lewis jobs."""
+        job['activity'] = 'TECH EXCHANGE'  # Common for John Lewis
+        
+        # Look for address in John Lewis format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('TECH EXCHANGE') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('Priority MC') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name
+            if re.match(r'^\d+[A-Za-z][A-Za-z0-9\s]+$', line):  # Contact name pattern
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for John Lewis
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    not line.startswith('N/A') and  # Skip N/A prefixes
+                    len(address_parts) < 4):  # Limit address parts for John Lewis
+                    
+                    clean_line = line.strip(' .,')
+                    # Remove N/A prefix if present
+                    clean_line = re.sub(r'^N/A', '', clean_line).strip()
+                    if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_paypoint_job(self, job: Dict, job_lines: List[str]):
+        """Parse Paypoint Network Limited jobs."""
+        # Determine activity type - check for COLLECTION first, then TECH EXCHANGE
+        activity_found = False
+        for line in job_lines:
+            if 'COLLECTION' in line.upper():
+                job['activity'] = 'COLLECTION'
+                activity_found = True
+                break
+            elif 'TECH EXCHANGE' in line.upper():
+                job['activity'] = 'TECH EXCHANGE'
+                activity_found = True
+                break
+        
+        if not activity_found:
+            job['activity'] = 'TECH EXCHANGE'  # Default for Paypoint
+        
+        # Look for address in Paypoint format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('TECH EXCHANGE') or line.startswith('DELIVERY') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('Priority MC') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name
+            if re.match(r'^\d+[A-Za-z][A-Za-z0-9\s]+$', line):  # Contact name pattern
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for Paypoint
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    len(address_parts) < 4):  # Limit address parts for Paypoint
+                    
+                    clean_line = line.strip(' .,')
+                    if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_vista_job(self, job: Dict, job_lines: List[str]):
+        """Parse Vista Retail Support Limited jobs."""
+        job['activity'] = 'TECH EXCHANGE'  # Common for Vista
+        
+        # Look for address in Vista format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('TECH EXCHANGE') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('ND ') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name (Vista has simple "1 " pattern)
+            if re.match(r'^\d+\s*$', line) or re.match(r'^\d+[A-Za-z][A-Za-z0-9\s]+$', line):  # Contact name pattern
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for Vista
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    len(address_parts) < 4):  # Limit address parts for Vista
+                    
+                    clean_line = line.strip(' .,')
+                    if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_kingfisher_job(self, job: Dict, job_lines: List[str]):
+        """Parse Computacenter - Kingfisher jobs."""
+        job['activity'] = 'TECH EXCHANGE'  # Common for Kingfisher
+        
+        # Look for address in Kingfisher format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('TECH EXCHANGE') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('ND ') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name
+            if re.match(r'^\d+\s*$', line) or re.match(r'^\d+[A-Za-z][A-Za-z0-9\s]+$', line):  # Contact name pattern
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for Kingfisher
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    len(address_parts) < 4):  # Limit address parts for Kingfisher
+                    
+                    clean_line = line.strip(' .,')
+                    # Clean phone numbers from the beginning of lines
+                    clean_line = re.sub(r'^[\d\s]{10,}\s*', '', clean_line).strip()
+                    if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_secure_retail_job(self, job: Dict, job_lines: List[str]):
+        """Parse Secure Retail Limited jobs."""
+        job['activity'] = 'TECH EXCHANGE'  # Common for Secure Retail
+        
+        # Look for address in Secure Retail format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('TECH EXCHANGE') or line.startswith('DELIVERY') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('ND ') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name
+            if re.match(r'^\d+\s*$', line) or re.match(r'^\d+[A-Za-z][A-Za-z0-9\s]+$', line):  # Contact name pattern
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for Secure Retail
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    len(address_parts) < 4):  # Limit address parts for Secure Retail
+                    
+                    clean_line = line.strip(' .,')
+                    # Clean phone numbers from the beginning of lines
+                    clean_line = re.sub(r'^[\d\s]{10,}\s*', '', clean_line).strip()
+                    # Skip unwanted lines but keep business names
+                    if (clean_line and clean_line not in address_parts and len(clean_line) > 3 and
+                        not line.startswith('Page ') and  # Skip page numbers
+                        not re.match(r'^\d+[A-Z][A-Z\s\.]+$', line)):  # Skip contact names like "1RAMAZAN YA....AR"
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_ncr_tesco_job(self, job: Dict, job_lines: List[str]):
+        """Parse NCR TESCO HHT jobs."""
+        job['activity'] = 'TECH EXCHANGE'  # Common for NCR TESCO
+        
+        # Look for address in NCR TESCO format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('TECH EXCHANGE') or line.startswith('DELIVERY') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('ND ') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name
+            if re.match(r'^\d+\s*$', line) or re.match(r'^\d+[A-Za-z][A-Za-z0-9\s]+$', line):  # Contact name pattern
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for NCR TESCO
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    not line.startswith('Page ') and  # Skip page numbers
+                    len(address_parts) < 5):  # Allow more address parts for NCR TESCO
+                    
+                    clean_line = line.strip(' .,')
+                    if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_dhl_job(self, job: Dict, job_lines: List[str]):
+        """Parse DHL Supply Chain Limited jobs."""
+        job['activity'] = 'COLLECTION'  # Common for DHL
+        
+        # Look for address in DHL format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('COLLECTION') or line.startswith('DELIVERY') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('ND ') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name
+            if re.match(r'^\d+\s*$', line) or re.match(r'^\d+[A-Za-z][A-Za-z0-9\s]+$', line):  # Contact name pattern
+                collecting_address = True
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for DHL
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    not line.startswith('Page ') and  # Skip page numbers
+                    len(address_parts) < 4):  # Limit address parts for DHL
+                    
+                    clean_line = line.strip(' .,')
+                    # Clean phone numbers from the beginning of lines
+                    clean_line = re.sub(r'^[\d\s]{10,}\s*', '', clean_line).strip()
+                    if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_horizon_project_job(self, job: Dict, job_lines: List[str]):
+        """Parse Computacenter Horizon Project jobs."""
+        # Determine activity type - check for IMAC DELIVERY first
+        activity_found = False
+        for line in job_lines:
+            if 'IMAC DELIVERY' in line.upper():
+                job['activity'] = 'IMAC DELIVERY'
+                activity_found = True
+                break
+            elif 'TECH EXCHANGE' in line.upper():
+                job['activity'] = 'TECH EXCHANGE'
+                activity_found = True
+                break
+        
+        if not activity_found:
+            job['activity'] = 'IMAC DELIVERY'  # Default for Horizon Project
+        
+        # Look for address in Horizon Project format
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('IMAC DELIVERY') or line.startswith('TECH EXCHANGE') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('Priority MC') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Start collecting address after contact name (Horizon has "0ALISHA........ ISLAM........ " pattern)
+            if (re.match(r'^\d+\s*$', line) or 
+                re.match(r'^\d+[A-Za-z][A-Za-z0-9\s\.]+$', line) or  # Allow dots in names
+                'ALISHA' in line.upper() or 'TALISHA' in line.upper()):  # Specific for this job
+                collecting_address = True
+                # If this line contains the name, clean and add it immediately
+                if 'ALISHA' in line.upper():
+                    clean_name = line.strip(' .,')
+                    clean_name = re.sub(r'^[\d\s]{10,}\s*', '', clean_name).strip()
+                    clean_name = clean_name.replace('ALISHA', 'TALISHA').replace('alisha', 'TALISHA')
+                    clean_name = re.sub(r'\.+', '', clean_name)
+                    clean_name = re.sub(r'\s+', ' ', clean_name).strip()
+                    if clean_name and len(clean_name) > 3:
+                        address_parts.append(clean_name)
+                continue
+            
+            if collecting_address:
+                # Look for postcode first
+                postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+                if postcode_match:
+                    postcode = postcode_match.group(1)
+                    if len(postcode) >= 6 and ' ' not in postcode:
+                        postcode = postcode[:-3] + ' ' + postcode[-3:]
+                    job['postcode'] = postcode
+                    collecting_address = False  # Stop after postcode
+                    continue
+                
+                # Collect address lines for Horizon Project
+                if (line and len(line) > 2 and 
+                    not line.startswith('***') and  # Skip instructions
+                    not line.startswith('Customer') and
+                    not line.startswith('Page ') and  # Skip page numbers
+                    not line.startswith('09:00 -') and  # Skip delivery instructions
+                    len(address_parts) < 5):  # Allow more address parts for Horizon Project
+                    
+                    clean_line = line.strip(' .,')
+                    # Clean phone numbers from the beginning of lines
+                    clean_line = re.sub(r'^[\d\s]{10,}\s*', '', clean_line).strip()
+                    # Convert ALISHA to TALISHA for this specific job
+                    if 'ALISHA' in clean_line.upper():
+                        clean_line = clean_line.replace('ALISHA', 'TALISHA').replace('alisha', 'TALISHA')
+                        # Clean up dots and extra spaces
+                        clean_line = re.sub(r'\.+', '', clean_line)
+                        clean_line = re.sub(r'\s+', ' ', clean_line).strip()
+                    # Extract BURNLEY from lines like "BURNLEY BB103EY"
+                    if 'BURNLEY' in clean_line.upper() and 'BB10' in clean_line:
+                        clean_line = 'BURNLEY'
+                    if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_generic_job(self, job: Dict, job_lines: List[str]):
+        """Generic parsing for unknown customer types."""
+        # Try to determine activity
+        for line in job_lines:
+            activity = self.extract_activity(line)
+            if activity:
+                job['activity'] = activity
+                break
+        
+        # Basic address extraction
+        address_parts = []
+        postcode = None
+        
+        for line in job_lines:
+            if not line or len(line) < 3:
+                continue
+                
+            # Look for postcode
+            postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+            if postcode_match:
+                postcode = postcode_match.group(1)
+                if len(postcode) >= 6 and ' ' not in postcode:
+                    postcode = postcode[:-3] + ' ' + postcode[-3:]
+                job['postcode'] = postcode
+                continue
+            
+            # Collect reasonable address lines
+            if (len(line) > 5 and 
+                not line.startswith('Customer') and
+                len(address_parts) < 2):
+                clean_line = line.strip(' .,')
+                if clean_line and clean_line not in address_parts:
+                    address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts[:2])
+    
+    def parse_single_driver_page(self, lines: List[str]) -> List[Dict]:
+        """Parse single-driver runsheet format (original logic)."""
+        jobs = []
+        
+        # Extract header info (date, driver, jobs on run)
+        header_date = None
+        header_driver = None
+        jobs_on_run = None
+        
+        for line in lines[:5]:
+            if 'Date' in line and 'Driver' in line and 'Jobs on Run' in line:
+                date_match = re.search(r'Date\s+(\d{2}/\d{2}/\d{4})', line)
+                if date_match:
+                    header_date = date_match.group(1)
+                
+                driver_match = re.search(r'Driver\s+([^J]+?)(?:\s+Jobs)', line)
+                if driver_match:
+                    header_driver = driver_match.group(1).strip()
+                
+                jobs_match = re.search(r'Jobs on Run\s+(\d+)', line)
+                if jobs_match:
+                    jobs_on_run = int(jobs_match.group(1))
+                break
+        
+        # Find job entry
+        for i, line in enumerate(lines):
+            if not line.strip().startswith('Job #'):
+                continue
+            
+            job = {
+                'date': header_date,
+                'driver': header_driver,
+                'jobs_on_run': jobs_on_run
+            }
+            
+            # Extract job number
+            job_match = re.search(r'Job #\s*(\d+)', line)
+            if job_match:
+                job['job_number'] = job_match.group(1)
+            
+            # Simple parsing for single-driver format
+            for j in range(i+1, min(i+20, len(lines))):
+                curr_line = lines[j].strip()
+                
+                # Stop at next job
+                if curr_line.startswith('Job #'):
+                    break
+                
+                # Customer
+                if curr_line.startswith('Customer Signature') or curr_line.startswith('Customer Print'):
+                    customer = self.clean_customer_name(curr_line)
+                    if customer:
+                        job['customer'] = customer
+                
+                # Activity
+                if not job.get('activity'):
+                    activity = self.extract_activity(curr_line)
+                    if activity:
+                        job['activity'] = activity
+                
+                # Address and postcode (simple extraction)
+                if not job.get('job_address') and len(curr_line) > 5:
+                    # Look for address-like content
+                    if any(word in curr_line.upper() for word in ['ROAD', 'STREET', 'AVENUE', 'LANE', 'DRIVE', 'CLOSE', 'WAY']):
+                        job['job_address'] = curr_line
+                
+                # Postcode
+                if not job.get('postcode'):
+                    postcode = self.extract_postcode(curr_line)
+                    if postcode:
+                        job['postcode'] = postcode
+            
+            # Validate and add job
+            if self.validate_job(job):
+                cleaned_job = self.clean_job_data(job)
+                jobs.append(cleaned_job)
         
         return jobs
     
@@ -385,6 +1723,7 @@ class RunSheetImporter:
             # Insert jobs into database
             cursor = self.conn.cursor()
             imported = 0
+            skipped_count = 0
             
             for job in jobs:
                 try:
