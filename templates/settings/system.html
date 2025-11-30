@@ -124,6 +124,97 @@
                     </div>
                 </div>
 
+                <!-- Housekeeping -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-broom me-2"></i>Housekeeping</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">Data maintenance and cleanup tools for imported runsheets</p>
+                        
+                        <!-- Re-parse Runsheets -->
+                        <div class="mb-4">
+                            <h6><i class="bi bi-arrow-repeat me-2"></i>Re-parse Runsheets</h6>
+                            <p class="text-muted small">Re-run the improved parser on existing runsheets to update addresses and job details</p>
+                            
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Start Date</label>
+                                    <input type="date" class="form-control" id="reparseStartDate">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">End Date</label>
+                                    <input type="date" class="form-control" id="reparseEndDate">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">&nbsp;</label>
+                                    <button class="btn btn-primary w-100" onclick="reparseRunsheets()">
+                                        <i class="bi bi-play-circle me-2"></i>Re-parse Range
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-primary w-100" onclick="reparseRecentRunsheets()">
+                                        <i class="bi bi-clock me-2"></i>Re-parse Last 7 Days
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-secondary w-100" onclick="reparseSpecificDate()">
+                                        <i class="bi bi-calendar-day me-2"></i>Re-parse Today
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <!-- Address Validation -->
+                        <div class="mb-4">
+                            <h6><i class="bi bi-check-square me-2"></i>Address Validation</h6>
+                            <p class="text-muted small">Clean up addresses by removing phone numbers, duplicates, and formatting issues</p>
+                            
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-4">
+                                    <label class="form-label">Validation Date</label>
+                                    <input type="date" class="form-control" id="validationDate">
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">Recent Days</label>
+                                    <select class="form-select" id="validationDays">
+                                        <option value="1">Last 1 day</option>
+                                        <option value="7" selected>Last 7 days</option>
+                                        <option value="14">Last 14 days</option>
+                                        <option value="30">Last 30 days</option>
+                                    </select>
+                                </div>
+                                <div class="col-md-4">
+                                    <label class="form-label">&nbsp;</label>
+                                    <button class="btn btn-success w-100" onclick="validateAddresses()">
+                                        <i class="bi bi-check-circle me-2"></i>Validate Addresses
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <div class="row g-3">
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-success w-100" onclick="validateSpecificDate()">
+                                        <i class="bi bi-calendar-check me-2"></i>Validate Specific Date
+                                    </button>
+                                </div>
+                                <div class="col-md-6">
+                                    <button class="btn btn-outline-warning w-100" onclick="validateAllAddresses()">
+                                        <i class="bi bi-globe me-2"></i>Validate All Addresses
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="housekeepingStatus" class="mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+
                 <!-- System Actions -->
                 <div class="settings-card">
                     <div class="card-header">

@@ -1460,6 +1460,13 @@ function displayCustomReportData(data, reportType) {
             return sortDescending ? dateB - dateA : dateA - dateB;
         });
     }
+    if (data.extra_jobs) {
+        data.extra_jobs.sort((a, b) => {
+            const dateA = parseDate(a.date);
+            const dateB = parseDate(b.date);
+            return sortDescending ? dateB - dateA : dateA - dateB;
+        });
+    }
     if (data.mileage) {
         data.mileage.sort((a, b) => {
             const dateA = parseDate(a.date);
@@ -1827,6 +1834,72 @@ function displayCustomReport(data, reportType) {
             });
             html += `</tbody></table></div>`;
         }
+        
+    } else if (reportType === 'extra_jobs' && data.extra_jobs) {
+        // Extra Jobs Report
+        html += `
+            <div class="alert alert-success mb-3">
+                <div class="d-flex align-items-center mb-3">
+                    <i class="bi bi-plus-circle-fill me-2"></i>
+                    <strong>Extra Jobs Report</strong>
+                </div>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div><strong>Total Jobs:</strong> ${data.summary.total_jobs}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div><strong>Working Days:</strong> ${data.summary.working_days}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div><strong>Customers:</strong> ${data.summary.unique_customers}</div>
+                    </div>
+                    <div class="col-md-3">
+                        <div><strong>Total Pay:</strong> £${data.summary.total_pay.toFixed(2)}</div>
+                    </div>
+                </div>
+                <p class="mb-0 mt-2 small">These are manually added extra jobs marked with 'extra' status</p>
+            </div>
+        `;
+        
+        // Table
+        html += `
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Date</th>
+                            <th>Job Number</th>
+                            <th>Customer</th>
+                            <th>Activity</th>
+                            <th>Address</th>
+                            <th>Postcode</th>
+                            <th>Pay Amount</th>
+                            <th>Notes</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+        `;
+        
+        data.extra_jobs.forEach(job => {
+            const payAmount = job.pay_amount ? `£${job.pay_amount.toFixed(2)}` : '-';
+            const address = job.address ? (job.address.length > 40 ? job.address.substring(0, 40) + '...' : job.address) : '-';
+            const notes = job.notes ? (job.notes.length > 30 ? job.notes.substring(0, 30) + '...' : job.notes) : '-';
+            
+            html += `
+                <tr>
+                    <td>${job.date}</td>
+                    <td><strong>${job.job_number}</strong></td>
+                    <td>${job.customer || '-'}</td>
+                    <td><span class="badge bg-info">${job.activity || '-'}</span></td>
+                    <td title="${job.address || ''}">${address}</td>
+                    <td>${job.postcode || '-'}</td>
+                    <td><strong>${payAmount}</strong></td>
+                    <td title="${job.notes || ''}">${notes}</td>
+                </tr>
+            `;
+        });
+        
+        html += `</tbody></table></div>`;
     }
     
     outputDiv.innerHTML = html;
@@ -1905,6 +1978,7 @@ function exportCustomReportCSV() {
     
     showSuccess('CSV export functionality coming soon!');
 }
+
 
 document.addEventListener('DOMContentLoaded', function() {
     // Initialize reports page

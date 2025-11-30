@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Master Sync System - Complete end-to-end sync from scratch
-Downloads -> Organizes -> Imports -> Syncs -> Reports
+Downloads -> Organizes -> Imports -> Validates -> Syncs -> Reports
 """
 
 import os
@@ -192,6 +192,40 @@ class MasterSync:
             self.results['errors'].append(f"Payslip import: {e}")
             return False
     
+    def validate_addresses(self):
+        """Phase 2c: Validate and clean up addresses"""
+        self.log("🔍 Phase 2c: Validating and cleaning addresses...")
+        
+        try:
+            result = subprocess.run([
+                sys.executable,
+                'scripts/production/validate_addresses.py',
+                '--recent', '7'  # Validate last 7 days
+            ], capture_output=True, text=True, timeout=60)
+            
+            if result.returncode == 0:
+                # Extract fixes count from output
+                fixes_applied = 0
+                for line in result.stdout.split('\n'):
+                    if 'Fixes applied:' in line:
+                        import re
+                        numbers = re.findall(r'\d+', line)
+                        if numbers:
+                            fixes_applied = int(numbers[0])
+                            break
+                
+                self.log(f"   ✅ Applied {fixes_applied} address fixes")
+                return True
+            else:
+                self.log(f"   ❌ Address validation failed")
+                self.results['errors'].append("Address validation failed")
+                return False
+                
+        except Exception as e:
+            self.log(f"   ❌ Address validation error: {e}")
+            self.results['errors'].append(f"Address validation: {e}")
+            return False
+    
     def sync_pay_data(self):
         """Phase 3: Match payslip data to runsheet jobs"""
         self.log("🔄 Phase 3: Syncing pay data to runsheet jobs...")
@@ -374,6 +408,9 @@ class MasterSync:
         # Phase 2: Import
         self.import_runsheets()
         self.import_payslips()
+        
+        # Phase 2c: Validate addresses (after runsheet import)
+        self.validate_addresses()
         
         # Phase 3: Sync
         self.sync_pay_data()

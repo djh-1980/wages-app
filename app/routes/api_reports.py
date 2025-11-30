@@ -843,6 +843,228 @@ def api_generate_high_mileage_report():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@reports_bp.route('/extra-jobs')
+def api_extra_jobs_report():
+    """Get extra jobs report with filtering options."""
+    try:
+        # Get filter parameters
+        year = request.args.get('year', '')
+        month = request.args.get('month', '')
+        status = request.args.get('status', '')
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Build WHERE clause
+            where_conditions = ["status = 'extra'"]
+            params = []
+            
+            if year:
+                where_conditions.append("date LIKE ?")
+                if month:
+                    # Format: DD/MM/YYYY, so for month 11 and year 2025: %/11/2025
+                    params.append(f"%/{month.zfill(2)}/{year}")
+                else:
+                    # Just year: %/2025
+                    params.append(f"%/{year}")
+            elif month:
+                # Month without year: %/MM/%
+                where_conditions.append("date LIKE ?")
+                params.append(f"%/{month.zfill(2)}/%")
+            
+            where_clause = " AND ".join(where_conditions)
+            
+            # Get extra jobs with details
+            cursor.execute(f"""
+                SELECT 
+                    job_number,
+                    date,
+                    customer,
+                    activity,
+                    job_address,
+                    postcode,
+                    status,
+                    pay_amount,
+                    pay_rate,
+                    notes,
+                    imported_at
+                FROM run_sheet_jobs 
+                WHERE {where_clause}
+                ORDER BY date DESC, job_number DESC
+            """, params)
+            
+            extra_jobs = [dict(row) for row in cursor.fetchall()]
+            
+            # Get summary statistics
+            cursor.execute(f"""
+                SELECT 
+                    COUNT(*) as total_jobs,
+                    COUNT(DISTINCT date) as total_days,
+                    COUNT(DISTINCT customer) as unique_customers,
+                    SUM(CASE WHEN pay_amount IS NOT NULL THEN pay_amount ELSE 0 END) as total_pay,
+                    AVG(CASE WHEN pay_amount IS NOT NULL THEN pay_amount ELSE 0 END) as avg_pay
+                FROM run_sheet_jobs 
+                WHERE {where_clause}
+            """, params)
+            
+            summary = cursor.fetchone()
+            
+            # Get customer breakdown
+            cursor.execute(f"""
+                SELECT 
+                    customer,
+                    COUNT(*) as job_count,
+                    SUM(CASE WHEN pay_amount IS NOT NULL THEN pay_amount ELSE 0 END) as total_pay
+                FROM run_sheet_jobs 
+                WHERE {where_clause}
+                GROUP BY customer
+                ORDER BY job_count DESC, total_pay DESC
+            """, params)
+            
+            customer_breakdown = [dict(row) for row in cursor.fetchall()]
+            
+            # Get activity breakdown
+            cursor.execute(f"""
+                SELECT 
+                    activity,
+                    COUNT(*) as job_count,
+                    SUM(CASE WHEN pay_amount IS NOT NULL THEN pay_amount ELSE 0 END) as total_pay
+                FROM run_sheet_jobs 
+                WHERE {where_clause}
+                GROUP BY activity
+                ORDER BY job_count DESC
+            """, params)
+            
+            activity_breakdown = [dict(row) for row in cursor.fetchall()]
+            
+            # Get monthly breakdown if not filtering by specific month
+            monthly_data = []
+            if not month:
+                cursor.execute(f"""
+                    SELECT 
+                        substr(date, 4, 7) as month,
+                        COUNT(*) as job_count,
+                        SUM(CASE WHEN pay_amount IS NOT NULL THEN pay_amount ELSE 0 END) as total_pay,
+                        COUNT(DISTINCT customer) as unique_customers
+                    FROM run_sheet_jobs 
+                    WHERE {where_clause}
+                    GROUP BY substr(date, 4, 7)
+                    ORDER BY substr(date, 7, 4) DESC, substr(date, 4, 2) DESC
+                """, params)
+                
+                monthly_data = [dict(row) for row in cursor.fetchall()]
+            
+            return jsonify({
+                'success': True,
+                'extra_jobs': extra_jobs,
+                'summary': dict(summary) if summary else {},
+                'customer_breakdown': customer_breakdown,
+                'activity_breakdown': activity_breakdown,
+                'monthly_breakdown': monthly_data
+            })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@reports_bp.route('/extra-jobs/export')
+def api_export_extra_jobs():
+    """Export extra jobs report as CSV."""
+    try:
+        # Get same filter parameters
+        year = request.args.get('year', '')
+        month = request.args.get('month', '')
+        format_type = request.args.get('format', 'csv')
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Build WHERE clause (same as above)
+            where_conditions = ["status = 'extra'"]
+            params = []
+            
+            if year:
+                where_conditions.append("date LIKE ?")
+                if month:
+                    params.append(f"%/{month.zfill(2)}/{year}")
+                else:
+                    params.append(f"%/{year}")
+            elif month:
+                where_conditions.append("date LIKE ?")
+                params.append(f"%/{month.zfill(2)}/%")
+            
+            where_clause = " AND ".join(where_conditions)
+            
+            # Get extra jobs data
+            cursor.execute(f"""
+                SELECT 
+                    job_number,
+                    date,
+                    customer,
+                    activity,
+                    job_address,
+                    postcode,
+                    pay_amount,
+                    pay_rate,
+                    notes
+                FROM run_sheet_jobs 
+                WHERE {where_clause}
+                ORDER BY date DESC, job_number DESC
+            """, params)
+            
+            jobs = [dict(row) for row in cursor.fetchall()]
+            
+            if format_type.lower() == 'csv':
+                import csv
+                import io
+                from flask import make_response
+                
+                output = io.StringIO()
+                writer = csv.writer(output)
+                
+                # Write header
+                writer.writerow([
+                    'Job Number', 'Date', 'Customer', 'Activity', 
+                    'Address', 'Postcode', 'Pay Amount', 'Pay Rate', 'Notes'
+                ])
+                
+                # Write data
+                for job in jobs:
+                    writer.writerow([
+                        job['job_number'],
+                        job['date'],
+                        job['customer'],
+                        job['activity'],
+                        job['job_address'],
+                        job['postcode'],
+                        f"£{job['pay_amount']:.2f}" if job['pay_amount'] else '',
+                        f"£{job['pay_rate']:.2f}" if job['pay_rate'] else '',
+                        job['notes'] or ''
+                    ])
+                
+                # Create response
+                response = make_response(output.getvalue())
+                response.headers['Content-Type'] = 'text/csv'
+                
+                # Generate filename with filters
+                filename = 'extra_jobs_report'
+                if year and month:
+                    filename += f'_{year}_{month.zfill(2)}'
+                elif year:
+                    filename += f'_{year}'
+                elif month:
+                    filename += f'_month_{month.zfill(2)}'
+                filename += '.csv'
+                
+                response.headers['Content-Disposition'] = f'attachment; filename={filename}'
+                return response
+            else:
+                return jsonify({'jobs': jobs})
+                
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @reports_bp.route('/data/reports/fuel-efficiency', methods=['POST'])
 def api_generate_fuel_efficiency_report():
     """Generate fuel efficiency report."""

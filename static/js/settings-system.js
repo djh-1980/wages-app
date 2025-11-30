@@ -624,6 +624,315 @@ async function loadSystemInfo() {
     }
 }
 
+// ===== HOUSEKEEPING FUNCTIONS =====
+
+function displayReparseReport(result, title) {
+    const report = result.report;
+    let reportHtml = `
+        <div class="alert alert-success">
+            <h6><i class="bi bi-check-circle me-2"></i>${title} Complete</h6>
+            <div class="row mb-2">
+                <div class="col-md-3"><strong>Files Processed:</strong> ${result.files_processed || 0}</div>
+                <div class="col-md-3"><strong>Jobs Updated:</strong> ${result.jobs_updated || 0}</div>
+                <div class="col-md-3"><strong>Jobs Skipped:</strong> ${result.jobs_skipped || 0}</div>
+                <div class="col-md-3"><strong>RICO Skipped:</strong> ${result.rico_skipped || 0}</div>
+            </div>
+    `;
+    
+    if (report && report.details && report.details.length > 0) {
+        reportHtml += `
+            <div class="mt-3">
+                <h6>Processing Details:</h6>
+                <div class="bg-light p-2 rounded" style="max-height: 200px; overflow-y: auto; font-family: monospace; font-size: 0.85em;">
+        `;
+        report.details.forEach(detail => {
+            reportHtml += `<div>${detail}</div>`;
+        });
+        reportHtml += `</div></div>`;
+    }
+    
+    reportHtml += `
+            <div class="mt-2">
+                <small class="text-muted">Completed at: ${new Date().toLocaleString()}</small>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('housekeepingStatus').innerHTML = reportHtml;
+    document.getElementById('housekeepingStatus').style.display = 'block';
+}
+
+function displayValidationReport(result, title) {
+    const report = result.report;
+    let reportHtml = `
+        <div class="alert alert-success">
+            <h6><i class="bi bi-check-circle me-2"></i>${title} Complete</h6>
+            <div class="row mb-2">
+                <div class="col-md-3"><strong>Jobs Validated:</strong> ${result.jobs_validated || 0}</div>
+                <div class="col-md-3"><strong>Fixes Applied:</strong> ${result.fixes_applied || 0}</div>
+                <div class="col-md-3"><strong>Issues Remaining:</strong> ${result.issues_remaining || 0}</div>
+                <div class="col-md-3"><strong>Success Rate:</strong> ${report?.results?.success_rate || 0}%</div>
+            </div>
+    `;
+    
+    if (report && report.fixes_applied && report.fixes_applied.length > 0) {
+        reportHtml += `
+            <div class="mt-3">
+                <h6>Recent Fixes Applied:</h6>
+                <div class="bg-light p-2 rounded" style="max-height: 150px; overflow-y: auto; font-family: monospace; font-size: 0.85em;">
+        `;
+        report.fixes_applied.forEach(fix => {
+            reportHtml += `<div class="text-success">${fix}</div>`;
+        });
+        reportHtml += `</div></div>`;
+    }
+    
+    if (report && report.issues_found && report.issues_found.length > 0) {
+        reportHtml += `
+            <div class="mt-3">
+                <h6>Issues Found:</h6>
+                <div class="bg-light p-2 rounded" style="max-height: 100px; overflow-y: auto; font-family: monospace; font-size: 0.85em;">
+        `;
+        report.issues_found.forEach(issue => {
+            reportHtml += `<div class="text-warning">${issue}</div>`;
+        });
+        reportHtml += `</div></div>`;
+    }
+    
+    reportHtml += `
+            <div class="mt-2">
+                <small class="text-muted">Completed at: ${new Date().toLocaleString()}</small>
+            </div>
+        </div>
+    `;
+    
+    document.getElementById('housekeepingStatus').innerHTML = reportHtml;
+    document.getElementById('housekeepingStatus').style.display = 'block';
+}
+
+function showHousekeepingStatus(message, type = 'info') {
+    const statusDiv = document.getElementById('housekeepingStatus');
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'danger' ? 'alert-danger' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const iconClass = type === 'success' ? 'check-circle' : 
+                      type === 'danger' ? 'x-circle' : 
+                      type === 'warning' ? 'exclamation-triangle' : 'info-circle';
+    
+    statusDiv.innerHTML = `
+        <div class="alert ${alertClass}">
+            <i class="bi bi-${iconClass} me-2"></i>${message}
+        </div>
+    `;
+    statusDiv.style.display = 'block';
+    
+    // Auto-hide after 10 seconds for success messages
+    if (type === 'success') {
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 10000);
+    }
+}
+
+// Re-parse runsheets functions
+async function reparseRunsheets() {
+    const startDate = document.getElementById('reparseStartDate').value;
+    const endDate = document.getElementById('reparseEndDate').value;
+    
+    if (!startDate || !endDate) {
+        showHousekeepingStatus('Please select both start and end dates', 'warning');
+        return;
+    }
+    
+    if (new Date(startDate) > new Date(endDate)) {
+        showHousekeepingStatus('Start date must be before end date', 'warning');
+        return;
+    }
+    
+    showHousekeepingStatus('Re-parsing runsheets from ' + startDate + ' to ' + endDate + '...', 'info');
+    
+    try {
+        const response = await fetch('/api/housekeeping/reparse-runsheets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                start_date: startDate,
+                end_date: endDate
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayReparseReport(result, 'Date Range Re-parsing');
+        } else {
+            showHousekeepingStatus('Re-parsing failed: ' + (result.error || 'Unknown error'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error re-parsing runsheets:', error);
+        showHousekeepingStatus('Error re-parsing runsheets: ' + error.message, 'danger');
+    }
+}
+
+async function reparseRecentRunsheets() {
+    showHousekeepingStatus('Re-parsing runsheets from last 7 days...', 'info');
+    
+    try {
+        const response = await fetch('/api/housekeeping/reparse-runsheets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                recent_days: 7
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayReparseReport(result, 'Recent Runsheets Re-parsing');
+        } else {
+            showHousekeepingStatus('Re-parsing failed: ' + (result.error || 'Unknown error'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error re-parsing recent runsheets:', error);
+        showHousekeepingStatus('Error re-parsing recent runsheets: ' + error.message, 'danger');
+    }
+}
+
+async function reparseSpecificDate() {
+    const today = new Date().toISOString().split('T')[0];
+    const todayFormatted = new Date().toLocaleDateString('en-GB');
+    
+    showHousekeepingStatus('Re-parsing runsheets for today (' + todayFormatted + ')...', 'info');
+    
+    try {
+        const response = await fetch('/api/housekeeping/reparse-runsheets', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                specific_date: todayFormatted
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayReparseReport(result, 'Today\'s Re-parsing');
+        } else {
+            showHousekeepingStatus('Re-parsing failed: ' + (result.error || 'Unknown error'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error re-parsing today\'s runsheets:', error);
+        showHousekeepingStatus('Error re-parsing today\'s runsheets: ' + error.message, 'danger');
+    }
+}
+
+// Address validation functions
+async function validateAddresses() {
+    const days = document.getElementById('validationDays').value;
+    
+    showHousekeepingStatus(`Validating addresses from last ${days} days...`, 'info');
+    
+    try {
+        const response = await fetch('/api/housekeeping/validate-addresses', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                recent_days: parseInt(days)
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayValidationReport(result, 'Address Validation');
+        } else {
+            showHousekeepingStatus('Address validation failed: ' + (result.error || 'Unknown error'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error validating addresses:', error);
+        showHousekeepingStatus('Error validating addresses: ' + error.message, 'danger');
+    }
+}
+
+async function validateSpecificDate() {
+    const date = document.getElementById('validationDate').value;
+    
+    if (!date) {
+        showHousekeepingStatus('Please select a validation date', 'warning');
+        return;
+    }
+    
+    // Convert YYYY-MM-DD to DD/MM/YYYY
+    const dateParts = date.split('-');
+    const formattedDate = `${dateParts[2]}/${dateParts[1]}/${dateParts[0]}`;
+    
+    showHousekeepingStatus(`Validating addresses for ${formattedDate}...`, 'info');
+    
+    try {
+        const response = await fetch('/api/housekeeping/validate-addresses', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                specific_date: formattedDate
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayValidationReport(result, `Address Validation (${formattedDate})`);
+        } else {
+            showHousekeepingStatus('Address validation failed: ' + (result.error || 'Unknown error'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error validating addresses for specific date:', error);
+        showHousekeepingStatus('Error validating addresses: ' + error.message, 'danger');
+    }
+}
+
+async function validateAllAddresses() {
+    if (!confirm('This will validate ALL addresses in the database. This may take several minutes. Continue?')) {
+        return;
+    }
+    
+    showHousekeepingStatus('Validating ALL addresses in database... This may take a while.', 'info');
+    
+    try {
+        const response = await fetch('/api/housekeeping/validate-addresses', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                validate_all: true
+            })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            displayValidationReport(result, 'Complete Address Validation');
+        } else {
+            showHousekeepingStatus('Address validation failed: ' + (result.error || 'Unknown error'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error validating all addresses:', error);
+        showHousekeepingStatus('Error validating all addresses: ' + error.message, 'danger');
+    }
+}
+
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
     console.log('System settings page loaded');
@@ -632,4 +941,12 @@ document.addEventListener('DOMContentLoaded', function() {
     loadDatabaseInfo();
     loadBackupsList();
     loadSystemInfo();
+    
+    // Set default dates for housekeeping
+    const today = new Date().toISOString().split('T')[0];
+    const lastWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    
+    document.getElementById('reparseEndDate').value = today;
+    document.getElementById('reparseStartDate').value = lastWeek;
+    document.getElementById('validationDate').value = today;
 });

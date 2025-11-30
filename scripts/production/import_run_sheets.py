@@ -1727,6 +1727,16 @@ class RunSheetImporter:
             
             for job in jobs:
                 try:
+                    # Skip RICO Depots entries
+                    customer = job.get('customer', '')
+                    activity = job.get('activity', '')
+                    address = job.get('job_address', '')
+                    
+                    if ('RICO' in customer or 'RICO' in activity or 'RICO' in address):
+                        print(f"  Skipping RICO Depots job {job.get('job_number')} - {customer}")
+                        skipped_count += 1
+                        continue
+                    
                     # Check if job already exists
                     cursor.execute("""
                         SELECT id, status FROM run_sheet_jobs 
@@ -1994,6 +2004,9 @@ def main():
     parser.add_argument('--name', default='Daniel Hanson', help='Driver name to search for')
     parser.add_argument('--recent', type=int, help='Only import files modified in last N days')
     parser.add_argument('--file', type=str, help='Import a single specific file')
+    parser.add_argument('--date', type=str, help='Import files for specific date (YYYY-MM-DD)')
+    parser.add_argument('--date-range', nargs=2, metavar=('START', 'END'), help='Import files for date range (YYYY-MM-DD YYYY-MM-DD)')
+    parser.add_argument('--force-reparse', action='store_true', help='Force re-parsing of existing files')
     args = parser.parse_args()
     
     importer = RunSheetImporter(name=args.name)
@@ -2052,6 +2065,76 @@ def main():
                 imported += importer.import_run_sheet(file_path, run_sheets_path)
             
             print(f"\nImported {imported} jobs from {len(files)} files")
+            
+        elif args.date:
+            # Import files for specific date
+            from datetime import datetime
+            try:
+                target_date = datetime.strptime(args.date, '%Y-%m-%d')
+                date_str = target_date.strftime('%d-%m-%Y')  # Convert to DD-MM-YYYY for filename
+                
+                print(f"Importing runsheets for date: {target_date.strftime('%d/%m/%Y')}")
+                
+                # Find files with this date in the filename
+                run_sheets_path = Path('data/documents/runsheets')
+                files = []
+                for file_path in run_sheets_path.rglob('*.pdf'):
+                    if date_str in file_path.name or target_date.strftime('%d/%m/%Y') in file_path.name:
+                        files.append(file_path)
+                
+                print(f"Found {len(files)} files for {target_date.strftime('%d/%m/%Y')}")
+                
+                imported = 0
+                for file_path in files:
+                    imported += importer.import_run_sheet(file_path, run_sheets_path)
+                
+                print(f"\nImported {imported} jobs from {len(files)} files")
+                
+            except ValueError:
+                print(f"Error: Invalid date format '{args.date}'. Use YYYY-MM-DD")
+                sys.exit(1)
+                
+        elif args.date_range:
+            # Import files for date range
+            from datetime import datetime, timedelta
+            try:
+                start_date = datetime.strptime(args.date_range[0], '%Y-%m-%d')
+                end_date = datetime.strptime(args.date_range[1], '%Y-%m-%d')
+                
+                if start_date > end_date:
+                    print("Error: Start date must be before end date")
+                    sys.exit(1)
+                
+                print(f"Importing runsheets from {start_date.strftime('%d/%m/%Y')} to {end_date.strftime('%d/%m/%Y')}")
+                
+                # Generate all dates in range
+                current_date = start_date
+                target_dates = []
+                while current_date <= end_date:
+                    target_dates.append(current_date.strftime('%d-%m-%Y'))
+                    current_date += timedelta(days=1)
+                
+                # Find files with these dates in the filename
+                run_sheets_path = Path('data/documents/runsheets')
+                files = []
+                for file_path in run_sheets_path.rglob('*.pdf'):
+                    for date_str in target_dates:
+                        if date_str in file_path.name:
+                            files.append(file_path)
+                            break
+                
+                print(f"Found {len(files)} files in date range")
+                
+                imported = 0
+                for file_path in files:
+                    imported += importer.import_run_sheet(file_path, run_sheets_path)
+                
+                print(f"\nImported {imported} jobs from {len(files)} files")
+                
+            except ValueError as e:
+                print(f"Error: Invalid date format. Use YYYY-MM-DD for both dates")
+                sys.exit(1)
+                
         else:
             importer.import_all_run_sheets()
         

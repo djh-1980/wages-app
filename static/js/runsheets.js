@@ -592,14 +592,20 @@ async function viewRunSheetJobs(date) {
                                             </select>
                                         </div>
                                         <div class="col-md-2 col-12">
+                                            <label class="form-label mb-2 fw-semibold" style="font-size: 0.9rem;">Address</label>
+                                            <input type="text" class="form-control py-3" id="newAddress-${date}" placeholder="Job address" style="font-size: 1rem;">
+                                        </div>
+                                        <div class="col-md-2 col-12">
+                                            <label class="form-label mb-2 fw-semibold" style="font-size: 0.9rem;">Postcode</label>
+                                            <input type="text" class="form-control py-3" id="newPostcode-${date}" placeholder="e.g. M1 1AA" style="font-size: 1rem; text-transform: uppercase;">
+                                        </div>
+                                    </div>
+                                    <div class="row g-3 mt-1">
+                                        <div class="col-md-3 col-12">
                                             <label class="form-label mb-2 fw-semibold" style="font-size: 0.9rem;">
                                                 <i class="bi bi-currency-pound me-1"></i>Agreed Price
                                             </label>
                                             <input type="number" class="form-control py-3" id="newAgreedPrice-${date}" placeholder="0.00" step="0.01" min="0" style="font-size: 1rem;">
-                                        </div>
-                                        <div class="col-md-2 col-12">
-                                            <label class="form-label mb-2 fw-semibold" style="font-size: 0.9rem;">Address</label>
-                                            <input type="text" class="form-control py-3" id="newAddress-${date}" placeholder="Job address" style="font-size: 1rem;">
                                         </div>
                                     </div>
                                     <div class="mt-4 d-grid gap-2 d-md-flex">
@@ -844,6 +850,7 @@ function hideAddJobForm(date) {
     document.getElementById(`newCustomer-${date}`).value = '';
     document.getElementById(`newActivity-${date}`).value = '';
     document.getElementById(`newAddress-${date}`).value = '';
+    document.getElementById(`newPostcode-${date}`).value = '';
     document.getElementById(`newAgreedPrice-${date}`).value = '';
 }
 
@@ -853,6 +860,7 @@ async function addExtraJob(date) {
     const customer = document.getElementById(`newCustomer-${date}`).value.trim();
     const activity = document.getElementById(`newActivity-${date}`).value.trim();
     const address = document.getElementById(`newAddress-${date}`).value.trim();
+    const postcode = document.getElementById(`newPostcode-${date}`).value.trim();
     const agreedPrice = document.getElementById(`newAgreedPrice-${date}`).value.trim();
     
     if (!jobNumber || !customer) {
@@ -872,6 +880,7 @@ async function addExtraJob(date) {
                 customer: customer,
                 activity: activity,
                 job_address: address,
+                postcode: postcode,
                 status: 'extra',
                 agreed_price: agreedPrice ? parseFloat(agreedPrice) : null
             })

@@ -1829,6 +1829,53 @@ def api_generate_custom_report():
                         'total_job_value': round(jobs[1] or 0, 2)
                     }
                 }
+                
+            elif report_type == 'extra_jobs':
+                # Extra Jobs Report
+                if year and week:
+                    # Use week_dates for filtering
+                    cursor.execute(f"""
+                        SELECT date, job_number, customer, activity, job_address, postcode, pay_amount, notes
+                        FROM run_sheet_jobs
+                        WHERE status = 'extra'
+                        {date_filter}
+                        ORDER BY date DESC, job_number DESC
+                    """, week_dates_filter)
+                else:
+                    cursor.execute(f"""
+                        SELECT date, job_number, customer, activity, job_address, postcode, pay_amount, notes
+                        FROM run_sheet_jobs
+                        WHERE status = 'extra'
+                        {date_filter}
+                        ORDER BY date DESC, job_number DESC
+                    """)
+                extra_jobs = cursor.fetchall()
+                
+                # Calculate totals
+                total_pay = sum(job[6] or 0 for job in extra_jobs)
+                unique_customers = len(set(job[2] for job in extra_jobs if job[2]))
+                unique_dates = len(set(job[0] for job in extra_jobs if job[0]))
+                
+                report_data = {
+                    'total_records': len(extra_jobs),
+                    'summary': {
+                        'total_jobs': len(extra_jobs),
+                        'total_pay': round(total_pay, 2),
+                        'unique_customers': unique_customers,
+                        'working_days': unique_dates
+                    },
+                    'extra_jobs': [{
+                        'date': job[0],
+                        'job_number': job[1],
+                        'customer': job[2],
+                        'activity': job[3],
+                        'address': job[4],
+                        'postcode': job[5],
+                        'pay_amount': job[6],
+                        'notes': job[7]
+                    } for job in extra_jobs]
+                }
+                
             else:
                 return jsonify({'success': False, 'error': f'Unknown report type: {report_type}'}), 400
         
