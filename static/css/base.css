@@ -499,6 +499,7 @@
 body {
     background: #f7fafc;
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    padding-top: 80px; /* Account for fixed navbar height */
 }
 
 /* Top Navigation Bar */
@@ -506,6 +507,12 @@ body {
     background: var(--primary-gradient);
     box-shadow: 0 2px 10px rgba(0,0,0,0.1);
     padding: 0;
+    position: fixed !important;
+    top: 0 !important;
+    left: 0 !important;
+    right: 0 !important;
+    z-index: 1030 !important;
+    width: 100% !important;
 }
 
 .top-navbar .navbar-brand {

@@ -1844,3 +1844,113 @@ def api_weekly_summary():
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@reports_bp.route('/customers')
+def api_customers():
+    """Get list of customers for parsing quality report."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT DISTINCT customer, COUNT(*) as job_count
+                FROM run_sheet_jobs 
+                WHERE customer IS NOT NULL AND customer != ''
+                GROUP BY customer
+                ORDER BY customer
+            """)
+            
+            customers = []
+            for row in cursor.fetchall():
+                customers.append({
+                    'name': row[0],
+                    'job_count': row[1]
+                })
+            
+            return jsonify(customers)
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@reports_bp.route('/customer_parsing')
+def api_customer_parsing():
+    """Get customer parsing quality report."""
+    try:
+        customer = request.args.get('customer')
+        if not customer:
+            return jsonify({'error': 'Customer parameter required'}), 400
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT 
+                    job_number,
+                    date,
+                    activity,
+                    job_address,
+                    postcode,
+                    status,
+                    pay_amount,
+                    CASE 
+                        WHEN activity IS NULL THEN 'Missing Activity'
+                        WHEN job_address IS NULL THEN 'Missing Address'
+                        WHEN postcode IS NULL THEN 'Missing Postcode'
+                        ELSE 'Complete'
+                    END as parsing_status
+                FROM run_sheet_jobs 
+                WHERE customer = ?
+                ORDER BY date DESC, job_number DESC
+            """, (customer,))
+            
+            jobs = []
+            total_jobs = 0
+            complete_jobs = 0
+            missing_activity = 0
+            missing_address = 0
+            missing_postcode = 0
+            
+            for row in cursor.fetchall():
+                job_number, date, activity, address, postcode, status, pay_amount, parsing_status = row
+                
+                total_jobs += 1
+                if parsing_status == 'Complete':
+                    complete_jobs += 1
+                if not activity:
+                    missing_activity += 1
+                if not address:
+                    missing_address += 1
+                if not postcode:
+                    missing_postcode += 1
+                
+                jobs.append({
+                    'job_number': job_number,
+                    'date': date,
+                    'activity': activity or 'N/A',
+                    'job_address': address or 'N/A',
+                    'postcode': postcode or 'N/A',
+                    'status': status,
+                    'pay_amount': pay_amount,
+                    'parsing_status': parsing_status
+                })
+            
+            # Calculate quality metrics
+            quality_metrics = {
+                'total_jobs': total_jobs,
+                'complete_jobs': complete_jobs,
+                'completion_rate': round((complete_jobs / total_jobs * 100), 1) if total_jobs > 0 else 0,
+                'missing_activity': missing_activity,
+                'missing_address': missing_address,
+                'missing_postcode': missing_postcode,
+                'activity_success_rate': round(((total_jobs - missing_activity) / total_jobs * 100), 1) if total_jobs > 0 else 0,
+                'address_success_rate': round(((total_jobs - missing_address) / total_jobs * 100), 1) if total_jobs > 0 else 0,
+                'postcode_success_rate': round(((total_jobs - missing_postcode) / total_jobs * 100), 1) if total_jobs > 0 else 0
+            }
+            
+            return jsonify({
+                'customer': customer,
+                'jobs': jobs,
+                'metrics': quality_metrics
+            })
+            
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

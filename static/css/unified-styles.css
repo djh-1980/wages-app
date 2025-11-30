@@ -472,18 +472,12 @@ body {
 
 /* Mobile Responsive Design */
 @media screen and (max-width: 768px) {
-    /* Fixed/Floating Navigation Bar */
+    /* Mobile-specific navbar adjustments */
     .top-navbar {
-        position: fixed !important;
-        top: 0 !important;
-        left: 0 !important;
-        right: 0 !important;
-        z-index: 1030 !important;
-        width: 100% !important;
         box-shadow: 0 2px 10px rgba(0,0,0,0.15) !important;
     }
     
-    /* Add padding to body to prevent content overlap */
+    /* Adjust body padding for mobile navbar height */
     body {
         padding-top: 70px !important;
     }

@@ -1360,8 +1360,17 @@ function toggleReportSort() {
 }
 
 function updateReportPreview() {
-    // Auto-generate when report type changes
-    generateCustomReport();
+    const reportType = document.getElementById('reportType').value;
+    const customerDiv = document.getElementById('customerSelectionDiv');
+    
+    // Show/hide customer selection for parsing report
+    if (reportType === 'customer_parsing') {
+        customerDiv.style.display = 'block';
+        loadCustomers();
+    } else {
+        customerDiv.style.display = 'none';
+        generateCustomReport();
+    }
 }
 
 // Generate custom report
@@ -1382,6 +1391,21 @@ async function generateCustomReport() {
                 <p class="mt-3 text-muted">Select a report type to generate...</p>
             </div>
         `;
+        return;
+    }
+    
+    // Handle customer parsing report separately
+    if (reportType === 'customer_parsing') {
+        const customer = document.getElementById('customerSelect').value;
+        if (!customer) {
+            outputDiv.innerHTML = `
+                <div class="text-center py-5">
+                    <p class="text-muted">Please select a customer to view parsing quality...</p>
+                </div>
+            `;
+            return;
+        }
+        generateCustomerParsingReport(customer);
         return;
     }
     
@@ -1977,6 +2001,171 @@ function exportCustomReportCSV() {
     }
     
     showSuccess('CSV export functionality coming soon!');
+}
+
+// Load customers for parsing report
+async function loadCustomers() {
+    const customerSelect = document.getElementById('customerSelect');
+    customerSelect.innerHTML = '<option value="">Loading customers...</option>';
+    
+    try {
+        const response = await fetch('/api/customers');
+        const customers = await response.json();
+        
+        customerSelect.innerHTML = '<option value="">Select a customer...</option>';
+        customers.forEach(customer => {
+            const option = document.createElement('option');
+            option.value = customer.name;
+            option.textContent = `${customer.name} (${customer.job_count} jobs)`;
+            customerSelect.appendChild(option);
+        });
+    } catch (error) {
+        console.error('Error loading customers:', error);
+        customerSelect.innerHTML = '<option value="">Error loading customers</option>';
+    }
+}
+
+// Generate customer parsing report
+async function generateCustomerParsingReport(customer) {
+    const outputDiv = document.getElementById('customReportOutput');
+    
+    outputDiv.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Loading parsing data for ${customer}...</p>
+        </div>
+    `;
+    
+    try {
+        const response = await fetch(`/api/customer_parsing?customer=${encodeURIComponent(customer)}`);
+        const data = await response.json();
+        
+        if (response.ok) {
+            displayCustomerParsingReport(data);
+        } else {
+            outputDiv.innerHTML = `
+                <div class="alert alert-danger">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    Error: ${data.error || 'Failed to load parsing data'}
+                </div>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading parsing data:', error);
+        outputDiv.innerHTML = `
+            <div class="alert alert-danger">
+                <i class="bi bi-exclamation-triangle"></i>
+                Error loading parsing data: ${error.message}
+            </div>
+        `;
+    }
+}
+
+// Display customer parsing report
+function displayCustomerParsingReport(data) {
+    const outputDiv = document.getElementById('customReportOutput');
+    const metrics = data.metrics;
+    
+    let html = `
+        <div class="mb-4">
+            <h5><i class="bi bi-building text-primary"></i> ${data.customer}</h5>
+            
+            <!-- Quality Metrics -->
+            <div class="row mb-4">
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h6 class="card-title">Total Jobs</h6>
+                            <h4 class="text-primary">${metrics.total_jobs}</h4>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h6 class="card-title">Activities</h6>
+                            <h4 class="text-success">${metrics.activity_success_rate}%</h4>
+                            <small class="text-muted">${metrics.total_jobs - metrics.missing_activity}/${metrics.total_jobs}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h6 class="card-title">Addresses</h6>
+                            <h4 class="text-info">${metrics.address_success_rate}%</h4>
+                            <small class="text-muted">${metrics.total_jobs - metrics.missing_address}/${metrics.total_jobs}</small>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-3">
+                    <div class="card text-center">
+                        <div class="card-body">
+                            <h6 class="card-title">Postcodes</h6>
+                            <h4 class="text-warning">${metrics.postcode_success_rate}%</h4>
+                            <small class="text-muted">${metrics.total_jobs - metrics.missing_postcode}/${metrics.total_jobs}</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Jobs Table -->
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead class="table-dark">
+                        <tr>
+                            <th>Job Number</th>
+                            <th>Date</th>
+                            <th>Activity</th>
+                            <th>Address</th>
+                            <th>Postcode</th>
+                            <th>Status</th>
+                            <th>Quality</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+    `;
+    
+    data.jobs.forEach(job => {
+        const qualityBadge = job.parsing_status === 'Complete' 
+            ? '<span class="badge bg-success">Complete</span>'
+            : `<span class="badge bg-warning">${job.parsing_status}</span>`;
+            
+        const activityCell = job.activity === 'N/A' 
+            ? '<span class="text-muted">N/A</span>'
+            : job.activity;
+            
+        const addressCell = job.job_address === 'N/A' 
+            ? '<span class="text-muted">N/A</span>'
+            : `<span title="${job.job_address}">${job.job_address.length > 40 ? job.job_address.substring(0, 40) + '...' : job.job_address}</span>`;
+            
+        const postcodeCell = job.postcode === 'N/A' 
+            ? '<span class="text-muted">N/A</span>'
+            : job.postcode;
+        
+        html += `
+            <tr>
+                <td><strong>${job.job_number}</strong></td>
+                <td>${job.date}</td>
+                <td>${activityCell}</td>
+                <td>${addressCell}</td>
+                <td>${postcodeCell}</td>
+                <td><span class="badge bg-secondary">${job.status}</span></td>
+                <td>${qualityBadge}</td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    `;
+    
+    outputDiv.innerHTML = html;
 }
 
 

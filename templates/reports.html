@@ -976,6 +976,15 @@
                         <option value="earnings_discrepancy">Earnings Discrepancy</option>
                         <option value="paypoint">Paypoint Report</option>
                         <option value="extra_jobs">Extra Jobs</option>
+                        <option value="customer_parsing">Customer Parsing Quality</option>
+                    </select>
+                </div>
+                
+                <!-- Customer Selection (only for parsing report) -->
+                <div class="mb-3" id="customerSelectionDiv" style="display: none;">
+                    <label for="customerSelect" class="form-label">Select Customer:</label>
+                    <select class="form-select" id="customerSelect" onchange="generateCustomReport()">
+                        <option value="">Loading customers...</option>
                     </select>
                 </div>
                 
