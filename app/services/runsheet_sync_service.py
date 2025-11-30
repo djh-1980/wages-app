@@ -14,7 +14,7 @@ class RunsheetSyncService:
     def sync_payslip_data_to_runsheets():
         """
         Sync payslip data to runsheets after payslip processing.
-        Updates pay information and addresses for runsheet jobs.
+        Updates pay information only - addresses now handled by improved parsers.
         """
         conn = get_db_connection()
         cursor = conn.cursor()
@@ -87,73 +87,18 @@ class RunsheetSyncService:
             
             pay_updated_count = cursor.rowcount
             
-            # Update address and customer information
-            # Overwrite if runsheet has N/A or if payslip has better data (longer, more complete)
-            cursor.execute("""
-                UPDATE run_sheet_jobs 
-                SET 
-                    job_address = CASE 
-                        WHEN (run_sheet_jobs.job_address IN ('N/A', '', 'n/a', 'N/a') OR run_sheet_jobs.job_address IS NULL)
-                        THEN (
-                            SELECT j.location 
-                            FROM job_items j 
-                            WHERE j.job_number = run_sheet_jobs.job_number
-                            AND j.location IS NOT NULL 
-                            AND j.location != ''
-                            AND j.location NOT IN ('N/A', 'SCS', 'TVS', 'IFM')
-                            AND LENGTH(j.location) > 5
-                            LIMIT 1
-                        )
-                        WHEN (
-                            SELECT LENGTH(j.location) 
-                            FROM job_items j 
-                            WHERE j.job_number = run_sheet_jobs.job_number
-                            AND j.location IS NOT NULL
-                            AND j.location NOT IN ('N/A', 'SCS', 'TVS', 'IFM')
-                            LIMIT 1
-                        ) > LENGTH(run_sheet_jobs.job_address)
-                        THEN (
-                            SELECT j.location 
-                            FROM job_items j 
-                            WHERE j.job_number = run_sheet_jobs.job_number
-                            AND j.location IS NOT NULL 
-                            AND LENGTH(j.location) > LENGTH(run_sheet_jobs.job_address)
-                            LIMIT 1
-                        )
-                        ELSE run_sheet_jobs.job_address
-                    END,
-                    customer = CASE 
-                        WHEN (run_sheet_jobs.customer IN ('N/A', '', 'n/a', 'N/a') OR run_sheet_jobs.customer IS NULL)
-                        THEN (
-                            SELECT j.client 
-                            FROM job_items j 
-                            WHERE j.job_number = run_sheet_jobs.job_number
-                            AND j.client IS NOT NULL 
-                            AND j.client != ''
-                            AND j.client != 'N/A'
-                            LIMIT 1
-                        )
-                        ELSE run_sheet_jobs.customer
-                    END
-                WHERE run_sheet_jobs.job_number IS NOT NULL
-                AND EXISTS (
-                    SELECT 1 FROM job_items j 
-                    WHERE j.job_number = run_sheet_jobs.job_number
-                )
-            """)
-            
-            address_updated_count = cursor.rowcount
+            # Note: Address and customer updating removed - now handled by improved parsers
+            # Only sync pay data, let the runsheet parsers handle address extraction
+            address_updated_count = 0
             conn.commit()
             
             # Log results
             if pay_updated_count > 0:
                 print(f"✅ Updated {pay_updated_count} runsheet jobs with pay information")
             
-            if address_updated_count > 0:
-                print(f"✅ Updated {address_updated_count} runsheet jobs with address/customer information")
-            
-            if pay_updated_count == 0 and address_updated_count == 0:
-                print("✅ All runsheet data is already up to date")
+            # Address updates now handled by improved parsers during import
+            if pay_updated_count == 0:
+                print("✅ All runsheet pay data is already up to date")
             
             return {
                 'pay_updated': pay_updated_count,

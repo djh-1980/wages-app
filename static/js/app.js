@@ -192,25 +192,50 @@ async function loadWeeklyTrend(taxYear = '') {
 // Load top clients for dashboard
 async function loadTopClients() {
     try {
-        const response = await fetch('/api/clients?limit=5');
+        const response = await fetch('/api/clients?limit=20'); // Get more to aggregate properly
         const data = await response.json();
         
-        const html = data.map((client, index) => `
-            <div class="card border-0 bg-light mb-2">
-                <div class="card-body py-2">
-                    <div class="d-flex justify-content-between align-items-center">
-                        <div>
-                            <small class="text-muted">#${index + 1}</small>
-                            <div class="fw-bold">${truncate(client.client, 30)}</div>
-                            <small class="text-muted">${client.job_count} jobs</small>
-                        </div>
-                        <div class="text-end">
-                            <div class="fw-bold text-success">${formatCurrency(client.total_amount)}</div>
+        // Wait for customer mappings to load
+        await window.customerMapping.loadMappings();
+        
+        // Group by mapped customer names and aggregate
+        const mappedStats = window.customerMapping.getAggregatedStats(
+            data.map(client => ({ customer: client.client, total_amount: client.total_amount, job_count: client.job_count })),
+            'customer',
+            ['total_amount', 'job_count']
+        );
+        
+        // Convert to array and sort by total amount
+        const sortedClients = Object.values(mappedStats)
+            .sort((a, b) => b.total_amount - a.total_amount)
+            .slice(0, 5); // Top 5
+        
+        const html = sortedClients.map((client, index) => {
+            const originalCustomers = client.original_customers;
+            const tooltipText = originalCustomers.length > 1 ? 
+                `Includes: ${originalCustomers.join(', ')}` : 
+                `Original: ${originalCustomers[0]}`;
+                
+            return `
+                <div class="card border-0 bg-light mb-2" title="${tooltipText}">
+                    <div class="card-body py-2">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <small class="text-muted">#${index + 1}</small>
+                                <div class="fw-bold">${truncate(client.customer, 30)}</div>
+                                <small class="text-muted">
+                                    ${client.job_count} jobs
+                                    ${originalCustomers.length > 1 ? ` (${originalCustomers.length} sources)` : ''}
+                                </small>
+                            </div>
+                            <div class="text-end">
+                                <div class="fw-bold text-success">${formatCurrency(client.total_amount)}</div>
+                            </div>
                         </div>
                     </div>
                 </div>
-            </div>
-        `).join('');
+            `;
+        }).join('');
         
         document.getElementById('topClientsList').innerHTML = html;
         

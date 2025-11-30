@@ -29,13 +29,14 @@ def api_search():
                     ji.location,
                     ji.job_type,
                     ji.amount,
-                    ji.description
+                    ji.date,
+                    ji.postcode
                 FROM job_items ji
                 JOIN payslips p ON ji.payslip_id = p.id
-                WHERE ji.description LIKE ? OR ji.client LIKE ? OR ji.location LIKE ?
+                WHERE ji.client LIKE ? OR ji.location LIKE ? OR ji.job_type LIKE ? OR ji.job_number LIKE ?
                 ORDER BY p.tax_year DESC, p.week_number DESC
                 LIMIT 50
-            """, (f'%{query}%', f'%{query}%', f'%{query}%'))
+            """, (f'%{query}%', f'%{query}%', f'%{query}%', f'%{query}%'))
             
             rows = [dict(row) for row in cursor.fetchall()]
             return jsonify(rows)
@@ -81,7 +82,8 @@ def api_search_job(job_number):
             
             # Search in payslip jobs
             cursor.execute("""
-                SELECT ji.*, p.tax_year, p.week_number
+                SELECT ji.job_number, ji.client, ji.location, ji.job_type, ji.amount, 
+                       ji.date, ji.postcode, p.tax_year, p.week_number
                 FROM job_items ji
                 JOIN payslips p ON ji.payslip_id = p.id
                 WHERE ji.job_number = ? OR ji.job_number LIKE ? OR CAST(ji.job_number AS TEXT) = ?
@@ -93,12 +95,16 @@ def api_search_job(job_number):
                 results['found'] = True
                 results['payslips'] = [
                     {
-                        'job_number': row[6],  # job_number is column 6
-                        'description': row[5],  # description is column 5
-                        'client': row[7],  # client is column 7
-                        'amount': row[4],  # amount is column 4
-                        'tax_year': row[-2],
-                        'week_number': row[-1]
+                        'job_number': row[0],
+                        'client': row[1],
+                        'location': row[2],
+                        'job_type': row[3],
+                        'amount': row[4],
+                        'date': row[5],
+                        'postcode': row[6],
+                        'tax_year': row[7],
+                        'week_number': row[8],
+                        'description': f"{row[1]} | {row[2]} | {row[3]} | £{row[4]} | {row[5]}"  # Clean description
                     }
                     for row in payslips
                 ]

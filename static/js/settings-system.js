@@ -933,6 +933,705 @@ async function validateAllAddresses() {
     }
 }
 
+// ===== CUSTOMER MAPPING FUNCTIONS =====
+
+let allCustomers = [];
+let customerMappings = [];
+let selectedCustomers = new Set();
+
+async function loadMappingStats() {
+    try {
+        const response = await fetch('/api/customer-mapping/stats');
+        const result = await response.json();
+        
+        if (result.success) {
+            const stats = result.stats;
+            document.getElementById('totalMappings').textContent = stats.total_mappings;
+            document.getElementById('uniqueMapped').textContent = stats.unique_mapped_customers;
+            document.getElementById('totalCustomers').textContent = stats.total_customers_in_system;
+            document.getElementById('unmappedCustomers').textContent = stats.unmapped_customers;
+        }
+    } catch (error) {
+        console.error('Error loading mapping stats:', error);
+    }
+}
+
+async function loadCustomersAndMappings() {
+    try {
+        console.log('Loading customers and mappings...');
+        
+        // Load customers and mappings in parallel
+        const [customersResponse, mappingsResponse] = await Promise.all([
+            fetch('/api/customer-mapping/customers'),
+            fetch('/api/customer-mapping/mappings')
+        ]);
+        
+        console.log('Customers response status:', customersResponse.status);
+        console.log('Mappings response status:', mappingsResponse.status);
+        
+        if (!customersResponse.ok || !mappingsResponse.ok) {
+            throw new Error(`API Error: Customers ${customersResponse.status}, Mappings ${mappingsResponse.status}`);
+        }
+        
+        const customersResult = await customersResponse.json();
+        const mappingsResult = await mappingsResponse.json();
+        
+        console.log('Customers result:', customersResult);
+        console.log('Mappings result:', mappingsResult);
+        
+        if (customersResult.success && mappingsResult.success) {
+            allCustomers = customersResult.customers;
+            customerMappings = mappingsResult.mappings;
+            
+            console.log(`Loaded ${allCustomers.length} customers and ${customerMappings.length} mappings`);
+            
+            displayCustomerList();
+            loadMappingStats();
+        } else {
+            throw new Error(`API returned success=false: ${customersResult.error || mappingsResult.error}`);
+        }
+    } catch (error) {
+        console.error('Error loading customers and mappings:', error);
+        document.getElementById('customersList').innerHTML = `
+            <div class="col-12 text-center py-5">
+                <i class="bi bi-exclamation-triangle text-danger fs-1"></i>
+                <p class="text-danger mt-2">Error loading customers: ${error.message}</p>
+                <p class="text-muted">Check browser console for details</p>
+            </div>
+        `;
+    }
+}
+
+function displayCustomerList() {
+    const container = document.getElementById('customersList');
+    const searchTerm = document.getElementById('customerSearch').value.toLowerCase();
+    const filter = document.getElementById('customerFilter').value;
+    
+    // Get mapped customer names
+    const mappedCustomers = new Set(customerMappings.map(m => m.original_customer));
+    
+    // Filter customers
+    let filteredCustomers = allCustomers.filter(customer => {
+        const matchesSearch = customer.toLowerCase().includes(searchTerm);
+        const isMapped = mappedCustomers.has(customer);
+        
+        if (filter === 'mapped' && !isMapped) return false;
+        if (filter === 'unmapped' && isMapped) return false;
+        
+        return matchesSearch;
+    });
+    
+    if (filteredCustomers.length === 0) {
+        container.innerHTML = `
+            <div class="col-12 text-center py-5">
+                <i class="bi bi-search fs-1 text-muted opacity-25"></i>
+                <p class="text-muted mt-2">No customers found matching your criteria</p>
+            </div>
+        `;
+        return;
+    }
+    
+    // Group mapped customers
+    const groupedCustomers = {};
+    const ungroupedCustomers = [];
+    
+    filteredCustomers.forEach(customer => {
+        const mapping = customerMappings.find(m => m.original_customer === customer);
+        if (mapping) {
+            if (!groupedCustomers[mapping.mapped_customer]) {
+                groupedCustomers[mapping.mapped_customer] = [];
+            }
+            groupedCustomers[mapping.mapped_customer].push(customer);
+        } else {
+            ungroupedCustomers.push(customer);
+        }
+    });
+    
+    let html = '';
+    
+    // Show existing groups
+    Object.keys(groupedCustomers).forEach(groupName => {
+        const customers = groupedCustomers[groupName];
+        html += `
+            <div class="col-12 mb-3">
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                        <div>
+                            <i class="bi bi-collection me-2"></i>
+                            <strong>${groupName}</strong>
+                            <span class="badge bg-light text-success ms-2">${customers.length} customers</span>
+                        </div>
+                        <div>
+                            <button class="btn btn-sm btn-outline-light me-2 edit-group-btn" data-group-name="${groupName}" title="Edit Group">
+                                <i class="bi bi-pencil"></i>
+                            </button>
+                            <button class="btn btn-sm btn-outline-light delete-group-btn" data-group-name="${groupName}" title="Delete Group">
+                                <i class="bi bi-trash"></i>
+                            </button>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            ${customers.map(customer => `
+                                <div class="col-md-6 mb-2">
+                                    <span class="badge bg-light text-dark">${customer}</span>
+                                </div>
+                            `).join('')}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    });
+    
+    // Show ungrouped customers
+    if (ungroupedCustomers.length > 0) {
+        html += `
+            <div class="col-12 mb-3">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h6 class="mb-0">
+                        <i class="bi bi-person me-2"></i>
+                        Individual Customers (${ungroupedCustomers.length})
+                    </h6>
+                    <div>
+                        <button class="btn btn-sm btn-outline-primary me-2" onclick="selectAll()">
+                            <i class="bi bi-check-all me-1"></i>Select All
+                        </button>
+                        <button class="btn btn-sm btn-primary" onclick="showCreateGroupModal()" id="createGroupBtn" disabled>
+                            <i class="bi bi-collection me-1"></i>Create Group
+                        </button>
+                    </div>
+                </div>
+                <div class="row">
+        `;
+        
+        ungroupedCustomers.forEach(customer => {
+            const isSelected = selectedCustomers.has(customer);
+            const customerId = customer.replace(/[^a-zA-Z0-9]/g, '_');
+            // Better escaping for customer names with special characters
+            const escapedCustomer = customer.replace(/'/g, "\\'").replace(/"/g, '\\"');
+            html += `
+                <div class="col-md-6 col-lg-4 mb-2">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="customer_${customerId}" 
+                               ${isSelected ? 'checked' : ''} data-customer-name="${customer}" onchange="toggleCustomerSelectionByElement(this)">
+                        <label class="form-check-label" for="customer_${customerId}">
+                            ${customer}
+                        </label>
+                    </div>
+                </div>
+            `;
+        });
+        
+        html += `
+                </div>
+            </div>
+        `;
+    }
+    
+    container.innerHTML = html;
+    updateCreateGroupButton();
+}
+
+function toggleCustomerSelection(customer) {
+    // Unescape the customer name
+    const unescapedCustomer = customer.replace(/\\'/g, "'");
+    
+    if (selectedCustomers.has(unescapedCustomer)) {
+        selectedCustomers.delete(unescapedCustomer);
+    } else {
+        selectedCustomers.add(unescapedCustomer);
+    }
+    updateCreateGroupButton();
+}
+
+function toggleCustomerSelectionByElement(checkbox) {
+    // Get the exact customer name from the data attribute
+    const customerName = checkbox.getAttribute('data-customer-name');
+    
+    if (checkbox.checked) {
+        selectedCustomers.add(customerName);
+    } else {
+        selectedCustomers.delete(customerName);
+    }
+    updateCreateGroupButton();
+}
+
+function selectAll() {
+    const checkboxes = document.querySelectorAll('#customersList input[type="checkbox"]');
+    const allChecked = Array.from(checkboxes).every(cb => cb.checked);
+    
+    checkboxes.forEach(checkbox => {
+        checkbox.checked = !allChecked;
+        const customerName = checkbox.getAttribute('data-customer-name');
+        if (!allChecked) {
+            selectedCustomers.add(customerName);
+        } else {
+            selectedCustomers.delete(customerName);
+        }
+    });
+    
+    updateCreateGroupButton();
+}
+
+function updateCreateGroupButton() {
+    const btn = document.getElementById('createGroupBtn');
+    if (btn) {
+        btn.disabled = selectedCustomers.size === 0;
+        btn.innerHTML = selectedCustomers.size > 0 ? 
+            `<i class="bi bi-collection me-1"></i>Create Group (${selectedCustomers.size})` :
+            `<i class="bi bi-collection me-1"></i>Create Group`;
+    }
+}
+
+function showCreateGroupModal() {
+    if (selectedCustomers.size === 0) {
+        showMappingStatus('Please select customers first', 'warning');
+        return;
+    }
+    
+    // Update preview
+    const preview = document.getElementById('selectedCustomersPreview');
+    preview.innerHTML = Array.from(selectedCustomers).map(customer => 
+        `<span class="badge bg-primary me-2 mb-2">${customer}</span>`
+    ).join('');
+    
+    // Clear group name
+    document.getElementById('groupName').value = '';
+    
+    // Enable the modal button (it should always be enabled in the modal)
+    const modalBtn = document.getElementById('createGroupModalBtn');
+    if (modalBtn) {
+        modalBtn.disabled = false;
+    }
+    
+    const modal = new bootstrap.Modal(document.getElementById('createGroupModal'));
+    modal.show();
+}
+
+async function createCustomerGroup() {
+    const groupName = document.getElementById('groupName').value.trim();
+    
+    if (!groupName) {
+        showMappingStatus('Please enter a group name', 'warning');
+        return;
+    }
+    
+    if (selectedCustomers.size === 0) {
+        showMappingStatus('No customers selected', 'warning');
+        return;
+    }
+    
+    try {
+        const mappings = Array.from(selectedCustomers).map(customer => ({
+            original_customer: customer,
+            mapped_customer: groupName,
+            notes: 'User-created group'
+        }));
+        
+        const response = await fetch('/api/customer-mapping/bulk-add', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ mappings })
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            const modal = bootstrap.Modal.getInstance(document.getElementById('createGroupModal'));
+            modal.hide();
+            
+            showMappingStatus(`Created group "${groupName}" with ${result.success_count} customers`, 'success');
+            
+            // Clear selection and reload
+            selectedCustomers.clear();
+            loadCustomersAndMappings();
+            
+            // Refresh mappings site-wide
+            if (window.customerMapping) {
+                window.customerMapping.refresh();
+            }
+        } else {
+            showMappingStatus('Failed to create group: ' + result.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error creating group:', error);
+        showMappingStatus('Error creating group: ' + error.message, 'danger');
+    }
+}
+
+let currentDeletingGroup = null;
+
+async function deleteGroup(groupName) {
+    try {
+        currentDeletingGroup = groupName;
+        
+        // Set up the modal
+        document.getElementById('deleteGroupName').textContent = groupName;
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('deleteGroupModal'));
+        modal.show();
+        
+    } catch (error) {
+        console.error('Error opening delete modal:', error);
+        showMappingStatus('Error opening delete dialog: ' + error.message, 'danger');
+    }
+}
+
+async function confirmDeleteGroup() {
+    try {
+        // Get all mappings for this group
+        const mappingsToDelete = customerMappings.filter(m => m.mapped_customer === currentDeletingGroup);
+        
+        // Delete each mapping
+        for (const mapping of mappingsToDelete) {
+            await fetch(`/api/customer-mapping/mappings/${mapping.id}`, {
+                method: 'DELETE'
+            });
+        }
+        
+        // Close modal
+        bootstrap.Modal.getInstance(document.getElementById('deleteGroupModal')).hide();
+        
+        showMappingStatus(`Deleted group "${currentDeletingGroup}"`, 'success');
+        loadCustomersAndMappings();
+        
+        // Refresh mappings site-wide
+        if (window.customerMapping) {
+            window.customerMapping.refresh();
+        }
+        
+        currentDeletingGroup = null;
+        
+    } catch (error) {
+        console.error('Error deleting group:', error);
+        showMappingStatus('Error deleting group: ' + error.message, 'danger');
+    }
+}
+
+let currentEditingGroup = null;
+let editGroupCustomers = new Set(); // Track customers in the group being edited
+
+async function editGroup(groupName) {
+    try {
+        currentEditingGroup = groupName;
+        
+        // Get current customers in this group
+        const groupCustomers = customerMappings
+            .filter(m => m.mapped_customer === groupName)
+            .map(m => m.original_customer);
+        
+        editGroupCustomers = new Set(groupCustomers);
+        
+        // Set up the modal
+        document.getElementById('editGroupName').value = groupName;
+        document.getElementById('editGroupError').classList.add('d-none');
+        
+        // Load current customers
+        displayEditGroupCurrentCustomers();
+        
+        // Clear search
+        document.getElementById('editGroupSearchCustomers').value = '';
+        document.getElementById('editGroupAvailableCustomers').style.display = 'none';
+        
+        // Show the modal
+        const modal = new bootstrap.Modal(document.getElementById('editGroupModal'));
+        modal.show();
+        
+    } catch (error) {
+        console.error('Error opening edit modal:', error);
+        showMappingStatus('Error opening edit dialog: ' + error.message, 'danger');
+    }
+}
+
+function displayEditGroupCurrentCustomers() {
+    const container = document.getElementById('editGroupCurrentCustomers');
+    
+    if (editGroupCustomers.size === 0) {
+        container.innerHTML = '<p class="text-muted mb-0">No customers in this group</p>';
+        return;
+    }
+    
+    const customersArray = Array.from(editGroupCustomers);
+    container.innerHTML = customersArray.map(customer => `
+        <div class="d-flex justify-content-between align-items-center mb-2">
+            <span class="badge bg-primary">${customer}</span>
+            <button class="btn btn-sm btn-outline-danger" onclick="removeCustomerFromEditGroup('${customer.replace(/'/g, "\\'")}')">
+                <i class="bi bi-x"></i>
+            </button>
+        </div>
+    `).join('');
+}
+
+function removeCustomerFromEditGroup(customer) {
+    editGroupCustomers.delete(customer);
+    displayEditGroupCurrentCustomers();
+}
+
+function addCustomerToEditGroup(customer) {
+    editGroupCustomers.add(customer);
+    displayEditGroupCurrentCustomers();
+    
+    // Clear search and hide available customers
+    document.getElementById('editGroupSearchCustomers').value = '';
+    document.getElementById('editGroupAvailableCustomers').style.display = 'none';
+}
+
+function searchAvailableCustomers() {
+    const searchTerm = document.getElementById('editGroupSearchCustomers').value.toLowerCase().trim();
+    const container = document.getElementById('editGroupAvailableCustomers');
+    
+    if (!searchTerm) {
+        container.style.display = 'none';
+        return;
+    }
+    
+    // Get customers not already in the group
+    const availableCustomers = allCustomers.filter(customer => 
+        !editGroupCustomers.has(customer) && 
+        customer.toLowerCase().includes(searchTerm)
+    );
+    
+    if (availableCustomers.length === 0) {
+        container.innerHTML = '<p class="text-muted mb-0">No matching customers found</p>';
+        container.style.display = 'block';
+        return;
+    }
+    
+    container.innerHTML = availableCustomers.slice(0, 10).map(customer => `
+        <div class="d-flex justify-content-between align-items-center mb-1 p-2 border-bottom">
+            <span>${customer}</span>
+            <button class="btn btn-sm btn-outline-primary" onclick="addCustomerToEditGroup('${customer.replace(/'/g, "\\'")}')">
+                <i class="bi bi-plus"></i> Add
+            </button>
+        </div>
+    `).join('');
+    
+    container.style.display = 'block';
+}
+
+async function confirmEditGroup() {
+    try {
+        const newGroupName = document.getElementById('editGroupName').value.trim();
+        const errorDiv = document.getElementById('editGroupError');
+        
+        if (!newGroupName) {
+            errorDiv.textContent = 'Group name cannot be empty.';
+            errorDiv.classList.remove('d-none');
+            return;
+        }
+        
+        if (editGroupCustomers.size === 0) {
+            errorDiv.textContent = 'Group must have at least one customer.';
+            errorDiv.classList.remove('d-none');
+            return;
+        }
+        
+        // Check if new name already exists (and it's not the current group)
+        if (newGroupName !== currentEditingGroup) {
+            const existingGroup = customerMappings.find(m => m.mapped_customer === newGroupName);
+            if (existingGroup) {
+                errorDiv.textContent = `Group "${newGroupName}" already exists. Please choose a different name.`;
+                errorDiv.classList.remove('d-none');
+                return;
+            }
+        }
+        
+        // Get current customers in the group
+        const currentCustomers = new Set(customerMappings
+            .filter(m => m.mapped_customer === currentEditingGroup)
+            .map(m => m.original_customer));
+        
+        const newCustomers = editGroupCustomers;
+        
+        // Find customers to remove (in current but not in new)
+        const customersToRemove = Array.from(currentCustomers).filter(c => !newCustomers.has(c));
+        
+        // Find customers to add (in new but not in current)
+        const customersToAdd = Array.from(newCustomers).filter(c => !currentCustomers.has(c));
+        
+        // Find customers to update (name change only)
+        const customersToUpdate = Array.from(newCustomers).filter(c => currentCustomers.has(c) && newGroupName !== currentEditingGroup);
+        
+        // Execute changes
+        const promises = [];
+        
+        // Remove customers from group (delete their mappings)
+        for (const customer of customersToRemove) {
+            const mapping = customerMappings.find(m => m.original_customer === customer && m.mapped_customer === currentEditingGroup);
+            if (mapping) {
+                promises.push(
+                    fetch(`/api/customer-mapping/mappings/${mapping.id}`, {
+                        method: 'DELETE'
+                    })
+                );
+            }
+        }
+        
+        // Add new customers to group
+        for (const customer of customersToAdd) {
+            promises.push(
+                fetch('/api/customer-mapping/mappings', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        original_customer: customer,
+                        mapped_customer: newGroupName,
+                        notes: `Added to group "${newGroupName}"`
+                    })
+                })
+            );
+        }
+        
+        // Update existing customers if group name changed
+        for (const customer of customersToUpdate) {
+            const mapping = customerMappings.find(m => m.original_customer === customer && m.mapped_customer === currentEditingGroup);
+            if (mapping) {
+                promises.push(
+                    fetch(`/api/customer-mapping/mappings/${mapping.id}`, {
+                        method: 'PUT',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        body: JSON.stringify({
+                            original_customer: mapping.original_customer,
+                            mapped_customer: newGroupName,
+                            notes: `Group renamed from "${currentEditingGroup}" to "${newGroupName}"`
+                        })
+                    })
+                );
+            }
+        }
+        
+        await Promise.all(promises);
+        
+        // Close modal
+        bootstrap.Modal.getInstance(document.getElementById('editGroupModal')).hide();
+        
+        const changes = [];
+        if (newGroupName !== currentEditingGroup) changes.push('renamed group');
+        if (customersToAdd.length > 0) changes.push(`added ${customersToAdd.length} customers`);
+        if (customersToRemove.length > 0) changes.push(`removed ${customersToRemove.length} customers`);
+        
+        const changeText = changes.length > 0 ? changes.join(', ') : 'updated group';
+        showMappingStatus(`Successfully ${changeText}`, 'success');
+        
+        loadCustomersAndMappings();
+        
+        // Refresh mappings site-wide
+        if (window.customerMapping) {
+            window.customerMapping.refresh();
+        }
+        
+        currentEditingGroup = null;
+        editGroupCustomers.clear();
+        
+    } catch (error) {
+        console.error('Error editing group:', error);
+        document.getElementById('editGroupError').textContent = 'Error updating group: ' + error.message;
+        document.getElementById('editGroupError').classList.remove('d-none');
+    }
+}
+
+// Search and filter handlers
+function setupSearchAndFilter() {
+    const searchInput = document.getElementById('customerSearch');
+    const filterSelect = document.getElementById('customerFilter');
+    
+    if (searchInput) {
+        searchInput.addEventListener('input', displayCustomerList);
+    }
+    
+    if (filterSelect) {
+        filterSelect.addEventListener('change', displayCustomerList);
+    }
+}
+
+// Setup event listeners for dynamically created buttons
+function setupGroupButtonListeners() {
+    // Use event delegation for dynamically created buttons
+    document.addEventListener('click', function(e) {
+        // Handle edit group buttons
+        if (e.target.closest('.edit-group-btn')) {
+            const button = e.target.closest('.edit-group-btn');
+            const groupName = button.getAttribute('data-group-name');
+            if (groupName) {
+                editGroup(groupName);
+            }
+        }
+        
+        // Handle delete group buttons
+        if (e.target.closest('.delete-group-btn')) {
+            const button = e.target.closest('.delete-group-btn');
+            const groupName = button.getAttribute('data-group-name');
+            if (groupName) {
+                deleteGroup(groupName);
+            }
+        }
+    });
+}
+
+// Setup modal button listeners
+function setupModalListeners() {
+    // Edit group modal
+    const confirmEditBtn = document.getElementById('confirmEditGroup');
+    if (confirmEditBtn) {
+        confirmEditBtn.addEventListener('click', confirmEditGroup);
+    }
+    
+    // Delete group modal
+    const confirmDeleteBtn = document.getElementById('confirmDeleteGroup');
+    if (confirmDeleteBtn) {
+        confirmDeleteBtn.addEventListener('click', confirmDeleteGroup);
+    }
+    
+    // Allow Enter key to confirm edit
+    const editGroupInput = document.getElementById('editGroupName');
+    if (editGroupInput) {
+        editGroupInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                confirmEditGroup();
+            }
+        });
+    }
+    
+    // Search customers in edit modal
+    const editGroupSearchInput = document.getElementById('editGroupSearchCustomers');
+    if (editGroupSearchInput) {
+        editGroupSearchInput.addEventListener('input', searchAvailableCustomers);
+    }
+}
+
+function showMappingStatus(message, type = 'info') {
+    const statusDiv = document.getElementById('customerMappingStatus');
+    const alertClass = type === 'success' ? 'alert-success' : 
+                      type === 'danger' ? 'alert-danger' : 
+                      type === 'warning' ? 'alert-warning' : 'alert-info';
+    
+    const iconClass = type === 'success' ? 'check-circle' : 
+                      type === 'danger' ? 'x-circle' : 
+                      type === 'warning' ? 'exclamation-triangle' : 'info-circle';
+    
+    statusDiv.innerHTML = `
+        <div class="alert ${alertClass}">
+            <i class="bi bi-${iconClass} me-2"></i>${message}
+        </div>
+    `;
+    statusDiv.style.display = 'block';
+    
+    // Auto-hide after 5 seconds for success messages
+    if (type === 'success') {
+        setTimeout(() => {
+            statusDiv.style.display = 'none';
+        }, 5000);
+    }
+}
+
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
     console.log('System settings page loaded');
@@ -941,6 +1640,10 @@ document.addEventListener('DOMContentLoaded', function() {
     loadDatabaseInfo();
     loadBackupsList();
     loadSystemInfo();
+    loadCustomersAndMappings(); // Load customer mappings with new interface
+    setupSearchAndFilter(); // Setup search and filter handlers
+    setupGroupButtonListeners(); // Setup event listeners for group buttons
+    setupModalListeners(); // Setup modal button listeners
     
     // Set default dates for housekeeping
     const today = new Date().toISOString().split('T')[0];

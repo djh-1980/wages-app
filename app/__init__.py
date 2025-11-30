@@ -69,6 +69,7 @@ def create_app(config_name=None):
     from .routes.api_verbal_pay import verbal_pay_bp
     from .routes.api_mileage import mileage_bp
     from .routes.api_housekeeping import housekeeping_bp
+    from .routes.api_customer_mapping import customer_mapping_bp
     
     app.register_blueprint(main_bp)
     app.register_blueprint(payslips_bp)
@@ -86,5 +87,6 @@ def create_app(config_name=None):
     app.register_blueprint(verbal_pay_bp)
     app.register_blueprint(mileage_bp, url_prefix='/api/mileage')
     app.register_blueprint(housekeeping_bp, url_prefix='/api/housekeeping')
+    app.register_blueprint(customer_mapping_bp, url_prefix='/api/customer-mapping')
     
     return app

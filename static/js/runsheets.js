@@ -99,17 +99,42 @@ async function loadRunSheetsSummary() {
         document.getElementById('rsUniqueCustomers').textContent = data.overall.unique_customers || 0;
         document.getElementById('rsAvgJobsPerDay').textContent = (data.avg_jobs_per_day || 0).toFixed(1);
         
-        // Update top customers table
+        // Update top customers table with mappings
         const tableBody = document.getElementById('rsTopCustomersTable');
         if (data.top_customers && data.top_customers.length > 0) {
+            // Wait for customer mappings to load
+            await window.customerMapping.loadMappings();
+            
+            // Group by mapped customer names and aggregate
+            const mappedStats = window.customerMapping.getAggregatedStats(
+                data.top_customers.map(c => ({ customer: c.customer, job_count: c.job_count })),
+                'customer',
+                ['job_count']
+            );
+            
+            // Convert to array and sort by job count
+            const sortedCustomers = Object.values(mappedStats)
+                .sort((a, b) => b.job_count - a.job_count)
+                .slice(0, 10); // Top 10
+            
             const totalJobs = data.overall.total_jobs;
-            tableBody.innerHTML = data.top_customers.map(customer => `
-                <tr>
-                    <td>${customer.customer}</td>
-                    <td class="text-end">${customer.job_count}</td>
-                    <td class="text-end">${((customer.job_count / totalJobs) * 100).toFixed(1)}%</td>
-                </tr>
-            `).join('');
+            tableBody.innerHTML = sortedCustomers.map(customer => {
+                const originalCustomers = customer.original_customers;
+                const tooltipText = originalCustomers.length > 1 ? 
+                    `Includes: ${originalCustomers.join(', ')}` : 
+                    `Original: ${originalCustomers[0]}`;
+                    
+                return `
+                    <tr title="${tooltipText}">
+                        <td>
+                            ${customer.customer}
+                            ${originalCustomers.length > 1 ? `<small class="text-muted d-block">(${originalCustomers.length} sources)</small>` : ''}
+                        </td>
+                        <td class="text-end">${customer.job_count}</td>
+                        <td class="text-end">${((customer.job_count / totalJobs) * 100).toFixed(1)}%</td>
+                    </tr>
+                `;
+            }).join('');
         } else {
             tableBody.innerHTML = '<tr><td colspan="3" class="text-center">No data available</td></tr>';
         }
@@ -467,10 +492,14 @@ async function viewRunSheetJobs(date) {
                                             ${data.jobs.map(job => {
                                                 const status = job.status || 'pending';
                                                 const statusBadge = getStatusBadge(status);
+                                                const mappedCustomer = window.customerMapping ? 
+                                                    window.customerMapping.getMappedCustomer(job.customer) : 
+                                                    job.customer;
+                                                
                                                 return `
-                                                <tr id="job-row-${job.id}" data-status="${status}">
+                                                <tr id="job-row-${job.id}" data-status="${status}" title="Original: ${job.customer}">
                                                     <td><strong>${job.job_number}</strong></td>
-                                                    <td>${job.customer || 'N/A'}</td>
+                                                    <td>${mappedCustomer || 'N/A'}</td>
                                                     <td><span class="badge bg-info">${job.activity || 'N/A'}</span></td>
                                                     <td><small>${job.job_address || 'N/A'}, ${job.postcode || ''}</small></td>
                                                     <td>
@@ -516,7 +545,9 @@ async function viewRunSheetJobs(date) {
                                                 <div class="d-flex justify-content-between align-items-start mb-3">
                                                     <div class="flex-grow-1">
                                                         <h6 class="mb-1 fw-bold" style="font-size: 1.1rem;">#${job.job_number}</h6>
-                                                        <p class="mb-1 text-muted" style="font-size: 0.9rem; line-height: 1.3;">${job.customer || 'N/A'}</p>
+                                                        <p class="mb-1 text-muted" style="font-size: 0.9rem; line-height: 1.3;" title="Original: ${job.customer}">
+                                                            ${window.customerMapping ? window.customerMapping.getMappedCustomer(job.customer) : job.customer || 'N/A'}
+                                                        </p>
                                                     </div>
                                                     <div class="status-badge-container ms-2" id="status-${job.id}">${statusBadge}</div>
                                                 </div>
@@ -813,16 +844,23 @@ async function showAddJobForm(date) {
         console.log('Autocomplete data received:', data);
         
         if (data.customers && data.activities) {
-            // Populate customers select
+            // Populate customers select with mapped names
             const customersSelect = document.getElementById(`newCustomer-${date}`);
             console.log('Found customers select:', customersSelect);
             
             if (customersSelect) {
-                customersSelect.innerHTML = '<option value="">Select customer...</option>' + 
-                    data.customers.map(customer => 
-                        `<option value="${customer}">${customer}</option>`
-                    ).join('');
-                console.log('Populated customers:', data.customers.length, 'options');
+                // Wait for mappings to load
+                await window.customerMapping.loadMappings();
+                
+                // Create options with mapped names but original values
+                const customerOptions = data.customers.map(customer => {
+                    const mappedName = window.customerMapping.getMappedCustomer(customer);
+                    const displayName = mappedName !== customer ? `${mappedName} (${customer})` : customer;
+                    return `<option value="${customer}" title="Original: ${customer}">${displayName}</option>`;
+                }).join('');
+                
+                customersSelect.innerHTML = '<option value="">Select customer...</option>' + customerOptions;
+                console.log('Populated customers:', data.customers.length, 'options with mappings');
             }
             
             // Populate activities select

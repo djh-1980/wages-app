@@ -220,23 +220,34 @@ async function loadClientHeatmap(taxYear = '') {
         
         const container = document.getElementById('heatmapContainer');
         
-        // Create heatmap table
-        const topClients = data.top_clients.slice(0, 10); // Top 10 clients
+        // Wait for customer mappings to load
+        await window.customerMapping.loadMappings();
+        
+        // Group by mapped customer names and aggregate
+        const clientData = data.top_clients.map(client => ({ customer: client, total_amount: 0 }));
+        const mappedStats = window.customerMapping.getAggregatedStats(clientData, 'customer', []);
+        
+        // Get top 10 mapped clients
+        const topMappedClients = Object.keys(mappedStats).slice(0, 10);
         const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
         
-        // Build data structure
+        // Build data structure for mapped clients
         const heatmapData = {};
-        topClients.forEach(client => {
-            heatmapData[client] = {};
+        const clientMappings = {}; // Track which original clients map to which mapped clients
+        
+        topMappedClients.forEach(mappedClient => {
+            heatmapData[mappedClient] = {};
+            clientMappings[mappedClient] = mappedStats[mappedClient].original_customers;
             months.forEach(month => {
-                heatmapData[client][month] = 0;
+                heatmapData[mappedClient][month] = 0;
             });
         });
         
-        // Fill in the data
+        // Fill in the data by aggregating original client data
         data.heatmap_data.forEach(row => {
-            if (heatmapData[row.client] && row.month >= 1 && row.month <= 12) {
-                heatmapData[row.client][row.month] = row.total_amount;
+            const mappedClient = window.customerMapping.getMappedCustomer(row.client);
+            if (heatmapData[mappedClient] && row.month >= 1 && row.month <= 12) {
+                heatmapData[mappedClient][row.month] += row.total_amount;
             }
         });
         
@@ -260,10 +271,19 @@ async function loadClientHeatmap(taxYear = '') {
                 <tbody>
         `;
         
-        topClients.forEach(client => {
-            html += `<tr><td class="fw-bold">${client.substring(0, 30)}${client.length > 30 ? '...' : ''}</td>`;
+        topMappedClients.forEach(mappedClient => {
+            const originalClients = clientMappings[mappedClient] || [mappedClient];
+            const tooltipPrefix = originalClients.length > 1 ? 
+                `Includes: ${originalClients.join(', ')} - ` : 
+                `Original: ${originalClients[0]} - `;
+                
+            html += `<tr><td class="fw-bold" title="Includes: ${originalClients.join(', ')}">
+                ${mappedClient.substring(0, 30)}${mappedClient.length > 30 ? '...' : ''}
+                ${originalClients.length > 1 ? `<small class="text-muted d-block">(${originalClients.length} sources)</small>` : ''}
+            </td>`;
+            
             months.forEach(month => {
-                const value = heatmapData[client][month];
+                const value = heatmapData[mappedClient][month];
                 const intensity = maxValue > 0 ? (value / maxValue) : 0;
                 const bgColor = value > 0 
                     ? `rgba(102, 126, 234, ${0.2 + (intensity * 0.8)})` 
@@ -271,7 +291,7 @@ async function loadClientHeatmap(taxYear = '') {
                 const textColor = intensity > 0.5 ? '#fff' : '#000';
                 html += `
                     <td class="text-center" style="background-color: ${bgColor}; color: ${textColor};" 
-                        title="${client} - Month ${month}: £${value.toFixed(2)}">
+                        title="${tooltipPrefix}Month ${month}: £${value.toFixed(2)}">
                         ${value > 0 ? '£' + value.toFixed(0) : '-'}
                     </td>
                 `;
@@ -281,7 +301,7 @@ async function loadClientHeatmap(taxYear = '') {
         
         html += '</tbody></table>';
         
-        if (topClients.length === 0) {
+        if (topMappedClients.length === 0) {
             html = '<div class="alert alert-info">No client data available</div>';
         }
         
