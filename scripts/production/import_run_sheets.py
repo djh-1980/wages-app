@@ -251,13 +251,36 @@ class RunSheetImporter:
         return cleaned_job
     
     def extract_text_from_pdf(self, pdf_path: str) -> str:
-        """Extract all text from a PDF file."""
-        with open(pdf_path, 'rb') as file:
-            reader = PyPDF2.PdfReader(file)
+        """Extract all text from a PDF file using pdfplumber for better quality."""
+        try:
+            import pdfplumber
+            
             text = ""
-            for page in reader.pages:
-                text += page.extract_text() + "\n"
-        return text
+            with pdfplumber.open(pdf_path) as pdf:
+                for page in pdf.pages:
+                    page_text = page.extract_text()
+                    if page_text:
+                        text += page_text + "\n"
+            return text
+            
+        except ImportError:
+            # Fallback to PyPDF2 if pdfplumber not available
+            print("Warning: pdfplumber not installed, using PyPDF2 fallback")
+            with open(pdf_path, 'rb') as file:
+                reader = PyPDF2.PdfReader(file)
+                text = ""
+                for page in reader.pages:
+                    text += page.extract_text() + "\n"
+            return text
+        except Exception as e:
+            print(f"Error with pdfplumber, falling back to PyPDF2: {e}")
+            # Fallback to PyPDF2 on any error
+            with open(pdf_path, 'rb') as file:
+                reader = PyPDF2.PdfReader(file)
+                text = ""
+                for page in reader.pages:
+                    text += page.extract_text() + "\n"
+            return text
     
     def parse_csv_run_sheet(self, csv_path: str) -> List[Dict]:
         """Parse CSV format run sheet."""
@@ -478,6 +501,8 @@ class RunSheetImporter:
                     self.parse_fujitsu_ee_p2pe_job(job, job_lines)
                 elif 'EE' in customer.upper() and 'FUJITSU' in customer.upper():
                     self.parse_fujitsu_ee_job(job, job_lines)
+                elif 'SPECSAVERS' in customer.upper() and 'FUJITSU' in customer.upper():
+                    self.parse_specsavers_job(job, job_lines)
                 elif 'HSBC' in customer.upper():
                     self.parse_hsbc_job(job, job_lines)
                 elif customer.upper() == 'COMPUTACENTER LIMITED':
@@ -498,6 +523,14 @@ class RunSheetImporter:
                     self.parse_dhl_job(job, job_lines)
                 elif 'HORIZON PROJECT' in customer.upper():
                     self.parse_horizon_project_job(job, job_lines)
+                elif 'SMART CT' in customer.upper():
+                    self.parse_smart_ct_job(job, job_lines)
+                elif 'RHENUS' in customer.upper():
+                    self.parse_rhenus_job(job, job_lines)
+                elif 'VERIFONE' in customer.upper():
+                    self.parse_verifone_job(job, job_lines)
+                elif 'COGNIZANT' in customer.upper():
+                    self.parse_cognizant_job(job, job_lines)
                 elif 'LEXMARK' in customer.upper() or 'FUJITSU' in customer.upper() or 'COMPUTACENTER' in customer.upper() or 'CXM' in customer.upper():
                     self.parse_tech_job(job, job_lines)
                 else:
@@ -915,6 +948,13 @@ class RunSheetImporter:
         address_parts = []
         postcode = None
         found_reference = False
+        has_reference_codes = False
+        
+        # First pass: check if we have reference codes in the data
+        for line in job_lines:
+            if re.search(r'\b(C\d+|NLC\d+)\b', line):
+                has_reference_codes = True
+                break
         
         for line in job_lines:
             # Skip standard header lines
@@ -922,10 +962,15 @@ class RunSheetImporter:
                                            'No. of Parts', 'Instructions', 'Job Notes', 'In Items', 'Customer Signature']):
                 continue
             
-            # Look for reference number (C5325810 format) to know we're getting to address section
-            if re.match(r'^C\d+', line.strip()):
+            # Look for reference number (C5325810 or NLC3497 format) to know we're getting to address section
+            if re.match(r'^(C\d+|NLC\d+)', line.strip()):
                 found_reference = True
                 continue
+            
+            # Also look for reference number embedded in the line
+            if re.search(r'\b(C\d+|NLC\d+)\b', line):
+                found_reference = True
+                # Continue processing this line as it contains address data
             
             # Extract postcode
             postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
@@ -933,26 +978,44 @@ class RunSheetImporter:
                 postcode = postcode_match.group(1)
                 job['postcode'] = postcode.replace(' ', ' ').strip()
             
-            # Collect address after reference number
-            if found_reference and line.strip():
+            # Collect address lines
+            # If we have reference codes, only collect after finding reference
+            # If no reference codes, collect all reasonable address lines
+            should_collect = (found_reference and has_reference_codes) or (not has_reference_codes)
+            
+            if should_collect and line.strip():
                 clean_line = line.strip()
                 
                 # Skip very short lines or pure numbers
                 if len(clean_line) > 3 and not clean_line.isdigit():
-                    # Clean phone numbers from start (0161 822 2094)
-                    clean_line = re.sub(r'^[\d\s]{10,}', '', clean_line)
-                    
-                    # Clean contact prefixes (0MANCHESTER VICTORIA)
-                    clean_line = re.sub(r'^[0-9]+', '', clean_line)
-                    
-                    # Clean reference codes and dots
-                    clean_line = re.sub(r'^[A-Z0-9\s\.]+(?=\w)', '', clean_line)
+                    # Apply aggressive cleaning only if we have reference codes (single-line format)
+                    if has_reference_codes:
+                        # Clean phone numbers from start (0161 822 2094)
+                        clean_line = re.sub(r'^[\d\s]{10,}', '', clean_line)
+                        
+                        # Clean contact prefixes (0MANCHESTER VICTORIA)
+                        clean_line = re.sub(r'^[0-9]+', '', clean_line)
+                        
+                        # Clean reference codes and dots
+                        clean_line = re.sub(r'^[A-Z0-9\s\.]+(?=\w)', '', clean_line)
+                        
+                        # Remove reference numbers from anywhere in the line
+                        clean_line = re.sub(r'\b(C\d+|NLC\d+)\b', '', clean_line)
+                        
+                        # Remove Y (OTS) prefix
+                        clean_line = re.sub(r'^Y\s*\(OTS\)\s*', '', clean_line)
+                        
+                        # Remove timestamps and scheduling info (2/12/2025 14:00, A: 6HR, PART2=)
+                        clean_line = re.sub(r'\d{1,2}/\d{1,2}/\d{4}\s+\d{1,2}:\d{2}.*$', '', clean_line)
+                        clean_line = re.sub(r'A:\s*\d+HR.*$', '', clean_line)
+                        clean_line = re.sub(r'PART\d+=.*$', '', clean_line)
                     
                     clean_line = clean_line.strip(' .,')
                     
                     if clean_line and len(clean_line) > 2:
                         # Skip lines that are just contact names or codes
-                        if not re.match(r'^[A-Z]{2,}\s*$', clean_line):  # Skip pure uppercase codes
+                        if (not re.match(r'^[A-Z]{2,}\s*$', clean_line) and  # Skip pure uppercase codes
+                            not re.match(r'^[A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2}$', clean_line)):  # Skip postcodes
                             address_parts.append(clean_line)
         
         if address_parts:
@@ -1181,6 +1244,67 @@ class RunSheetImporter:
                     not clean_line.startswith('Customer') and
                     not '@' in clean_line and
                     len(address_parts) < 5):
+                    
+                    if clean_line not in address_parts:
+                        address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_specsavers_job(self, job: Dict, job_lines: List[str]):
+        """Parse Fujitsu Services - Specsavers - ME jobs."""
+        job['activity'] = 'TECH EXCHANGE'  # Common for Specsavers
+        
+        # Look for Specsavers specific information
+        address_parts = []
+        postcode = None
+        collecting_address = False
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if (line in ['SLA Window Contact Name', 'Activity Contact Phone', 'Priority', 
+                        'Ref 1', 'Ref 2', 'No. of Parts', 'Instructions 1 Instructions 2',
+                        'Job Notes', 'In Items', 'Engineer Closure Notes On Site Time Off Site Time'] or
+                line.startswith('Request Part Description') or
+                line.startswith('Returned Items')):
+                continue
+            
+            # Skip activity and codes
+            if (line.startswith('TECH EXCHANGE') or line.startswith('NON TECH EXCHANGE') or
+                re.match(r'^\d{2}/\d{2}/\d{4}', line) or  # dates
+                line.startswith('ND ') or
+                re.match(r'^[A-Z]{3}\d+$', line)):  # codes
+                continue
+            
+            # Extract postcode first
+            postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+            if postcode_match:
+                postcode = postcode_match.group(1)
+                if len(postcode) >= 6 and ' ' not in postcode:
+                    postcode = postcode[:-3] + ' ' + postcode[-3:]
+                job['postcode'] = postcode
+                collecting_address = False  # Stop collecting after postcode
+                continue
+            
+            # Look for Specsavers store pattern (e.g., "Rochdale 0337")
+            if re.match(r'^[A-Za-z]+\s+\d{4}', line.strip()):
+                collecting_address = True
+                clean_line = line.strip()
+                if clean_line and clean_line not in address_parts:
+                    address_parts.append(clean_line)
+                continue
+            
+            # Collect address lines after store identifier is found
+            if collecting_address and line.strip():
+                clean_line = line.strip(' .,')
+                
+                # Skip contact names, instructions, and very short lines
+                if (clean_line and len(clean_line) > 2 and 
+                    not re.match(r'^[A-Z][a-z]+\s+[A-Z][\'a-z]+$', clean_line) and  # Skip "John Smith" format
+                    not clean_line.startswith('***') and  # Skip instructions
+                    not clean_line.startswith('Customer') and
+                    not '@' in clean_line and  # Skip email addresses
+                    len(address_parts) < 6):  # Allow more address parts for Specsavers
                     
                     if clean_line not in address_parts:
                         address_parts.append(clean_line)
@@ -1814,6 +1938,161 @@ class RunSheetImporter:
                         clean_line = 'BURNLEY'
                     if clean_line and clean_line not in address_parts and len(clean_line) > 3:
                         address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_smart_ct_job(self, job: Dict, job_lines: List[str]):
+        """Parse SMART CT LIMITED jobs."""
+        job['activity'] = 'TECH EXCHANGE'  # Common for Smart CT
+        
+        # Look for address information
+        address_parts = []
+        postcode = None
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if any(skip in line for skip in ['SLA Window', 'Activity Contact', 'Priority', 'Ref 1', 'Ref 2', 
+                                           'No. of Parts', 'Instructions', 'Job Notes', 'Customer Signature']):
+                continue
+            
+            # Extract postcode
+            postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+            if postcode_match and not postcode:
+                postcode = postcode_match.group(1)
+                if len(postcode) >= 6 and ' ' not in postcode:
+                    postcode = postcode[:-3] + ' ' + postcode[-3:]
+                job['postcode'] = postcode
+            
+            # Collect address lines - look for store names and locations
+            clean_line = line.strip()
+            if (clean_line and len(clean_line) > 3 and
+                not clean_line.startswith('TECH EXCHANGE') and
+                not clean_line.isdigit() and
+                not re.match(r'^[A-Z]{3}\d+$', clean_line) and  # Skip codes like WOT1000358
+                not re.match(r'^\d{11}', clean_line) and  # Skip phone numbers
+                'Contact Phone' not in clean_line):
+                
+                # Clean up the line
+                clean_line = re.sub(r'^[\d\s]+', '', clean_line)  # Remove leading numbers
+                clean_line = clean_line.strip(' .,')
+                
+                if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                    address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_rhenus_job(self, job: Dict, job_lines: List[str]):
+        """Parse RHENUS jobs."""
+        job['activity'] = 'DELIVERY'  # Common for Rhenus
+        
+        # Look for address information
+        address_parts = []
+        postcode = None
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if any(skip in line for skip in ['SLA Window', 'Activity Contact', 'Priority', 'Ref 1', 'Ref 2', 
+                                           'No. of Parts', 'Instructions', 'Job Notes', 'Customer Signature']):
+                continue
+            
+            # Extract postcode
+            postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+            if postcode_match and not postcode:
+                postcode = postcode_match.group(1)
+                if len(postcode) >= 6 and ' ' not in postcode:
+                    postcode = postcode[:-3] + ' ' + postcode[-3:]
+                job['postcode'] = postcode
+            
+            # Collect address lines
+            clean_line = line.strip()
+            if (clean_line and len(clean_line) > 3 and
+                not clean_line.startswith('DELIVERY') and
+                not clean_line.isdigit() and
+                not re.match(r'^\d{11}', clean_line) and  # Skip phone numbers
+                'Contact Phone' not in clean_line):
+                
+                clean_line = clean_line.strip(' .,')
+                
+                if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                    address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_verifone_job(self, job: Dict, job_lines: List[str]):
+        """Parse Verifone UK LTD jobs."""
+        job['activity'] = 'DELIVERY'  # Common for Verifone
+        
+        # Look for address information
+        address_parts = []
+        postcode = None
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if any(skip in line for skip in ['SLA Window', 'Activity Contact', 'Priority', 'Ref 1', 'Ref 2', 
+                                           'No. of Parts', 'Instructions', 'Job Notes', 'Customer Signature']):
+                continue
+            
+            # Extract postcode
+            postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+            if postcode_match and not postcode:
+                postcode = postcode_match.group(1)
+                if len(postcode) >= 6 and ' ' not in postcode:
+                    postcode = postcode[:-3] + ' ' + postcode[-3:]
+                job['postcode'] = postcode
+            
+            # Collect address lines
+            clean_line = line.strip()
+            if (clean_line and len(clean_line) > 3 and
+                not clean_line.startswith('DELIVERY') and
+                not clean_line.isdigit() and
+                not re.match(r'^\d{11}', clean_line) and  # Skip phone numbers
+                'Contact Phone' not in clean_line):
+                
+                clean_line = clean_line.strip(' .,')
+                
+                if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                    address_parts.append(clean_line)
+        
+        if address_parts:
+            job['job_address'] = ', '.join(address_parts)
+    
+    def parse_cognizant_job(self, job: Dict, job_lines: List[str]):
+        """Parse Cognizant Highbourne Group UK jobs."""
+        job['activity'] = 'DELIVERY'  # Common for Cognizant
+        
+        # Look for address information
+        address_parts = []
+        postcode = None
+        
+        for line in job_lines:
+            # Skip standard header lines
+            if any(skip in line for skip in ['SLA Window', 'Activity Contact', 'Priority', 'Ref 1', 'Ref 2', 
+                                           'No. of Parts', 'Instructions', 'Job Notes', 'Customer Signature']):
+                continue
+            
+            # Extract postcode
+            postcode_match = re.search(r'\b([A-Z]{1,2}\d{1,2}[A-Z]?\s?\d[A-Z]{2})\b', line)
+            if postcode_match and not postcode:
+                postcode = postcode_match.group(1)
+                if len(postcode) >= 6 and ' ' not in postcode:
+                    postcode = postcode[:-3] + ' ' + postcode[-3:]
+                job['postcode'] = postcode
+            
+            # Collect address lines
+            clean_line = line.strip()
+            if (clean_line and len(clean_line) > 3 and
+                not clean_line.startswith('DELIVERY') and
+                not clean_line.isdigit() and
+                not re.match(r'^\d{11}', clean_line) and  # Skip phone numbers
+                'Contact Phone' not in clean_line):
+                
+                clean_line = clean_line.strip(' .,')
+                
+                if clean_line and clean_line not in address_parts and len(clean_line) > 3:
+                    address_parts.append(clean_line)
         
         if address_parts:
             job['job_address'] = ', '.join(address_parts)
