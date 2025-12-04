@@ -124,14 +124,32 @@ def api_update_expense(expense_id):
 
 @expenses_bp.route('/delete/<int:expense_id>', methods=['DELETE'])
 def api_delete_expense(expense_id):
-    """Delete an expense."""
+    """Delete an expense and its receipt file."""
     try:
+        # Get expense details first to find receipt file
+        expense = ExpenseModel.get_expense_by_id(expense_id)
+        
+        if not expense:
+            return jsonify({'success': False, 'error': 'Expense not found'}), 404
+        
+        # Delete the expense from database
         success = ExpenseModel.delete_expense(expense_id)
         
         if success:
+            # Delete receipt file if it exists
+            if expense.get('receipt_file'):
+                try:
+                    from ..config import Config
+                    receipt_path = Path(Config.BASE_DIR) / expense['receipt_file']
+                    if receipt_path.exists():
+                        receipt_path.unlink()  # Delete the file
+                except Exception as e:
+                    # Log error but don't fail the delete
+                    print(f"Error deleting receipt file: {e}")
+            
             return jsonify({'success': True})
         else:
-            return jsonify({'success': False, 'error': 'Expense not found'}), 404
+            return jsonify({'success': False, 'error': 'Failed to delete expense'}), 500
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
