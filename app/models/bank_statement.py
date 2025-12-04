@@ -7,6 +7,7 @@ import csv
 import re
 from datetime import datetime
 from typing import List, Dict, Optional
+from .recurring_template import RecurringTemplateModel
 
 
 class BankStatementParser:
@@ -88,8 +89,20 @@ class BankStatementParser:
                     description = row['Description'].strip()
                     trans_type = row['Type'].strip()
                     
+                    # Try to match to recurring template first
+                    template_id, confidence = RecurringTemplateModel.match_transaction(
+                        description, amount, formatted_date
+                    )
+                    
                     # Categorize transaction
                     category = BankStatementParser._categorize_transaction(description, trans_type)
+                    
+                    # If matched to template, use template's category
+                    template = None
+                    if template_id:
+                        template = RecurringTemplateModel.get_template_by_id(template_id)
+                        if template:
+                            category = template['category_name']
                     
                     # Check if should be excluded
                     if not BankStatementParser._should_exclude(description):
@@ -100,7 +113,12 @@ class BankStatementParser:
                             'type': trans_type,
                             'category': category,
                             'suggested': category is not None,  # True if auto-categorized
-                            'selected': category is not None  # Pre-select if categorized
+                            'selected': category is not None,  # Pre-select if categorized
+                            'template_id': template_id,  # Matched template ID
+                            'template_name': template['name'] if template else None,
+                            'confidence': confidence,  # Match confidence score
+                            'is_recurring': template_id is not None,  # Flag as recurring
+                            'auto_import': template['auto_import'] if template else False
                         })
             except Exception as e:
                 # Skip malformed rows

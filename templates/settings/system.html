@@ -355,7 +355,7 @@
                         <h5><i class="bi bi-tools me-2"></i>System Actions</h5>
                     </div>
                     <div class="card-body">
-                        <div class="row g-3">
+                        <div class="row g-3 mb-3">
                             <div class="col-md-4">
                                 <button class="btn btn-outline-warning w-100" onclick="clearCache()">
                                     <i class="bi bi-trash me-2"></i>Clear Browser Cache
@@ -369,10 +369,18 @@
                                 <small class="text-muted d-block mt-2 text-center">View recent system activity</small>
                             </div>
                             <div class="col-md-4">
+                                <button class="btn btn-outline-danger w-100" onclick="confirmClearExpenses()">
+                                    <i class="bi bi-receipt me-2"></i>Clear Expenses
+                                </button>
+                                <small class="text-muted d-block mt-2 text-center">⚠️ Delete all expense records</small>
+                            </div>
+                        </div>
+                        <div class="row g-3">
+                            <div class="col-md-12">
                                 <button class="btn btn-outline-danger w-100" onclick="confirmClearAllData()">
                                     <i class="bi bi-exclamation-triangle me-2"></i>Clear All Data
                                 </button>
-                                <small class="text-muted d-block mt-2 text-center">⚠️ Dangerous operation</small>
+                                <small class="text-muted d-block mt-2 text-center">⚠️ Dangerous operation - Clears ALL database tables</small>
                             </div>
                         </div>
                     </div>

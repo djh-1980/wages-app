@@ -13,7 +13,20 @@ document.addEventListener('DOMContentLoaded', function() {
     
     // Set today's date as default
     document.getElementById('expenseDate').value = formatDateForDisplay(new Date());
+    
+    // Load recurring templates when tab is shown
+    document.getElementById('recurring-tab').addEventListener('shown.bs.tab', function() {
+        loadRecurringTemplates();
+    });
 });
+
+/**
+ * Show recurring tab
+ */
+function showRecurringTab() {
+    const recurringTab = new bootstrap.Tab(document.getElementById('recurring-tab'));
+    recurringTab.show();
+}
 
 /**
  * Load expense categories
@@ -39,16 +52,34 @@ async function loadCategories() {
 function populateCategoryDropdowns() {
     const modalSelect = document.getElementById('expenseCategory');
     const filterSelect = document.getElementById('categoryFilter');
+    const templateSelect = document.getElementById('templateCategory');
+    const bulkSelect = document.getElementById('bulkCategorySelect');
     
     // Clear existing options (except first)
     modalSelect.innerHTML = '<option value="">Select category...</option>';
     filterSelect.innerHTML = '<option value="">All Categories</option>';
+    if (templateSelect) {
+        templateSelect.innerHTML = '<option value="">Select category...</option>';
+    }
+    if (bulkSelect) {
+        bulkSelect.innerHTML = '<option value="">Select category to apply...</option>';
+    }
     
     categories.forEach(cat => {
         const modalOption = new Option(cat.name, cat.id);
         const filterOption = new Option(cat.name, cat.id);
         modalSelect.add(modalOption);
         filterSelect.add(filterOption);
+        
+        if (templateSelect) {
+            const templateOption = new Option(cat.name, cat.id);
+            templateSelect.add(templateOption);
+        }
+        
+        if (bulkSelect) {
+            const bulkOption = new Option(cat.name, cat.name);
+            bulkSelect.add(bulkOption);
+        }
     });
 }
 
@@ -574,16 +605,62 @@ let parsedTransactions = [];
  * Show bank import modal
  */
 function showBankImportModal() {
-    // Reset modal
+    // Reset modal to upload step
     document.getElementById('uploadStep').style.display = 'block';
     document.getElementById('reviewStep').style.display = 'none';
     document.getElementById('importBtn').style.display = 'none';
     document.getElementById('bankStatementFile').value = '';
     parsedTransactions = [];
     
+    // Reset parse button state
+    const parseBtn = document.querySelector('#uploadStep button[onclick="parseStatement()"]');
+    if (parseBtn) {
+        parseBtn.disabled = false;
+        parseBtn.innerHTML = '<i class="bi bi-gear"></i> Parse Statement';
+    }
+    
+    // Clear search if it exists
+    const searchInput = document.getElementById('transactionSearch');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    const filterCount = document.getElementById('filterCount');
+    if (filterCount) {
+        filterCount.textContent = '';
+    }
+    
     const modalElement = document.getElementById('bankImportModal');
     const modal = new bootstrap.Modal(modalElement);
     modal.show();
+}
+
+/**
+ * Go back to upload step
+ */
+function backToUpload() {
+    document.getElementById('uploadStep').style.display = 'block';
+    document.getElementById('reviewStep').style.display = 'none';
+    document.getElementById('importBtn').style.display = 'none';
+    
+    // Reset parse button
+    const parseBtn = document.querySelector('#uploadStep button[onclick="parseStatement()"]');
+    if (parseBtn) {
+        parseBtn.disabled = false;
+        parseBtn.innerHTML = '<i class="bi bi-gear"></i> Parse Statement';
+    }
+    
+    // Clear file input
+    document.getElementById('bankStatementFile').value = '';
+    
+    // Clear search
+    const searchInput = document.getElementById('transactionSearch');
+    if (searchInput) {
+        searchInput.value = '';
+    }
+    const filterCount = document.getElementById('filterCount');
+    if (filterCount) {
+        filterCount.textContent = '';
+    }
 }
 
 /**
@@ -644,39 +721,77 @@ async function parseStatement() {
  * Display parsed transactions
  */
 function displayParsedTransactions(transactions, summary) {
+    // Count recurring matches
+    const recurringCount = transactions.filter(t => t.is_recurring).length;
+    const autoImportCount = transactions.filter(t => t.auto_import).length;
+    
     // Update summary
+    const duplicateInfo = summary.duplicate_count > 0 ? 
+        `<br><span class="badge bg-secondary">${summary.duplicate_count} already imported (filtered out)</span>` : '';
+    
     const summaryHtml = `
-        <strong>Parsed ${summary.total_transactions} transactions</strong><br>
+        <strong>Parsed ${summary.total_transactions} transactions</strong>${summary.original_count ? ` (${summary.original_count} in file)` : ''}<br>
         Total amount: ${CurrencyFormatter.format(summary.total_amount)}<br>
         Auto-categorized: ${summary.categorized_count} (${summary.categorization_rate}%)
+        ${recurringCount > 0 ? `<br><span class="badge bg-warning">${recurringCount} matched to recurring templates</span>` : ''}
+        ${autoImportCount > 0 ? `<br><span class="badge bg-success">${autoImportCount} will auto-import</span>` : ''}
+        ${duplicateInfo}
     `;
     document.getElementById('parseSummary').innerHTML = summaryHtml;
     
     // Display transactions table
     const tbody = document.getElementById('transactionsTableBody');
-    tbody.innerHTML = transactions.map((trans, index) => `
-        <tr class="${trans.suggested ? 'table-success' : ''}">
-            <td>
-                <input type="checkbox" 
-                       class="transaction-checkbox" 
-                       data-index="${index}" 
-                       ${trans.selected ? 'checked' : ''}>
-            </td>
-            <td>${trans.date}</td>
-            <td>${trans.description}</td>
-            <td class="text-end"><strong>${CurrencyFormatter.format(trans.amount)}</strong></td>
-            <td>
-                <select class="form-select form-select-sm category-select" data-index="${index}">
-                    <option value="">Select category...</option>
-                    ${categories.map(cat => `
-                        <option value="${cat.name}" ${trans.category === cat.name ? 'selected' : ''}>
-                            ${cat.name}
-                        </option>
-                    `).join('')}
-                </select>
-            </td>
-        </tr>
-    `).join('');
+    tbody.innerHTML = transactions.map((trans, index) => {
+        const rowClass = trans.is_recurring ? 'table-warning' : (trans.suggested ? 'table-success' : '');
+        const recurringBadge = trans.is_recurring ? 
+            `<span class="badge bg-warning ms-1" title="Matched to: ${trans.template_name} (${trans.confidence}% confidence)">
+                <i class="bi bi-arrow-repeat"></i> Recurring
+            </span>` : '';
+        const autoImportBadge = trans.auto_import ? 
+            `<span class="badge bg-success ms-1" title="Will be auto-imported">
+                <i class="bi bi-lightning-fill"></i> Auto
+            </span>` : '';
+        
+        // Auto-populate notes for recurring transactions if not already set
+        if (trans.is_recurring && trans.template_name && !trans.notes) {
+            trans.notes = `Recurring: ${trans.template_name}`;
+        }
+        
+        return `
+            <tr class="${rowClass}">
+                <td>
+                    <input type="checkbox" 
+                           class="transaction-checkbox" 
+                           data-index="${index}" 
+                           ${trans.selected ? 'checked' : ''}>
+                </td>
+                <td>${trans.date}</td>
+                <td>
+                    ${trans.description}
+                    ${recurringBadge}
+                    ${autoImportBadge}
+                </td>
+                <td class="text-end"><strong>${CurrencyFormatter.format(trans.amount)}</strong></td>
+                <td>
+                    <select class="form-select form-select-sm category-select" data-index="${index}">
+                        <option value="">Select category...</option>
+                        ${categories.map(cat => `
+                            <option value="${cat.name}" ${trans.category === cat.name ? 'selected' : ''}>
+                                ${cat.name}
+                            </option>
+                        `).join('')}
+                    </select>
+                </td>
+                <td>
+                    <input type="text" 
+                           class="form-control form-control-sm notes-input" 
+                           data-index="${index}"
+                           placeholder="Add notes..."
+                           value="${trans.notes || (trans.is_recurring && trans.template_name ? `Recurring: ${trans.template_name}` : '')}">
+                </td>
+            </tr>
+        `;
+    }).join('');
     
     // Add event listeners
     document.querySelectorAll('.transaction-checkbox').forEach(checkbox => {
@@ -692,18 +807,152 @@ function displayParsedTransactions(transactions, summary) {
             parsedTransactions[index].category = this.value;
         });
     });
+    
+    document.querySelectorAll('.notes-input').forEach(input => {
+        input.addEventListener('input', function() {
+            const index = parseInt(this.dataset.index);
+            parsedTransactions[index].notes = this.value;
+        });
+    });
 }
 
 /**
  * Toggle all transactions
  */
 function toggleAllTransactions() {
-    const checked = document.getElementById('selectAllCheckbox').checked;
-    document.querySelectorAll('.transaction-checkbox').forEach(checkbox => {
-        checkbox.checked = checked;
-        const index = parseInt(checkbox.dataset.index);
-        parsedTransactions[index].selected = checked;
+    const selectAll = document.getElementById('selectAllCheckbox').checked;
+    document.querySelectorAll('.transaction-checkbox:not([style*="display: none"])').forEach(checkbox => {
+        const row = checkbox.closest('tr');
+        if (row.style.display !== 'none') {
+            checkbox.checked = selectAll;
+            const index = parseInt(checkbox.dataset.index);
+            parsedTransactions[index].selected = selectAll;
+        }
     });
+}
+
+/**
+ * Filter transactions based on search input
+ */
+function filterTransactions() {
+    const searchTerm = document.getElementById('transactionSearch').value.toLowerCase();
+    const rows = document.querySelectorAll('#transactionsTableBody tr');
+    let visibleCount = 0;
+    
+    rows.forEach(row => {
+        const description = row.cells[2].textContent.toLowerCase();
+        const amount = row.cells[3].textContent.toLowerCase();
+        const category = row.cells[4].querySelector('select')?.value.toLowerCase() || '';
+        
+        const matches = description.includes(searchTerm) || 
+                       amount.includes(searchTerm) || 
+                       category.includes(searchTerm);
+        
+        if (matches) {
+            row.style.display = '';
+            visibleCount++;
+        } else {
+            row.style.display = 'none';
+        }
+    });
+    
+    // Update filter count
+    const filterCount = document.getElementById('filterCount');
+    if (searchTerm) {
+        filterCount.textContent = `Showing ${visibleCount} of ${rows.length} transactions`;
+        filterCount.style.color = visibleCount === 0 ? '#dc3545' : '#6c757d';
+    } else {
+        filterCount.textContent = '';
+    }
+}
+
+/**
+ * Clear transaction search
+ */
+function clearTransactionSearch() {
+    document.getElementById('transactionSearch').value = '';
+    filterTransactions();
+}
+
+/**
+ * Select only recurring transactions
+ */
+function selectRecurring() {
+    document.querySelectorAll('.transaction-checkbox').forEach(checkbox => {
+        const row = checkbox.closest('tr');
+        if (row.style.display !== 'none') {
+            const index = parseInt(checkbox.dataset.index);
+            const isRecurring = parsedTransactions[index].is_recurring;
+            checkbox.checked = isRecurring;
+            parsedTransactions[index].selected = isRecurring;
+        }
+    });
+}
+
+/**
+ * Apply bulk category to all visible transactions
+ */
+function applyBulkCategory() {
+    const bulkSelect = document.getElementById('bulkCategorySelect');
+    const selectedCategory = bulkSelect.value;
+    
+    if (!selectedCategory) {
+        showExpenseNotification('Please select a category first', 'error');
+        return;
+    }
+    
+    let appliedCount = 0;
+    
+    // Apply to all visible rows
+    document.querySelectorAll('#transactionsTableBody tr').forEach(row => {
+        if (row.style.display !== 'none') {
+            const categorySelect = row.cells[4].querySelector('select');
+            if (categorySelect) {
+                const index = parseInt(categorySelect.dataset.index);
+                categorySelect.value = selectedCategory;
+                parsedTransactions[index].category = selectedCategory;
+                appliedCount++;
+            }
+        }
+    });
+    
+    // Reset bulk select
+    bulkSelect.value = '';
+    
+    showExpenseNotification(`Applied "${selectedCategory}" to ${appliedCount} visible transactions`, 'success');
+}
+
+/**
+ * Apply bulk notes to all visible transactions
+ */
+function applyBulkNotes() {
+    const bulkInput = document.getElementById('bulkNotesInput');
+    const notes = bulkInput.value.trim();
+    
+    if (!notes) {
+        showExpenseNotification('Please enter notes first', 'error');
+        return;
+    }
+    
+    let appliedCount = 0;
+    
+    // Apply to all visible rows
+    document.querySelectorAll('#transactionsTableBody tr').forEach(row => {
+        if (row.style.display !== 'none') {
+            const notesInput = row.cells[5].querySelector('input');
+            if (notesInput) {
+                const index = parseInt(notesInput.dataset.index);
+                notesInput.value = notes;
+                parsedTransactions[index].notes = notes;
+                appliedCount++;
+            }
+        }
+    });
+    
+    // Reset bulk input
+    bulkInput.value = '';
+    
+    showExpenseNotification(`Applied notes to ${appliedCount} visible transactions`, 'success');
 }
 
 /**
@@ -727,10 +976,13 @@ function deselectAll() {
  */
 function selectCategorized() {
     document.querySelectorAll('.transaction-checkbox').forEach(checkbox => {
-        const index = parseInt(checkbox.dataset.index);
-        const hasCat = parsedTransactions[index].category && parsedTransactions[index].category !== '';
-        checkbox.checked = hasCat;
-        parsedTransactions[index].selected = hasCat;
+        const row = checkbox.closest('tr');
+        if (row.style.display !== 'none') {
+            const index = parseInt(checkbox.dataset.index);
+            const hasCat = parsedTransactions[index].category && parsedTransactions[index].category !== '';
+            checkbox.checked = hasCat;
+            parsedTransactions[index].selected = hasCat;
+        }
     });
 }
 
@@ -757,13 +1009,43 @@ async function importTransactions() {
         const data = await response.json();
         
         if (data.success) {
-            showExpenseNotification(`Successfully imported ${data.imported_count} expenses!`, 'success');
+            let message = `Successfully imported ${data.imported_count} expenses!`;
+            if (data.auto_imported_count > 0) {
+                message += ` (${data.auto_imported_count} auto-imported from recurring templates)`;
+            }
+            showExpenseNotification(message, 'success');
             
-            // Close modal
-            const modalElement = document.getElementById('bankImportModal');
-            const modal = bootstrap.Modal.getInstance(modalElement);
-            if (modal) {
-                modal.hide();
+            // Remove imported transactions from the list
+            parsedTransactions = parsedTransactions.filter(t => !t.selected);
+            
+            // If no transactions left, close modal
+            if (parsedTransactions.length === 0) {
+                const modalElement = document.getElementById('bankImportModal');
+                const modal = bootstrap.Modal.getInstance(modalElement);
+                if (modal) {
+                    modal.hide();
+                }
+            } else {
+                // Clear search to show all remaining transactions
+                const searchInput = document.getElementById('transactionSearch');
+                if (searchInput) {
+                    searchInput.value = '';
+                }
+                const filterCount = document.getElementById('filterCount');
+                if (filterCount) {
+                    filterCount.textContent = '';
+                }
+                
+                // Update the display with remaining transactions
+                const summary = {
+                    total_transactions: parsedTransactions.length,
+                    total_amount: parsedTransactions.reduce((sum, t) => sum + t.amount, 0),
+                    categorized_count: parsedTransactions.filter(t => t.category).length,
+                    categorization_rate: Math.round((parsedTransactions.filter(t => t.category).length / parsedTransactions.length) * 100)
+                };
+                displayParsedTransactions(parsedTransactions, summary);
+                
+                showExpenseNotification(`${parsedTransactions.length} transactions remaining. Import more or click "Back to Upload"`, 'info');
             }
             
             // Reload expenses

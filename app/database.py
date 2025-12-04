@@ -130,6 +130,27 @@ def init_database():
             ('Other Expenses', 'Other expenses', 29, 'Tools, clothing, training, software')
         """)
         
+        # Initialize recurring templates table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS recurring_templates (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL,
+                category_id INTEGER NOT NULL,
+                expected_amount REAL NOT NULL,
+                frequency TEXT NOT NULL,
+                merchant_pattern TEXT NOT NULL,
+                day_of_month INTEGER,
+                is_active BOOLEAN DEFAULT 1,
+                tolerance_amount REAL DEFAULT 5.0,
+                auto_import BOOLEAN DEFAULT 0,
+                next_expected_date TEXT,
+                last_matched_date TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (category_id) REFERENCES expense_categories(id)
+            )
+        """)
+        
         conn.commit()
 
 

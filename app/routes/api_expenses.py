@@ -308,3 +308,17 @@ def api_view_receipt(filepath):
         return send_file(str(full_path))
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@expenses_bp.route('/clear-all', methods=['POST'])
+def api_clear_all_expenses():
+    """Clear all expenses from the database."""
+    try:
+        deleted_count = ExpenseModel.clear_all_expenses()
+        return jsonify({
+            'success': True,
+            'deleted_count': deleted_count,
+            'message': f'Successfully deleted {deleted_count} expense records'
+        })
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

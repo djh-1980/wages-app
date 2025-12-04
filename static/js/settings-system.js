@@ -553,6 +553,39 @@ function copyLogsToClipboard() {
     }
 }
 
+function confirmClearExpenses() {
+    const confirmation = prompt('This will DELETE ALL EXPENSES permanently. Type "DELETE EXPENSES" to confirm:');
+    
+    if (confirmation === 'DELETE EXPENSES') {
+        clearExpenses();
+    } else if (confirmation !== null) {
+        showError('Confirmation text did not match. Operation cancelled.');
+    }
+}
+
+async function clearExpenses() {
+    try {
+        showStatus('Clearing all expenses... This may take a moment.');
+        const response = await fetch('/api/expenses/clear-all', { method: 'POST' });
+        
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(`Successfully deleted ${result.deleted_count} expense records`);
+            loadDatabaseInfo(); // Refresh stats
+        } else {
+            showError(`Failed to clear expenses: ${result.error}`);
+        }
+    } catch (error) {
+        console.error('Error clearing expenses:', error);
+        showError(`Error clearing expenses: ${error.message}`);
+    }
+}
+
 function confirmClearAllData() {
     const confirmation = prompt('This will DELETE ALL DATA permanently. Type "DELETE ALL DATA" to confirm:');
     

@@ -72,6 +72,7 @@ def create_app(config_name=None):
     from .routes.api_customer_mapping import customer_mapping_bp
     from .routes.api_expenses import expenses_bp
     from .routes.api_bank_import import bank_import_bp
+    from .routes.api_recurring import recurring_bp
     
     app.register_blueprint(main_bp)
     app.register_blueprint(payslips_bp)
@@ -92,5 +93,6 @@ def create_app(config_name=None):
     app.register_blueprint(customer_mapping_bp, url_prefix='/api/customer-mapping')
     app.register_blueprint(expenses_bp)
     app.register_blueprint(bank_import_bp)
+    app.register_blueprint(recurring_bp)
     
     return app

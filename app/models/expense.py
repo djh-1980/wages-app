@@ -24,6 +24,17 @@ class ExpenseModel:
         return [dict(row) for row in rows]
     
     @staticmethod
+    def transaction_exists(date, description, amount):
+        """Check if a transaction already exists in expenses (duplicate detection)."""
+        query = """
+            SELECT COUNT(*) as count
+            FROM expenses
+            WHERE date = ? AND description = ? AND amount = ?
+        """
+        result = execute_query(query, (date, description, amount), fetch_one=True)
+        return result['count'] > 0
+    
+    @staticmethod
     def add_expense(date, category_id, amount, description=None, vat_amount=0, 
                    receipt_file=None, is_recurring=False, recurring_frequency=None):
         """Add a new expense."""
@@ -258,3 +269,15 @@ class ExpenseModel:
             'net_profit': total_income - total_expenses,
             'expense_breakdown': summary
         }
+    
+    @staticmethod
+    def clear_all_expenses():
+        """Delete all expenses from the database."""
+        query = "DELETE FROM expenses"
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("SELECT COUNT(*) as count FROM expenses")
+            count = cursor.fetchone()['count']
+            cursor.execute(query)
+            conn.commit()
+            return count

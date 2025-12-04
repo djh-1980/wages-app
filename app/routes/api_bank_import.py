@@ -6,6 +6,7 @@ from flask import Blueprint, jsonify, request
 from werkzeug.utils import secure_filename
 from ..models.bank_statement import BankStatementParser
 from ..models.expense import ExpenseModel
+from ..models.recurring_template import RecurringTemplateModel
 
 bank_import_bp = Blueprint('bank_import_api', __name__, url_prefix='/api/bank-import')
 
@@ -31,12 +32,25 @@ def api_parse_statement():
         # Parse transactions
         transactions = BankStatementParser.parse_rbs_csv(content)
         
+        # Filter out already imported transactions
+        filtered_transactions = []
+        duplicate_count = 0
+        
+        for trans in transactions:
+            # Check if this transaction already exists in expenses
+            if not ExpenseModel.transaction_exists(trans['date'], trans['description'], trans['amount']):
+                filtered_transactions.append(trans)
+            else:
+                duplicate_count += 1
+        
         # Get summary
-        summary = BankStatementParser.get_summary(transactions)
+        summary = BankStatementParser.get_summary(filtered_transactions)
+        summary['duplicate_count'] = duplicate_count
+        summary['original_count'] = len(transactions)
         
         return jsonify({
             'success': True,
-            'transactions': transactions,
+            'transactions': filtered_transactions,
             'summary': summary
         })
     
@@ -55,6 +69,7 @@ def api_import_transactions():
         
         transactions = data['transactions']
         imported_count = 0
+        auto_imported_count = 0
         errors = []
         
         # Get category mapping (name to ID)
@@ -75,17 +90,32 @@ def api_import_transactions():
                 
                 category_id = category_map[category_name]
                 
+                # Check if this is a recurring transaction
+                is_recurring = trans.get('is_recurring', False)
+                template_id = trans.get('template_id')
+                
+                # Build description with notes if provided
+                description = trans['description']
+                if trans.get('notes'):
+                    description = f"{trans['description']} - {trans['notes']}"
+                
                 # Add expense
                 ExpenseModel.add_expense(
                     date=trans['date'],
                     category_id=category_id,
                     amount=trans['amount'],
-                    description=trans['description'],
+                    description=description,
                     vat_amount=0,
                     receipt_file=None,
-                    is_recurring=False,
+                    is_recurring=is_recurring,
                     recurring_frequency=None
                 )
+                
+                # Update template's last matched date if matched
+                if template_id:
+                    RecurringTemplateModel.update_last_matched(template_id, trans['date'])
+                    if trans.get('auto_import', False):
+                        auto_imported_count += 1
                 
                 imported_count += 1
             
@@ -95,6 +125,7 @@ def api_import_transactions():
         return jsonify({
             'success': True,
             'imported_count': imported_count,
+            'auto_imported_count': auto_imported_count,
             'errors': errors
         })
     
