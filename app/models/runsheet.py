@@ -160,7 +160,7 @@ class RunsheetModel:
             SELECT 
                 id, date, job_number, customer, activity, job_address,
                 status, pay_amount, pay_rate, pay_units, pay_week, pay_year,
-                pay_updated_at, imported_at, postcode, notes
+                pay_updated_at, imported_at, postcode, notes, price_agreed
             FROM run_sheet_jobs
             WHERE date = ?
             ORDER BY job_number
