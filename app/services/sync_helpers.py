@@ -6,12 +6,13 @@ Database queries and email notifications.
 import sqlite3
 from datetime import datetime
 from pathlib import Path
+from typing import Optional, Dict, Any
 
 
 DB_PATH = "data/database/payslips.db"
 
 
-def get_latest_runsheet_date():
+def get_latest_runsheet_date() -> Optional[str]:
     """Get the most recent runsheet date from database."""
     conn = None
     try:
@@ -39,7 +40,7 @@ def get_latest_runsheet_date():
             conn.close()
 
 
-def get_latest_payslip_week():
+def get_latest_payslip_week() -> Optional[str]:
     """Get the most recent payslip week number from database."""
     conn = None
     try:
@@ -66,34 +67,27 @@ def get_latest_payslip_week():
             conn.close()
 
 
-def sync_payslips_to_runsheets():
+def sync_payslips_to_runsheets() -> int:
     """Sync payslip data to runsheet jobs. Returns count of jobs updated."""
     import time
-    import os
+    import logging
     
-    # Clear any existing lock files first
-    wal_file = f"{DB_PATH}-wal"
-    shm_file = f"{DB_PATH}-shm"
-    for lock_file in [wal_file, shm_file]:
-        if os.path.exists(lock_file):
-            try:
-                os.remove(lock_file)
-                print(f"Removed lock file: {lock_file}")
-            except:
-                pass
-    
+    logger = logging.getLogger('sync_helpers')
     conn = None
     max_retries = 3
+    retry_delay = 2  # seconds
     
     for attempt in range(max_retries):
         try:
-            print(f"Sync attempt {attempt + 1}/{max_retries}...")
+            logger.info(f"Sync attempt {attempt + 1}/{max_retries}...")
             
-            # Use DELETE mode to avoid WAL complications
-            conn = sqlite3.connect(DB_PATH, timeout=60.0)
-            conn.execute('PRAGMA journal_mode=DELETE')
+            # Use proper connection with timeout and WAL mode
+            # WAL mode is actually better for concurrent access
+            conn = sqlite3.connect(DB_PATH, timeout=60.0, check_same_thread=False)
+            conn.execute('PRAGMA journal_mode=WAL')
             conn.execute('PRAGMA busy_timeout=60000')
             conn.execute('PRAGMA synchronous=NORMAL')
+            conn.execute('PRAGMA wal_autocheckpoint=1000')
             cursor = conn.cursor()
             
             # First, handle PayPoint Van Stock Audit jobs (set to £0)
@@ -213,7 +207,7 @@ def sync_payslips_to_runsheets():
     return 0
 
 
-def should_send_notification(sync_summary):
+def should_send_notification(sync_summary: Dict[str, Any]) -> bool:
     """Determine if email notification should be sent."""
     # Send if anything was downloaded, imported, or if there are errors
     if (sync_summary['runsheets_downloaded'] > 0 or 

@@ -145,6 +145,26 @@ class CompanyCalendar:
         return f"{sunday.strftime('%d %b')} - {saturday.strftime('%d %b %Y')}"
     
     @classmethod
+    def get_tax_year_from_date(cls, date: datetime) -> int:
+        """
+        Calculate UK tax year from a date.
+        UK tax year runs from April 6th to April 5th.
+        
+        Args:
+            date: Date to check
+            
+        Returns:
+            Tax year (e.g., 2025 for tax year 2024/2025)
+        """
+        # UK tax year starts April 6th
+        if date.month < 4 or (date.month == 4 and date.day < 6):
+            # Before April 6th = previous tax year
+            return date.year
+        else:
+            # April 6th onwards = current tax year
+            return date.year + 1
+    
+    @classmethod
     def get_current_week(cls) -> Tuple[int, int]:
         """
         Get current company week number and tax year (in UK timezone).
@@ -154,8 +174,8 @@ class CompanyCalendar:
         """
         today = now_uk()  # Use UK timezone
         
-        # Determine tax year (simplified - assumes 2025 for now)
-        tax_year = 2025
+        # Determine tax year dynamically based on UK tax year
+        tax_year = cls.get_tax_year_from_date(today)
         week_number = cls.get_week_number_from_date(today, tax_year)
         
         return week_number, tax_year
@@ -173,9 +193,8 @@ class CompanyCalendar:
         """
         period_end = cls.parse_date_string(period_end_str)
         
-        # Determine tax year (for now, assume everything is 2025)
-        # TODO: Add support for other tax years when needed
-        tax_year = 2025
+        # Determine tax year dynamically based on UK tax year
+        tax_year = cls.get_tax_year_from_date(period_end)
         
         week_number = cls.get_week_number_from_date(period_end, tax_year)
         return week_number, tax_year

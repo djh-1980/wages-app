@@ -136,7 +136,11 @@ class PayslipModel:
             cursor = conn.cursor()
             
             # Get payslip
-            cursor.execute("SELECT * FROM payslips WHERE id = ?", (payslip_id,))
+            cursor.execute("""
+                SELECT id, week_number, tax_year, period_start, period_end,
+                       gross_pay, tax, ni, net_pay, file_path, processed_at
+                FROM payslips WHERE id = ?
+            """, (payslip_id,))
             payslip_row = cursor.fetchone()
             
             if not payslip_row:
@@ -146,7 +150,9 @@ class PayslipModel:
             
             # Get job items
             cursor.execute("""
-                SELECT * FROM job_items
+                SELECT id, payslip_id, job_number, description, location,
+                       rate, units, amount
+                FROM job_items
                 WHERE payslip_id = ?
                 ORDER BY id
             """, (payslip_id,))

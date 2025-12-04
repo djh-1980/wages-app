@@ -567,7 +567,31 @@ async function loadMissingRunSheets() {
         }
         
         if (dates.length === 0) {
-            contentDiv.innerHTML = `<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> No run sheets found${yearFilter ? ' for ' + yearFilter : ' in database'}!</div>`;
+            // Check if we have attendance records for this year
+            const yearAttendance = attendanceRecords.filter(a => {
+                if (!yearFilter) return true;
+                return a.date && a.date.endsWith(yearFilter);
+            });
+            
+            if (yearAttendance.length === 0) {
+                // No attendance records = no data to analyze
+                contentDiv.innerHTML = `
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> 
+                        <strong>No attendance records found${yearFilter ? ' for ' + yearFilter : ''}.</strong>
+                        <p class="mb-0 mt-2">This report shows gaps in your runsheet data by comparing against logged absences/holidays. 
+                        Since you haven't logged any absences${yearFilter ? ' for ' + yearFilter : ''}, there's nothing to analyze.</p>
+                        <p class="mb-0 mt-2">Your runsheet data for this period may still exist - check the main Runsheets page to view it.</p>
+                    </div>`;
+            } else {
+                // Have attendance but no runsheets
+                contentDiv.innerHTML = `
+                    <div class="alert alert-warning">
+                        <i class="bi bi-exclamation-triangle"></i> 
+                        <strong>No run sheets found${yearFilter ? ' for ' + yearFilter : ' in database'}!</strong>
+                        <p class="mb-0 mt-2">You have ${yearAttendance.length} attendance record(s) but no runsheet data for this period.</p>
+                    </div>`;
+            }
             return;
         }
         

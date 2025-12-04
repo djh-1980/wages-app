@@ -157,7 +157,10 @@ class RunsheetModel:
     def get_jobs_for_date(date):
         """Get all jobs for a specific date."""
         query = """
-            SELECT *
+            SELECT 
+                id, date, job_number, customer, activity, job_address,
+                status, pay_amount, pay_rate, pay_units, pay_week, pay_year,
+                pay_updated_at, created_at, updated_at
             FROM run_sheet_jobs
             WHERE date = ?
             ORDER BY job_number

@@ -125,7 +125,29 @@ class SeparatedSyncService:
             # Step 4: Send notification (if we imported anything)
             if result['runsheets_imported'] > 0:
                 self.logger.info("Step 4: Sending notification")
-                # TODO: Implement notification
+                try:
+                    from .gmail_notifier import gmail_notifier
+                    from ..models.settings import SettingsModel
+                    import os
+                    
+                    recipient_email = SettingsModel.get_setting('notification_email')
+                    if not recipient_email:
+                        recipient_email = os.environ.get('NOTIFICATION_EMAIL', 'danielhanson1980@gmail.com')
+                    
+                    sync_summary = {
+                        'runsheets_downloaded': result['runsheets_downloaded'],
+                        'runsheets_imported': result['runsheets_imported'],
+                        'payslips_downloaded': 0,
+                        'payslips_imported': 0,
+                        'jobs_synced': 0,
+                        'errors': []
+                    }
+                    
+                    gmail_notifier.send_sync_notification(sync_summary, recipient_email)
+                    self.logger.info("Notification sent successfully")
+                except Exception as e:
+                    self.logger.warning(f"Failed to send notification: {e}")
+                
                 result['step_completed'] = 4
             
             result['success'] = True
@@ -236,7 +258,29 @@ class SeparatedSyncService:
             # Step 7: Send notification
             if result['payslips_imported'] > 0 or result['jobs_synced'] > 0:
                 self.logger.info("Step 7: Sending notification")
-                # TODO: Implement notification
+                try:
+                    from .gmail_notifier import gmail_notifier
+                    from ..models.settings import SettingsModel
+                    import os
+                    
+                    recipient_email = SettingsModel.get_setting('notification_email')
+                    if not recipient_email:
+                        recipient_email = os.environ.get('NOTIFICATION_EMAIL', 'danielhanson1980@gmail.com')
+                    
+                    sync_summary = {
+                        'runsheets_downloaded': 0,
+                        'runsheets_imported': 0,
+                        'payslips_downloaded': result['payslips_downloaded'],
+                        'payslips_imported': result['payslips_imported'],
+                        'jobs_synced': result['jobs_synced'],
+                        'errors': []
+                    }
+                    
+                    gmail_notifier.send_sync_notification(sync_summary, recipient_email)
+                    self.logger.info("Notification sent successfully")
+                except Exception as e:
+                    self.logger.warning(f"Failed to send notification: {e}")
+                
                 result['step_completed'] = 7
             
             result['success'] = True

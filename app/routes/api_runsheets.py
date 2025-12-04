@@ -108,28 +108,45 @@ def api_get_daily_data():
 @runsheets_bp.route('/update-job-status', methods=['POST'])
 def api_update_job_status():
     """Update a single job's status immediately."""
+    import logging
+    from ..utils.validators import validate_status
+    
+    logger = logging.getLogger(__name__)
+    
     try:
         data = request.get_json()
         
         if not data:
+            logger.warning("Update job status called with no data")
             return jsonify({'success': False, 'error': 'No data provided'}), 400
         
         job_id = data.get('job_id')
         status = data.get('status')
         
         if not job_id or not status:
+            logger.warning(f"Missing required fields: job_id={job_id}, status={status}")
             return jsonify({'success': False, 'error': 'Job ID and status are required'}), 400
+        
+        # Validate status
+        is_valid, error_msg = validate_status(status)
+        if not is_valid:
+            logger.warning(f"Invalid status '{status}': {error_msg}")
+            return jsonify({'success': False, 'error': error_msg}), 400
         
         success = RunsheetModel.update_job_status(job_id, status)
         
         if success:
+            logger.info(f"Updated job {job_id} status to {status}")
             return jsonify({'success': True})
         else:
+            logger.error(f"Failed to update job {job_id} - not found")
             return jsonify({'success': False, 'error': 'Job not found or update failed'}), 404
     except ValueError as e:
+        logger.error(f"Validation error updating job status: {e}")
         return jsonify({'success': False, 'error': str(e)}), 400
     except Exception as e:
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.exception(f"Unexpected error updating job status: {e}")
+        return jsonify({'success': False, 'error': 'Internal server error'}), 500
 
 
 @runsheets_bp.route('/add-job', methods=['POST'])
