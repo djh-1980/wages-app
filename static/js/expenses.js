@@ -781,3 +781,41 @@ async function importTransactions() {
         showExpenseNotification('Failed to import transactions', 'error');
     }
 }
+
+// ============================================================================
+// Gmail Receipt Download
+// ============================================================================
+
+/**
+ * Download receipts from Gmail
+ */
+async function downloadGmailReceipts() {
+    if (!confirm('Download receipts from Gmail?\n\nThis will search for receipt emails from April 2024 onwards and download all PDF/image attachments to the receipts folder.\n\nThis may take a few minutes.')) {
+        return;
+    }
+    
+    try {
+        showExpenseNotification('Downloading receipts from Gmail... This may take a few minutes.', 'info');
+        
+        const response = await fetch('/api/gmail/download-receipts', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({
+                after_date: '2024/04/06'  // Tax year start
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showExpenseNotification('✅ Receipts downloaded successfully! Check data/receipts folder.', 'success');
+            console.log('Download output:', data.output);
+        } else {
+            showExpenseNotification('Failed to download receipts: ' + (data.error || 'Unknown error'), 'error');
+            console.error('Download error:', data);
+        }
+    } catch (error) {
+        console.error('Error downloading receipts:', error);
+        showExpenseNotification('Failed to download receipts from Gmail', 'error');
+    }
+}

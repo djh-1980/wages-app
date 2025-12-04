@@ -83,6 +83,57 @@ def api_gmail_status():
         return jsonify({'error': str(e)}), 500
 
 
+@gmail_bp.route('/download-receipts', methods=['POST'])
+def api_gmail_download_receipts():
+    """Download receipts from Gmail."""
+    try:
+        data = request.json or {}
+        after_date = data.get('after_date', '2024/04/06')
+        merchant = data.get('merchant', None)
+        
+        # Build command
+        cmd = [sys.executable, 'scripts/production/download_receipts_gmail.py']
+        cmd.append(f'--date={after_date}')
+        
+        if merchant:
+            cmd.append(f'--merchant={merchant}')
+        
+        # Run in background
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True
+        )
+        
+        # Wait for completion (with timeout)
+        stdout, stderr = process.communicate(timeout=300)  # 5 minute timeout
+        
+        if process.returncode == 0:
+            return jsonify({
+                'success': True,
+                'message': 'Receipt download completed successfully',
+                'output': stdout
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'error': stderr or 'Download failed',
+                'output': stdout
+            }), 500
+        
+    except subprocess.TimeoutExpired:
+        return jsonify({
+            'success': False,
+            'error': 'Download timed out (took longer than 5 minutes)'
+        }), 500
+    except Exception as e:
+        return jsonify({
+            'success': False,
+            'error': str(e)
+        }), 500
+
+
 @gmail_bp.route('/test-connection', methods=['POST'])
 def api_test_gmail_connection():
     """Test Gmail API connection."""
