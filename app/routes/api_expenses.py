@@ -235,10 +235,11 @@ def api_upload_receipt():
         # Parse date to get tax year and month
         try:
             expense_date = datetime.strptime(date, '%d/%m/%Y')
-            if expense_date.month >= 4 and expense_date.day >= 6:
-                tax_year = f"{expense_date.year}-{expense_date.year + 1}"
+            # Tax year format: 2024-25 (not 2024-2025)
+            if expense_date.month > 4 or (expense_date.month == 4 and expense_date.day >= 6):
+                tax_year = f"{expense_date.year}-{str(expense_date.year + 1)[-2:]}"
             else:
-                tax_year = f"{expense_date.year - 1}-{expense_date.year}"
+                tax_year = f"{expense_date.year - 1}-{str(expense_date.year)[-2:]}"
             
             month_folder = f"{expense_date.month:02d}-{expense_date.strftime('%B')}"
         except:
@@ -246,7 +247,10 @@ def api_upload_receipt():
             month_folder = "unknown"
         
         # Create directory structure: data/receipts/2024-25/12-December/
-        receipt_dir = Path(RECEIPT_FOLDER) / tax_year / month_folder
+        # Use absolute path from project root
+        from ..config import Config
+        project_root = Path(Config.BASE_DIR)
+        receipt_dir = project_root / RECEIPT_FOLDER / tax_year / month_folder
         receipt_dir.mkdir(parents=True, exist_ok=True)
         
         # Generate filename: DD-MM-YYYY_category_amount.ext
@@ -258,8 +262,8 @@ def api_upload_receipt():
         filepath = receipt_dir / filename
         file.save(str(filepath))
         
-        # Return relative path for database storage
-        relative_path = str(filepath.relative_to(Path('.')))
+        # Return relative path for database storage (relative to project root)
+        relative_path = str(filepath.relative_to(project_root))
         
         return jsonify({
             'success': True,
@@ -274,7 +278,11 @@ def api_upload_receipt():
 def api_view_receipt(filepath):
     """View a receipt file."""
     try:
-        full_path = Path(filepath)
+        from ..config import Config
+        project_root = Path(Config.BASE_DIR)
+        
+        # Convert relative path to absolute
+        full_path = project_root / filepath
         
         if not full_path.exists():
             return jsonify({'error': 'Receipt not found'}), 404
