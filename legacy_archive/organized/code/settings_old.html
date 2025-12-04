@@ -1,0 +1,657 @@
+{% extends "base.html" %}
+
+{% block title %}Settings - TVS App{% endblock %}
+
+{% block content %}
+<div class="container-fluid">
+    <!-- Header -->
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h2 class="mb-0">
+            <i class="bi bi-gear me-2"></i>Settings
+        </h2>
+        <button class="btn btn-outline-primary" onclick="loadAllSettings()">
+            <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+    <div class="tab-pane fade show active" id="profile" role="tabpanel">
+        <div class="card settings-card">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-person-circle text-primary"></i> User Profile
+                </h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Full Name</label>
+                            <input type="text" class="form-control" id="userName" placeholder="Daniel Hanson">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Email</label>
+                            <input type="email" class="form-control" id="userEmail" placeholder="your@email.com">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Phone</label>
+                            <input type="tel" class="form-control" id="userPhone" placeholder="+44 7XXX XXXXXX">
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="mb-3">
+                            <label class="form-label">Hourly Rate (£)</label>
+                            <input type="number" class="form-control" id="hourlyRate" placeholder="15.00" step="0.01">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Tax Code</label>
+                            <input type="text" class="form-control" id="taxCode" placeholder="1257L">
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">NI Number</label>
+                            <input type="text" class="form-control" id="niNumber" placeholder="AB123456C">
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-primary" onclick="saveProfile()">
+                    <i class="bi bi-save"></i> Save Profile
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Auto-Sync Tab -->
+    <div class="tab-pane fade" id="sync" role="tabpanel">
+        <div class="card settings-card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-arrow-repeat text-success"></i> Automatic Sync Status
+                    </h5>
+                    <span class="sync-status" id="syncStatusBadge">Checking...</span>
+                </div>
+                
+                <div class="alert alert-info">
+                    <i class="bi bi-info-circle"></i>
+                    <strong>Auto-sync runs twice daily:</strong> 6:00 AM and 11:00 PM
+                </div>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6><i class="bi bi-clock"></i> Last Sync</h6>
+                                <p class="mb-0" id="lastSyncTime">Never</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card bg-light">
+                            <div class="card-body">
+                                <h6><i class="bi bi-clock-history"></i> Next Sync</h6>
+                                <p class="mb-0" id="nextSyncTime">Calculating...</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button class="btn btn-success" onclick="runSyncNow()">
+                        <i class="bi bi-play-circle"></i> Run Sync Now
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="viewSyncLogs()">
+                        <i class="bi bi-file-text"></i> View Sync Logs
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card settings-card">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-sliders"></i> Sync Configuration
+                </h5>
+                
+                <div class="mb-3">
+                    <label class="form-label">Sync Schedule</label>
+                    <select class="form-control" id="syncSchedule">
+                        <option value="twice">Twice Daily (6 AM & 11 PM)</option>
+                        <option value="hourly">Every Hour</option>
+                        <option value="custom">Custom Times</option>
+                    </select>
+                    <small class="text-muted">Requires re-running setup script to apply changes</small>
+                </div>
+                
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="autoImport" checked>
+                    <label class="form-check-label" for="autoImport">
+                        Automatically import downloaded run sheets
+                    </label>
+                </div>
+                
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="autoOrganize" checked>
+                    <label class="form-check-label" for="autoOrganize">
+                        Organize PDFs into year/month folders
+                    </label>
+                </div>
+                
+                <div class="form-check form-switch mb-3">
+                    <input class="form-check-input" type="checkbox" id="notifyOnSync" checked>
+                    <label class="form-check-label" for="notifyOnSync">
+                        Show notification when new run sheets arrive
+                    </label>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Gmail Tab -->
+    <div class="tab-pane fade" id="gmail" role="tabpanel">
+        <div class="card settings-card mb-4">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-envelope-check text-info"></i> Gmail Connection
+                    </h5>
+                    <span class="sync-status" id="gmailStatusBadge">Checking...</span>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">OAuth Status</label>
+                    <div class="card bg-light">
+                        <div class="card-body">
+                            <p class="mb-2"><strong>Token File:</strong> <span id="tokenStatus">Checking...</span></p>
+                            <p class="mb-0"><strong>Credentials:</strong> <span id="credentialsStatus">Checking...</span></p>
+                        </div>
+                    </div>
+                </div>
+                
+                <button class="btn btn-outline-secondary" onclick="reauthorizeGmail()">
+                    <i class="bi bi-arrow-clockwise"></i> Re-authorize Gmail
+                </button>
+            </div>
+        </div>
+        
+        <div class="card settings-card mb-4">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-download text-success"></i> Download from Gmail
+                </h5>
+                
+                <div class="mb-3">
+                    <label class="form-label">Download From Date</label>
+                    <input type="date" class="form-control" id="gmailDownloadDate" value="2025-01-01">
+                    <small class="text-muted">Download emails from this date onwards</small>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">What to Download</label>
+                    <select class="form-select" id="gmailDownloadMode">
+                        <option value="all">Both Run Sheets & Payslips</option>
+                        <option value="runsheets">Run Sheets Only</option>
+                        <option value="payslips">Payslips Only (saser files, Tuesdays 1300)</option>
+                    </select>
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button class="btn btn-success" onclick="downloadFromGmail()">
+                        <i class="bi bi-cloud-download"></i> Start Download
+                    </button>
+                </div>
+                
+                <div id="gmailDownloadStatus" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <div class="card settings-card">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-info-circle"></i> Gmail Setup Instructions
+                </h5>
+                
+                <div class="alert alert-info">
+                    <p class="mb-2"><strong>First Time Setup:</strong></p>
+                    <ol class="mb-0">
+                        <li>Go to <a href="https://console.cloud.google.com/" target="_blank">Google Cloud Console</a></li>
+                        <li>Create a project and enable Gmail API</li>
+                        <li>Create OAuth 2.0 credentials (Desktop app)</li>
+                        <li>Download credentials.json to project root</li>
+                        <li>Click "Re-authorize Gmail" above</li>
+                    </ol>
+                </div>
+                
+                <div class="alert alert-warning">
+                    <p class="mb-0"><strong>Note:</strong> Run sheets are automatically organized by date and renamed to DH_DD-MM-YYYY.pdf. Payslips (saser files) are saved to the PaySlips folder.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Data Tab -->
+    <div class="tab-pane fade" id="data" role="tabpanel">
+        <div class="card settings-card mb-4">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-info-circle text-info"></i> Database Information
+                </h5>
+                
+                <div class="row text-center">
+                    <div class="col-md-3">
+                        <div class="p-3">
+                            <h3 class="text-primary" id="dbPayslips">-</h3>
+                            <small class="text-muted">Payslips</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3">
+                            <h3 class="text-success" id="dbRunSheets">-</h3>
+                            <small class="text-muted">Run Sheet Days</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3">
+                            <h3 class="text-info" id="dbJobs">-</h3>
+                            <small class="text-muted">Total Jobs</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="p-3">
+                            <h3 class="text-warning" id="dbSize">-</h3>
+                            <small class="text-muted">Database Size</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card settings-card mb-4">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-arrow-repeat text-primary"></i> Data Management
+                </h5>
+                
+                <div class="list-group">
+                    <a href="#" class="list-group-item list-group-item-action" onclick="syncPayslips(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-file-earmark-text text-primary"></i>
+                                <strong>Sync Payslips</strong>
+                                <br>
+                                <small class="text-muted">Import new payslips from PaySlips folder</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                    
+                    <a href="#" class="list-group-item list-group-item-action list-group-item-primary" onclick="downloadAndSyncRunSheets(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-cloud-download text-primary"></i>
+                                <strong>Download & Sync Run Sheets</strong>
+                                <br>
+                                <small class="text-muted">Download from Gmail, then import to database (recommended)</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                    
+                    <a href="#" class="list-group-item list-group-item-action" onclick="syncRunSheets(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-calendar-check text-success"></i>
+                                <strong>Sync Run Sheets Only</strong>
+                                <br>
+                                <small class="text-muted">Import existing run sheets from RunSheets folder</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                    
+                    <a href="#" class="list-group-item list-group-item-action" onclick="reorganizeRunSheets(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-folder-symlink text-warning"></i>
+                                <strong>Reorganize Run Sheets</strong>
+                                <br>
+                                <small class="text-muted">Organize by date and rename to DH_DD-MM-YYYY.pdf</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                    
+                    <a href="#" class="list-group-item list-group-item-action" onclick="validateData(); return false;">
+                        <div class="d-flex justify-content-between align-items-center">
+                            <div>
+                                <i class="bi bi-check-circle text-info"></i>
+                                <strong>Validate Data</strong>
+                                <br>
+                                <small class="text-muted">Check data integrity and completeness</small>
+                            </div>
+                            <i class="bi bi-chevron-right"></i>
+                        </div>
+                    </a>
+                </div>
+                
+                <div id="dataManagementStatus" class="mt-3" style="display: none;"></div>
+                
+                <div class="mt-3">
+                    <button class="btn btn-sm btn-outline-secondary" onclick="viewSettingsLogs()">
+                        <i class="bi bi-file-text"></i> View Operation Logs
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card settings-card mb-4">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-shield-check text-success"></i> Backup & Restore
+                </h5>
+                
+                <div class="mb-3">
+                    <label class="form-label">Database Backup</label>
+                    <div class="d-grid gap-2">
+                        <button class="btn btn-success" onclick="backupDatabase()">
+                            <i class="bi bi-download"></i> Create Backup
+                        </button>
+                        <button class="btn btn-outline-primary" onclick="restoreDatabase()">
+                            <i class="bi bi-upload"></i> Restore from Backup
+                        </button>
+                    </div>
+                    <small class="text-muted">Backups are saved to the Backups/ folder</small>
+                </div>
+                
+                <div id="backupStatus" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+        
+        <div class="card settings-card mb-4">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-file-earmark-spreadsheet text-info"></i> Export Data
+                </h5>
+                
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-info" onclick="exportRunSheets()">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> Export Run Sheets (CSV)
+                    </button>
+                    <button class="btn btn-outline-info" onclick="exportPayslips()">
+                        <i class="bi bi-file-earmark-spreadsheet"></i> Export Payslips (CSV)
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card settings-card border-danger">
+            <div class="card-body">
+                <h5 class="card-title mb-4 text-danger">
+                    <i class="bi bi-exclamation-triangle"></i> Danger Zone
+                </h5>
+                
+                <div class="alert alert-warning">
+                    <strong>Warning:</strong> These actions cannot be undone. Always create a backup first!
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-danger" onclick="clearRunSheets()">
+                        <i class="bi bi-trash"></i> Clear All Run Sheets
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="clearPayslips()">
+                        <i class="bi bi-trash"></i> Clear All Payslips
+                    </button>
+                    <button class="btn btn-danger" onclick="clearDatabase()">
+                        <i class="bi bi-trash3"></i> Clear Entire Database
+                    </button>
+                </div>
+                
+                <div id="dangerZoneStatus" class="mt-3" style="display: none;"></div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Appearance Tab -->
+    <div class="tab-pane fade" id="appearance" role="tabpanel">
+        <div class="card settings-card">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-palette text-primary"></i> Application Preferences
+                </h5>
+                
+                <div class="mb-3">
+                    <label class="form-label">Default Page</label>
+                    <select class="form-select" id="defaultPage">
+                        <option value="runsheets" selected>Run Sheets</option>
+                        <option value="wages">Wages</option>
+                        <option value="reports">Reporting</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Items Per Page</label>
+                    <select class="form-select" id="itemsPerPage">
+                        <option value="10">10</option>
+                        <option value="20" selected>20</option>
+                        <option value="50">50</option>
+                        <option value="100">100</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Date Format</label>
+                    <select class="form-select" id="dateFormat">
+                        <option value="DD/MM/YYYY" selected>DD/MM/YYYY</option>
+                        <option value="MM/DD/YYYY">MM/DD/YYYY</option>
+                        <option value="YYYY-MM-DD">YYYY-MM-DD</option>
+                    </select>
+                </div>
+                
+                <div class="mb-3">
+                    <label class="form-label">Theme</label>
+                    <select class="form-select" id="theme">
+                        <option value="light" selected>Light</option>
+                        <option value="dark">Dark (Coming Soon)</option>
+                    </select>
+                </div>
+                
+                <button class="btn btn-primary" onclick="saveAppearance()">
+                    <i class="bi bi-save"></i> Save Preferences
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Attendance Tab -->
+    <div class="tab-pane fade" id="attendance" role="tabpanel">
+        <div class="card settings-card mb-4">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-calendar-check text-success"></i> Attendance Tracking
+                </h5>
+                
+                <p class="text-muted">Track days you didn't work (holidays, sick days, absences) so they won't show as missing run sheets.</p>
+                
+                <ul class="nav nav-tabs mb-3" id="attendanceInputTabs" role="tablist">
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link active" id="single-date-tab" data-bs-toggle="tab" data-bs-target="#single-date" type="button">
+                            Single Date
+                        </button>
+                    </li>
+                    <li class="nav-item" role="presentation">
+                        <button class="nav-link" id="multiple-dates-tab" data-bs-toggle="tab" data-bs-target="#multiple-dates" type="button">
+                            Multiple Dates
+                        </button>
+                    </li>
+                </ul>
+                
+                <div class="tab-content" id="attendanceInputTabContent">
+                    <!-- Single Date Tab -->
+                    <div class="tab-pane fade show active" id="single-date" role="tabpanel">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Date</label>
+                                <input type="date" class="form-control" id="attendanceDate">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Reason</label>
+                                <select class="form-select" id="attendanceReason">
+                                    <option value="Holiday">Holiday</option>
+                                    <option value="Sick">Sick Day</option>
+                                    <option value="Personal">Personal Day</option>
+                                    <option value="Vacation">Vacation</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Notes (Optional)</label>
+                            <textarea class="form-control" id="attendanceNotes" rows="2" placeholder="Add any additional notes..."></textarea>
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="addAttendanceRecord()">
+                            <i class="bi bi-plus-circle"></i> Add Record
+                        </button>
+                    </div>
+                    
+                    <!-- Multiple Dates Tab -->
+                    <div class="tab-pane fade" id="multiple-dates" role="tabpanel">
+                        <div class="row mb-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Date Range</label>
+                                <div class="row g-2">
+                                    <div class="col">
+                                        <input type="date" class="form-control" id="attendanceDateFrom" placeholder="From">
+                                    </div>
+                                    <div class="col-auto d-flex align-items-center">
+                                        <span>to</span>
+                                    </div>
+                                    <div class="col">
+                                        <input type="date" class="form-control" id="attendanceDateTo" placeholder="To">
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Reason</label>
+                                <select class="form-select" id="attendanceReasonMulti">
+                                    <option value="Holiday">Holiday</option>
+                                    <option value="Sick">Sick Day</option>
+                                    <option value="Personal">Personal Day</option>
+                                    <option value="Vacation">Vacation</option>
+                                    <option value="Other">Other</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="mb-3">
+                            <label class="form-label">Notes (Optional)</label>
+                            <textarea class="form-control" id="attendanceNotesMulti" rows="2" placeholder="Add any additional notes..."></textarea>
+                        </div>
+                        
+                        <button class="btn btn-primary" onclick="addMultipleAttendanceRecords()">
+                            <i class="bi bi-plus-circle"></i> Add Multiple Records
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card settings-card">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="card-title mb-0">
+                        <i class="bi bi-list-ul"></i> Attendance Records
+                    </h5>
+                    <select class="form-select form-select-sm" id="attendanceYearFilter" style="width: auto;" onchange="loadAttendanceRecords()">
+                        <option value="">All Years</option>
+                        <option value="2025">2025</option>
+                        <option value="2024">2024</option>
+                        <option value="2023">2023</option>
+                        <option value="2022">2022</option>
+                        <option value="2021">2021</option>
+                    </select>
+                </div>
+                
+                <div id="attendanceRecordsList">
+                    <div class="text-center py-4">
+                        <div class="spinner-border text-primary" role="status"></div>
+                        <p class="mt-2 text-muted">Loading records...</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Advanced Tab -->
+    <div class="tab-pane fade" id="advanced" role="tabpanel">
+        <div class="card settings-card mb-4">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-tools text-warning"></i> Advanced Settings
+                </h5>
+                
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Warning:</strong> These settings are for advanced users only.
+                </div>
+                
+                <div class="d-grid gap-2">
+                    <button class="btn btn-outline-secondary" onclick="viewLogs()">
+                        <i class="bi bi-file-text"></i> View Application Logs
+                    </button>
+                    <button class="btn btn-outline-secondary" onclick="clearCache()">
+                        <i class="bi bi-trash"></i> Clear Cache
+                    </button>
+                    <button class="btn btn-outline-warning" onclick="rebuildDatabase()">
+                        <i class="bi bi-arrow-clockwise"></i> Rebuild Database Indexes
+                    </button>
+                    <button class="btn btn-outline-danger" onclick="resetSettings()">
+                        <i class="bi bi-arrow-counterclockwise"></i> Reset All Settings
+                    </button>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card settings-card">
+            <div class="card-body">
+                <h5 class="card-title mb-4">
+                    <i class="bi bi-info-circle"></i> System Information
+                </h5>
+                
+                <table class="table">
+                    <tr>
+                        <td><strong>App Version:</strong></td>
+                        <td>1.0.0</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Python Version:</strong></td>
+                        <td id="pythonVersion">-</td>
+                    </tr>
+                    <tr>
+                        <td><strong>Database Path:</strong></td>
+                        <td><code>data/payslips.db</code></td>
+                    </tr>
+                    <tr>
+                        <td><strong>Platform:</strong></td>
+                        <td id="platform">-</td>
+                    </tr>
+                </table>
+            </div>
+        </div>
+    </div>
+    
+</div>
+
+<!-- Status Messages -->
+<div id="settingsStatus" class="mt-4" style="display: none;">
+    <div class="alert alert-info">
+        <i class="bi bi-hourglass-split"></i> Processing...
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/settings.js') }}"></script>
+{% endblock %}

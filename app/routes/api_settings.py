@@ -112,7 +112,13 @@ def api_test_gmail():
             from google.oauth2.credentials import Credentials
             from google.auth.transport.requests import Request
             
-            creds = Credentials.from_authorized_user_file('token.json')
+            # Define scopes for Gmail API
+            SCOPES = [
+                'https://www.googleapis.com/auth/gmail.readonly',
+                'https://www.googleapis.com/auth/gmail.send'
+            ]
+            
+            creds = Credentials.from_authorized_user_file('token.json', SCOPES)
             
             if creds and creds.valid:
                 result['connected'] = True

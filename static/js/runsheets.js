@@ -433,6 +433,9 @@ async function viewRunSheetJobs(date) {
         const response = await fetch(`/api/runsheets/jobs?date=${encodeURIComponent(date)}`);
         const data = await response.json();
         
+        // Store jobs globally for edit function
+        window.currentRunsheetJobs = data.jobs;
+        
         if (data.jobs && data.jobs.length > 0) {
             // Debug: log first job to see what data we have
             console.log('First job data:', data.jobs[0]);
@@ -503,7 +506,7 @@ async function viewRunSheetJobs(date) {
                                                     <td><span class="badge bg-info">${job.activity || 'N/A'}</span></td>
                                                     <td><small>${job.job_address || 'N/A'}, ${job.postcode || ''}</small></td>
                                                     <td>
-                                                        <span class="status-badge" id="status-${job.id}">${statusBadge}</span>
+                                                        <span class="status-badge ${status === 'extra' ? 'cursor-pointer' : ''}" id="status-${job.id}" ${status === 'extra' ? `onclick="editExtraJob(${job.id}, '${date}')" title="Click to edit"` : ''}>${statusBadge}</span>
                                                         ${job.price_agreed && job.price_agreed > 0 ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-currency-pound"></i> £${job.price_agreed.toFixed(2)}</span></div>` : ''}
                                                     </td>
                                                     <td class="text-end">
@@ -549,7 +552,7 @@ async function viewRunSheetJobs(date) {
                                                             ${window.customerMapping ? window.customerMapping.getMappedCustomer(job.customer) : job.customer || 'N/A'}
                                                         </p>
                                                     </div>
-                                                    <div class="status-badge-container ms-2" id="status-${job.id}">${statusBadge}</div>
+                                                    <div class="status-badge-container ms-2 ${status === 'extra' ? 'cursor-pointer' : ''}" id="status-${job.id}" ${status === 'extra' ? `onclick="editExtraJob(${job.id}, '${date}')" title="Tap to edit"` : ''}>${statusBadge}</div>
                                                 </div>
                                                 <div class="mb-3 d-flex justify-content-between align-items-center">
                                                     <div>
@@ -882,7 +885,18 @@ async function showAddJobForm(date) {
 
 // Hide add job form
 function hideAddJobForm(date) {
-    document.getElementById(`addJobForm-${date}`).style.display = 'none';
+    const form = document.getElementById(`addJobForm-${date}`);
+    form.style.display = 'none';
+    
+    // Clear editing flag
+    delete form.dataset.editingJobId;
+    
+    // Reset form title
+    const formTitle = form.querySelector('h6');
+    if (formTitle) {
+        formTitle.innerHTML = '<i class="bi bi-plus-circle-fill text-success me-2"></i>Add Extra Job';
+    }
+    
     // Clear form fields
     document.getElementById(`newJobNumber-${date}`).value = '';
     document.getElementById(`newCustomer-${date}`).value = '';
@@ -892,7 +906,7 @@ function hideAddJobForm(date) {
     document.getElementById(`newAgreedPrice-${date}`).value = '';
 }
 
-// Add extra job
+// Add or edit extra job
 async function addExtraJob(date) {
     const jobNumber = document.getElementById(`newJobNumber-${date}`).value.trim();
     const customer = document.getElementById(`newCustomer-${date}`).value.trim();
@@ -906,39 +920,141 @@ async function addExtraJob(date) {
         return;
     }
     
+    // Check if we're editing an existing job
+    const form = document.getElementById(`addJobForm-${date}`);
+    const editingJobId = form.dataset.editingJobId;
+    
     try {
-        const response = await fetch('/api/runsheets/add-job', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                date: date,
-                job_number: jobNumber,
-                customer: customer,
-                activity: activity,
-                job_address: address,
-                postcode: postcode,
-                status: 'extra',
-                agreed_price: agreedPrice ? parseFloat(agreedPrice) : null
-            })
-        });
+        let response;
+        
+        if (editingJobId) {
+            // Update existing job
+            response = await fetch(`/api/runsheets/edit-job/${editingJobId}`, {
+                method: 'PUT',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    job_number: jobNumber,
+                    customer: customer,
+                    activity: activity,
+                    job_address: address,
+                    postcode: postcode,
+                    agreed_price: agreedPrice ? parseFloat(agreedPrice) : null
+                })
+            });
+        } else {
+            // Add new job
+            response = await fetch('/api/runsheets/add-job', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    date: date,
+                    job_number: jobNumber,
+                    customer: customer,
+                    activity: activity,
+                    job_address: address,
+                    postcode: postcode,
+                    status: 'extra',
+                    agreed_price: agreedPrice ? parseFloat(agreedPrice) : null
+                })
+            });
+        }
         
         const result = await response.json();
         
         if (result.success) {
-            alert('Extra job added successfully!');
+            alert(editingJobId ? 'Extra job updated successfully!' : 'Extra job added successfully!');
+            // Clear the editing flag
+            delete form.dataset.editingJobId;
             // Close and reopen modal to refresh
             bootstrap.Modal.getInstance(document.getElementById('runsheetJobsModal')).hide();
             // Reload the run sheet
             setTimeout(() => viewRunSheetJobs(date), 300);
         } else {
-            alert('Error adding job: ' + (result.error || 'Unknown error'));
+            alert('Error: ' + (result.error || 'Unknown error'));
         }
     } catch (error) {
-        console.error('Error adding job:', error);
-        alert('Error adding job');
+        console.error('Error:', error);
+        alert('Error saving job');
     }
+}
+
+// Edit extra job - opens add form with data pre-filled
+function editExtraJob(jobId, date) {
+    // Find the job in the current data
+    const jobs = window.currentRunsheetJobs || [];
+    const job = jobs.find(j => j.id === jobId);
+    
+    if (!job) {
+        alert('Job data not found');
+        return;
+    }
+    
+    // Only allow editing extra jobs
+    if (job.status !== 'extra') {
+        alert('Only extra jobs can be edited this way');
+        return;
+    }
+    
+    // Show the add job form
+    showAddJobForm(date);
+    
+    // Pre-fill the form with existing data
+    setTimeout(() => {
+        document.getElementById(`newJobNumber-${date}`).value = job.job_number || '';
+        
+        // Set customer (either select from dropdown or add as custom)
+        const customerSelect = document.getElementById(`newCustomer-${date}`);
+        if (customerSelect) {
+            // Try to find matching option
+            let found = false;
+            for (let option of customerSelect.options) {
+                if (option.value === job.customer) {
+                    customerSelect.value = job.customer;
+                    found = true;
+                    break;
+                }
+            }
+            // If not found, add it as an option and select it
+            if (!found && job.customer) {
+                const newOption = new Option(job.customer, job.customer, true, true);
+                customerSelect.add(newOption);
+            }
+        }
+        
+        // Set activity
+        const activitySelect = document.getElementById(`newActivity-${date}`);
+        if (activitySelect) {
+            let found = false;
+            for (let option of activitySelect.options) {
+                if (option.value === job.activity) {
+                    activitySelect.value = job.activity;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found && job.activity) {
+                const newOption = new Option(job.activity, job.activity, true, true);
+                activitySelect.add(newOption);
+            }
+        }
+        
+        document.getElementById(`newAddress-${date}`).value = job.job_address || '';
+        document.getElementById(`newPostcode-${date}`).value = job.postcode || '';
+        document.getElementById(`newAgreedPrice-${date}`).value = job.price_agreed || '';
+        
+        // Store the job ID so we know we're editing
+        document.getElementById(`addJobForm-${date}`).dataset.editingJobId = jobId;
+        
+        // Change the form title
+        const formTitle = document.querySelector(`#addJobForm-${date} h6`);
+        if (formTitle) {
+            formTitle.innerHTML = '<i class="bi bi-pencil-fill text-success me-2"></i>Edit Extra Job';
+        }
+    }, 100);
 }
 
 // Load existing mileage and fuel cost data

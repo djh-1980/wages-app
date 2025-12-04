@@ -164,6 +164,35 @@ def api_add_extra_job():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@runsheets_bp.route('/edit-job/<int:job_id>', methods=['PUT'])
+def api_edit_job(job_id):
+    """Edit an existing job."""
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'error': 'No data provided'}), 400
+        
+        success = RunsheetModel.update_job(
+            job_id=job_id,
+            job_number=data.get('job_number'),
+            customer=data.get('customer'),
+            activity=data.get('activity'),
+            job_address=data.get('job_address'),
+            postcode=data.get('postcode'),
+            pay_amount=data.get('pay_amount'),
+            agreed_price=data.get('agreed_price'),
+            status=data.get('status')
+        )
+        
+        if success:
+            return jsonify({'success': True})
+        else:
+            return jsonify({'success': False, 'error': 'Job not found or update failed'}), 404
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @runsheets_bp.route('/delete-job/<int:job_id>', methods=['DELETE'])
 def api_delete_job(job_id):
     """Delete a job from run sheets and prevent it from being re-imported."""

@@ -14,4 +14,4 @@ echo ""
 echo "================================================================================"
 echo ""
 
-python3 new_web_app.py
+python3 -m flask --app app run --host=0.0.0.0 --port=5001

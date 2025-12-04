@@ -250,6 +250,51 @@ class RunsheetModel:
             return cursor.lastrowid
     
     @staticmethod
+    def update_job(job_id, job_number=None, customer=None, activity=None, job_address=None, postcode=None, pay_amount=None, agreed_price=None, status=None):
+        """Update an existing job."""
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Build dynamic update query based on provided fields
+            updates = []
+            params = []
+            
+            if job_number is not None:
+                updates.append("job_number = ?")
+                params.append(job_number)
+            if customer is not None:
+                updates.append("customer = ?")
+                params.append(customer)
+            if activity is not None:
+                updates.append("activity = ?")
+                params.append(activity)
+            if job_address is not None:
+                updates.append("job_address = ?")
+                params.append(job_address)
+            if postcode is not None:
+                updates.append("postcode = ?")
+                params.append(postcode)
+            if pay_amount is not None:
+                updates.append("pay_amount = ?")
+                params.append(pay_amount)
+            if agreed_price is not None:
+                updates.append("price_agreed = ?")
+                params.append(agreed_price)
+            if status is not None:
+                updates.append("status = ?")
+                params.append(status)
+            
+            if not updates:
+                return False
+            
+            params.append(job_id)
+            query = f"UPDATE run_sheet_jobs SET {', '.join(updates)} WHERE id = ?"
+            
+            cursor.execute(query, params)
+            conn.commit()
+            return cursor.rowcount > 0
+    
+    @staticmethod
     def delete_job(job_id):
         """Delete a job from run sheets."""
         with get_db_connection() as conn:
