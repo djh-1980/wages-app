@@ -53,6 +53,12 @@ def reports():
     return render_template('reports.html')
 
 
+@main_bp.route('/expenses')
+def expenses():
+    """Expenses tracking page for HMRC MTD compliance."""
+    return render_template('expenses.html')
+
+
 @main_bp.route('/settings')
 def settings():
     """Settings page - redirect to profile."""

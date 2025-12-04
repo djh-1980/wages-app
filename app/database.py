@@ -81,6 +81,55 @@ def init_database():
             )
         """)
         
+        # Initialize expense categories table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS expense_categories (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT NOT NULL UNIQUE,
+                hmrc_box TEXT NOT NULL,
+                hmrc_box_number INTEGER,
+                description TEXT,
+                is_active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Initialize expenses table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS expenses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                date TEXT NOT NULL,
+                category_id INTEGER NOT NULL,
+                description TEXT,
+                amount REAL NOT NULL,
+                vat_amount REAL DEFAULT 0,
+                receipt_file TEXT,
+                is_recurring BOOLEAN DEFAULT 0,
+                recurring_frequency TEXT,
+                tax_year TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (category_id) REFERENCES expense_categories(id)
+            )
+        """)
+        
+        # Insert default HMRC expense categories
+        cursor.execute("""
+            INSERT OR IGNORE INTO expense_categories (name, hmrc_box, hmrc_box_number, description) VALUES
+            ('Vehicle Costs', 'Vehicle costs', 20, 'Van loan, insurance, tax, MOT, repairs, tyres'),
+            ('Fuel', 'Vehicle costs', 20, 'Fuel and oil for business vehicle'),
+            ('Travel Costs', 'Travel costs', 21, 'Parking, tolls, public transport'),
+            ('Home Office', 'Premises costs', 22, 'Home office allowance (£6/week simplified or actual costs)'),
+            ('Premises Costs', 'Premises costs', 22, 'Rent, rates, power, insurance (if applicable)'),
+            ('Admin Costs', 'Admin costs', 23, 'Phone, internet, stationery, postage'),
+            ('Advertising', 'Advertising', 24, 'Marketing and advertising costs'),
+            ('Interest', 'Interest', 25, 'Bank and loan interest'),
+            ('Financial Charges', 'Financial charges', 26, 'Bank charges, card fees'),
+            ('Professional Fees', 'Professional fees', 27, 'Accountant, legal, subscriptions'),
+            ('Depreciation', 'Depreciation', 28, 'Equipment depreciation'),
+            ('Other Expenses', 'Other expenses', 29, 'Tools, clothing, training, software')
+        """)
+        
         conn.commit()
 
 
