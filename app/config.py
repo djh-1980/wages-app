@@ -15,6 +15,9 @@ load_dotenv()
 class Config:
     """Base configuration class."""
     
+    # Base Directory
+    BASE_DIR = Path(__file__).resolve().parent.parent
+    
     # Flask Configuration
     SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max file upload
