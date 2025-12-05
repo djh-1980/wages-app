@@ -247,6 +247,28 @@ class ExpenseModel:
         return [row[0] for row in rows]
     
     @staticmethod
+    def get_categories():
+        """Get all expense categories."""
+        query = """
+            SELECT id, name, hmrc_box, hmrc_box_number, description
+            FROM expense_categories
+            ORDER BY name
+        """
+        rows = execute_query(query, fetch_all=True)
+        return [dict(row) for row in rows]
+    
+    @staticmethod
+    def get_category_by_name(name):
+        """Get a category by name."""
+        query = """
+            SELECT id, name, hmrc_box, hmrc_box_number, description
+            FROM expense_categories
+            WHERE name = ?
+        """
+        row = execute_query(query, (name,), fetch_one=True)
+        return dict(row) if row else None
+    
+    @staticmethod
     def get_mtd_export(tax_year):
         """Get MTD-formatted export for a tax year."""
         summary = ExpenseModel.get_summary(tax_year=tax_year)
