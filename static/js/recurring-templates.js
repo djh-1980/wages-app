@@ -5,17 +5,6 @@
 let recurringTemplates = [];
 
 /**
- * Show recurring templates tab
- */
-function showRecurringTab() {
-    const recurringTab = document.getElementById('recurring-tab');
-    if (recurringTab) {
-        const tab = new bootstrap.Tab(recurringTab);
-        tab.show();
-    }
-}
-
-/**
  * Load all recurring templates
  */
 async function loadRecurringTemplates() {
