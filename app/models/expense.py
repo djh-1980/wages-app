@@ -26,12 +26,16 @@ class ExpenseModel:
     @staticmethod
     def transaction_exists(date, description, amount):
         """Check if a transaction already exists in expenses (duplicate detection)."""
+        # Check for exact match
         query = """
             SELECT COUNT(*) as count
             FROM expenses
-            WHERE date = ? AND description = ? AND amount = ?
+            WHERE date = ? AND amount = ?
+            AND (description = ? OR description LIKE ?)
         """
-        result = execute_query(query, (date, description, amount), fetch_one=True)
+        # Check both exact description and description with notes appended
+        description_pattern = f"{description} - %"
+        result = execute_query(query, (date, amount, description, description_pattern), fetch_one=True)
         return result['count'] > 0
     
     @staticmethod

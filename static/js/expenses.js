@@ -18,6 +18,46 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('recurring-tab').addEventListener('shown.bs.tab', function() {
         loadRecurringTemplates();
     });
+    
+    // Reset bank import modal when closed
+    const bankImportModal = document.getElementById('bankImportModal');
+    if (bankImportModal) {
+        bankImportModal.addEventListener('hidden.bs.modal', function() {
+            // Reset to upload step
+            document.getElementById('uploadStep').style.display = 'block';
+            document.getElementById('reviewStep').style.display = 'none';
+            document.getElementById('importBtn').style.display = 'none';
+            
+            // Clear file input
+            document.getElementById('bankStatementFile').value = '';
+            
+            // Clear parsed transactions
+            parsedTransactions = [];
+            
+            // Clear table
+            const tbody = document.getElementById('transactionsTableBody');
+            if (tbody) {
+                tbody.innerHTML = '';
+            }
+            
+            // Clear search
+            const searchInput = document.getElementById('transactionSearch');
+            if (searchInput) {
+                searchInput.value = '';
+            }
+            const filterCount = document.getElementById('filterCount');
+            if (filterCount) {
+                filterCount.textContent = '';
+            }
+            
+            // Reset parse button
+            const parseBtn = document.querySelector('#uploadStep button[onclick="parseStatement()"]');
+            if (parseBtn) {
+                parseBtn.disabled = false;
+                parseBtn.innerHTML = '<i class="bi bi-gear"></i> Parse Statement';
+            }
+        });
+    }
 });
 
 /**
