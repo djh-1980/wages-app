@@ -206,8 +206,161 @@
 
                     <!-- Analytics Tab -->
                     <div class="tab-pane fade" id="analytics" role="tabpanel">
-                        <h5 class="section-title">Earnings Analytics</h5>
-                        <p>Advanced analytics coming soon...</p>
+                        <div id="analyticsLoadingSpinner" class="text-center py-5">
+                            <div class="spinner-border text-primary" role="status">
+                                <span class="visually-hidden">Loading analytics...</span>
+                            </div>
+                            <p class="mt-2 text-muted">Loading comprehensive analytics...</p>
+                        </div>
+                        
+                        <div id="analyticsContent" style="display: none;">
+                            <!-- Forecasting & Goals Section -->
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <div class="card border-0 shadow-sm">
+                                        <div class="card-body">
+                                            <h5 class="section-title mb-3">
+                                                <i class="bi bi-graph-up text-primary"></i> Year Projection & Forecast
+                                            </h5>
+                                            <div class="row" id="forecastCards">
+                                                <!-- Populated by JavaScript -->
+                                            </div>
+                                            <div class="progress mt-3" style="height: 30px;">
+                                                <div id="yearProgressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%">
+                                                    <span id="yearProgressText"></span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Year Comparison Cards -->
+                            <div class="row mb-4">
+                                <div class="col-12">
+                                    <h5 class="section-title">
+                                        <i class="bi bi-calendar-range text-info"></i> Year-over-Year Comparison
+                                    </h5>
+                                </div>
+                                <div id="yearComparisonCards" class="col-12">
+                                    <!-- Populated by JavaScript -->
+                                </div>
+                            </div>
+
+                            <!-- Charts Row -->
+                            <div class="row g-4 mb-4">
+                                <!-- Monthly Trends Chart -->
+                                <div class="col-lg-8">
+                                    <div class="card border-0 shadow-sm h-100">
+                                        <div class="card-body">
+                                            <h5 class="section-title mb-3">
+                                                <i class="bi bi-bar-chart-line text-success"></i> Monthly Earnings Trends
+                                            </h5>
+                                            <div class="chart-container" style="height: 300px;">
+                                                <canvas id="monthlyTrendsChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Performance Metrics Chart -->
+                                <div class="col-lg-4">
+                                    <div class="card border-0 shadow-sm h-100">
+                                        <div class="card-body">
+                                            <h5 class="section-title mb-3">
+                                                <i class="bi bi-speedometer2 text-warning"></i> Earnings per Job
+                                            </h5>
+                                            <div class="chart-container" style="height: 300px;">
+                                                <canvas id="earningsPerJobChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Breakdown Charts Row -->
+                            <div class="row g-4 mb-4">
+                                <!-- Customer Breakdown -->
+                                <div class="col-lg-6">
+                                    <div class="card border-0 shadow-sm h-100">
+                                        <div class="card-body">
+                                            <h5 class="section-title mb-3">
+                                                <i class="bi bi-people text-primary"></i> Top Customers by Earnings
+                                            </h5>
+                                            <div class="chart-container" style="height: 350px;">
+                                                <canvas id="customerBreakdownChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <!-- Activity Breakdown -->
+                                <div class="col-lg-6">
+                                    <div class="card border-0 shadow-sm h-100">
+                                        <div class="card-body">
+                                            <h5 class="section-title mb-3">
+                                                <i class="bi bi-briefcase text-info"></i> Earnings by Activity Type
+                                            </h5>
+                                            <div class="chart-container" style="height: 350px;">
+                                                <canvas id="activityBreakdownChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Best/Worst Weeks -->
+                            <div class="row g-4 mb-4">
+                                <div class="col-lg-6">
+                                    <div class="card border-0 shadow-sm">
+                                        <div class="card-body">
+                                            <h5 class="section-title mb-3">
+                                                <i class="bi bi-trophy text-warning"></i> Best Performing Weeks
+                                            </h5>
+                                            <div id="bestWeeksList"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-6">
+                                    <div class="card border-0 shadow-sm">
+                                        <div class="card-body">
+                                            <h5 class="section-title mb-3">
+                                                <i class="bi bi-arrow-down-circle text-danger"></i> Lowest Earning Weeks
+                                            </h5>
+                                            <div id="worstWeeksList"></div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Job Status Breakdown -->
+                            <div class="row mb-4">
+                                <div class="col-lg-6">
+                                    <div class="card border-0 shadow-sm">
+                                        <div class="card-body">
+                                            <h5 class="section-title mb-3">
+                                                <i class="bi bi-pie-chart text-success"></i> Regular vs Extra Jobs
+                                            </h5>
+                                            <div class="chart-container" style="height: 250px;">
+                                                <canvas id="jobStatusChart"></canvas>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-lg-6">
+                                    <div class="card border-0 shadow-sm">
+                                        <div class="card-body">
+                                            <h5 class="section-title mb-3">
+                                                <i class="bi bi-check-circle text-success"></i> Completion Statistics
+                                            </h5>
+                                            <div id="completionStats" class="text-center py-4">
+                                                <!-- Populated by JavaScript -->
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -297,6 +450,7 @@
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
+<script src="{{ url_for('static', filename='js/earnings-analytics.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/wages-init.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/verbal-pay.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}

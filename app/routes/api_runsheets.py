@@ -498,3 +498,250 @@ def api_discrepancy_csv():
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@runsheets_bp.route('/analytics')
+def api_runsheets_analytics():
+    """Get comprehensive runsheet analytics for Overview, Customers, and Activities tabs."""
+    try:
+        from ..database import get_db_connection
+        
+        # Get filter parameters
+        year = request.args.get('year', '')
+        month = request.args.get('month', '')
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Build WHERE clause for filtering
+            where_conditions = []
+            params = []
+            
+            if year:
+                where_conditions.append("substr(date, 7, 4) = ?")
+                params.append(year)
+            if month:
+                where_conditions.append("substr(date, 4, 2) = ?")
+                params.append(month.zfill(2))
+            
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+            
+            # 1. STATUS BREAKDOWN (normalize DNCO case variations)
+            cursor.execute(f"""
+                SELECT 
+                    CASE 
+                        WHEN UPPER(status) = 'DNCO' THEN 'DNCO'
+                        ELSE status
+                    END as status,
+                    COUNT(*) as count,
+                    SUM(COALESCE(pay_amount, 0)) as total_pay
+                FROM run_sheet_jobs
+                WHERE {where_clause}
+                GROUP BY CASE 
+                    WHEN UPPER(status) = 'DNCO' THEN 'DNCO'
+                    ELSE status
+                END
+                ORDER BY count DESC
+            """, params)
+            status_breakdown = [dict(row) for row in cursor.fetchall()]
+            
+            # Calculate estimated DNCO loss (same logic as weekly reporting)
+            estimated_dnco_loss = 0
+            dnco_count = 0
+            for status in status_breakdown:
+                if status['status'] == 'DNCO':
+                    dnco_count = status['count']
+                    break
+            
+            if dnco_count > 0:
+                # Get all DNCO jobs with customer and activity
+                cursor.execute(f"""
+                    SELECT customer, activity, pay_amount
+                    FROM run_sheet_jobs
+                    WHERE {where_clause} AND UPPER(status) = 'DNCO'
+                """, params)
+                
+                dnco_jobs = cursor.fetchall()
+                jobs_with_history = 0
+                jobs_with_activity_history = 0
+                jobs_with_default = 0
+                
+                for job in dnco_jobs:
+                    customer = job['customer']
+                    activity = job['activity']
+                    pay_amount = job['pay_amount']
+                    
+                    if pay_amount and pay_amount > 0:
+                        estimated_dnco_loss += pay_amount
+                    elif customer and activity:
+                        # First try: Look up average pay for this customer + activity combination
+                        cursor.execute("""
+                            SELECT AVG(pay_amount) as avg_pay
+                            FROM run_sheet_jobs
+                            WHERE customer = ? AND activity = ? AND status = 'completed' AND pay_amount > 0
+                        """, (customer, activity))
+                        
+                        avg_result = cursor.fetchone()
+                        
+                        if avg_result and avg_result['avg_pay']:
+                            estimated_dnco_loss += avg_result['avg_pay']
+                            jobs_with_activity_history += 1
+                        else:
+                            # Second try: Look up average pay for just this customer (any activity)
+                            cursor.execute("""
+                                SELECT AVG(pay_amount) as avg_pay
+                                FROM run_sheet_jobs
+                                WHERE customer = ? AND status = 'completed' AND pay_amount > 0
+                            """, (customer,))
+                            
+                            avg_result = cursor.fetchone()
+                            
+                            if avg_result and avg_result['avg_pay']:
+                                estimated_dnco_loss += avg_result['avg_pay']
+                                jobs_with_history += 1
+                            else:
+                                estimated_dnco_loss += 15.0
+                                jobs_with_default += 1
+                    elif customer:
+                        # No activity, just use customer average
+                        cursor.execute("""
+                            SELECT AVG(pay_amount) as avg_pay
+                            FROM run_sheet_jobs
+                            WHERE customer = ? AND status = 'completed' AND pay_amount > 0
+                        """, (customer,))
+                        
+                        avg_result = cursor.fetchone()
+                        
+                        if avg_result and avg_result['avg_pay']:
+                            estimated_dnco_loss += avg_result['avg_pay']
+                            jobs_with_history += 1
+                        else:
+                            estimated_dnco_loss += 15.0
+                            jobs_with_default += 1
+                    else:
+                        estimated_dnco_loss += 15.0
+                        jobs_with_default += 1
+                
+                estimated_dnco_loss = round(estimated_dnco_loss, 2)
+                
+                # Log for debugging
+                import logging
+                logger = logging.getLogger('api')
+                logger.info(f"DNCO Loss Calculation: {dnco_count} jobs, {jobs_with_activity_history} with customer+activity history, {jobs_with_history} with customer history only, {jobs_with_default} with default, Total: £{estimated_dnco_loss}")
+                
+                # Add estimated loss to DNCO status breakdown
+                for i, status in enumerate(status_breakdown):
+                    if status['status'] == 'DNCO':
+                        status_breakdown[i]['estimated_loss'] = estimated_dnco_loss
+                        logger.info(f"Added estimated_loss to DNCO status: {status_breakdown[i]}")
+                        break
+            
+            # 2. CUSTOMER BREAKDOWN (with earnings and job counts)
+            cursor.execute(f"""
+                SELECT 
+                    customer,
+                    COUNT(*) as job_count,
+                    SUM(COALESCE(pay_amount, 0)) as total_earnings,
+                    AVG(COALESCE(pay_amount, 0)) as avg_pay,
+                    COUNT(DISTINCT date) as days_worked,
+                    COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_count,
+                    COUNT(CASE WHEN status = 'extra' THEN 1 END) as extra_count,
+                    COUNT(CASE WHEN status = 'DNCO' THEN 1 END) as dnco_count,
+                    COUNT(CASE WHEN status = 'missed' THEN 1 END) as missed_count
+                FROM run_sheet_jobs
+                WHERE {where_clause} AND customer IS NOT NULL AND customer != ''
+                GROUP BY customer
+                ORDER BY job_count DESC
+            """, params)
+            customer_breakdown = [dict(row) for row in cursor.fetchall()]
+            
+            # 3. ACTIVITY BREAKDOWN (with earnings and counts)
+            cursor.execute(f"""
+                SELECT 
+                    activity,
+                    COUNT(*) as job_count,
+                    SUM(COALESCE(pay_amount, 0)) as total_earnings,
+                    AVG(COALESCE(pay_amount, 0)) as avg_pay,
+                    COUNT(DISTINCT customer) as unique_customers,
+                    COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed_count,
+                    COUNT(CASE WHEN status = 'extra' THEN 1 END) as extra_count
+                FROM run_sheet_jobs
+                WHERE {where_clause} AND activity IS NOT NULL AND activity != ''
+                GROUP BY activity
+                ORDER BY job_count DESC
+            """, params)
+            activity_breakdown = [dict(row) for row in cursor.fetchall()]
+            
+            # 4. DAILY ACTIVITY TREND (last 30 days or filtered period)
+            cursor.execute(f"""
+                SELECT 
+                    date,
+                    COUNT(*) as job_count,
+                    SUM(COALESCE(pay_amount, 0)) as daily_earnings,
+                    COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+                    COUNT(CASE WHEN status = 'extra' THEN 1 END) as extra,
+                    COUNT(CASE WHEN status = 'DNCO' THEN 1 END) as dnco
+                FROM run_sheet_jobs
+                WHERE {where_clause}
+                GROUP BY date
+                ORDER BY date DESC
+                LIMIT 30
+            """, params)
+            daily_trend = [dict(row) for row in cursor.fetchall()]
+            
+            # 5. CUSTOMER TRENDS OVER TIME (monthly aggregation)
+            cursor.execute(f"""
+                SELECT 
+                    customer,
+                    substr(date, 4, 7) as month,
+                    COUNT(*) as job_count,
+                    SUM(COALESCE(pay_amount, 0)) as total_earnings
+                FROM run_sheet_jobs
+                WHERE {where_clause} AND customer IS NOT NULL
+                GROUP BY customer, month
+                ORDER BY month DESC, job_count DESC
+            """, params)
+            customer_trends = [dict(row) for row in cursor.fetchall()]
+            
+            # 6. ACTIVITY TRENDS OVER TIME (monthly aggregation)
+            cursor.execute(f"""
+                SELECT 
+                    activity,
+                    substr(date, 4, 7) as month,
+                    COUNT(*) as job_count,
+                    SUM(COALESCE(pay_amount, 0)) as total_earnings
+                FROM run_sheet_jobs
+                WHERE {where_clause} AND activity IS NOT NULL
+                GROUP BY activity, month
+                ORDER BY month DESC, job_count DESC
+            """, params)
+            activity_trends = [dict(row) for row in cursor.fetchall()]
+            
+            # 7. SUMMARY STATISTICS
+            cursor.execute(f"""
+                SELECT 
+                    COUNT(*) as total_jobs,
+                    COUNT(DISTINCT date) as total_days,
+                    COUNT(DISTINCT customer) as unique_customers,
+                    COUNT(DISTINCT activity) as unique_activities,
+                    SUM(COALESCE(pay_amount, 0)) as total_earnings,
+                    AVG(COALESCE(pay_amount, 0)) as avg_pay_per_job,
+                    ROUND(AVG(CASE WHEN status = 'completed' THEN 1.0 ELSE 0.0 END) * 100, 1) as completion_rate
+                FROM run_sheet_jobs
+                WHERE {where_clause}
+            """, params)
+            summary_stats = dict(cursor.fetchone())
+            
+            return jsonify({
+                'success': True,
+                'status_breakdown': status_breakdown,
+                'customer_breakdown': customer_breakdown,
+                'activity_breakdown': activity_breakdown,
+                'daily_trend': daily_trend,
+                'customer_trends': customer_trends,
+                'activity_trends': activity_trends,
+                'summary_stats': summary_stats
+            })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500

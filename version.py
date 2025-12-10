@@ -7,12 +7,35 @@ from datetime import datetime
 import os
 
 # Version Information
-APP_VERSION = "2.2.0"
-BUILD_DATE = "2025.11.27"
-RELEASE_DATE = datetime(2025, 11, 27)
+APP_VERSION = "2.3.0"
+BUILD_DATE = "2025.12.10"
+RELEASE_DATE = datetime(2025, 12, 10)
 
 # Changelog - Add new entries at the top
 CHANGELOG = [
+    {
+        "version": "2.3.0",
+        "date": "December 10, 2025",
+        "type": "minor",  # major, minor, patch
+        "changes": [
+            "📊 NEW: Comprehensive Earnings Analytics dashboard on Wages page",
+            "📈 Added year projection, forecasting, and goal tracking with progress bars",
+            "📉 Year-over-year comparison cards showing performance trends",
+            "📊 Monthly earnings trends chart with multi-year comparison",
+            "👥 Customer and activity breakdown charts with top performers",
+            "🏆 Best/worst weeks analysis with detailed metrics",
+            "✅ Job completion statistics and regular vs extra jobs breakdown",
+            "📊 NEW: Runsheets Analytics with Overview, Customers, and Activities tabs",
+            "⚠️ Enhanced DNCO loss calculation using customer + activity type historical averages",
+            "🔄 DNCO status normalization (consolidated case variations)",
+            "📅 Year filtering on all analytics tabs (2021-2025)",
+            "🏢 Customer mapping integration across all analytics for consolidated reporting",
+            "💰 Fixed Week 35 earnings discrepancy (removed duplicate job entry)",
+            "💵 Added verbal pay difference display in payslips Net Pay column",
+            "📱 All new analytics fully mobile-responsive with Bootstrap grid system",
+            "🎨 Professional charts and visualizations using Chart.js"
+        ]
+    },
     {
         "version": "2.2.0",
         "date": "November 27, 2025",

@@ -215,28 +215,76 @@
 
                     <!-- Overview Tab -->
                     <div class="tab-pane fade" id="overview" role="tabpanel">
+                        <!-- Filter Controls -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label small">Filter by Year</label>
+                                <select class="form-select" id="overviewYearFilter" onchange="filterOverviewByYear()">
+                                    <option value="">All Years</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <!-- Status Breakdown Cards -->
+                        <div class="row mb-4" id="statusBreakdownCards">
+                            <!-- Populated by JavaScript -->
+                        </div>
+                        
                         <div class="row g-4">
-                            <div class="col-lg-4">
-                                <h5 class="section-title">Activity Breakdown</h5>
-                                <div class="chart-container">
-                                    <canvas id="activityChart"></canvas>
+                            <!-- Daily Activity Trend -->
+                            <div class="col-lg-8">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="section-title mb-3">
+                                            <i class="bi bi-graph-up text-primary"></i> Daily Activity Trend
+                                        </h5>
+                                        <div class="chart-container" style="height: 300px;">
+                                            <canvas id="dailyTrendChart"></canvas>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
-                            <div class="col-lg-8">
-                                <h5 class="section-title">Top Customers</h5>
-                                <div class="table-responsive">
-                                    <table class="table table-hover">
-                                        <thead>
-                                            <tr>
-                                                <th>Customer</th>
-                                                <th class="text-end">Jobs</th>
-                                                <th class="text-end">Percentage</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody id="rsTopCustomersTable">
-                                            <tr><td colspan="3" class="text-center">Loading...</td></tr>
-                                        </tbody>
-                                    </table>
+                            
+                            <!-- Status Breakdown Chart -->
+                            <div class="col-lg-4">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="section-title mb-3">
+                                            <i class="bi bi-pie-chart text-success"></i> Status Distribution
+                                        </h5>
+                                        <div class="chart-container" style="height: 300px;">
+                                            <canvas id="statusChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Top Customers Table -->
+                        <div class="row mt-4">
+                            <div class="col-12">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="section-title mb-3">
+                                            <i class="bi bi-people text-info"></i> Top Customers
+                                        </h5>
+                                        <div class="table-responsive">
+                                            <table class="table table-hover">
+                                                <thead>
+                                                    <tr>
+                                                        <th>Customer</th>
+                                                        <th class="text-center">Jobs</th>
+                                                        <th class="text-end">Earnings</th>
+                                                        <th class="text-center">Completed</th>
+                                                        <th class="text-center">Extra</th>
+                                                    </tr>
+                                                </thead>
+                                                <tbody id="rsTopCustomersTable">
+                                                    <tr><td colspan="5" class="text-center">Loading...</td></tr>
+                                                </tbody>
+                                            </table>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -244,14 +292,125 @@
 
                     <!-- Customers Tab -->
                     <div class="tab-pane fade" id="customers" role="tabpanel">
-                        <h5 class="section-title">Customer Analysis</h5>
-                        <p>Detailed customer breakdown coming soon...</p>
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label small">Filter by Year</label>
+                                <select class="form-select" id="customersYearFilter" onchange="filterCustomersByYear()">
+                                    <option value="">All Years</option>
+                                </select>
+                            </div>
+                            <div class="col-md-9">
+                                <label class="form-label small">Search</label>
+                                <input type="text" class="form-control" id="customerSearch" placeholder="Search customers...">
+                            </div>
+                        </div>
+                        <h5 class="section-title mb-3">
+                            <i class="bi bi-building text-primary"></i> Customer Analysis
+                        </h5>
+                        
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th style="cursor: pointer;" onclick="sortCustomers('customer')">
+                                            Customer <i class="bi bi-arrow-down-up"></i>
+                                        </th>
+                                        <th class="text-center" style="cursor: pointer;" onclick="sortCustomers('job_count')">
+                                            Total Jobs <i class="bi bi-arrow-down-up"></i>
+                                        </th>
+                                        <th class="text-end" style="cursor: pointer;" onclick="sortCustomers('total_earnings')">
+                                            Total Earnings <i class="bi bi-arrow-down-up"></i>
+                                        </th>
+                                        <th class="text-end" style="cursor: pointer;" onclick="sortCustomers('avg_pay')">
+                                            Avg Pay <i class="bi bi-arrow-down-up"></i>
+                                        </th>
+                                        <th class="text-center">Days Worked</th>
+                                        <th class="text-center">Completed</th>
+                                        <th class="text-center">Extra</th>
+                                        <th class="text-center">DNCO</th>
+                                        <th class="text-center">Missed</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="customersTableBody">
+                                    <tr><td colspan="9" class="text-center">Loading...</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <!-- Pagination -->
+                        <nav aria-label="Customer pagination">
+                            <ul class="pagination justify-content-center" id="customerPagination"></ul>
+                        </nav>
                     </div>
 
                     <!-- Activities Tab -->
                     <div class="tab-pane fade" id="activities" role="tabpanel">
-                        <h5 class="section-title">Activity Analysis</h5>
-                        <p>Detailed activity breakdown coming soon...</p>
+                        <!-- Filter Controls -->
+                        <div class="row mb-3">
+                            <div class="col-md-3">
+                                <label class="form-label small">Filter by Year</label>
+                                <select class="form-select" id="activitiesYearFilter" onchange="filterActivitiesByYear()">
+                                    <option value="">All Years</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-4 mb-4">
+                            <!-- Activity Breakdown Chart -->
+                            <div class="col-lg-6">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="section-title mb-3">
+                                            <i class="bi bi-bar-chart text-success"></i> Activity Distribution
+                                        </h5>
+                                        <div class="chart-container" style="height: 350px;">
+                                            <canvas id="activityChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Activity Earnings Chart -->
+                            <div class="col-lg-6">
+                                <div class="card border-0 shadow-sm">
+                                    <div class="card-body">
+                                        <h5 class="section-title mb-3">
+                                            <i class="bi bi-currency-pound text-warning"></i> Earnings by Activity
+                                        </h5>
+                                        <div class="chart-container" style="height: 350px;">
+                                            <canvas id="activityEarningsChart"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Activity Details Table -->
+                        <div class="card border-0 shadow-sm">
+                            <div class="card-body">
+                                <h5 class="section-title mb-3">
+                                    <i class="bi bi-list-check text-info"></i> Activity Details
+                                </h5>
+                                <div class="table-responsive">
+                                    <table class="table table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Activity Type</th>
+                                                <th class="text-center">Job Count</th>
+                                                <th class="text-end">Total Earnings</th>
+                                                <th class="text-end">Avg Pay</th>
+                                                <th class="text-center">Unique Customers</th>
+                                                <th class="text-center">Completed</th>
+                                                <th class="text-center">Extra</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="activitiesTableBody">
+                                            <tr><td colspan="7" class="text-center">Loading...</td></tr>
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -262,5 +421,6 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/runsheets.js') }}?v={{ range(1000, 9999) | random }}"></script>
+<script src="{{ url_for('static', filename='js/runsheet-analytics.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/runsheets-init.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}

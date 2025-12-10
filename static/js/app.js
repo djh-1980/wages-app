@@ -352,7 +352,8 @@ window.loadPayslips = async function(taxYear = '') {
                             indicator.innerHTML = '<i class="bi bi-check-circle-fill text-success" title="Matches verbal confirmation"></i>';
                         } else {
                             const diff = matchInfo.difference;
-                            indicator.innerHTML = `<i class="bi bi-exclamation-triangle-fill text-warning" title="Difference: £${Math.abs(diff).toFixed(2)} ${diff > 0 ? 'more' : 'less'} than verbal"></i>`;
+                            const sign = diff > 0 ? '+' : '';
+                            indicator.innerHTML = `<br><small class="text-warning">${sign}${formatCurrency(diff)} vs verbal</small>`;
                         }
                     }
                 }

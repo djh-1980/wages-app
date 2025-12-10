@@ -139,10 +139,10 @@ async function loadRunSheetsSummary() {
             tableBody.innerHTML = '<tr><td colspan="3" class="text-center">No data available</td></tr>';
         }
         
-        // Create activity chart
-        if (data.activities && data.activities.length > 0) {
-            createActivityChart(data.activities);
-        }
+        // Create activity chart - DISABLED: Now handled by runsheet-analytics.js
+        // if (data.activities && data.activities.length > 0) {
+        //     createActivityChart(data.activities);
+        // }
         
     } catch (error) {
         console.error('Error loading run sheets summary:', error);

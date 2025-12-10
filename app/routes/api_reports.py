@@ -1499,38 +1499,74 @@ def api_weekly_summary():
             
             status_breakdown = dict(ordered_status_breakdown)
             
-            # Estimate lost earnings from DNCO jobs using customer-specific historical averages
+            # Estimate lost earnings from DNCO jobs using customer + activity specific historical averages
             estimated_dnco_loss = 0
             if dnco_count > 0:
-                # Get all DNCO jobs for this week
+                # Get all DNCO jobs for this week with customer and activity
                 cursor.execute(f"""
-                    SELECT customer, pay_amount
+                    SELECT customer, activity, pay_amount
                     FROM run_sheet_jobs
                     WHERE date IN ({placeholders})
                     AND (UPPER(status) = 'DNCO')
                 """, dates_in_week)
                 dnco_jobs = cursor.fetchall()
                 
-                # Calculate estimated loss for each DNCO job based on customer history
+                # Calculate estimated loss for each DNCO job based on customer + activity history
                 jobs_with_history = 0
+                jobs_with_activity_history = 0
                 jobs_with_default = 0
                 
                 for dnco_job in dnco_jobs:
                     customer = dnco_job['customer']
+                    activity = dnco_job['activity']
                     pay_amount = dnco_job['pay_amount']
                     
                     if pay_amount and pay_amount > 0:
                         # Use actual pay_amount if available (shouldn't happen for DNCO)
                         estimated_dnco_loss += pay_amount
+                    elif customer and activity:
+                        # First try: Look up average pay for this customer + activity combination
+                        cursor.execute("""
+                            SELECT AVG(pay_amount) as avg_pay
+                            FROM run_sheet_jobs
+                            WHERE customer = ? AND activity = ?
+                            AND pay_amount IS NOT NULL 
+                            AND pay_amount > 0
+                            AND status = 'completed'
+                        """, (customer, activity))
+                        avg_result = cursor.fetchone()
+                        
+                        if avg_result and avg_result['avg_pay']:
+                            estimated_dnco_loss += avg_result['avg_pay']
+                            jobs_with_activity_history += 1
+                        else:
+                            # Second try: Look up average pay for just this customer (any activity)
+                            cursor.execute("""
+                                SELECT AVG(pay_amount) as avg_pay
+                                FROM run_sheet_jobs
+                                WHERE customer = ? 
+                                AND pay_amount IS NOT NULL 
+                                AND pay_amount > 0
+                                AND status = 'completed'
+                            """, (customer,))
+                            avg_result = cursor.fetchone()
+                            
+                            if avg_result and avg_result['avg_pay']:
+                                estimated_dnco_loss += avg_result['avg_pay']
+                                jobs_with_history += 1
+                            else:
+                                # If no historical data, use £15 default
+                                estimated_dnco_loss += 15.0
+                                jobs_with_default += 1
                     elif customer:
-                        # Look up average pay for this customer from historical completed jobs
+                        # No activity, just use customer average
                         cursor.execute("""
                             SELECT AVG(pay_amount) as avg_pay
                             FROM run_sheet_jobs
                             WHERE customer = ? 
                             AND pay_amount IS NOT NULL 
                             AND pay_amount > 0
-                            AND UPPER(status) != 'DNCO'
+                            AND status = 'completed'
                         """, (customer,))
                         avg_result = cursor.fetchone()
                         
@@ -1538,7 +1574,6 @@ def api_weekly_summary():
                             estimated_dnco_loss += avg_result['avg_pay']
                             jobs_with_history += 1
                         else:
-                            # If no historical data, use £15 default
                             estimated_dnco_loss += 15.0
                             jobs_with_default += 1
                     else:
@@ -1551,7 +1586,7 @@ def api_weekly_summary():
                 # Log for debugging
                 import logging
                 logger = logging.getLogger('api')
-                logger.info(f"DNCO Loss Calculation: {dnco_count} jobs, {jobs_with_history} with history, {jobs_with_default} with default, Total: £{estimated_dnco_loss}")
+                logger.info(f"DNCO Loss Calculation: {dnco_count} jobs, {jobs_with_activity_history} with customer+activity history, {jobs_with_history} with customer history only, {jobs_with_default} with default, Total: £{estimated_dnco_loss}")
                 
                 # Add estimated loss to DNCO status breakdown
                 for status_key in ['DNCO', 'dnco']:
@@ -1954,3 +1989,206 @@ def api_customer_parsing():
             
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@reports_bp.route('/earnings-analytics')
+def api_earnings_analytics():
+    """Get comprehensive earnings analytics data."""
+    try:
+        from datetime import datetime, timedelta
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Get current year for comparisons
+            current_year = datetime.now().year
+            
+            # 1. EARNINGS TRENDS - Monthly comparison current vs previous year
+            cursor.execute("""
+                SELECT 
+                    p.tax_year,
+                    CAST((p.week_number - 1) / 4.33 AS INTEGER) + 1 as month_num,
+                    SUM(p.net_payment) as total_earnings,
+                    COUNT(*) as weeks,
+                    AVG(p.net_payment) as avg_weekly
+                FROM payslips p
+                GROUP BY p.tax_year, month_num
+                ORDER BY p.tax_year, month_num
+            """)
+            monthly_trends = [dict(row) for row in cursor.fetchall()]
+            
+            # 2. YEAR OVER YEAR COMPARISON
+            cursor.execute("""
+                SELECT 
+                    tax_year,
+                    COUNT(*) as weeks_worked,
+                    SUM(net_payment) as total_earnings,
+                    AVG(net_payment) as avg_weekly,
+                    MAX(net_payment) as best_week,
+                    MIN(net_payment) as worst_week
+                FROM payslips
+                GROUP BY tax_year
+                ORDER BY tax_year DESC
+            """)
+            year_comparison = [dict(row) for row in cursor.fetchall()]
+            
+            # 3. CUSTOMER EARNINGS BREAKDOWN
+            cursor.execute("""
+                SELECT 
+                    ji.client,
+                    COUNT(*) as job_count,
+                    SUM(ji.amount) as total_earnings,
+                    AVG(ji.amount) as avg_per_job,
+                    ROUND(SUM(ji.amount) * 100.0 / (SELECT SUM(amount) FROM job_items WHERE client NOT IN ('Deduction', 'Company Margin')), 2) as percentage
+                FROM job_items ji
+                WHERE ji.client NOT IN ('Deduction', 'Company Margin')
+                GROUP BY ji.client
+                ORDER BY total_earnings DESC
+                LIMIT 15
+            """)
+            customer_breakdown = [dict(row) for row in cursor.fetchall()]
+            
+            # 4. ACTIVITY TYPE BREAKDOWN
+            cursor.execute("""
+                SELECT 
+                    activity,
+                    COUNT(*) as job_count,
+                    SUM(COALESCE(pay_amount, 0)) as total_earnings,
+                    AVG(COALESCE(pay_amount, 0)) as avg_per_job
+                FROM run_sheet_jobs
+                WHERE status NOT IN ('DNCO', 'missed') AND pay_amount IS NOT NULL
+                GROUP BY activity
+                ORDER BY total_earnings DESC
+                LIMIT 10
+            """)
+            activity_breakdown = [dict(row) for row in cursor.fetchall()]
+            
+            # 5. PERFORMANCE METRICS OVER TIME
+            cursor.execute("""
+                SELECT 
+                    p.tax_year,
+                    p.week_number,
+                    p.net_payment,
+                    COUNT(ji.id) as job_count,
+                    ROUND(p.net_payment / NULLIF(COUNT(ji.id), 0), 2) as earnings_per_job
+                FROM payslips p
+                LEFT JOIN job_items ji ON p.id = ji.payslip_id AND ji.client NOT IN ('Deduction', 'Company Margin')
+                GROUP BY p.id, p.tax_year, p.week_number, p.net_payment
+                ORDER BY p.tax_year DESC, p.week_number DESC
+                LIMIT 26
+            """)
+            performance_metrics = [dict(row) for row in cursor.fetchall()]
+            
+            # 6. FORECASTING - Current year projection
+            cursor.execute("""
+                SELECT 
+                    COUNT(*) as weeks_worked,
+                    SUM(net_payment) as total_earned,
+                    AVG(net_payment) as avg_weekly
+                FROM payslips
+                WHERE tax_year = (SELECT MAX(tax_year) FROM payslips)
+            """)
+            current_year_data = cursor.fetchone()
+            
+            weeks_worked = current_year_data['weeks_worked'] or 0
+            total_earned = current_year_data['total_earned'] or 0
+            avg_weekly = current_year_data['avg_weekly'] or 0
+            weeks_remaining = max(0, 52 - weeks_worked)
+            projected_year_end = total_earned + (avg_weekly * weeks_remaining)
+            
+            forecast = {
+                'weeks_worked': weeks_worked,
+                'weeks_remaining': weeks_remaining,
+                'total_earned': round(total_earned, 2),
+                'avg_weekly': round(avg_weekly, 2),
+                'projected_year_end': round(projected_year_end, 2),
+                'on_track_for': round(projected_year_end, 2)
+            }
+            
+            # 7. REGULAR VS EXTRA JOBS
+            cursor.execute("""
+                SELECT 
+                    status,
+                    COUNT(*) as count,
+                    SUM(COALESCE(pay_amount, 0)) as total_earnings
+                FROM run_sheet_jobs
+                WHERE status IN ('completed', 'extra') AND pay_amount IS NOT NULL
+                GROUP BY status
+            """)
+            job_status_breakdown = [dict(row) for row in cursor.fetchall()]
+            
+            # 8. WEEKLY EARNINGS DISTRIBUTION (for heatmap)
+            cursor.execute("""
+                SELECT 
+                    date,
+                    SUM(COALESCE(pay_amount, 0)) as daily_earnings,
+                    COUNT(*) as job_count
+                FROM run_sheet_jobs
+                WHERE status NOT IN ('DNCO', 'missed') AND pay_amount IS NOT NULL
+                AND date IS NOT NULL
+                GROUP BY date
+                ORDER BY date DESC
+                LIMIT 90
+            """)
+            daily_earnings = [dict(row) for row in cursor.fetchall()]
+            
+            # 9. BEST/WORST WEEKS CONTEXT
+            cursor.execute("""
+                SELECT 
+                    p.tax_year,
+                    p.week_number,
+                    p.net_payment,
+                    p.pay_date,
+                    COUNT(ji.id) as job_count
+                FROM payslips p
+                LEFT JOIN job_items ji ON p.id = ji.payslip_id
+                GROUP BY p.id
+                ORDER BY p.net_payment DESC
+                LIMIT 5
+            """)
+            best_weeks = [dict(row) for row in cursor.fetchall()]
+            
+            cursor.execute("""
+                SELECT 
+                    p.tax_year,
+                    p.week_number,
+                    p.net_payment,
+                    p.pay_date,
+                    COUNT(ji.id) as job_count
+                FROM payslips p
+                LEFT JOIN job_items ji ON p.id = ji.payslip_id
+                WHERE p.net_payment > 0
+                GROUP BY p.id
+                ORDER BY p.net_payment ASC
+                LIMIT 5
+            """)
+            worst_weeks = [dict(row) for row in cursor.fetchall()]
+            
+            # 10. COMPLETION RATE IMPACT
+            cursor.execute("""
+                SELECT 
+                    ROUND(AVG(CASE WHEN status = 'completed' THEN 1.0 ELSE 0.0 END) * 100, 1) as completion_rate,
+                    COUNT(*) as total_jobs,
+                    SUM(COALESCE(pay_amount, 0)) as total_earnings
+                FROM run_sheet_jobs
+                WHERE status IN ('completed', 'extra', 'DNCO', 'missed')
+            """)
+            completion_stats = dict(cursor.fetchone())
+            
+            return jsonify({
+                'success': True,
+                'monthly_trends': monthly_trends,
+                'year_comparison': year_comparison,
+                'customer_breakdown': customer_breakdown,
+                'activity_breakdown': activity_breakdown,
+                'performance_metrics': performance_metrics,
+                'forecast': forecast,
+                'job_status_breakdown': job_status_breakdown,
+                'daily_earnings': daily_earnings,
+                'best_weeks': best_weeks,
+                'worst_weeks': worst_weeks,
+                'completion_stats': completion_stats
+            })
+            
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
