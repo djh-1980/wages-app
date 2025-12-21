@@ -16,7 +16,7 @@ from camelot_runsheet_parser import CamelotRunsheetParser
 
 DB_PATH = "data/database/payslips.db"
 
-reimport_bp = Blueprint('reimport', __name__, url_prefix='/api/runsheet-testing')
+reimport_bp = Blueprint('runsheet_reimport', __name__, url_prefix='/api/runsheet-testing')
 
 
 @reimport_bp.route('/reimport', methods=['POST'])

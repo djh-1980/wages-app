@@ -74,8 +74,11 @@ def create_app(config_name=None):
     from .routes.api_bank_import import bank_import_bp
     from .routes.api_recurring import recurring_bp
     from .routes.api_runsheet_testing import runsheet_testing_bp
+    from .routes.api_runsheet_testing_reimport import reimport_bp
     
     app.register_blueprint(main_bp)
+    app.register_blueprint(runsheet_testing_bp)
+    app.register_blueprint(reimport_bp)
     app.register_blueprint(payslips_bp)
     app.register_blueprint(runsheets_bp)
     app.register_blueprint(reports_bp)
