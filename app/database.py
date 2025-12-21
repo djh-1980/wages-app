@@ -77,9 +77,19 @@ def init_database():
                 payslip_amount REAL,
                 matched BOOLEAN DEFAULT 0,
                 created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE(week_number, year)
             )
         """)
+        
+        # Add updated_at column if it doesn't exist (for existing databases)
+        try:
+            cursor.execute("SELECT updated_at FROM verbal_pay_confirmations LIMIT 1")
+        except sqlite3.OperationalError:
+            # SQLite doesn't support CURRENT_TIMESTAMP as default in ALTER TABLE
+            cursor.execute("ALTER TABLE verbal_pay_confirmations ADD COLUMN updated_at TIMESTAMP")
+            # Update existing rows to set updated_at = created_at
+            cursor.execute("UPDATE verbal_pay_confirmations SET updated_at = created_at WHERE updated_at IS NULL")
         
         # Initialize expense categories table
         cursor.execute("""

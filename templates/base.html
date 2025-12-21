@@ -52,10 +52,18 @@
                             </span>
                         </a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link {% if request.path == '/wages' %}active{% endif %}" href="/wages">
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle {% if request.path == '/wages' or request.path == '/verbal-pay' %}active{% endif %}" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
                             <i class="bi bi-wallet2"></i> Wages
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item {% if request.path == '/wages' %}active{% endif %}" href="/wages">
+                                <i class="bi bi-wallet2 me-2"></i>Payslips
+                            </a></li>
+                            <li><a class="dropdown-item {% if request.path == '/verbal-pay' %}active{% endif %}" href="/verbal-pay">
+                                <i class="bi bi-chat-left-text me-2"></i>Verbal Pay
+                            </a></li>
+                        </ul>
                     </li>
                     <li class="nav-item">
                         <a class="nav-link {% if request.path == '/paypoint' %}active{% endif %}" href="/paypoint">

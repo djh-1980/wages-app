@@ -453,6 +453,33 @@ function displayWeeklySummary(data) {
     `).join('');
 }
 
+// Show notification for verbal pay mismatch
+function showVerbalMismatchNotification(verbalAmount, actualEarnings, difference) {
+    // Only show if difference is significant (more than £1)
+    if (Math.abs(difference) < 1.00) return;
+    
+    const message = `Verbal pay mismatch detected! Expected £${(verbalAmount - 15).toFixed(2)} but actual earnings are £${actualEarnings.toFixed(2)} (difference: ${difference > 0 ? '+' : ''}£${Math.abs(difference).toFixed(2)})`;
+    
+    // Create notification element
+    const notification = document.createElement('div');
+    notification.className = 'alert alert-warning alert-dismissible fade show position-fixed';
+    notification.style.cssText = 'top: 80px; right: 20px; z-index: 9999; max-width: 400px; box-shadow: 0 4px 12px rgba(0,0,0,0.15);';
+    notification.innerHTML = `
+        <i class="bi bi-exclamation-triangle-fill me-2"></i>
+        <strong>Verbal Pay Mismatch</strong><br>
+        <small>${message}</small>
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    
+    document.body.appendChild(notification);
+    
+    // Auto-dismiss after 10 seconds
+    setTimeout(() => {
+        notification.classList.remove('show');
+        setTimeout(() => notification.remove(), 300);
+    }, 10000);
+}
+
 // Update earnings card with verbal confirmation info
 function updateEarningsCardWithVerbal(verbalConfirmation, totalEarnings) {
     const formatCurrency = (value) => {
@@ -484,6 +511,9 @@ function updateEarningsCardWithVerbal(verbalConfirmation, totalEarnings) {
         } else {
             const diffText = difference > 0 ? `+${formatCurrency(difference)}` : formatCurrency(difference);
             verbalHTML = `<small class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Verbal: ${formatCurrency(verbalAmount)} (${diffText})</small>`;
+            
+            // Show notification for mismatch
+            showVerbalMismatchNotification(verbalAmount, totalEarnings, difference);
         }
         
         // Add verbal confirmation underneath existing content

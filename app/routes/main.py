@@ -59,6 +59,12 @@ def expenses():
     return render_template('expenses.html')
 
 
+@main_bp.route('/verbal-pay')
+def verbal_pay_manager():
+    """Verbal pay confirmations manager page."""
+    return render_template('verbal_pay_manager.html')
+
+
 @main_bp.route('/settings')
 def settings():
     """Settings page - redirect to profile."""

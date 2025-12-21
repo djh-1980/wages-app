@@ -51,6 +51,10 @@ def add_confirmation():
         if verbal_amount <= 0:
             return jsonify({'error': 'Verbal amount must be positive'}), 400
         
+        # Validate notes length
+        if notes and len(notes) > 500:
+            return jsonify({'error': 'Notes must be 500 characters or less'}), 400
+        
         confirmation_id = VerbalPayModel.add_confirmation(week_number, year, verbal_amount, notes)
         
         return jsonify({
@@ -91,6 +95,77 @@ def get_confirmation_for_week(week_number, year):
                 'success': True,
                 'confirmation': None
             })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@verbal_pay_bp.route('/confirmations/<int:confirmation_id>', methods=['PUT'])
+def update_confirmation(confirmation_id):
+    """Update an existing verbal pay confirmation."""
+    try:
+        data = request.json
+        verbal_amount = data.get('verbal_amount')
+        notes = data.get('notes', '')
+        
+        if not verbal_amount:
+            return jsonify({'error': 'Verbal amount is required'}), 400
+        
+        # Validate inputs
+        try:
+            verbal_amount = float(verbal_amount)
+        except ValueError:
+            return jsonify({'error': 'Invalid number format'}), 400
+        
+        if verbal_amount <= 0:
+            return jsonify({'error': 'Verbal amount must be positive'}), 400
+        
+        # Validate notes length
+        if notes and len(notes) > 500:
+            return jsonify({'error': 'Notes must be 500 characters or less'}), 400
+        
+        success = VerbalPayModel.update_confirmation(confirmation_id, verbal_amount, notes)
+        
+        if success:
+            return jsonify({
+                'success': True,
+                'message': 'Verbal confirmation updated successfully'
+            })
+        else:
+            return jsonify({'error': 'Confirmation not found'}), 404
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@verbal_pay_bp.route('/analytics', methods=['GET'])
+def get_analytics():
+    """Get analytics on verbal pay accuracy."""
+    try:
+        analytics = VerbalPayModel.get_analytics()
+        return jsonify({
+            'success': True,
+            'analytics': analytics
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@verbal_pay_bp.route('/bulk-import', methods=['POST'])
+def bulk_import():
+    """Bulk import multiple verbal confirmations."""
+    try:
+        data = request.json
+        confirmations = data.get('confirmations', [])
+        
+        if not confirmations:
+            return jsonify({'error': 'No confirmations provided'}), 400
+        
+        results = VerbalPayModel.bulk_import(confirmations)
+        
+        return jsonify({
+            'success': True,
+            'results': results,
+            'message': f'Imported {results["success_count"]} confirmations, {results["error_count"]} errors'
+        })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
