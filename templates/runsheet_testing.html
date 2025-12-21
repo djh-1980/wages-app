@@ -1,0 +1,397 @@
+{% extends "base.html" %}
+
+{% block title %}Runsheet Extraction Testing{% endblock %}
+
+{% block extra_css %}
+<style>
+    .comparison-card {
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .method-badge {
+        font-size: 0.875rem;
+        padding: 4px 12px;
+        border-radius: 12px;
+    }
+    
+    .camelot-badge {
+        background-color: #0d6efd;
+        color: white;
+    }
+    
+    .text-badge {
+        background-color: #6c757d;
+        color: white;
+    }
+    
+    .quality-high {
+        color: #198754;
+        font-weight: bold;
+    }
+    
+    .quality-medium {
+        color: #fd7e14;
+        font-weight: bold;
+    }
+    
+    .quality-low {
+        color: #dc3545;
+        font-weight: bold;
+    }
+    
+    .job-comparison {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 20px;
+        margin-bottom: 20px;
+        padding: 15px;
+        border: 1px solid #e0e0e0;
+        border-radius: 8px;
+    }
+    
+    .job-side {
+        padding: 10px;
+    }
+    
+    .job-side h6 {
+        margin-bottom: 10px;
+        padding-bottom: 5px;
+        border-bottom: 2px solid #dee2e6;
+    }
+    
+    .diff-highlight {
+        background-color: #fff3cd;
+        padding: 2px 4px;
+        border-radius: 3px;
+    }
+    
+    .stats-card {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        border-radius: 12px;
+        padding: 20px;
+        margin-bottom: 20px;
+    }
+    
+    .stat-item {
+        text-align: center;
+        padding: 10px;
+    }
+    
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+    }
+    
+    .stat-label {
+        font-size: 0.875rem;
+        opacity: 0.9;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <div class="card table-card">
+                <div class="card-body">
+                    <h2 class="mb-4">
+                        <i class="bi bi-file-earmark-diff"></i> Runsheet Extraction Testing
+                    </h2>
+                    
+                    <!-- Filters -->
+                    <div class="row mb-3">
+                        <div class="col-md-3">
+                            <label for="yearFilter" class="form-label">Year</label>
+                            <select class="form-select" id="yearFilter">
+                                <option value="2025">2025</option>
+                                <option value="2024">2024</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="monthFilter" class="form-label">Month</label>
+                            <select class="form-select" id="monthFilter">
+                                <option value="01">January</option>
+                                <option value="02">February</option>
+                                <option value="03">March</option>
+                                <option value="04">April</option>
+                                <option value="05">May</option>
+                                <option value="06">June</option>
+                                <option value="07">July</option>
+                                <option value="08">August</option>
+                                <option value="09">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12" selected>December</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <!-- File Selection -->
+                    <div class="row mb-4">
+                        <div class="col-md-8">
+                            <label for="runsheetFile" class="form-label">Select Runsheet to Test</label>
+                            <select class="form-select" id="runsheetFile">
+                                <option value="">Loading files...</option>
+                            </select>
+                        </div>
+                        <div class="col-md-4 d-flex align-items-end">
+                            <button class="btn btn-primary w-100" id="compareBtn">
+                                <i class="bi bi-arrow-left-right"></i> Compare Methods
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading Indicator -->
+                    <div id="loadingIndicator" class="text-center my-5" style="display: none;">
+                        <div class="spinner-border text-primary" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p class="mt-3">Extracting jobs from runsheet...</p>
+                    </div>
+                    
+                    <!-- Results Container -->
+                    <div id="resultsContainer" style="display: none;">
+                        
+                        <!-- Statistics Cards -->
+                        <div class="row mb-4">
+                            <div class="col-md-6">
+                                <div class="stats-card" style="background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%);">
+                                    <h5 class="mb-3">
+                                        <span class="method-badge camelot-badge">Camelot (Table-Based)</span>
+                                    </h5>
+                                    <div class="row" id="camelotStats">
+                                        <!-- Stats will be inserted here -->
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="stats-card" style="background: linear-gradient(135deg, #6c757d 0%, #495057 100%);">
+                                    <h5 class="mb-3">
+                                        <span class="method-badge text-badge">Database (Current)</span>
+                                    </h5>
+                                    <div class="row" id="databaseStats">
+                                        <!-- Stats will be inserted here -->
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Summary -->
+                        <div class="alert alert-info" id="summaryAlert">
+                            <!-- Summary will be inserted here -->
+                        </div>
+                        
+                        <!-- Job Comparisons -->
+                        <h4 class="mb-3">Job-by-Job Comparison</h4>
+                        <div id="jobComparisons">
+                            <!-- Job comparisons will be inserted here -->
+                        </div>
+                        
+                    </div>
+                    
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+let availableFiles = [];
+
+// Load available files on page load
+document.addEventListener('DOMContentLoaded', function() {
+    loadAvailableFiles();
+    
+    // Reload files when filters change
+    document.getElementById('yearFilter').addEventListener('change', loadAvailableFiles);
+    document.getElementById('monthFilter').addEventListener('change', loadAvailableFiles);
+});
+
+async function loadAvailableFiles() {
+    try {
+        const year = document.getElementById('yearFilter').value;
+        const month = document.getElementById('monthFilter').value;
+        
+        const response = await fetch(`/api/runsheet-testing/available-files?year=${year}&month=${month}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            availableFiles = data.files;
+            
+            const select = document.getElementById('runsheetFile');
+            select.innerHTML = '<option value="">Select a runsheet...</option>';
+            
+            data.files.forEach(file => {
+                const option = document.createElement('option');
+                option.value = file.path;
+                option.textContent = file.filename;
+                select.appendChild(option);
+            });
+        }
+    } catch (error) {
+        console.error('Error loading files:', error);
+        showError('Failed to load runsheet files');
+    }
+}
+
+document.getElementById('compareBtn').addEventListener('click', async function() {
+    const filePath = document.getElementById('runsheetFile').value;
+    
+    if (!filePath) {
+        alert('Please select a runsheet file');
+        return;
+    }
+    
+    // Show loading
+    document.getElementById('loadingIndicator').style.display = 'block';
+    document.getElementById('resultsContainer').style.display = 'none';
+    
+    try {
+        const response = await fetch('/api/runsheet-testing/compare', {
+            method: 'POST',
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({pdf_path: filePath})
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            displayResults(data);
+        } else {
+            showError(data.error || 'Comparison failed');
+        }
+    } catch (error) {
+        console.error('Error:', error);
+        showError('Failed to compare extraction methods');
+    } finally {
+        document.getElementById('loadingIndicator').style.display = 'none';
+    }
+});
+
+function displayResults(data) {
+    // Show results container
+    document.getElementById('resultsContainer').style.display = 'block';
+    
+    // Display statistics
+    displayStats('camelotStats', data.camelot_stats);
+    displayStats('databaseStats', data.database_stats);
+    
+    // Display summary
+    displaySummary(data.summary, data.camelot_stats, data.database_stats);
+    
+    // Display job comparisons
+    displayJobComparisons(data.matches);
+}
+
+function displayStats(elementId, stats) {
+    const container = document.getElementById(elementId);
+    container.innerHTML = `
+        <div class="col-3 stat-item">
+            <div class="stat-value">${stats.total_jobs}</div>
+            <div class="stat-label">Total Jobs</div>
+        </div>
+        <div class="col-3 stat-item">
+            <div class="stat-value">${stats.avg_quality}</div>
+            <div class="stat-label">Avg Quality</div>
+        </div>
+        <div class="col-3 stat-item">
+            <div class="stat-value">${stats.high_quality}</div>
+            <div class="stat-label">High Quality</div>
+        </div>
+        <div class="col-3 stat-item">
+            <div class="stat-value">${stats.medium_quality + stats.low_quality}</div>
+            <div class="stat-label">Issues</div>
+        </div>
+    `;
+}
+
+function displaySummary(summary, camelotStats, textStats) {
+    const container = document.getElementById('summaryAlert');
+    
+    const qualityDiff = camelotStats.avg_quality - textStats.avg_quality;
+    const jobsDiff = camelotStats.total_jobs - textStats.total_jobs;
+    
+    let message = `<strong>Comparison Summary:</strong><br>`;
+    message += `• Found ${summary.total_unique_jobs} unique jobs across both methods<br>`;
+    message += `• ${summary.in_both} jobs found by both methods<br>`;
+    
+    if (summary.camelot_only > 0) {
+        message += `• ${summary.camelot_only} jobs only found by Camelot<br>`;
+    }
+    if (summary.text_only > 0) {
+        message += `• ${summary.text_only} jobs only found by Text Parsing<br>`;
+    }
+    
+    message += `<br><strong>Quality Difference:</strong> `;
+    if (qualityDiff > 0) {
+        message += `<span class="quality-high">Camelot is ${qualityDiff.toFixed(1)} points better</span>`;
+    } else if (qualityDiff < 0) {
+        message += `<span class="quality-medium">Text Parsing is ${Math.abs(qualityDiff).toFixed(1)} points better</span>`;
+    } else {
+        message += `Equal quality`;
+    }
+    
+    container.innerHTML = message;
+}
+
+function displayJobComparisons(matches) {
+    const container = document.getElementById('jobComparisons');
+    container.innerHTML = '';
+    
+    matches.forEach(match => {
+        const div = document.createElement('div');
+        div.className = 'job-comparison';
+        
+        const camelotSide = match.camelot ? formatJobSide(match.camelot, 'Camelot') : '<div class="job-side"><p class="text-muted">Not found</p></div>';
+        const databaseSide = match.database ? formatJobSide(match.database, 'Database') : '<div class="job-side"><p class="text-muted">Not in database</p></div>';
+        
+        // Add manual entry badge if applicable
+        const manualBadge = match.is_manual_entry ? '<span class="badge bg-warning text-dark ms-2">Manual Entry</span>' : '';
+        
+        div.innerHTML = `
+            <div class="job-side">
+                <h6><span class="method-badge camelot-badge">Camelot</span> Job #${match.job_number}${manualBadge}</h6>
+                ${camelotSide}
+            </div>
+            <div class="job-side">
+                <h6><span class="method-badge text-badge">Database</span> Job #${match.job_number}${manualBadge}</h6>
+                ${databaseSide}
+            </div>
+        `;
+        
+        container.appendChild(div);
+    });
+}
+
+function formatJobSide(job, method) {
+    if (!job) return '';
+    
+    const qualityClass = job.quality_score >= 80 ? 'quality-high' : job.quality_score >= 50 ? 'quality-medium' : 'quality-low';
+    
+    return `
+        <p><strong>Customer:</strong> ${job.customer || 'N/A'}</p>
+        <p><strong>Activity:</strong> ${job.activity || 'N/A'}</p>
+        <p><strong>Address:</strong> ${job.job_address || 'N/A'}</p>
+        <p><strong>Postcode:</strong> ${job.postcode || 'N/A'}</p>
+        <p><strong>Quality:</strong> <span class="${qualityClass}">${job.quality_score}/100</span></p>
+    `;
+}
+
+function showError(message) {
+    const container = document.getElementById('resultsContainer');
+    container.style.display = 'block';
+    container.innerHTML = `
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle"></i> ${message}
+        </div>
+    `;
+}
+</script>
+{% endblock %}

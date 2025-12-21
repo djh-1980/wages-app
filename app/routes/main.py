@@ -65,6 +65,12 @@ def verbal_pay_manager():
     return render_template('verbal_pay_manager.html')
 
 
+@main_bp.route('/runsheet-testing')
+def runsheet_testing():
+    """Runsheet extraction testing and comparison page."""
+    return render_template('runsheet_testing.html')
+
+
 @main_bp.route('/settings')
 def settings():
     """Settings page - redirect to profile."""

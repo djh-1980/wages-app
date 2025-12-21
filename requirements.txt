@@ -12,6 +12,7 @@ PyPDF2==3.0.1
 pdfplumber>=0.10.0
 reportlab>=4.0.0
 Pillow>=10.0.0
+camelot-py[cv]>=0.11.0  # Table-based PDF extraction (requires opencv)
 
 # Gmail API Integration
 google-auth==2.23.3
