@@ -12,6 +12,15 @@ from datetime import datetime
 from typing import Dict, List, Optional
 import csv
 import logging
+import sys
+
+# Add testing directory to path for Camelot parser
+sys.path.insert(0, str(Path(__file__).parent.parent / 'testing'))
+try:
+    from camelot_runsheet_parser import CamelotRunsheetParser
+    CAMELOT_AVAILABLE = True
+except ImportError:
+    CAMELOT_AVAILABLE = False
 
 
 class RunSheetImporter:
@@ -384,7 +393,23 @@ class RunSheetImporter:
         return job if len(job) >= 2 else None
     
     def parse_pdf_run_sheet(self, pdf_path: str) -> List[Dict]:
-        """Parse PDF format run sheet - handles both single and multi-driver formats."""
+        """Parse PDF using Camelot table extraction (with text fallback)."""
+        
+        # Try Camelot first (99% quality)
+        if CAMELOT_AVAILABLE:
+            try:
+                parser = CamelotRunsheetParser(driver_name=self.name)
+                jobs = parser.parse_pdf(pdf_path)
+                
+                if len(jobs) > 0:
+                    self.logger.info(f"Camelot extracted {len(jobs)} jobs from {Path(pdf_path).name}")
+                    return jobs
+                else:
+                    self.logger.warning(f"Camelot found no jobs, trying text parsing")
+            except Exception as e:
+                self.logger.warning(f"Camelot failed: {e}, falling back to text parsing")
+        
+        # Fallback to text parsing
         jobs = []
         
         with open(pdf_path, 'rb') as file:
