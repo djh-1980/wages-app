@@ -146,6 +146,71 @@
                         </div>
                     </div>
                     
+                    <hr class="my-4">
+                    
+                    <!-- Re-import Section -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h4 class="mb-3">
+                                <i class="bi bi-arrow-clockwise"></i> Re-import with Camelot
+                            </h4>
+                            <p class="text-muted">Re-import existing runsheets using Camelot for improved data quality (99% vs 90%).</p>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="reimportYear" class="form-label">Year</label>
+                            <select class="form-select" id="reimportYear">
+                                <option value="2025">2025</option>
+                                <option value="2024">2024</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label for="reimportMonth" class="form-label">Month</label>
+                            <select class="form-select" id="reimportMonth">
+                                <option value="01">January</option>
+                                <option value="02">February</option>
+                                <option value="03">March</option>
+                                <option value="04">April</option>
+                                <option value="05">May</option>
+                                <option value="06">June</option>
+                                <option value="07">July</option>
+                                <option value="08">August</option>
+                                <option value="09">September</option>
+                                <option value="10">October</option>
+                                <option value="11">November</option>
+                                <option value="12" selected>December</option>
+                            </select>
+                        </div>
+                        <div class="col-md-3">
+                            <label class="form-label d-block">&nbsp;</label>
+                            <button class="btn btn-warning w-100" id="reimportBtn">
+                                <i class="bi bi-download"></i> Re-import Month
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Re-import Progress -->
+                    <div id="reimportProgress" style="display: none;">
+                        <div class="alert alert-info">
+                            <div class="d-flex align-items-center">
+                                <div class="spinner-border spinner-border-sm me-2" role="status">
+                                    <span class="visually-hidden">Loading...</span>
+                                </div>
+                                <div>
+                                    <strong>Re-importing...</strong>
+                                    <div id="reimportStatus" class="small">Starting...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Re-import Results -->
+                    <div id="reimportResults" style="display: none;">
+                        <div class="alert alert-success">
+                            <h5><i class="bi bi-check-circle"></i> Re-import Complete</h5>
+                            <div id="reimportSummary"></div>
+                        </div>
+                    </div>
+                    
                     <!-- Loading Indicator -->
                     <div id="loadingIndicator" class="text-center my-5" style="display: none;">
                         <div class="spinner-border text-primary" role="status">
@@ -240,6 +305,58 @@ async function loadAvailableFiles() {
         showError('Failed to load runsheet files');
     }
 }
+
+// Re-import button handler
+document.getElementById('reimportBtn').addEventListener('click', async function() {
+    const year = document.getElementById('reimportYear').value;
+    const month = document.getElementById('reimportMonth').value;
+    
+    if (!confirm(`Re-import all runsheets for ${month}/${year} with Camelot?\n\nThis will update existing jobs with cleaner data.`)) {
+        return;
+    }
+    
+    // Show progress
+    document.getElementById('reimportProgress').style.display = 'block';
+    document.getElementById('reimportResults').style.display = 'none';
+    document.getElementById('reimportBtn').disabled = true;
+    
+    try {
+        const response = await fetch('/api/runsheet-testing/reimport', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ year, month })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('reimportProgress').style.display = 'none';
+            document.getElementById('reimportResults').style.display = 'block';
+            document.getElementById('reimportSummary').innerHTML = `
+                <p><strong>Files processed:</strong> ${data.files_processed}</p>
+                <p><strong>Jobs updated:</strong> ${data.jobs_updated}</p>
+                <p><strong>Jobs added:</strong> ${data.jobs_added}</p>
+                <p><strong>Jobs skipped:</strong> ${data.jobs_skipped}</p>
+                ${data.skipped_days && data.skipped_days.length > 0 ? `
+                    <p><strong>Skipped days:</strong></p>
+                    <ul class="small">
+                        ${data.skipped_days.map(d => `<li>${d.date}: ${d.reason}</li>`).join('')}
+                    </ul>
+                ` : ''}
+            `;
+        } else {
+            throw new Error(data.error || 'Re-import failed');
+        }
+    } catch (error) {
+        console.error('Re-import error:', error);
+        document.getElementById('reimportProgress').style.display = 'none';
+        alert('Re-import failed: ' + error.message);
+    } finally {
+        document.getElementById('reimportBtn').disabled = false;
+    }
+});
 
 document.getElementById('compareBtn').addEventListener('click', async function() {
     const filePath = document.getElementById('runsheetFile').value;

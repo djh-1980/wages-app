@@ -3,14 +3,19 @@ API routes for runsheet extraction testing and comparison.
 Allows testing different extraction methods and comparing results.
 """
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, request, jsonify
 from pathlib import Path
 import sys
+import sqlite3
+import re
+import os
 
-# Add scripts directory to path
+# Add testing directory to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'scripts' / 'testing'))
 
 from camelot_runsheet_parser import CamelotRunsheetParser
+
+DB_PATH = "data/database/payslips.db"
 
 runsheet_testing_bp = Blueprint('runsheet_testing', __name__, url_prefix='/api/runsheet-testing')
 
