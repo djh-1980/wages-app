@@ -3,6 +3,62 @@
  * Handles database management and system functionality
  */
 
+// Company Year Configuration
+async function loadCompanyYear() {
+    try {
+        const response = await fetch('/api/settings/company-year');
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('companyYearStart').value = data.year_start || '09/03/2025';
+            document.getElementById('currentCompanyYear').value = data.current_year || '-';
+            document.getElementById('currentWeekNumber').value = `Week ${data.current_week || '-'}`;
+        } else {
+            showStatus('Failed to load company year configuration', 'danger');
+        }
+    } catch (error) {
+        console.error('Error loading company year:', error);
+        showStatus('Error loading company year configuration', 'danger');
+    }
+}
+
+async function saveCompanyYear() {
+    const yearStart = document.getElementById('companyYearStart').value;
+    
+    if (!yearStart) {
+        showStatus('Please enter a company year start date', 'warning');
+        return;
+    }
+    
+    // Validate date format (DD/MM/YYYY)
+    const datePattern = /^\d{2}\/\d{2}\/\d{4}$/;
+    if (!datePattern.test(yearStart)) {
+        showStatus('Invalid date format. Please use DD/MM/YYYY', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/settings/company-year', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ year_start: yearStart })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showStatus('Company year configuration saved successfully', 'success');
+            // Reload to update current year/week
+            loadCompanyYear();
+        } else {
+            showStatus(data.error || 'Failed to save configuration', 'danger');
+        }
+    } catch (error) {
+        console.error('Error saving company year:', error);
+        showStatus('Error saving company year configuration', 'danger');
+    }
+}
+
 // Status display functions
 function showStatus(message, type = 'info') {
     // Create or get floating notification container
@@ -1673,6 +1729,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadDatabaseInfo();
     loadBackupsList();
     loadSystemInfo();
+    loadCompanyYear(); // Load company year configuration
     loadCustomersAndMappings(); // Load customer mappings with new interface
     setupSearchAndFilter(); // Setup search and filter handlers
     setupGroupButtonListeners(); // Setup event listeners for group buttons

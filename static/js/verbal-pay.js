@@ -7,18 +7,32 @@
 console.log('🟢 verbal-pay.js loaded successfully');
 
 // Show verbal pay modal
-function showVerbalPayModal() {
+async function showVerbalPayModal() {
     const now = new Date();
     
+    // Get current company year from API
+    let companyYear = 2025; // fallback
+    let weekNumber = 1;
+    
+    try {
+        const response = await fetch('/api/settings/company-year');
+        const data = await response.json();
+        if (data.success) {
+            companyYear = data.current_year;
+            weekNumber = data.current_week;
+        }
+    } catch (error) {
+        console.error('Error fetching company year:', error);
+    }
+    
     // Find the previous Saturday (week-ending date)
-    // Tuesday = 2, so we need to go back 3 days to get to Saturday
     const dayOfWeek = now.getDay(); // 0 = Sunday, 1 = Monday, 2 = Tuesday, 6 = Saturday
     let daysToSubtract;
     
     if (dayOfWeek === 0) { // Sunday
         daysToSubtract = 1; // Yesterday was Saturday
     } else if (dayOfWeek === 6) { // Saturday
-        daysToSubtract = 7; // Last Saturday
+        daysToSubtract = 0; // Today is Saturday
     } else { // Monday (1) through Friday (5)
         daysToSubtract = dayOfWeek + 1; // Monday=2 days back, Tuesday=3 days back, etc.
     }
@@ -32,24 +46,9 @@ function showVerbalPayModal() {
     const year = previousSaturday.getFullYear();
     const weekEndingDate = `${day}/${month}/${year}`;
     
-    // Calculate week number based on company year (starts 09/03/2025)
-    // Week 1 ending: 22/03/2025 (Saturday)
-    // Week 33 ending: 01/11/2025 (verified)
-    const firstSaturday = new Date(2025, 2, 22); // 22/03/2025 (month is 0-indexed)
-    
-    let weekNumber = 1;
-    if (previousSaturday >= firstSaturday) {
-        // Calculate weeks since first Saturday (inclusive)
-        const daysDiff = Math.floor((previousSaturday - firstSaturday) / (1000 * 60 * 60 * 24));
-        weekNumber = Math.floor(daysDiff / 7) + 1;
-    } else {
-        // Before company year start - shouldn't happen but handle it
-        weekNumber = 1;
-    }
-    
     document.getElementById('verbalWeekNumber').value = weekNumber;
     document.getElementById('verbalWeekNumber').placeholder = 'e.g., 34';
-    document.getElementById('verbalYear').value = 2025; // Company year
+    document.getElementById('verbalYear').value = companyYear;
     document.getElementById('verbalAmount').value = '';
     document.getElementById('verbalNotes').value = `Week ending ${weekEndingDate}`;
     
@@ -79,12 +78,7 @@ async function saveVerbalConfirmation() {
     });
     
     if (isNaN(weekNumber) || weekNumber <= 0 || isNaN(year) || year <= 0 || isNaN(verbalAmount) || verbalAmount <= 0) {
-        showError('Please fill in all required fields');
-        return;
-    }
-    
-    if (verbalAmount <= 0) {
-        showError('Amount must be greater than zero');
+        showError('Please fill in all required fields with valid positive numbers');
         return;
     }
     
@@ -146,23 +140,27 @@ async function checkVerbalMatch(payslipId, weekString, grossPay, netPay) {
             const deductions = grossPay - netPay;
             
             // Update match status in database
-            await fetch('/api/verbal-pay/match-payslip', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({
-                    week_number: weekNumber,
-                    year: year,
-                    payslip_id: payslipId,
-                    gross_pay: grossPay,
-                    net_pay: netPay
-                })
-            });
+            try {
+                await fetch('/api/verbal-pay/match-payslip', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        week_number: weekNumber,
+                        year: year,
+                        payslip_id: payslipId,
+                        gross_pay: grossPay,
+                        net_pay: netPay
+                    })
+                });
+            } catch (matchError) {
+                console.error('Error updating match status:', matchError);
+            }
             
             return {
                 hasConfirmation: true,
                 verbalAmount: verbalAmount,
                 expectedGross: expectedGross,
-                grossPay: grossPay,
+                payslipAmount: grossPay,
                 netPay: netPay,
                 deductions: deductions,
                 matched: matched,
@@ -177,32 +175,6 @@ async function checkVerbalMatch(payslipId, weekString, grossPay, netPay) {
     }
 }
 
-// Add match indicator to payslip row
-function addMatchIndicator(row, matchInfo) {
-    if (!matchInfo || !matchInfo.hasConfirmation) {
-        return;
-    }
-    
-    const indicator = document.createElement('span');
-    indicator.className = 'ms-2';
-    indicator.style.cursor = 'pointer';
-    indicator.title = `Verbal: £${matchInfo.verbalAmount.toFixed(2)}\nPayslip: £${matchInfo.payslipAmount.toFixed(2)}`;
-    
-    if (matchInfo.matched) {
-        indicator.innerHTML = '<i class="bi bi-check-circle-fill text-success"></i>';
-        indicator.title += '\n✓ Amounts match!';
-    } else {
-        indicator.innerHTML = '<i class="bi bi-exclamation-triangle-fill text-warning"></i>';
-        const diff = matchInfo.difference;
-        indicator.title += `\n⚠ Difference: £${Math.abs(diff).toFixed(2)} ${diff > 0 ? 'more' : 'less'}`;
-    }
-    
-    // Find the total pay cell and add indicator
-    const cells = row.querySelectorAll('td');
-    if (cells.length >= 3) {
-        cells[2].appendChild(indicator);
-    }
-}
 
 // Show success message
 function showSuccess(message) {

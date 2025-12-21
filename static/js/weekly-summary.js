@@ -188,8 +188,11 @@ function displayWeeklySummary(data) {
     // Check for verbal confirmation for this week
     let verbalConfirmation = null;
     if (data.week_number && typeof checkVerbalMatch === 'function') {
+        // Use the tax year from the data, fallback to current year
+        const taxYear = data.tax_year || 2025;
+        
         // Fetch verbal confirmation asynchronously
-        fetch(`/api/verbal-pay/confirmations/week/${data.week_number}/year/2025`)
+        fetch(`/api/verbal-pay/confirmations/week/${data.week_number}/year/${taxYear}`)
             .then(response => response.json())
             .then(result => {
                 if (result.success && result.confirmation) {

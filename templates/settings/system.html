@@ -54,6 +54,49 @@
                     </div>
                 </div>
 
+                <!-- Company Year Configuration -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-calendar-range me-2"></i>Company Year Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">Configure your company's fiscal year settings for accurate week calculations</p>
+                        
+                        <div class="row g-3 mb-3">
+                            <div class="col-md-4">
+                                <label class="form-label">Company Year Start Date</label>
+                                <input type="text" class="form-control" id="companyYearStart" placeholder="DD/MM/YYYY">
+                                <small class="text-muted">The Sunday when your company year starts</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Current Company Year</label>
+                                <input type="text" class="form-control" id="currentCompanyYear" readonly>
+                                <small class="text-muted">Automatically calculated</small>
+                            </div>
+                            <div class="col-md-4">
+                                <label class="form-label">Current Week Number</label>
+                                <input type="text" class="form-control" id="currentWeekNumber" readonly>
+                                <small class="text-muted">Current week in company year</small>
+                            </div>
+                        </div>
+                        
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <button class="btn btn-primary w-100" onclick="saveCompanyYear()">
+                                    <i class="bi bi-save me-2"></i>Save Configuration
+                                </button>
+                            </div>
+                            <div class="col-md-6">
+                                <button class="btn btn-outline-secondary w-100" onclick="loadCompanyYear()">
+                                    <i class="bi bi-arrow-repeat me-2"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <div id="companyYearStatus" class="mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+
                 <!-- Backup & Restore -->
                 <div class="settings-card">
                     <div class="card-header">

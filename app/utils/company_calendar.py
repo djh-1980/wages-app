@@ -167,18 +167,33 @@ class CompanyCalendar:
     @classmethod
     def get_current_week(cls) -> Tuple[int, int]:
         """
-        Get current company week number and tax year (in UK timezone).
+        Get current company week number and company year (in UK timezone).
         
         Returns:
-            Tuple of (week_number, tax_year)
+            Tuple of (week_number, company_year)
         """
         today = now_uk()  # Use UK timezone
         
-        # Determine tax year dynamically based on UK tax year
-        tax_year = cls.get_tax_year_from_date(today)
-        week_number = cls.get_week_number_from_date(today, tax_year)
+        # Convert to naive datetime for calculations (remove timezone info)
+        today_naive = today.replace(tzinfo=None)
         
-        return week_number, tax_year
+        # Determine company year based on company year start date (not UK tax year)
+        # Company year starts around March 9th each calendar year
+        # If we're before March 9th, we're still in the previous company year
+        current_calendar_year = today_naive.year
+        
+        # Calculate this year's company start date
+        this_year_start, _ = cls.calculate_company_year_start(current_calendar_year)
+        
+        # If today is before this year's company start, we're in last year's company year
+        if today_naive < this_year_start:
+            company_year = current_calendar_year - 1
+        else:
+            company_year = current_calendar_year
+        
+        week_number = cls.get_week_number_from_date(today_naive, company_year)
+        
+        return week_number, company_year
     
     @classmethod
     def get_payslip_week_from_period_end(cls, period_end_str: str) -> Tuple[int, int]:

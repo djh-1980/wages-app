@@ -296,3 +296,51 @@ def mark_runsheet_notifications_read():
         return jsonify({'success': True})
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@settings_bp.route('/company-year', methods=['GET'])
+def api_get_company_year():
+    """Get current company year and configuration."""
+    try:
+        from ..utils.company_calendar import company_calendar
+        
+        # Get current week and year from company calendar
+        week_number, tax_year = company_calendar.get_current_week()
+        
+        # Get year start date configuration (if stored)
+        year_start_setting = SettingsModel.get_setting('company_year_start')
+        
+        return jsonify({
+            'success': True,
+            'current_year': tax_year,
+            'current_week': week_number,
+            'year_start': year_start_setting or '09/03/2025'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/company-year', methods=['POST'])
+def api_save_company_year():
+    """Save company year start configuration."""
+    try:
+        data = request.json
+        year_start = data.get('year_start')
+        
+        if not year_start:
+            return jsonify({'error': 'Year start date is required'}), 400
+        
+        # Validate date format (DD/MM/YYYY)
+        try:
+            datetime.strptime(year_start, '%d/%m/%Y')
+        except ValueError:
+            return jsonify({'error': 'Invalid date format. Use DD/MM/YYYY'}), 400
+        
+        SettingsModel.set_setting('company_year_start', year_start)
+        
+        return jsonify({
+            'success': True,
+            'message': 'Company year start saved successfully'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
