@@ -134,8 +134,15 @@ async function checkVerbalMatch(payslipId, weekString, grossPay, netPay) {
         
         if (data.success && data.confirmation) {
             const verbalAmount = data.confirmation.verbal_amount;
-            // Verbal amount should match gross pay (before deductions)
-            const matched = Math.abs(verbalAmount - grossPay) < 0.01;
+            
+            // Standard weekly deductions: £11 company margin + £4 PDA licence = £15
+            const STANDARD_DEDUCTIONS = 15.00;
+            
+            // Subtract deductions from verbal amount to get expected gross pay
+            const expectedGross = verbalAmount - STANDARD_DEDUCTIONS;
+            
+            // Compare expected gross with actual payslip gross pay
+            const matched = Math.abs(expectedGross - grossPay) < 0.01;
             const deductions = grossPay - netPay;
             
             // Update match status in database
@@ -154,11 +161,12 @@ async function checkVerbalMatch(payslipId, weekString, grossPay, netPay) {
             return {
                 hasConfirmation: true,
                 verbalAmount: verbalAmount,
+                expectedGross: expectedGross,
                 grossPay: grossPay,
                 netPay: netPay,
                 deductions: deductions,
                 matched: matched,
-                difference: grossPay - verbalAmount
+                difference: grossPay - expectedGross
             };
         }
         

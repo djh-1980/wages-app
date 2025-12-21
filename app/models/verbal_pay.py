@@ -99,16 +99,27 @@ class VerbalPayModel:
     
     @staticmethod
     def match_with_payslip(week_number, year, payslip_id, gross_pay, net_pay):
-        """Match a verbal confirmation with actual payslip gross pay."""
-        # Verbal amount should match gross pay (before deductions)
+        """Match a verbal confirmation with actual payslip gross pay.
+        
+        The verbal amount is what the boss tells you (job total before deductions).
+        Standard deductions are £15 (£11 company margin + £4 PDA licence).
+        We subtract these deductions from the verbal amount to match the payslip gross pay.
+        """
         confirmation = VerbalPayModel.get_confirmation(week_number, year)
         
         if not confirmation:
             return False
         
         verbal_amount = confirmation['verbal_amount']
-        # Compare verbal amount with gross pay (within £0.01 tolerance)
-        matched = abs(verbal_amount - gross_pay) < 0.01
+        
+        # Standard weekly deductions: £11 company margin + £4 PDA licence = £15
+        STANDARD_DEDUCTIONS = 15.00
+        
+        # Subtract deductions from verbal amount to get expected gross pay
+        expected_gross = verbal_amount - STANDARD_DEDUCTIONS
+        
+        # Compare expected gross with actual payslip gross pay (within £0.01 tolerance)
+        matched = abs(expected_gross - gross_pay) < 0.01
         
         query = """
             UPDATE verbal_pay_confirmations

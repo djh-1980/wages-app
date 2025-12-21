@@ -464,12 +464,20 @@ function updateEarningsCardWithVerbal(verbalConfirmation, totalEarnings) {
     
     if (earningsCard) {
         const verbalAmount = verbalConfirmation.verbal_amount;
-        const matched = Math.abs(verbalAmount - totalEarnings) < 0.01;
-        const difference = totalEarnings - verbalAmount;
+        
+        // Standard weekly deductions: £11 company margin + £4 PDA licence = £15
+        const STANDARD_DEDUCTIONS = 15.00;
+        
+        // Subtract deductions from verbal amount to get expected earnings
+        const expectedEarnings = verbalAmount - STANDARD_DEDUCTIONS;
+        
+        // Compare expected earnings with actual total earnings
+        const matched = Math.abs(expectedEarnings - totalEarnings) < 0.01;
+        const difference = totalEarnings - expectedEarnings;
         
         let verbalHTML = '';
         if (matched) {
-            verbalHTML = `<small class="text-success"><i class="bi bi-check-circle-fill"></i> Matches verbal (${formatCurrency(verbalAmount)})</small>`;
+            verbalHTML = `<small class="text-success"><i class="bi bi-check-circle-fill"></i> Matches verbal confirmation</small>`;
         } else {
             const diffText = difference > 0 ? `+${formatCurrency(difference)}` : formatCurrency(difference);
             verbalHTML = `<small class="text-warning"><i class="bi bi-exclamation-triangle-fill"></i> Verbal: ${formatCurrency(verbalAmount)} (${diffText})</small>`;
