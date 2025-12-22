@@ -335,3 +335,191 @@ def extract_with_text_internal(pdf_path):
             'low_quality': sum(1 for s in scores if s < 50)
         }
     }
+
+
+@runsheet_testing_bp.route('/reimport', methods=['POST'])
+def reimport_month():
+    """Re-import a month of runsheets using Camelot. Updates existing jobs and adds selected new jobs."""
+    try:
+        data = request.json
+        year = data.get('year', '2025')
+        month = data.get('month', '12')
+        selected_jobs = data.get('selected_jobs', [])  # List of job_numbers to add
+        
+        runsheets_dir = Path('data/documents/runsheets')
+        pattern = f"DH_*-{month}-{year}.pdf"
+        files = list(runsheets_dir.rglob(pattern))
+        
+        if not files:
+            return jsonify({'error': f'No runsheets found for {month}/{year}'}), 404
+        
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        total_updated = 0
+        total_added = 0
+        total_skipped = 0
+        skipped_days = []
+        files_processed = 0
+        
+        parser = CamelotRunsheetParser(driver_name="Daniel Hanson")
+        
+        for pdf_file in sorted(files):
+            date_match = re.search(r'(\d{2})-(\d{2})-(\d{4})', pdf_file.name)
+            if not date_match:
+                continue
+            
+            date_str = f"{date_match.group(1)}/{date_match.group(2)}/{date_match.group(3)}"
+            
+            cursor.execute("SELECT reason FROM attendance WHERE date = ?", (date_str,))
+            attendance = cursor.fetchone()
+            if attendance and attendance[0] in ['Day Off', 'Holiday', 'Sick', 'Annual Leave']:
+                skipped_days.append({'date': date_str, 'reason': attendance[0]})
+                continue
+            
+            jobs = parser.parse_pdf(str(pdf_file))
+            if not jobs:
+                continue
+            
+            files_processed += 1
+            current_filename = pdf_file.name
+            
+            for job in jobs:
+                job_number = job.get('job_number')
+                date = job.get('date')
+                customer = job.get('customer', '')
+                activity = job.get('activity', '')
+                
+                # Skip invalid jobs, PP Audit, and DNCO jobs
+                if not job_number or not date or 'PP Audit' in customer:
+                    continue
+                
+                if 'DNCO' in activity.upper() or 'DID NOT CARRY OUT' in activity.upper():
+                    total_skipped += 1
+                    continue
+                
+                cursor.execute("SELECT id FROM run_sheet_jobs WHERE date = ? AND job_number = ?", (date, job_number))
+                existing = cursor.fetchone()
+                
+                if existing:
+                    # Always update existing jobs
+                    cursor.execute("""
+                        UPDATE run_sheet_jobs SET customer = ?, activity = ?, job_address = ?, postcode = ?, source_file = ?
+                        WHERE id = ?
+                    """, (job.get('customer'), job.get('activity'), job.get('job_address'), job.get('postcode'), current_filename, existing[0]))
+                    total_updated += 1
+                else:
+                    # Only add new jobs if they're in the selected list (or if no selection provided, add all)
+                    if not selected_jobs or job_number in selected_jobs:
+                        cursor.execute("""
+                            INSERT INTO run_sheet_jobs (date, driver, job_number, customer, activity, job_address, postcode, source_file, status)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'pending')
+                        """, (date, 'Daniel Hanson', job_number, job.get('customer'), job.get('activity'), job.get('job_address'), job.get('postcode'), current_filename))
+                        total_added += 1
+        
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'files_processed': files_processed,
+            'jobs_updated': total_updated,
+            'jobs_added': total_added,
+            'jobs_skipped': total_skipped,
+            'skipped_days': skipped_days
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500
+
+
+@runsheet_testing_bp.route('/reimport-preview', methods=['POST'])
+def reimport_preview():
+    """Preview new jobs that would be added during re-import."""
+    try:
+        data = request.json
+        year = data.get('year', '2025')
+        month = data.get('month', '12')
+        
+        runsheets_dir = Path('data/documents/runsheets')
+        pattern = f"DH_*-{month}-{year}.pdf"
+        files = list(runsheets_dir.rglob(pattern))
+        
+        if not files:
+            return jsonify({'error': f'No runsheets found for {month}/{year}'}), 404
+        
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        
+        new_jobs = []
+        existing_count = 0
+        skipped_dnco = 0
+        skipped_days = []
+        
+        parser = CamelotRunsheetParser(driver_name="Daniel Hanson")
+        
+        for pdf_file in sorted(files):
+            date_match = re.search(r'(\d{2})-(\d{2})-(\d{4})', pdf_file.name)
+            if not date_match:
+                continue
+            
+            date_str = f"{date_match.group(1)}/{date_match.group(2)}/{date_match.group(3)}"
+            
+            # Check attendance
+            cursor.execute("SELECT reason FROM attendance WHERE date = ?", (date_str,))
+            attendance = cursor.fetchone()
+            if attendance and attendance[0] in ['Day Off', 'Holiday', 'Sick', 'Annual Leave']:
+                skipped_days.append({'date': date_str, 'reason': attendance[0]})
+                continue
+            
+            jobs = parser.parse_pdf(str(pdf_file))
+            if not jobs:
+                continue
+            
+            for job in jobs:
+                job_number = job.get('job_number')
+                date = job.get('date')
+                customer = job.get('customer', '')
+                activity = job.get('activity', '')
+                
+                # Skip invalid jobs, PP Audit
+                if not job_number or not date or 'PP Audit' in customer:
+                    continue
+                
+                # Skip DNCO jobs
+                if 'DNCO' in activity.upper() or 'DID NOT CARRY OUT' in activity.upper():
+                    skipped_dnco += 1
+                    continue
+                
+                # Check if job exists
+                cursor.execute("SELECT id FROM run_sheet_jobs WHERE date = ? AND job_number = ?", (date, job_number))
+                existing = cursor.fetchone()
+                
+                if existing:
+                    existing_count += 1
+                else:
+                    # This is a new job - add to preview list
+                    new_jobs.append({
+                        'date': date,
+                        'job_number': job_number,
+                        'customer': customer,
+                        'activity': activity,
+                        'job_address': job.get('job_address', ''),
+                        'postcode': job.get('postcode', ''),
+                        'source_file': pdf_file.name
+                    })
+        
+        conn.close()
+        
+        return jsonify({
+            'success': True,
+            'new_jobs': new_jobs,
+            'existing_jobs_count': existing_count,
+            'skipped_dnco': skipped_dnco,
+            'skipped_days': skipped_days
+        })
+        
+    except Exception as e:
+        import traceback
+        return jsonify({'error': str(e), 'traceback': traceback.format_exc()}), 500

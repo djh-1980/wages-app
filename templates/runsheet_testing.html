@@ -196,8 +196,34 @@
                                     <span class="visually-hidden">Loading...</span>
                                 </div>
                                 <div>
-                                    <strong>Re-importing...</strong>
-                                    <div id="reimportStatus" class="small">Starting...</div>
+                                    <strong>Loading preview...</strong>
+                                    <div id="reimportStatus" class="small">Analyzing runsheets...</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- New Jobs Preview -->
+                    <div id="newJobsPreview" style="display: none;">
+                        <div class="card mb-3">
+                            <div class="card-header bg-warning text-dark">
+                                <h5 class="mb-0"><i class="bi bi-exclamation-triangle"></i> New Jobs Found</h5>
+                            </div>
+                            <div class="card-body">
+                                <p class="mb-3">
+                                    <strong id="existingJobsCount"></strong> existing jobs will be updated automatically.<br>
+                                    <strong id="newJobsCount"></strong> new jobs found. Select which ones to add:
+                                </p>
+                                <div class="mb-3">
+                                    <button class="btn btn-sm btn-outline-primary me-2" id="selectAllBtn">Select All</button>
+                                    <button class="btn btn-sm btn-outline-secondary" id="deselectAllBtn">Deselect All</button>
+                                </div>
+                                <div id="newJobsList" style="max-height: 400px; overflow-y: auto;"></div>
+                                <div class="mt-3">
+                                    <button class="btn btn-success" id="confirmReimportBtn">
+                                        <i class="bi bi-check-circle"></i> Confirm & Import Selected
+                                    </button>
+                                    <button class="btn btn-secondary ms-2" id="cancelReimportBtn">Cancel</button>
                                 </div>
                             </div>
                         </div>
@@ -306,27 +332,98 @@ async function loadAvailableFiles() {
     }
 }
 
-// Re-import button handler
+// Re-import button handler - Step 1: Preview
 document.getElementById('reimportBtn').addEventListener('click', async function() {
     const year = document.getElementById('reimportYear').value;
     const month = document.getElementById('reimportMonth').value;
     
-    if (!confirm(`Re-import all runsheets for ${month}/${year} with Camelot?\n\nThis will update existing jobs with cleaner data.`)) {
-        return;
-    }
-    
     // Show progress
     document.getElementById('reimportProgress').style.display = 'block';
     document.getElementById('reimportResults').style.display = 'none';
+    document.getElementById('newJobsPreview').style.display = 'none';
     document.getElementById('reimportBtn').disabled = true;
+    
+    try {
+        const response = await fetch('/api/runsheet-testing/reimport-preview', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ year, month })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('reimportProgress').style.display = 'none';
+            
+            // Show preview with new jobs
+            document.getElementById('existingJobsCount').textContent = `${data.existing_jobs_count}`;
+            document.getElementById('newJobsCount').textContent = `${data.new_jobs.length}`;
+            
+            const jobsList = document.getElementById('newJobsList');
+            jobsList.innerHTML = data.new_jobs.map(job => `
+                <div class="form-check mb-2 p-2 border rounded">
+                    <input class="form-check-input" type="checkbox" value="${job.job_number}" id="job_${job.job_number}" checked>
+                    <label class="form-check-label small" for="job_${job.job_number}">
+                        <strong>${job.date}</strong> - Job #${job.job_number}<br>
+                        <span class="text-muted">${job.customer}</span><br>
+                        <span class="badge bg-info">${job.activity}</span>
+                        ${job.postcode ? `<span class="badge bg-secondary">${job.postcode}</span>` : ''}
+                    </label>
+                </div>
+            `).join('');
+            
+            document.getElementById('newJobsPreview').style.display = 'block';
+            
+            // Store data for confirmation step
+            window.reimportData = { year, month, newJobs: data.new_jobs };
+        } else {
+            throw new Error(data.error || 'Preview failed');
+        }
+    } catch (error) {
+        console.error('Preview error:', error);
+        document.getElementById('reimportProgress').style.display = 'none';
+        alert('Preview failed: ' + error.message);
+    } finally {
+        document.getElementById('reimportBtn').disabled = false;
+    }
+});
+
+// Select/Deselect all buttons
+document.getElementById('selectAllBtn').addEventListener('click', function() {
+    document.querySelectorAll('#newJobsList input[type="checkbox"]').forEach(cb => cb.checked = true);
+});
+
+document.getElementById('deselectAllBtn').addEventListener('click', function() {
+    document.querySelectorAll('#newJobsList input[type="checkbox"]').forEach(cb => cb.checked = false);
+});
+
+// Cancel button
+document.getElementById('cancelReimportBtn').addEventListener('click', function() {
+    document.getElementById('newJobsPreview').style.display = 'none';
+});
+
+// Confirm button - Step 2: Import selected jobs
+document.getElementById('confirmReimportBtn').addEventListener('click', async function() {
+    const selectedJobs = Array.from(document.querySelectorAll('#newJobsList input[type="checkbox"]:checked'))
+        .map(cb => cb.value);
+    
+    if (selectedJobs.length === 0 && !confirm('No new jobs selected. Only update existing jobs?')) {
+        return;
+    }
+    
+    document.getElementById('newJobsPreview').style.display = 'none';
+    document.getElementById('reimportProgress').style.display = 'block';
+    document.getElementById('reimportStatus').textContent = 'Importing selected jobs...';
     
     try {
         const response = await fetch('/api/runsheet-testing/reimport', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({ year, month })
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                year: window.reimportData.year,
+                month: window.reimportData.month,
+                selected_jobs: selectedJobs
+            })
         });
         
         const data = await response.json();
@@ -335,10 +432,9 @@ document.getElementById('reimportBtn').addEventListener('click', async function(
             document.getElementById('reimportProgress').style.display = 'none';
             document.getElementById('reimportResults').style.display = 'block';
             document.getElementById('reimportSummary').innerHTML = `
-                <p><strong>Files processed:</strong> ${data.files_processed}</p>
                 <p><strong>Jobs updated:</strong> ${data.jobs_updated}</p>
                 <p><strong>Jobs added:</strong> ${data.jobs_added}</p>
-                <p><strong>Jobs skipped:</strong> ${data.jobs_skipped}</p>
+                <p><strong>DNCO jobs skipped:</strong> ${data.jobs_skipped}</p>
                 ${data.skipped_days && data.skipped_days.length > 0 ? `
                     <p><strong>Skipped days:</strong></p>
                     <ul class="small">
@@ -347,14 +443,12 @@ document.getElementById('reimportBtn').addEventListener('click', async function(
                 ` : ''}
             `;
         } else {
-            throw new Error(data.error || 'Re-import failed');
+            throw new Error(data.error || 'Import failed');
         }
     } catch (error) {
-        console.error('Re-import error:', error);
+        console.error('Import error:', error);
         document.getElementById('reimportProgress').style.display = 'none';
-        alert('Re-import failed: ' + error.message);
-    } finally {
-        document.getElementById('reimportBtn').disabled = false;
+        alert('Import failed: ' + error.message);
     }
 });
 

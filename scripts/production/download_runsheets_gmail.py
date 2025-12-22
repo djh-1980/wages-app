@@ -63,20 +63,18 @@ class GmailRunSheetDownloader:
             return None
     
     def has_driver_name(self, pdf_path: Path, driver_name: str = "Hanson, Daniel") -> bool:
-        """Check if this is a runsheet that should be organized (includes multi-driver sheets)."""
+        """Check if this runsheet contains Daniel Hanson's jobs (single or multi-driver)."""
         try:
             with open(pdf_path, 'rb') as file:
                 reader = PyPDF2.PdfReader(file)
-                for page in reader.pages:
-                    text = page.extract_text()
-                    # Check for your name in various formats
-                    if (driver_name.lower() in text.lower() or
-                        "daniel hanson" in text.lower() or
+                # Check ALL pages for driver name
+                # Large multi-driver runsheets can have 100+ pages with Daniel appearing late
+                for page_num in range(len(reader.pages)):
+                    text = reader.pages[page_num].extract_text()
+                    # Accept if it contains Daniel Hanson's name in any format
+                    if ("daniel hanson" in text.lower() or
                         "hanson, daniel" in text.lower() or
-                        # Also organize if it's a runsheet format (multi-driver sheets)
-                        "run sheet" in text.lower() or
-                        "runsheet" in text.lower() or
-                        "job #" in text.lower()):
+                        driver_name.lower() in text.lower()):
                         return True
             return False
         except:
@@ -100,7 +98,11 @@ class GmailRunSheetDownloader:
                     pass
             return pdf_path
         
-        # Check if this is your run sheet
+        # Skip check if already named DH_ (already organized/verified)
+        if pdf_path.name.startswith('DH_'):
+            return pdf_path
+        
+        # Check if this is your run sheet (SLOW - checks all pages)
         if not self.has_driver_name(pdf_path):
             # Move to manual folder for review
             manual_dir = self.download_dir / "manual"

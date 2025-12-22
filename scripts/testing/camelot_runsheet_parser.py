@@ -24,6 +24,22 @@ class CamelotRunsheetParser:
         """Parse a runsheet PDF and extract job data."""
         print(f"Parsing: {Path(pdf_path).name}")
         
+        # Extract runsheet date from page header (not from tables)
+        import PyPDF2
+        runsheet_date = None
+        try:
+            with open(pdf_path, 'rb') as f:
+                reader = PyPDF2.PdfReader(f)
+                # Check first page header for date
+                text = reader.pages[0].extract_text()
+                # Look for "Date DD/MM/YYYY" or "Daniel Hanson DD/MM/YYYY" pattern
+                import re
+                date_match = re.search(r'(?:Date\s+|Daniel Hanson\s+)(\d{2}/\d{2}/\d{4})', text)
+                if date_match:
+                    runsheet_date = date_match.group(1)
+        except:
+            pass
+        
         # Extract all tables from PDF
         tables = camelot.read_pdf(pdf_path, pages='all', flavor='lattice')
         
@@ -43,8 +59,8 @@ class CamelotRunsheetParser:
             if not self._is_my_table(df):
                 continue
             
-            # Extract jobs from this table
-            jobs = self._extract_jobs_from_table(df, Path(pdf_path).name)
+            # Extract jobs from this table (pass runsheet_date)
+            jobs = self._extract_jobs_from_table(df, Path(pdf_path).name, runsheet_date)
             all_jobs.extend(jobs)
         
         # Remove duplicates
@@ -62,7 +78,7 @@ class CamelotRunsheetParser:
                 return True
         return False
     
-    def _extract_jobs_from_table(self, df: pd.DataFrame, source_file: str) -> List[Dict]:
+    def _extract_jobs_from_table(self, df: pd.DataFrame, source_file: str, runsheet_date: str = None) -> List[Dict]:
         """Extract job data from a table DataFrame."""
         jobs = []
         
@@ -81,8 +97,8 @@ class CamelotRunsheetParser:
         headers = df.iloc[header_row]
         col_map = self._map_columns(headers)
         
-        # Extract date from header
-        date = self._extract_date(df)
+        # Use runsheet date from page header, fallback to table date
+        date = runsheet_date if runsheet_date else self._extract_date(df)
         
         # Process data rows (after header)
         for i in range(header_row + 1, len(df)):
@@ -123,12 +139,24 @@ class CamelotRunsheetParser:
         return col_map
     
     def _extract_date(self, df: pd.DataFrame) -> str:
-        """Extract date from table header."""
-        # Look in first few rows for date pattern
+        """Extract date from runsheet header (Date field, not SLA Window)."""
+        # First priority: Look for "Date DD/MM/YYYY" pattern in header
         for i in range(min(5, len(df))):
             row_text = ' '.join(str(cell) for cell in df.iloc[i])
             
-            # Look for DD/MM/YYYY pattern
+            # Match "Date 23/12/2025" pattern
+            date_match = re.search(r'Date\s+(\d{2}/\d{2}/\d{4})', row_text)
+            if date_match:
+                return date_match.group(1)
+        
+        # Fallback: Look for any DD/MM/YYYY but skip SLA Window rows
+        for i in range(min(5, len(df))):
+            row_text = ' '.join(str(cell) for cell in df.iloc[i])
+            
+            # Skip SLA Window (contains date ranges, not the runsheet date)
+            if 'SLA Window' in row_text:
+                continue
+                
             date_match = re.search(r'(\d{2}/\d{2}/\d{4})', row_text)
             if date_match:
                 return date_match.group(1)
