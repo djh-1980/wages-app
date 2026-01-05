@@ -1885,6 +1885,8 @@ function displayCustomReport(data, reportType) {
         
     } else if (reportType === 'extra_jobs' && data.extra_jobs) {
         // Extra Jobs Report
+        console.log('Extra jobs data:', data.extra_jobs.slice(0, 2)); // Debug: log first 2 jobs
+        console.log('Summary:', data.summary); // Debug: log summary
         const jobsWithDiscrepancy = data.summary.jobs_with_discrepancy || 0;
         const totalDiscrepancy = data.summary.total_discrepancy || 0;
         
@@ -1941,9 +1943,9 @@ function displayCustomReport(data, reportType) {
         
         data.extra_jobs.forEach(job => {
             const payAmount = job.pay_amount ? `£${job.pay_amount.toFixed(2)}` : '-';
-            const agreedPrice = job.price_agreed ? `£${job.price_agreed.toFixed(2)}` : '-';
-            const discrepancy = job.discrepancy ? `£${job.discrepancy.toFixed(2)}` : '-';
-            const discrepancyClass = job.discrepancy && job.discrepancy !== 0 ? (job.discrepancy > 0 ? 'text-success' : 'text-danger') : '';
+            const agreedPrice = job.price_agreed !== null && job.price_agreed !== undefined ? `£${job.price_agreed.toFixed(2)}` : '-';
+            const discrepancy = job.discrepancy !== null && job.discrepancy !== undefined ? `£${job.discrepancy.toFixed(2)}` : '-';
+            const discrepancyClass = job.discrepancy !== null && job.discrepancy !== undefined && job.discrepancy !== 0 ? (job.discrepancy > 0 ? 'text-success' : 'text-danger') : '';
             const address = job.job_address ? (job.job_address.length > 30 ? job.job_address.substring(0, 30) + '...' : job.job_address) : '-';
             const notes = job.notes ? (job.notes.length > 30 ? job.notes.substring(0, 30) + '...' : job.notes) : '-';
             

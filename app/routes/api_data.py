@@ -1831,11 +1831,16 @@ def api_generate_custom_report():
                 }
                 
             elif report_type == 'extra_jobs':
-                # Extra Jobs Report
+                # Extra Jobs Report with agreed price and discrepancy
                 if year and week:
                     # Use week_dates for filtering
                     cursor.execute(f"""
-                        SELECT date, job_number, customer, activity, job_address, postcode, pay_amount, notes
+                        SELECT date, job_number, customer, activity, job_address, postcode, pay_amount, price_agreed, notes,
+                               CASE 
+                                   WHEN price_agreed IS NOT NULL AND pay_amount IS NOT NULL 
+                                   THEN pay_amount - price_agreed
+                                   ELSE NULL
+                               END as discrepancy
                         FROM run_sheet_jobs
                         WHERE status = 'extra'
                         {date_filter}
@@ -1843,7 +1848,12 @@ def api_generate_custom_report():
                     """, week_dates_filter)
                 else:
                     cursor.execute(f"""
-                        SELECT date, job_number, customer, activity, job_address, postcode, pay_amount, notes
+                        SELECT date, job_number, customer, activity, job_address, postcode, pay_amount, price_agreed, notes,
+                               CASE 
+                                   WHEN price_agreed IS NOT NULL AND pay_amount IS NOT NULL 
+                                   THEN pay_amount - price_agreed
+                                   ELSE NULL
+                               END as discrepancy
                         FROM run_sheet_jobs
                         WHERE status = 'extra'
                         {date_filter}
@@ -1851,28 +1861,36 @@ def api_generate_custom_report():
                     """)
                 extra_jobs = cursor.fetchall()
                 
-                # Calculate totals
+                # Calculate totals including discrepancy info
                 total_pay = sum(job[6] or 0 for job in extra_jobs)
+                total_agreed = sum(job[7] or 0 for job in extra_jobs)
                 unique_customers = len(set(job[2] for job in extra_jobs if job[2]))
                 unique_dates = len(set(job[0] for job in extra_jobs if job[0]))
+                jobs_with_discrepancy = sum(1 for job in extra_jobs if job[7] is not None and job[6] is not None and job[6] != job[7])
+                total_discrepancy = sum((job[6] or 0) - (job[7] or 0) for job in extra_jobs if job[7] is not None and job[6] is not None)
                 
                 report_data = {
                     'total_records': len(extra_jobs),
                     'summary': {
                         'total_jobs': len(extra_jobs),
                         'total_pay': round(total_pay, 2),
+                        'total_agreed': round(total_agreed, 2),
                         'unique_customers': unique_customers,
-                        'working_days': unique_dates
+                        'working_days': unique_dates,
+                        'jobs_with_discrepancy': jobs_with_discrepancy,
+                        'total_discrepancy': round(total_discrepancy, 2)
                     },
                     'extra_jobs': [{
                         'date': job[0],
                         'job_number': job[1],
                         'customer': job[2],
                         'activity': job[3],
-                        'address': job[4],
+                        'job_address': job[4],
                         'postcode': job[5],
                         'pay_amount': job[6],
-                        'notes': job[7]
+                        'price_agreed': job[7],
+                        'notes': job[8],
+                        'discrepancy': job[9]
                     } for job in extra_jobs]
                 }
                 
