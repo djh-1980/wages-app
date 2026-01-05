@@ -1885,6 +1885,9 @@ function displayCustomReport(data, reportType) {
         
     } else if (reportType === 'extra_jobs' && data.extra_jobs) {
         // Extra Jobs Report
+        const jobsWithDiscrepancy = data.summary.jobs_with_discrepancy || 0;
+        const totalDiscrepancy = data.summary.total_discrepancy || 0;
+        
         html += `
             <div class="alert alert-success mb-3">
                 <div class="d-flex align-items-center mb-3">
@@ -1892,20 +1895,26 @@ function displayCustomReport(data, reportType) {
                     <strong>Extra Jobs Report</strong>
                 </div>
                 <div class="row">
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <div><strong>Total Jobs:</strong> ${data.summary.total_jobs}</div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <div><strong>Working Days:</strong> ${data.summary.working_days}</div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <div><strong>Customers:</strong> ${data.summary.unique_customers}</div>
                     </div>
-                    <div class="col-md-3">
+                    <div class="col-md-2">
                         <div><strong>Total Pay:</strong> £${data.summary.total_pay.toFixed(2)}</div>
                     </div>
+                    <div class="col-md-2">
+                        <div><strong>Total Agreed:</strong> £${(data.summary.total_agreed || 0).toFixed(2)}</div>
+                    </div>
+                    <div class="col-md-2">
+                        <div><strong>Discrepancies:</strong> <span class="${totalDiscrepancy !== 0 ? 'text-warning' : ''}">${jobsWithDiscrepancy} (£${totalDiscrepancy.toFixed(2)})</span></div>
+                    </div>
                 </div>
-                <p class="mb-0 mt-2 small">These are manually added extra jobs marked with 'extra' status</p>
+                <p class="mb-0 mt-2 small">These are manually added extra jobs marked with 'extra' status. Discrepancies show difference between actual pay and agreed price.</p>
             </div>
         `;
         
@@ -1922,6 +1931,8 @@ function displayCustomReport(data, reportType) {
                             <th>Address</th>
                             <th>Postcode</th>
                             <th>Pay Amount</th>
+                            <th>Agreed Price</th>
+                            <th>Discrepancy</th>
                             <th>Notes</th>
                         </tr>
                     </thead>
@@ -1930,18 +1941,23 @@ function displayCustomReport(data, reportType) {
         
         data.extra_jobs.forEach(job => {
             const payAmount = job.pay_amount ? `£${job.pay_amount.toFixed(2)}` : '-';
-            const address = job.address ? (job.address.length > 40 ? job.address.substring(0, 40) + '...' : job.address) : '-';
+            const agreedPrice = job.price_agreed ? `£${job.price_agreed.toFixed(2)}` : '-';
+            const discrepancy = job.discrepancy ? `£${job.discrepancy.toFixed(2)}` : '-';
+            const discrepancyClass = job.discrepancy && job.discrepancy !== 0 ? (job.discrepancy > 0 ? 'text-success' : 'text-danger') : '';
+            const address = job.job_address ? (job.job_address.length > 30 ? job.job_address.substring(0, 30) + '...' : job.job_address) : '-';
             const notes = job.notes ? (job.notes.length > 30 ? job.notes.substring(0, 30) + '...' : job.notes) : '-';
             
             html += `
-                <tr>
+                <tr ${job.discrepancy && job.discrepancy !== 0 ? 'class="table-warning"' : ''}>
                     <td>${job.date}</td>
                     <td><strong>${job.job_number}</strong></td>
                     <td>${job.customer || '-'}</td>
                     <td><span class="badge bg-info">${job.activity || '-'}</span></td>
-                    <td title="${job.address || ''}">${address}</td>
+                    <td title="${job.job_address || ''}">${address}</td>
                     <td>${job.postcode || '-'}</td>
                     <td><strong>${payAmount}</strong></td>
+                    <td>${agreedPrice}</td>
+                    <td class="${discrepancyClass}"><strong>${discrepancy}</strong></td>
                     <td title="${job.notes || ''}">${notes}</td>
                 </tr>
             `;

@@ -874,7 +874,7 @@ def api_extra_jobs_report():
             
             where_clause = " AND ".join(where_conditions)
             
-            # Get extra jobs with details
+            # Get extra jobs with details including agreed price and discrepancy
             cursor.execute(f"""
                 SELECT 
                     job_number,
@@ -885,9 +885,15 @@ def api_extra_jobs_report():
                     postcode,
                     status,
                     pay_amount,
+                    price_agreed,
                     pay_rate,
                     notes,
-                    imported_at
+                    imported_at,
+                    CASE 
+                        WHEN price_agreed IS NOT NULL AND pay_amount IS NOT NULL 
+                        THEN pay_amount - price_agreed
+                        ELSE NULL
+                    END as discrepancy
                 FROM run_sheet_jobs 
                 WHERE {where_clause}
                 ORDER BY date DESC, job_number DESC
@@ -895,14 +901,17 @@ def api_extra_jobs_report():
             
             extra_jobs = [dict(row) for row in cursor.fetchall()]
             
-            # Get summary statistics
+            # Get summary statistics including discrepancy info
             cursor.execute(f"""
                 SELECT 
                     COUNT(*) as total_jobs,
                     COUNT(DISTINCT date) as total_days,
                     COUNT(DISTINCT customer) as unique_customers,
                     SUM(CASE WHEN pay_amount IS NOT NULL THEN pay_amount ELSE 0 END) as total_pay,
-                    AVG(CASE WHEN pay_amount IS NOT NULL THEN pay_amount ELSE 0 END) as avg_pay
+                    AVG(CASE WHEN pay_amount IS NOT NULL THEN pay_amount ELSE 0 END) as avg_pay,
+                    SUM(CASE WHEN price_agreed IS NOT NULL THEN price_agreed ELSE 0 END) as total_agreed,
+                    COUNT(CASE WHEN price_agreed IS NOT NULL AND pay_amount IS NOT NULL AND pay_amount != price_agreed THEN 1 END) as jobs_with_discrepancy,
+                    SUM(CASE WHEN price_agreed IS NOT NULL AND pay_amount IS NOT NULL THEN pay_amount - price_agreed ELSE 0 END) as total_discrepancy
                 FROM run_sheet_jobs 
                 WHERE {where_clause}
             """, params)
@@ -995,7 +1004,7 @@ def api_export_extra_jobs():
             
             where_clause = " AND ".join(where_conditions)
             
-            # Get extra jobs data
+            # Get extra jobs data including agreed price and discrepancy
             cursor.execute(f"""
                 SELECT 
                     job_number,
@@ -1005,8 +1014,14 @@ def api_export_extra_jobs():
                     job_address,
                     postcode,
                     pay_amount,
+                    price_agreed,
                     pay_rate,
-                    notes
+                    notes,
+                    CASE 
+                        WHEN price_agreed IS NOT NULL AND pay_amount IS NOT NULL 
+                        THEN pay_amount - price_agreed
+                        ELSE NULL
+                    END as discrepancy
                 FROM run_sheet_jobs 
                 WHERE {where_clause}
                 ORDER BY date DESC, job_number DESC
@@ -1025,7 +1040,7 @@ def api_export_extra_jobs():
                 # Write header
                 writer.writerow([
                     'Job Number', 'Date', 'Customer', 'Activity', 
-                    'Address', 'Postcode', 'Pay Amount', 'Pay Rate', 'Notes'
+                    'Address', 'Postcode', 'Pay Amount', 'Agreed Price', 'Discrepancy', 'Pay Rate', 'Notes'
                 ])
                 
                 # Write data
@@ -1038,6 +1053,8 @@ def api_export_extra_jobs():
                         job['job_address'],
                         job['postcode'],
                         f"£{job['pay_amount']:.2f}" if job['pay_amount'] else '',
+                        f"£{job['price_agreed']:.2f}" if job['price_agreed'] else '',
+                        f"£{job['discrepancy']:.2f}" if job['discrepancy'] else '',
                         f"£{job['pay_rate']:.2f}" if job['pay_rate'] else '',
                         job['notes'] or ''
                     ])
