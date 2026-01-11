@@ -216,7 +216,7 @@ def validate_status(status: str) -> Tuple[bool, Optional[str]]:
     Returns:
         Tuple of (is_valid, error_message)
     """
-    valid_statuses = ['completed', 'DNCO', 'pending', 'cancelled']
+    valid_statuses = ['completed', 'DNCO', 'pending', 'cancelled', 'missed']
     
     if not status:
         return False, "Status is required"
