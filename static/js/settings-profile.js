@@ -117,6 +117,7 @@ async function saveProfile() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Profile settings page loaded');
     loadProfile();
+    loadEmailSettings();
     
     // Add form validation
     const form = document.querySelector('form');
@@ -147,4 +148,59 @@ document.addEventListener('DOMContentLoaded', function() {
 function isValidEmail(email) {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return emailRegex.test(email);
+}
+
+// Email notification settings functions
+async function loadEmailSettings() {
+    try {
+        const response = await fetch('/api/settings/email-notifications');
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.settings) {
+                document.getElementById('managerEmail').value = data.settings.manager_email || '';
+                document.getElementById('userEmailNotif').value = data.settings.user_email || '';
+                document.getElementById('autoSendConfirmations').checked = data.settings.auto_send_confirmations || false;
+            }
+        }
+    } catch (error) {
+        console.error('Error loading email settings:', error);
+    }
+}
+
+async function saveEmailSettings() {
+    const settings = {
+        manager_email: document.getElementById('managerEmail').value,
+        user_email: document.getElementById('userEmailNotif').value,
+        auto_send_confirmations: document.getElementById('autoSendConfirmations').checked
+    };
+    
+    // Validate email addresses
+    if (settings.manager_email && !isValidEmail(settings.manager_email)) {
+        showError('Please enter a valid manager email address');
+        return;
+    }
+    
+    if (settings.user_email && !isValidEmail(settings.user_email)) {
+        showError('Please enter a valid user email address');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/settings/email-notifications', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(settings)
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            showSuccess('Email settings saved successfully!');
+        } else {
+            const errorData = await response.json();
+            showError(`Failed to save email settings: ${errorData.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error saving email settings:', error);
+        showError('Failed to save email settings. Please try again.');
+    }
 }

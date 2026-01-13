@@ -7,12 +7,32 @@ from datetime import datetime
 import os
 
 # Version Information
-APP_VERSION = "2.3.0"
-BUILD_DATE = "2025.12.10"
-RELEASE_DATE = datetime(2025, 12, 10)
+APP_VERSION = "2.4.0"
+BUILD_DATE = "2026.01.13"
+RELEASE_DATE = datetime(2026, 1, 13)
 
 # Changelog - Add new entries at the top
 CHANGELOG = [
+    {
+        "version": "2.4.0",
+        "date": "January 13, 2026",
+        "type": "minor",  # major, minor, patch
+        "changes": [
+            "📧 NEW: Automatic email confirmation system for extra jobs with agreed rates",
+            "✉️ Professional HTML email templates sent to manager with user CC'd",
+            "📝 Email confirmations include job details, agreed rate, and 24-hour objection period",
+            "🔍 NEW: Email Audit Trail in Reports - track all sent confirmation emails",
+            "📊 Email audit shows date sent, job details, agreed rate, and recipient",
+            "💾 Email audit log database table with full historical tracking",
+            "⚙️ Email settings in Profile - configure manager email and auto-send preferences",
+            "🔒 Smart edit protection - emails only resend if agreed price changes",
+            "📮 Postcode field now properly saves when adding extra jobs",
+            "📍 Postcode displays in Extra Jobs report and Email Audit trail",
+            "🎯 User name (Daniel Hanson) included in email subject and body",
+            "💪 Legal protection - creates written evidence of verbally agreed rates",
+            "🔗 Integrated with existing Gmail OAuth setup for seamless sending"
+        ]
+    },
     {
         "version": "2.3.0",
         "date": "December 10, 2025",

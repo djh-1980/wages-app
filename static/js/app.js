@@ -353,7 +353,13 @@ window.loadPayslips = async function(taxYear = '') {
                         } else {
                             const diff = matchInfo.difference;
                             const sign = diff > 0 ? '+' : '';
-                            indicator.innerHTML = `<br><small class="text-warning">${sign}${formatCurrency(diff)} vs verbal</small>`;
+                            
+                            // Red only if losing money (negative difference), blue if getting more
+                            if (diff < 0) {
+                                indicator.innerHTML = `<br><small class="text-danger"><strong>${sign}${formatCurrency(diff)} vs verbal</strong></small>`;
+                            } else {
+                                indicator.innerHTML = `<br><small class="text-info">${sign}${formatCurrency(diff)} vs verbal</small>`;
+                            }
                         }
                     }
                 }

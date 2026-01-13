@@ -161,6 +161,25 @@ def init_database():
             )
         """)
         
+        # Initialize email audit log table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS email_audit_log (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                job_number TEXT NOT NULL,
+                customer TEXT,
+                location TEXT,
+                agreed_rate REAL NOT NULL,
+                job_date TEXT,
+                sent_to TEXT NOT NULL,
+                cc_to TEXT,
+                user_name TEXT,
+                email_subject TEXT,
+                message_id TEXT,
+                sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                status TEXT DEFAULT 'sent'
+            )
+        """)
+        
         conn.commit()
 
 

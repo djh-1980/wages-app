@@ -439,7 +439,178 @@ def api_weekly_performance():
 
 @reports_bp.route('/discrepancies')
 def api_reports_discrepancies():
-    """Get all job numbers from payslips and run sheets for discrepancy analysis."""
+    """Comprehensive reconciliation between runsheet jobs and payslip jobs by week."""
+    try:
+        from datetime import datetime, timedelta
+        from ..utils.company_calendar import company_calendar
+        
+        # Get filter parameters - week_number and tax_year
+        week_number = request.args.get('week_number', type=int)
+        tax_year = request.args.get('tax_year', '')
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # If no week specified, use the most recent payslip week
+            if not week_number or not tax_year:
+                cursor.execute("""
+                    SELECT week_number, tax_year, period_end
+                    FROM payslips 
+                    WHERE period_end IS NOT NULL 
+                    ORDER BY tax_year DESC, week_number DESC 
+                    LIMIT 1
+                """)
+                result = cursor.fetchone()
+                if result:
+                    week_number = result['week_number']
+                    tax_year = result['tax_year']
+                else:
+                    return jsonify({'error': 'No payslips found'}), 404
+            
+            # Get the date range for this week using company calendar
+            sunday, saturday = company_calendar.get_week_dates(week_number, tax_year)
+            week_start = company_calendar.format_date_string(sunday)
+            week_end = company_calendar.format_date_string(saturday)
+            
+            # Generate all dates in the week range
+            dates_in_week = []
+            current = sunday
+            while current <= saturday:
+                dates_in_week.append(current.strftime('%d/%m/%Y'))
+                current += timedelta(days=1)
+            
+            placeholders = ','.join('?' * len(dates_in_week))
+            
+            # Get all job numbers from payslips for this week
+            cursor.execute(f"""
+                SELECT ji.job_number, ji.client, ji.location, ji.amount, ji.date, ji.description,
+                       p.week_number, p.tax_year
+                FROM job_items ji
+                JOIN payslips p ON ji.payslip_id = p.id
+                WHERE p.week_number = ? AND p.tax_year = ?
+                AND ji.job_number IS NOT NULL AND ji.job_number != ''
+                AND ji.client NOT IN ('Deduction', 'Company Margin')
+            """, (week_number, tax_year))
+            
+            payslip_jobs = {}
+            for row in cursor.fetchall():
+                job_num = row['job_number']
+                if job_num not in payslip_jobs:
+                    payslip_jobs[job_num] = {
+                        'job_number': job_num,
+                        'client': row['client'],
+                        'location': row['location'],
+                        'amount': row['amount'] or 0,
+                        'date': row['date'],
+                        'description': row['description'],
+                        'week_number': row['week_number'],
+                        'tax_year': row['tax_year']
+                    }
+            
+            # Get all job numbers from run sheets for the same week date range
+            cursor.execute(f"""
+                SELECT job_number, customer, activity, job_address, pay_amount, date, status
+                FROM run_sheet_jobs
+                WHERE date IN ({placeholders})
+                AND job_number IS NOT NULL AND job_number != ''
+            """, dates_in_week)
+            
+            runsheet_jobs = {}
+            for row in cursor.fetchall():
+                job_num = row['job_number']
+                if job_num not in runsheet_jobs:
+                    runsheet_jobs[job_num] = {
+                        'job_number': job_num,
+                        'customer': row['customer'],
+                        'activity': row['activity'],
+                        'address': row['job_address'],
+                        'pay_amount': row['pay_amount'] or 0,
+                        'date': row['date'],
+                        'status': row['status']
+                    }
+            
+            # Reconciliation analysis
+            payslip_job_numbers = set(payslip_jobs.keys())
+            runsheet_job_numbers = set(runsheet_jobs.keys())
+            
+            # 1. Jobs on payslip but missing from runsheets (paid but no record)
+            missing_from_runsheets = []
+            missing_from_runsheets_value = 0
+            for job_num in payslip_job_numbers - runsheet_job_numbers:
+                job = payslip_jobs[job_num]
+                missing_from_runsheets.append(job)
+                missing_from_runsheets_value += job['amount']
+            
+            # 2. Jobs on runsheet but missing from payslip (worked but not paid)
+            missing_from_payslips = []
+            missing_from_payslips_value = 0
+            for job_num in runsheet_job_numbers - payslip_job_numbers:
+                job = runsheet_jobs[job_num]
+                # Only include if status suggests it should be paid
+                if job['status'] not in ['DNCO', 'missed', 'pending']:
+                    missing_from_payslips.append(job)
+                    missing_from_payslips_value += job['pay_amount']
+            
+            # 3. Jobs on both but with amount mismatches
+            amount_mismatches = []
+            mismatch_total_difference = 0
+            for job_num in payslip_job_numbers & runsheet_job_numbers:
+                payslip_job = payslip_jobs[job_num]
+                runsheet_job = runsheet_jobs[job_num]
+                
+                payslip_amount = payslip_job['amount']
+                runsheet_amount = runsheet_job['pay_amount']
+                
+                # Check for mismatch (allow 0.01 tolerance for rounding)
+                if abs(payslip_amount - runsheet_amount) > 0.01:
+                    difference = payslip_amount - runsheet_amount
+                    amount_mismatches.append({
+                        'job_number': job_num,
+                        'customer': runsheet_job['customer'],
+                        'date': runsheet_job['date'],
+                        'payslip_amount': payslip_amount,
+                        'runsheet_amount': runsheet_amount,
+                        'difference': difference,
+                        'status': runsheet_job['status']
+                    })
+                    mismatch_total_difference += difference
+            
+            # Calculate statistics
+            total_payslip_jobs = len(payslip_job_numbers)
+            total_runsheet_jobs = len(runsheet_job_numbers)
+            matched_jobs = len(payslip_job_numbers & runsheet_job_numbers)
+            match_rate = round((matched_jobs / total_payslip_jobs * 100), 1) if total_payslip_jobs > 0 else 0
+            
+            return jsonify({
+                'summary': {
+                    'week_number': week_number,
+                    'tax_year': tax_year,
+                    'week_start': week_start,
+                    'week_end': week_end,
+                    'total_payslip_jobs': total_payslip_jobs,
+                    'total_runsheet_jobs': total_runsheet_jobs,
+                    'matched_jobs': matched_jobs,
+                    'match_rate': match_rate,
+                    'missing_from_runsheets_count': len(missing_from_runsheets),
+                    'missing_from_runsheets_value': round(missing_from_runsheets_value, 2),
+                    'missing_from_payslips_count': len(missing_from_payslips),
+                    'missing_from_payslips_value': round(missing_from_payslips_value, 2),
+                    'amount_mismatches_count': len(amount_mismatches),
+                    'amount_mismatches_difference': round(mismatch_total_difference, 2)
+                },
+                'missing_from_runsheets': missing_from_runsheets,
+                'missing_from_payslips': missing_from_payslips,
+                'amount_mismatches': amount_mismatches,
+                'payslip_jobs': payslip_jobs,
+                'runsheet_jobs': runsheet_jobs
+            })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@reports_bp.route('/email-audit')
+def api_email_audit_trail():
+    """Get email confirmation audit trail."""
     try:
         # Get filter parameters
         year = request.args.get('year', '')
@@ -448,63 +619,58 @@ def api_reports_discrepancies():
         with get_db_connection() as conn:
             cursor = conn.cursor()
             
-            # Build WHERE clause for payslips (filter by date field in job_items)
-            payslip_where = "WHERE ji.job_number IS NOT NULL AND ji.job_number != ''"
-            payslip_params = []
+            # Build WHERE clause
+            where_conditions = []
+            params = []
             
             if year and month:
-                # Filter by specific month and year (date format: DD/MM/YY in job_items - 2 digit year!)
-                year_2digit = year[-2:]  # Get last 2 digits of year (2025 -> 25)
-                payslip_where += " AND ji.date LIKE ?"
-                payslip_params.append(f"%/{month}/{year_2digit}")
+                where_conditions.append("strftime('%Y', sent_at) = ? AND strftime('%m', sent_at) = ?")
+                params.extend([year, month.zfill(2)])
             elif year:
-                # Filter by year only (2 digit year)
-                year_2digit = year[-2:]
-                payslip_where += " AND ji.date LIKE ?"
-                payslip_params.append(f"%/{year_2digit}")
+                where_conditions.append("strftime('%Y', sent_at) = ?")
+                params.append(year)
             
-            # Get all job numbers from payslips
+            where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
+            
+            # Get email audit log
             cursor.execute(f"""
-                SELECT DISTINCT ji.job_number, ji.description, ji.client
-                FROM job_items ji
-                {payslip_where}
-            """, payslip_params)
-            payslip_jobs = {}
-            for row in cursor.fetchall():
-                payslip_jobs[row[0]] = {
-                    'description': row[1],
-                    'client': row[2]
-                }
+                SELECT 
+                    id,
+                    job_number,
+                    customer,
+                    location,
+                    agreed_rate,
+                    job_date,
+                    sent_to,
+                    cc_to,
+                    user_name,
+                    email_subject,
+                    message_id,
+                    sent_at,
+                    status
+                FROM email_audit_log
+                WHERE {where_clause}
+                ORDER BY sent_at DESC
+            """, params)
             
-            # Build WHERE clause for run sheets (dates are in DD/MM/YYYY format)
-            runsheet_where = "WHERE job_number IS NOT NULL AND job_number != ''"
-            runsheet_params = []
-            if year or month:
-                if year and month:
-                    # Match DD/MM/YYYY format (e.g., %/09/2025)
-                    runsheet_where += " AND date LIKE ?"
-                    runsheet_params.append(f"%/{month}/{year}")
-                elif year:
-                    # Match any month in the year (e.g., %/2025)
-                    runsheet_where += " AND date LIKE ?"
-                    runsheet_params.append(f"%/{year}")
+            emails = [dict(row) for row in cursor.fetchall()]
             
-            # Get all job numbers from run sheets
+            # Get summary statistics
             cursor.execute(f"""
-                SELECT DISTINCT job_number, customer, date
-                FROM run_sheet_jobs
-                {runsheet_where}
-            """, runsheet_params)
-            runsheet_jobs = {}
-            for row in cursor.fetchall():
-                runsheet_jobs[row[0]] = {
-                    'customer': row[1],
-                    'date': row[2]
-                }
+                SELECT 
+                    COUNT(*) as total_emails,
+                    SUM(agreed_rate) as total_agreed_value,
+                    COUNT(DISTINCT job_number) as unique_jobs
+                FROM email_audit_log
+                WHERE {where_clause}
+            """, params)
+            
+            summary = dict(cursor.fetchone())
             
             return jsonify({
-                'payslip_jobs': payslip_jobs,
-                'runsheet_jobs': runsheet_jobs
+                'success': True,
+                'emails': emails,
+                'summary': summary
             })
     except Exception as e:
         return jsonify({'error': str(e)}), 500

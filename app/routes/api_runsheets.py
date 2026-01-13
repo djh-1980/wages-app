@@ -163,20 +163,60 @@ def api_add_extra_job():
         customer = data.get('customer')
         activity = data.get('activity', '')
         job_address = data.get('job_address') or data.get('location', '')
+        postcode = data.get('postcode', '')
         status = data.get('status', 'extra')
         pay_amount = data.get('pay_amount')
         agreed_price = data.get('agreed_price')
+        send_email = data.get('send_email_confirmation', False)
         
         if not date or not job_number or not customer:
             return jsonify({'success': False, 'error': 'Date, job number, and customer are required'}), 400
         
         job_id = RunsheetModel.add_extra_job(
             date=date, job_number=job_number, customer=customer,
-            activity=activity, job_address=job_address, status=status,
-            pay_amount=pay_amount, agreed_price=agreed_price
+            activity=activity, job_address=job_address, postcode=postcode,
+            status=status, pay_amount=pay_amount, agreed_price=agreed_price
         )
         
-        return jsonify({'success': True, 'job_id': job_id})
+        # Send email confirmation if requested and agreed_price is set
+        email_sent = False
+        if send_email and agreed_price:
+            try:
+                from ..utils.email_notifications import email_service
+                from ..database import get_db_connection
+                
+                # Get manager and user email from settings
+                with get_db_connection() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("SELECT setting_value FROM settings WHERE setting_key = 'manager_email'")
+                    manager_row = cursor.fetchone()
+                    cursor.execute("SELECT setting_value FROM settings WHERE setting_key = 'user_email'")
+                    user_row = cursor.fetchone()
+                    
+                    manager_email = manager_row['setting_value'] if manager_row else None
+                    user_email = user_row['setting_value'] if user_row else None
+                
+                if manager_email and user_email:
+                    job_data = {
+                        'job_number': job_number,
+                        'customer': customer,
+                        'location': job_address,
+                        'agreed_rate': float(agreed_price),
+                        'date': date
+                    }
+                    
+                    email_sent = email_service.send_extra_job_confirmation(
+                        job_data, manager_email, user_email
+                    )
+            except Exception as email_error:
+                print(f"Email sending failed: {email_error}")
+                # Don't fail the whole request if email fails
+        
+        return jsonify({
+            'success': True, 
+            'job_id': job_id,
+            'email_sent': email_sent
+        })
     except Exception as e:
         return jsonify({'success': False, 'error': str(e)}), 500
 
@@ -190,6 +230,29 @@ def api_edit_job(job_id):
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
         
+        # Get original job to check if agreed price changed
+        from ..database import get_db_connection
+        email_sent = False
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT price_agreed, job_number, customer, job_address, postcode, date
+                FROM run_sheet_jobs
+                WHERE id = ?
+            ''', (job_id,))
+            original_job = cursor.fetchone()
+        
+        new_agreed_price = data.get('agreed_price')
+        send_email = data.get('send_email_confirmation', False)
+        
+        # Check if agreed price changed
+        price_changed = False
+        if original_job and new_agreed_price is not None:
+            old_price = original_job['price_agreed']
+            if old_price is None or abs(float(old_price) - float(new_agreed_price)) > 0.01:
+                price_changed = True
+        
         success = RunsheetModel.update_job(
             job_id=job_id,
             job_number=data.get('job_number'),
@@ -198,12 +261,40 @@ def api_edit_job(job_id):
             job_address=data.get('job_address'),
             postcode=data.get('postcode'),
             pay_amount=data.get('pay_amount'),
-            agreed_price=data.get('agreed_price'),
+            agreed_price=new_agreed_price,
             status=data.get('status')
         )
         
+        # Only send email if price changed and auto-send is enabled
+        if success and send_email and price_changed and new_agreed_price:
+            try:
+                from ..utils.email_notifications import email_service
+                from ..models.settings import SettingsModel
+                
+                manager_email = SettingsModel.get_setting('manager_email')
+                user_email = SettingsModel.get_setting('user_email')
+                
+                if manager_email and user_email:
+                    job_data = {
+                        'job_number': data.get('job_number') or original_job['job_number'],
+                        'customer': data.get('customer') or original_job['customer'],
+                        'location': data.get('job_address') or original_job['job_address'],
+                        'agreed_rate': float(new_agreed_price),
+                        'date': original_job['date']
+                    }
+                    
+                    email_sent = email_service.send_extra_job_confirmation(
+                        job_data, manager_email, user_email
+                    )
+            except Exception as email_error:
+                print(f"Email sending failed: {email_error}")
+        
         if success:
-            return jsonify({'success': True})
+            return jsonify({
+                'success': True,
+                'email_sent': email_sent,
+                'price_changed': price_changed
+            })
         else:
             return jsonify({'success': False, 'error': 'Job not found or update failed'}), 404
     except Exception as e:

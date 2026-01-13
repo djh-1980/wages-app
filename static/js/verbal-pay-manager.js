@@ -70,16 +70,25 @@ function displayConfirmations(confirmations) {
     let html = '<div class="row g-3">';
     
     confirmations.forEach(conf => {
-        const status = conf.payslip_id ? (conf.matched ? 'matched' : 'mismatched') : 'pending';
-        const statusBadge = status === 'matched' ? 
-            '<span class="badge bg-success">Matched</span>' :
-            status === 'mismatched' ?
-            '<span class="badge bg-danger">Mismatched</span>' :
-            '<span class="badge bg-warning">Pending</span>';
-        
         const expectedGross = (conf.verbal_amount - 15).toFixed(2);
         const difference = conf.payslip_amount ? 
             (conf.payslip_amount - (conf.verbal_amount - 15)).toFixed(2) : null;
+        
+        // Determine status and badge based on difference
+        let status, statusBadge;
+        if (!conf.payslip_id) {
+            status = 'pending';
+            statusBadge = '<span class="badge bg-warning">Pending</span>';
+        } else if (conf.matched) {
+            status = 'matched';
+            statusBadge = '<span class="badge bg-success">Matched</span>';
+        } else if (parseFloat(difference) < 0) {
+            status = 'lost';
+            statusBadge = '<span class="badge bg-danger">Lost Money</span>';
+        } else {
+            status = 'gained';
+            statusBadge = '<span class="badge bg-info">Gained</span>';
+        }
         
         html += `
             <div class="col-md-6 col-lg-4">
@@ -96,8 +105,8 @@ function displayConfirmations(confirmations) {
                         ${conf.payslip_amount ? `
                             <div class="mb-2">
                                 <strong>Payslip Gross:</strong> £${conf.payslip_amount.toFixed(2)}
-                                ${difference ? `<br><small class="${parseFloat(difference) === 0 ? 'text-success' : 'text-danger'}">
-                                    Difference: £${difference}
+                                ${difference ? `<br><small class="${parseFloat(difference) === 0 ? 'text-success' : parseFloat(difference) < 0 ? 'text-danger fw-bold' : 'text-info'}">
+                                    Difference: ${parseFloat(difference) > 0 ? '+' : ''}£${difference}
                                 </small>` : ''}
                             </div>
                         ` : ''}

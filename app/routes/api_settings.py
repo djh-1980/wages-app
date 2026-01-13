@@ -344,3 +344,40 @@ def api_save_company_year():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/email-notifications', methods=['GET'])
+def api_get_email_settings():
+    """Get email notification settings."""
+    try:
+        settings = {
+            'manager_email': SettingsModel.get_setting('manager_email') or '',
+            'user_email': SettingsModel.get_setting('user_email') or '',
+            'auto_send_confirmations': SettingsModel.get_setting('auto_send_confirmations') == 'true'
+        }
+        return jsonify({'success': True, 'settings': settings})
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+
+@settings_bp.route('/email-notifications', methods=['POST'])
+def api_save_email_settings():
+    """Save email notification settings."""
+    try:
+        data = request.json
+        
+        if 'manager_email' in data:
+            SettingsModel.set_setting('manager_email', data['manager_email'])
+        if 'user_email' in data:
+            SettingsModel.set_setting('user_email', data['user_email'])
+        if 'auto_send_confirmations' in data:
+            SettingsModel.set_setting('auto_send_confirmations', 'true' if data['auto_send_confirmations'] else 'false')
+        
+        log_settings_action('EMAIL_SETTINGS', f"Updated email notification settings")
+        
+        return jsonify({
+            'success': True,
+            'message': 'Email settings saved successfully'
+        })
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500

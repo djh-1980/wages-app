@@ -45,48 +45,67 @@ async function loadDiscrepancyReport() {
     contentDiv.innerHTML = '<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-3 text-muted">Analyzing data...</p></div>';
     
     try {
-        // Get filter values
-        const year = document.getElementById('discrepancyYear')?.value || '';
-        const month = document.getElementById('discrepancyMonth')?.value || '';
+        // Get filter values - week_number and tax_year
+        const weekNumber = document.getElementById('discrepancyWeek')?.value || '';
+        const taxYear = document.getElementById('discrepancyTaxYear')?.value || '';
         
         // Build query string
         const params = new URLSearchParams();
-        if (year) params.append('year', year);
-        if (month) params.append('month', month);
+        if (weekNumber) params.append('week_number', weekNumber);
+        if (taxYear) params.append('tax_year', taxYear);
         
-        // Use the runsheets discrepancy API endpoint
-        const response = await fetch(`/api/runsheets/discrepancy-report?${params.toString()}`);
+        // Use the comprehensive reconciliation API endpoint
+        const response = await fetch(`/api/discrepancies?${params.toString()}`);
         const data = await response.json();
+        
+        console.log('API Response:', data);
         
         if (data.error) {
             contentDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error: ${data.error}</div>`;
             return;
         }
         
-        // Display results using our new API data structure
+        if (!data.summary) {
+            console.error('No summary in response:', data);
+            contentDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error: Invalid API response - missing summary data</div>`;
+            return;
+        }
+        
+        const summary = data.summary;
+        
+        // Display summary statistics
         let html = `
             <div class="alert alert-info">
-                <h5><i class="bi bi-clipboard-data"></i> Discrepancy Analysis Results</h5>
+                <h5><i class="bi bi-clipboard-data"></i> Reconciliation Summary - Week ${summary.week_number} (${summary.tax_year})</h5>
+                <p class="mb-2"><small><strong>Period:</strong> ${summary.week_start} to ${summary.week_end}</small></p>
                 <div class="row">
-                    <div class="col-md-6">
-                        <p><strong>Total Payslip Jobs:</strong> ${data.total_payslip_jobs?.toLocaleString() || 0}</p>
-                        <p><strong>Total Runsheet Jobs:</strong> ${data.total_runsheet_jobs?.toLocaleString() || 0}</p>
-                        <p><strong>Match Rate:</strong> <span class="badge bg-${data.match_rate > 90 ? 'success' : data.match_rate > 80 ? 'warning' : 'danger'}">${data.match_rate}%</span></p>
+                    <div class="col-md-4">
+                        <p><strong>Total Payslip Jobs:</strong> ${summary.total_payslip_jobs?.toLocaleString() || 0}</p>
+                        <p><strong>Total Runsheet Jobs:</strong> ${summary.total_runsheet_jobs?.toLocaleString() || 0}</p>
+                        <p><strong>Matched Jobs:</strong> ${summary.matched_jobs?.toLocaleString() || 0}</p>
+                        <p><strong>Match Rate:</strong> <span class="badge bg-${summary.match_rate > 95 ? 'success' : summary.match_rate > 85 ? 'warning' : 'danger'}">${summary.match_rate}%</span></p>
                     </div>
-                    <div class="col-md-6">
-                        <p class="text-danger"><strong>Missing from Runsheets:</strong> ${data.total_missing_count?.toLocaleString() || 0}</p>
-                        <p class="text-success"><strong>Total Missing Value:</strong> ${CurrencyFormatter.format(data.total_missing_value)}</p>
+                    <div class="col-md-4">
+                        <p class="text-warning"><strong>Missing from Runsheets:</strong> ${summary.missing_from_runsheets_count}</p>
+                        <p class="text-warning"><strong>Value:</strong> £${summary.missing_from_runsheets_value?.toFixed(2)}</p>
+                        <p class="text-danger"><strong>Missing from Payslips:</strong> ${summary.missing_from_payslips_count}</p>
+                        <p class="text-danger"><strong>Value:</strong> £${summary.missing_from_payslips_value?.toFixed(2)}</p>
+                    </div>
+                    <div class="col-md-4">
+                        <p class="text-info"><strong>Amount Mismatches:</strong> ${summary.amount_mismatches_count}</p>
+                        <p class="text-info"><strong>Total Difference:</strong> £${summary.amount_mismatches_difference?.toFixed(2)}</p>
                     </div>
                 </div>
             </div>
         `;
         
-        if (data.missing_jobs && data.missing_jobs.length > 0) {
+        // 1. Jobs paid but missing from runsheets
+        if (data.missing_from_runsheets && data.missing_from_runsheets.length > 0) {
             html += `
                 <div class="card border-warning mb-3">
                     <div class="card-header bg-warning text-dark">
-                        <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Jobs Paid but Missing from Runsheets (${data.missing_jobs.length})</h6>
-                        <small>You were paid for these but don't have runsheet records - ${CurrencyFormatter.format(data.total_missing_value)} total value</small>
+                        <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Jobs Paid but Missing from Runsheets (${data.missing_from_runsheets.length})</h6>
+                        <small>You were paid £${summary.missing_from_runsheets_value?.toFixed(2)} for these but don't have runsheet records</small>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -97,30 +116,17 @@ async function loadDiscrepancyReport() {
                                         <th>Client</th>
                                         <th>Location</th>
                                         <th>Amount</th>
-                                        <th>Week/Year</th>
                                         <th>Date</th>
-                                        <th>Action</th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    ${data.missing_jobs.map(j => `
+                                    ${data.missing_from_runsheets.map(j => `
                                         <tr>
                                             <td><strong>${j.job_number}</strong></td>
                                             <td>${j.client || 'N/A'}</td>
-                                            <td>${j.location || 'N/A'} ${j.postcode || ''}</td>
-                                            <td class="text-success">${CurrencyFormatter.format(j.amount)}</td>
-                                            <td><small>Week ${j.week_number}/${j.tax_year}</small></td>
-                                            <td>
-                                                <input type="date" class="form-control form-control-sm" 
-                                                       id="date_${j.job_number}" 
-                                                       style="width: 150px;">
-                                            </td>
-                                            <td>
-                                                <button class="btn btn-sm btn-primary" 
-                                                        onclick="addDiscrepancyToRunsheet('${j.job_number}', '${j.client?.replace(/'/g, "\\'")}', '${j.location?.replace(/'/g, "\\'")}', ${j.amount})">
-                                                    <i class="bi bi-plus-circle"></i> Add
-                                                </button>
-                                            </td>
+                                            <td>${j.location || 'N/A'}</td>
+                                            <td class="text-success"><strong>£${j.amount?.toFixed(2)}</strong></td>
+                                            <td>${j.date || 'N/A'}</td>
                                         </tr>
                                     `).join('')}
                                 </tbody>
@@ -131,28 +137,101 @@ async function loadDiscrepancyReport() {
             `;
         }
         
-        if (data.total_missing_count === 0) {
-            html += `<div class="alert alert-success"><i class="bi bi-check-circle"></i> Excellent! No missing jobs found. All payslip jobs are properly recorded in runsheets.</div>`;
-        } else {
+        // 2. Jobs worked but missing from payslips
+        if (data.missing_from_payslips && data.missing_from_payslips.length > 0) {
             html += `
-                <div class="alert alert-warning">
-                    <h6><i class="bi bi-info-circle"></i> Recommendations:</h6>
-                    <ul class="mb-0">
-                        <li>Review missing jobs to identify patterns (e.g., specific agencies or job types)</li>
-                        <li>Check if runsheet files are missing for certain date ranges</li>
-                        <li>Verify import processes are capturing all work types</li>
-                        <li>Generate PDF report for detailed analysis</li>
-                    </ul>
+                <div class="card border-danger mb-3">
+                    <div class="card-header bg-danger text-white">
+                        <h6 class="mb-0"><i class="bi bi-exclamation-circle"></i> Jobs Worked but Not Paid (${data.missing_from_payslips.length})</h6>
+                        <small>You worked these jobs (£${summary.missing_from_payslips_value?.toFixed(2)}) but weren't paid</small>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Job #</th>
+                                        <th>Customer</th>
+                                        <th>Activity</th>
+                                        <th>Expected Pay</th>
+                                        <th>Date</th>
+                                        <th>Status</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.missing_from_payslips.map(j => `
+                                        <tr>
+                                            <td><strong>${j.job_number}</strong></td>
+                                            <td>${j.customer || 'N/A'}</td>
+                                            <td><small>${j.activity || 'N/A'}</small></td>
+                                            <td class="text-danger"><strong>£${j.pay_amount?.toFixed(2)}</strong></td>
+                                            <td>${j.date || 'N/A'}</td>
+                                            <td><span class="badge bg-secondary">${j.status}</span></td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             `;
         }
         
+        // 3. Amount mismatches
+        if (data.amount_mismatches && data.amount_mismatches.length > 0) {
+            html += `
+                <div class="card border-info mb-3">
+                    <div class="card-header bg-info text-white">
+                        <h6 class="mb-0"><i class="bi bi-arrow-left-right"></i> Amount Mismatches (${data.amount_mismatches.length})</h6>
+                        <small>Jobs where payslip amount differs from runsheet amount (£${summary.amount_mismatches_difference?.toFixed(2)} total difference)</small>
+                    </div>
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover mb-0">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Job #</th>
+                                        <th>Customer</th>
+                                        <th>Payslip Amount</th>
+                                        <th>Runsheet Amount</th>
+                                        <th>Difference</th>
+                                        <th>Date</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${data.amount_mismatches.map(j => `
+                                        <tr>
+                                            <td><strong>${j.job_number}</strong></td>
+                                            <td>${j.customer || 'N/A'}</td>
+                                            <td class="text-success">£${j.payslip_amount?.toFixed(2)}</td>
+                                            <td class="text-primary">£${j.runsheet_amount?.toFixed(2)}</td>
+                                            <td class="${j.difference > 0 ? 'text-success' : 'text-danger'}">
+                                                <strong>${j.difference > 0 ? '+' : ''}£${j.difference?.toFixed(2)}</strong>
+                                            </td>
+                                            <td>${j.date || 'N/A'}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Success message if everything matches
+        if (summary.missing_from_runsheets_count === 0 && 
+            summary.missing_from_payslips_count === 0 && 
+            summary.amount_mismatches_count === 0) {
+            html += `<div class="alert alert-success"><i class="bi bi-check-circle"></i> <strong>Perfect Match!</strong> All runsheet jobs match payslip records with correct amounts.</div>`;
+        }
+        
         // Display results in the tab
         contentDiv.innerHTML = html;
-        console.log('Discrepancy Report:', data);
+        console.log('Reconciliation Report:', data);
         
     } catch (error) {
-        console.error('Error generating discrepancy report:', error);
+        console.error('Error generating reconciliation report:', error);
         contentDiv.innerHTML = `
             <div class="alert alert-danger">
                 <i class="bi bi-exclamation-triangle"></i> <strong>Error:</strong> ${error.message}
@@ -1433,6 +1512,12 @@ async function generateCustomReport() {
         return;
     }
     
+    // Handle email audit report separately
+    if (reportType === 'email_audit') {
+        generateEmailAuditReport(year, month);
+        return;
+    }
+    
     outputDiv.innerHTML = `
         <div class="text-center py-5">
             <div class="spinner-border text-primary" role="status">
@@ -2203,6 +2288,126 @@ function displayCustomerParsingReport(data) {
     html += `
                     </tbody>
                 </table>
+            </div>
+        </div>
+    `;
+    
+    outputDiv.innerHTML = html;
+}
+
+// Generate Email Audit Report
+async function generateEmailAuditReport(year, month) {
+    const outputDiv = document.getElementById('customReportOutput');
+    
+    outputDiv.innerHTML = `
+        <div class="text-center py-5">
+            <div class="spinner-border text-primary" role="status">
+                <span class="visually-hidden">Loading...</span>
+            </div>
+            <p class="mt-3 text-muted">Loading email confirmations...</p>
+        </div>
+    `;
+    
+    try {
+        const params = new URLSearchParams();
+        if (year) params.append('year', year);
+        if (month) params.append('month', month);
+        
+        const url = `/api/email-audit${params.toString() ? '?' + params.toString() : ''}`;
+        console.log('Fetching email audit from:', url);
+        const response = await fetch(url);
+        const result = await response.json();
+        
+        if (result.success) {
+            displayEmailAuditReport(result.emails, result.summary);
+        } else {
+            outputDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> ${result.error}</div>`;
+        }
+    } catch (error) {
+        console.error('Error loading email audit:', error);
+        outputDiv.innerHTML = `<div class="alert alert-danger"><i class="bi bi-exclamation-triangle"></i> Error: ${error.message}</div>`;
+    }
+}
+
+function displayEmailAuditReport(emails, summary) {
+    const outputDiv = document.getElementById('customReportOutput');
+    
+    if (emails.length === 0) {
+        outputDiv.innerHTML = `
+            <div class="text-center py-5">
+                <i class="bi bi-inbox" style="font-size: 3rem; color: #dee2e6;"></i>
+                <p class="text-muted mt-3">No email confirmations sent yet</p>
+            </div>
+        `;
+        return;
+    }
+    
+    let html = `
+        <div class="card mb-3">
+            <div class="card-body">
+                <h5 class="card-title"><i class="bi bi-envelope-check text-primary"></i> Email Confirmations Summary</h5>
+                <div class="row text-center">
+                    <div class="col-md-4">
+                        <h3 class="text-primary">${summary.total_emails || 0}</h3>
+                        <p class="text-muted mb-0">Total Emails Sent</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h3 class="text-success">${formatCurrency(summary.total_agreed_value || 0)}</h3>
+                        <p class="text-muted mb-0">Total Agreed Value</p>
+                    </div>
+                    <div class="col-md-4">
+                        <h3 class="text-info">${summary.unique_jobs || 0}</h3>
+                        <p class="text-muted mb-0">Unique Jobs</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-hover">
+                        <thead>
+                            <tr>
+                                <th>Date Sent</th>
+                                <th>Job #</th>
+                                <th>Customer</th>
+                                <th>Location</th>
+                                <th>Agreed Rate</th>
+                                <th>Sent To</th>
+                                <th>Status</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+    `;
+    
+    emails.forEach(email => {
+        const sentDate = new Date(email.sent_at);
+        const formattedDate = sentDate.toLocaleString('en-GB', {
+            day: '2-digit',
+            month: '2-digit',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+        
+        html += `
+            <tr>
+                <td><small>${formattedDate}</small></td>
+                <td><strong>${email.job_number}</strong></td>
+                <td><small>${email.customer || 'N/A'}</small></td>
+                <td><small>${email.location || 'N/A'}</small></td>
+                <td><strong class="text-success">${formatCurrency(email.agreed_rate)}</strong></td>
+                <td><small>${email.sent_to}</small></td>
+                <td><span class="badge bg-success">Sent</span></td>
+            </tr>
+        `;
+    });
+    
+    html += `
+                        </tbody>
+                    </table>
+                </div>
             </div>
         </div>
     `;
