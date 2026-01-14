@@ -958,7 +958,8 @@ async function addExtraJob(date) {
                     job_address: address,
                     postcode: postcode,
                     status: 'extra',
-                    agreed_price: agreedPrice ? parseFloat(agreedPrice) : null
+                    agreed_price: agreedPrice ? parseFloat(agreedPrice) : null,
+                    send_email_confirmation: agreedPrice ? true : false
                 })
             });
         }
