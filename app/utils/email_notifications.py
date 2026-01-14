@@ -86,7 +86,7 @@ class EmailNotificationService:
             <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333;">
                 <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #ddd; border-radius: 5px;">
                     <h2 style="color: #0066cc; border-bottom: 2px solid #0066cc; padding-bottom: 10px;">
-                        Extra Job Rate Confirmation - {user_name}
+                        Extra Job Rate Confirmatmessage:%3CFA.75.18455.F8AC7696@ccg13mail05%3Eion - {user_name}
                     </h2>
                     
                     <p>This email confirms the agreed rate for the following extra job completed by <strong>{user_name}</strong>:</p>
