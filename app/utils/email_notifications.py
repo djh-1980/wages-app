@@ -117,15 +117,9 @@ class EmailNotificationService:
                     </table>
                     
                     <div style="background-color: #f0f8ff; padding: 15px; border-left: 4px solid #0066cc; margin: 20px 0;">
-                        <p style="margin: 0;"><strong>Important:</strong></p>
+                        <p style="margin: 0;"><strong>Confirmation:</strong></p>
                         <p style="margin: 5px 0 0 0;">
-                            This rate was verbally confirmed on {datetime.now().strftime('%d/%m/%Y at %H:%M')}.
-                        </p>
-                        <p style="margin: 5px 0 0 0;">
-                            <strong>If this rate is incorrect, please respond within 24 hours.</strong>
-                        </p>
-                        <p style="margin: 5px 0 0 0;">
-                            If no objection is received within 24 hours, this rate will be considered confirmed.
+                            This email confirms the rate that was verbally agreed on {datetime.now().strftime('%d/%m/%Y at %H:%M')}.
                         </p>
                     </div>
                     
