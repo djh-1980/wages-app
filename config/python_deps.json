@@ -1,0 +1,155 @@
+{
+  "last_check": "2026-01-20T22:53:54.891578",
+  "packages": {
+    "Flask": {
+      "name": "Flask",
+      "clean_name": "Flask",
+      "current": "3.1.2",
+      "latest": "3.1.2",
+      "operator": "==",
+      "update_available": false,
+      "update_type": "none",
+      "line": "Flask==3.1.2"
+    },
+    "python-dotenv": {
+      "name": "python-dotenv",
+      "clean_name": "python-dotenv",
+      "current": "1.2.1",
+      "latest": "1.2.1",
+      "operator": "==",
+      "update_available": false,
+      "update_type": "none",
+      "line": "python-dotenv==1.2.1"
+    },
+    "PyPDF2": {
+      "name": "PyPDF2",
+      "clean_name": "PyPDF2",
+      "current": "3.0.1",
+      "latest": "3.0.1",
+      "operator": "==",
+      "update_available": false,
+      "update_type": "none",
+      "line": "PyPDF2==3.0.1"
+    },
+    "pdfplumber": {
+      "name": "pdfplumber",
+      "clean_name": "pdfplumber",
+      "current": "0.10.0",
+      "latest": "0.11.9",
+      "operator": ">=",
+      "update_available": false,
+      "update_type": "flexible",
+      "line": "pdfplumber>=0.10.0"
+    },
+    "reportlab": {
+      "name": "reportlab",
+      "clean_name": "reportlab",
+      "current": "4.0.0",
+      "latest": "4.4.9",
+      "operator": ">=",
+      "update_available": false,
+      "update_type": "flexible",
+      "line": "reportlab>=4.0.0"
+    },
+    "Pillow": {
+      "name": "Pillow",
+      "clean_name": "Pillow",
+      "current": "10.0.0",
+      "latest": "12.1.0",
+      "operator": ">=",
+      "update_available": false,
+      "update_type": "flexible",
+      "line": "Pillow>=10.0.0"
+    },
+    "camelot-py": {
+      "name": "camelot-py[cv]",
+      "clean_name": "camelot-py",
+      "current": "0.11.0",
+      "latest": "1.0.9",
+      "operator": ">=",
+      "update_available": false,
+      "update_type": "flexible",
+      "line": "camelot-py[cv]>=0.11.0  # Table-based PDF extraction (requires opencv)"
+    },
+    "google-auth": {
+      "name": "google-auth",
+      "clean_name": "google-auth",
+      "current": "2.47.0",
+      "latest": "2.47.0",
+      "operator": "==",
+      "update_available": false,
+      "update_type": "none",
+      "line": "google-auth==2.47.0"
+    },
+    "google-auth-oauthlib": {
+      "name": "google-auth-oauthlib",
+      "clean_name": "google-auth-oauthlib",
+      "current": "1.2.4",
+      "latest": "1.2.4",
+      "operator": "==",
+      "update_available": false,
+      "update_type": "none",
+      "line": "google-auth-oauthlib==1.2.4"
+    },
+    "google-auth-httplib2": {
+      "name": "google-auth-httplib2",
+      "clean_name": "google-auth-httplib2",
+      "current": "0.3.0",
+      "latest": "0.3.0",
+      "operator": "==",
+      "update_available": false,
+      "update_type": "none",
+      "line": "google-auth-httplib2==0.3.0"
+    },
+    "google-api-python-client": {
+      "name": "google-api-python-client",
+      "clean_name": "google-api-python-client",
+      "current": "2.188.0",
+      "latest": "2.188.0",
+      "operator": "==",
+      "update_available": false,
+      "update_type": "none",
+      "line": "google-api-python-client==2.188.0"
+    },
+    "schedule": {
+      "name": "schedule",
+      "clean_name": "schedule",
+      "current": "1.2.0",
+      "latest": "1.2.2",
+      "operator": ">=",
+      "update_available": false,
+      "update_type": "flexible",
+      "line": "schedule>=1.2.0"
+    },
+    "watchdog": {
+      "name": "watchdog",
+      "clean_name": "watchdog",
+      "current": "3.0.0",
+      "latest": "6.0.0",
+      "operator": ">=",
+      "update_available": false,
+      "update_type": "flexible",
+      "line": "watchdog>=3.0.0"
+    },
+    "requests": {
+      "name": "requests",
+      "clean_name": "requests",
+      "current": "2.31.0",
+      "latest": "2.32.5",
+      "operator": ">=",
+      "update_available": false,
+      "update_type": "flexible",
+      "line": "requests>=2.31.0"
+    },
+    "pytz": {
+      "name": "pytz",
+      "clean_name": "pytz",
+      "current": "2024.1",
+      "latest": "2025.2",
+      "operator": ">=",
+      "update_available": false,
+      "update_type": "flexible",
+      "line": "pytz>=2024.1"
+    }
+  }
+}

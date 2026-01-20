@@ -429,6 +429,171 @@
                     </div>
                 </div>
 
+                <!-- CDN Version Management -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-cloud-download me-2"></i>CDN Library Versions (Frontend)</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">Automatically check and update frontend library versions (Bootstrap, Chart.js, etc.)</p>
+                        
+                        <!-- Action Buttons -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-4">
+                                <button class="btn btn-primary w-100" onclick="checkCDNVersions()">
+                                    <i class="bi bi-arrow-repeat me-2"></i>Check for Updates
+                                </button>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-success w-100" onclick="updateAllCDN()" id="updateAllCDNBtn" disabled>
+                                    <i class="bi bi-download me-2"></i>Update All
+                                </button>
+                            </div>
+                            <div class="col-md-4">
+                                <button class="btn btn-outline-secondary w-100" onclick="loadCDNStatus()">
+                                    <i class="bi bi-info-circle me-2"></i>View Status
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Last Check Info -->
+                        <div class="alert alert-info mb-3" id="cdnLastCheck" style="display: none;">
+                            <i class="bi bi-clock me-2"></i>
+                            <strong>Last checked:</strong> <span id="cdnLastCheckTime">Never</span>
+                        </div>
+                        
+                        <!-- Library Status Table -->
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover" id="cdnVersionsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Library</th>
+                                        <th>Current</th>
+                                        <th>Latest</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cdnVersionsBody">
+                                    <tr>
+                                        <td colspan="5" class="text-center text-muted py-3">
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            Click "Check for Updates" to scan library versions
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div id="cdnStatus" class="mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <!-- Python Dependencies -->
+                <div class="settings-card">
+                    <div class="card-header">
+                        <h5><i class="bi bi-box-seam me-2"></i>Python Dependencies (Backend)</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">Manage Python package versions in requirements.txt</p>
+                        
+                        <!-- Summary Stats -->
+                        <div class="row mb-4" id="pythonDepsSummary" style="display: none;">
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="h4 mb-1 text-primary" id="totalPackages">-</div>
+                                    <small class="text-muted">Total Packages</small>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="text-center">
+                                    <div class="h4 mb-1 text-warning" id="updatesAvailable">-</div>
+                                    <small class="text-muted">Updates Available</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <div class="h4 mb-1 text-danger" id="majorUpdates">-</div>
+                                    <small class="text-muted">🔴 Major</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <div class="h4 mb-1 text-warning" id="minorUpdates">-</div>
+                                    <small class="text-muted">🟡 Minor</small>
+                                </div>
+                            </div>
+                            <div class="col-md-2">
+                                <div class="text-center">
+                                    <div class="h4 mb-1 text-success" id="patchUpdates">-</div>
+                                    <small class="text-muted">🟢 Patch</small>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Action Buttons -->
+                        <div class="row g-3 mb-4">
+                            <div class="col-md-3">
+                                <button class="btn btn-primary w-100" onclick="checkPythonDeps()">
+                                    <i class="bi bi-arrow-repeat me-2"></i>Check for Updates
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-success w-100" onclick="updatePythonDepsByType('patch')" id="updatePatchBtn" disabled>
+                                    <i class="bi bi-shield-check me-2"></i>Update Patch Only
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-warning w-100" onclick="updatePythonDepsByType('minor')" id="updateMinorBtn" disabled>
+                                    <i class="bi bi-exclamation-triangle me-2"></i>Update Minor
+                                </button>
+                            </div>
+                            <div class="col-md-3">
+                                <button class="btn btn-outline-secondary w-100" onclick="loadPythonDepsStatus()">
+                                    <i class="bi bi-info-circle me-2"></i>View Status
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Last Check Info -->
+                        <div class="alert alert-info mb-3" id="pythonDepsLastCheck" style="display: none;">
+                            <i class="bi bi-clock me-2"></i>
+                            <strong>Last checked:</strong> <span id="pythonDepsLastCheckTime">Never</span>
+                        </div>
+                        
+                        <!-- Package Status Table -->
+                        <div class="table-responsive">
+                            <table class="table table-sm table-hover" id="pythonDepsTable">
+                                <thead>
+                                    <tr>
+                                        <th>Package</th>
+                                        <th>Current</th>
+                                        <th>Latest</th>
+                                        <th>Type</th>
+                                        <th>Status</th>
+                                        <th>Action</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="pythonDepsBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center text-muted py-3">
+                                            <i class="bi bi-info-circle me-2"></i>
+                                            Click "Check for Updates" to scan Python packages
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        
+                        <div class="alert alert-warning mt-3">
+                            <i class="bi bi-exclamation-triangle me-2"></i>
+                            <strong>Note:</strong> After updating Python packages, you may need to restart the application and run <code>pip install -r requirements.txt</code>
+                        </div>
+                        
+                        <div id="pythonDepsStatus" class="mt-3" style="display: none;"></div>
+                    </div>
+                </div>
+
                 <!-- System Information -->
                 <div class="settings-card">
                     <div class="card-header">

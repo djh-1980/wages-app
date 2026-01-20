@@ -855,8 +855,28 @@ async function showAddJobForm(date) {
                 // Wait for mappings to load
                 await window.customerMapping.loadMappings();
                 
+                // Priority customers to show at the top
+                const priorityCustomers = ['PayPoint', 'Lexmark', 'Fujitsu', 'Star Trains'];
+                
+                // Sort customers: priority ones first, then alphabetically
+                const sortedCustomers = data.customers.sort((a, b) => {
+                    const aPriority = priorityCustomers.findIndex(p => a.toLowerCase().includes(p.toLowerCase()));
+                    const bPriority = priorityCustomers.findIndex(p => b.toLowerCase().includes(p.toLowerCase()));
+                    
+                    // If both are priority, sort by priority order
+                    if (aPriority !== -1 && bPriority !== -1) {
+                        return aPriority - bPriority;
+                    }
+                    // If only a is priority, it comes first
+                    if (aPriority !== -1) return -1;
+                    // If only b is priority, it comes first
+                    if (bPriority !== -1) return 1;
+                    // Otherwise alphabetical
+                    return a.localeCompare(b);
+                });
+                
                 // Create options with mapped names but original values
-                const customerOptions = data.customers.map(customer => {
+                const customerOptions = sortedCustomers.map(customer => {
                     const mappedName = window.customerMapping.getMappedCustomer(customer);
                     const displayName = mappedName !== customer ? `${mappedName} (${customer})` : customer;
                     return `<option value="${customer}" title="Original: ${customer}">${displayName}</option>`;
@@ -871,8 +891,18 @@ async function showAddJobForm(date) {
             console.log('Found activities select:', activitiesSelect);
             
             if (activitiesSelect) {
+                // Sort activities: Tech Exchange first, then alphabetically
+                const sortedActivities = data.activities.sort((a, b) => {
+                    const aIsTechExchange = a.toLowerCase().includes('tech exchange');
+                    const bIsTechExchange = b.toLowerCase().includes('tech exchange');
+                    
+                    if (aIsTechExchange && !bIsTechExchange) return -1;
+                    if (!aIsTechExchange && bIsTechExchange) return 1;
+                    return a.localeCompare(b);
+                });
+                
                 activitiesSelect.innerHTML = '<option value="">Select activity...</option>' + 
-                    data.activities.map(activity => 
+                    sortedActivities.map(activity => 
                         `<option value="${activity}">${activity}</option>`
                     ).join('');
                 console.log('Populated activities:', data.activities.length, 'options');

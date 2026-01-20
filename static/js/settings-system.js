@@ -1742,4 +1742,374 @@ document.addEventListener('DOMContentLoaded', function() {
     document.getElementById('reparseEndDate').value = today;
     document.getElementById('reparseStartDate').value = lastWeek;
     document.getElementById('validationDate').value = today;
+    
+    // Load CDN status on page load
+    loadCDNStatus();
+    
+    // Load Python deps status on page load
+    loadPythonDepsStatus();
 });
+
+// ============================================
+// CDN Version Management Functions
+// ============================================
+
+async function checkCDNVersions() {
+    const tbody = document.getElementById('cdnVersionsBody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="5" class="text-center py-3">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                Checking for updates...
+            </td>
+        </tr>
+    `;
+    
+    try {
+        const response = await fetch('/api/cdn/check');
+        const data = await response.json();
+        
+        if (data.success) {
+            displayCDNVersions(data.libraries);
+            showStatus('CDN version check completed', 'success');
+        } else {
+            showStatus(data.error || 'Failed to check CDN versions', 'danger');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="text-center text-danger py-3">
+                        <i class="bi bi-x-circle me-2"></i>
+                        Failed to check versions
+                    </td>
+                </tr>
+            `;
+        }
+    } catch (error) {
+        console.error('Error checking CDN versions:', error);
+        showStatus('Error checking CDN versions', 'danger');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="text-center text-danger py-3">
+                    <i class="bi bi-x-circle me-2"></i>
+                    Error: ${error.message}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+async function loadCDNStatus() {
+    try {
+        const response = await fetch('/api/cdn/status');
+        const data = await response.json();
+        
+        if (data.success && data.data.libraries) {
+            displayCDNVersions(data.data.libraries);
+            
+            // Show last check time
+            if (data.data.last_check) {
+                const lastCheck = new Date(data.data.last_check);
+                document.getElementById('cdnLastCheckTime').textContent = lastCheck.toLocaleString();
+                document.getElementById('cdnLastCheck').style.display = 'block';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading CDN status:', error);
+    }
+}
+
+function displayCDNVersions(libraries) {
+    const tbody = document.getElementById('cdnVersionsBody');
+    tbody.innerHTML = '';
+    
+    let hasUpdates = false;
+    
+    for (const [libId, info] of Object.entries(libraries)) {
+        if (info.update_available) {
+            hasUpdates = true;
+        }
+        
+        const statusBadge = info.update_available 
+            ? '<span class="badge bg-warning">Update Available</span>'
+            : '<span class="badge bg-success">Up to date</span>';
+        
+        const actionBtn = info.update_available
+            ? `<button class="btn btn-sm btn-primary" onclick="updateSingleCDN('${libId}')">
+                   <i class="bi bi-download"></i> Update
+               </button>`
+            : '<span class="text-muted">-</span>';
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>${info.name}</strong></td>
+            <td><code>${info.current}</code></td>
+            <td><code>${info.latest}</code></td>
+            <td>${statusBadge}</td>
+            <td>${actionBtn}</td>
+        `;
+        tbody.appendChild(row);
+    }
+    
+    // Enable/disable "Update All" button
+    document.getElementById('updateAllCDNBtn').disabled = !hasUpdates;
+}
+
+async function updateSingleCDN(libId) {
+    showStatus(`Updating ${libId}...`, 'info');
+    
+    try {
+        const response = await fetch('/api/cdn/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ libraries: [libId] })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showStatus(data.message || 'Library updated successfully', 'success');
+            // Reload status to show updated versions
+            setTimeout(() => checkCDNVersions(), 1000);
+        } else {
+            showStatus(data.error || 'Failed to update library', 'danger');
+        }
+    } catch (error) {
+        console.error('Error updating CDN library:', error);
+        showStatus('Error updating library', 'danger');
+    }
+}
+
+async function updateAllCDN() {
+    if (!confirm('This will update all CDN libraries to their latest versions. The page will need to be refreshed after the update. Continue?')) {
+        return;
+    }
+    
+    showStatus('Updating all libraries...', 'info');
+    
+    try {
+        const response = await fetch('/api/cdn/update-all', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showStatus(data.message || 'All libraries updated successfully', 'success');
+            
+            // Show reload prompt
+            setTimeout(() => {
+                if (confirm('Libraries updated! Reload the page to use the new versions?')) {
+                    window.location.reload();
+                }
+            }, 1500);
+        } else {
+            showStatus(data.error || 'Failed to update libraries', 'danger');
+        }
+    } catch (error) {
+        console.error('Error updating CDN libraries:', error);
+        showStatus('Error updating libraries', 'danger');
+    }
+}
+
+// ============================================
+// Python Dependencies Management Functions
+// ============================================
+
+async function checkPythonDeps() {
+    const tbody = document.getElementById('pythonDepsBody');
+    tbody.innerHTML = `
+        <tr>
+            <td colspan="6" class="text-center py-3">
+                <div class="spinner-border spinner-border-sm text-primary me-2"></div>
+                Checking Python packages...
+            </td>
+        </tr>
+    `;
+    
+    try {
+        const response = await fetch('/api/python-deps/check');
+        const data = await response.json();
+        
+        if (data.success) {
+            displayPythonDeps(data.packages, data.summary);
+            showStatus('Python dependency check completed', 'success');
+        } else {
+            showStatus(data.error || 'Failed to check Python dependencies', 'danger');
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="text-center text-danger py-3">
+                        <i class="bi bi-x-circle me-2"></i>
+                        Failed to check packages
+                    </td>
+                </tr>
+            `;
+        }
+    } catch (error) {
+        console.error('Error checking Python dependencies:', error);
+        showStatus('Error checking Python dependencies', 'danger');
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="text-center text-danger py-3">
+                    <i class="bi bi-x-circle me-2"></i>
+                    Error: ${error.message}
+                </td>
+            </tr>
+        `;
+    }
+}
+
+async function loadPythonDepsStatus() {
+    try {
+        const response = await fetch('/api/python-deps/status');
+        const data = await response.json();
+        
+        if (data.success && data.data.packages) {
+            // Calculate summary from packages
+            const packages = data.data.packages;
+            const summary = {
+                total: Object.keys(packages).length,
+                updates_available: Object.values(packages).filter(p => p.update_available).length,
+                major_updates: Object.values(packages).filter(p => p.update_type === 'major').length,
+                minor_updates: Object.values(packages).filter(p => p.update_type === 'minor').length,
+                patch_updates: Object.values(packages).filter(p => p.update_type === 'patch').length
+            };
+            
+            displayPythonDeps(packages, summary);
+            
+            // Show last check time
+            if (data.data.last_check) {
+                const lastCheck = new Date(data.data.last_check);
+                document.getElementById('pythonDepsLastCheckTime').textContent = lastCheck.toLocaleString();
+                document.getElementById('pythonDepsLastCheck').style.display = 'block';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading Python deps status:', error);
+    }
+}
+
+function displayPythonDeps(packages, summary) {
+    const tbody = document.getElementById('pythonDepsBody');
+    tbody.innerHTML = '';
+    
+    // Update summary stats
+    if (summary) {
+        document.getElementById('totalPackages').textContent = summary.total;
+        document.getElementById('updatesAvailable').textContent = summary.updates_available;
+        document.getElementById('majorUpdates').textContent = summary.major_updates;
+        document.getElementById('minorUpdates').textContent = summary.minor_updates;
+        document.getElementById('patchUpdates').textContent = summary.patch_updates;
+        document.getElementById('pythonDepsSummary').style.display = 'block';
+        
+        // Enable/disable update buttons
+        document.getElementById('updatePatchBtn').disabled = summary.patch_updates === 0;
+        document.getElementById('updateMinorBtn').disabled = (summary.minor_updates + summary.patch_updates) === 0;
+    }
+    
+    // Sort packages by update type priority
+    const sortedPackages = Object.entries(packages).sort((a, b) => {
+        const typeOrder = { 'major': 0, 'minor': 1, 'patch': 2, 'flexible': 3, 'none': 4 };
+        return typeOrder[a[1].update_type] - typeOrder[b[1].update_type];
+    });
+    
+    for (const [pkgId, info] of sortedPackages) {
+        const updateType = info.update_type || 'none';
+        const typeIcon = {
+            'major': '🔴',
+            'minor': '🟡',
+            'patch': '🟢',
+            'flexible': '📌',
+            'none': '✅',
+            'error': '❌'
+        }[updateType] || '❓';
+        
+        const statusBadge = info.update_available 
+            ? `<span class="badge bg-warning">Update Available</span>`
+            : updateType === 'flexible'
+            ? `<span class="badge bg-info">Flexible (${info.operator})</span>`
+            : `<span class="badge bg-success">Up to date</span>`;
+        
+        const actionBtn = info.update_available
+            ? `<button class="btn btn-sm btn-primary" onclick="updateSinglePythonDep('${info.clean_name}', '${info.latest}')">
+                   <i class="bi bi-download"></i> Update
+               </button>`
+            : '<span class="text-muted">-</span>';
+        
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td><strong>${info.clean_name}</strong></td>
+            <td><code>${info.current}</code></td>
+            <td><code>${info.latest}</code></td>
+            <td>${typeIcon} ${updateType}</td>
+            <td>${statusBadge}</td>
+            <td>${actionBtn}</td>
+        `;
+        tbody.appendChild(row);
+    }
+}
+
+async function updateSinglePythonDep(packageName, version) {
+    showStatus(`Updating ${packageName}...`, 'info');
+    
+    try {
+        const response = await fetch('/api/python-deps/update', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ packages: { [packageName]: version } })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showStatus(data.message || 'Package updated successfully', 'success');
+            // Reload status to show updated versions
+            setTimeout(() => checkPythonDeps(), 1000);
+        } else {
+            showStatus(data.error || 'Failed to update package', 'danger');
+        }
+    } catch (error) {
+        console.error('Error updating Python package:', error);
+        showStatus('Error updating package', 'danger');
+    }
+}
+
+async function updatePythonDepsByType(type) {
+    const typeNames = {
+        'patch': 'patch updates (safest)',
+        'minor': 'minor and patch updates',
+        'all': 'all updates (including major versions)'
+    };
+    
+    if (!confirm(`This will update ${typeNames[type]}. You will need to run 'pip install -r requirements.txt' and restart the application after. Continue?`)) {
+        return;
+    }
+    
+    showStatus(`Updating ${type} packages...`, 'info');
+    
+    try {
+        const response = await fetch('/api/python-deps/update-by-type', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ type: type })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            showStatus(data.message || 'Packages updated successfully', 'success');
+            
+            // Show install prompt
+            setTimeout(() => {
+                alert('Packages updated in requirements.txt!\n\nNext steps:\n1. Run: pip install -r requirements.txt\n2. Restart the application\n3. Refresh this page');
+            }, 1500);
+            
+            // Reload status
+            setTimeout(() => checkPythonDeps(), 2000);
+        } else {
+            showStatus(data.error || 'Failed to update packages', 'danger');
+        }
+    } catch (error) {
+        console.error('Error updating Python packages:', error);
+        showStatus('Error updating packages', 'danger');
+    }
+}

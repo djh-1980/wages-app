@@ -1,0 +1,35 @@
+{
+  "last_check": "2026-01-20T22:51:44.587917",
+  "libraries": {
+    "bootstrap": {
+      "name": "Bootstrap",
+      "current": "5.3.8",
+      "latest": "5.3.8",
+      "update_available": false
+    },
+    "bootstrap-icons": {
+      "name": "Bootstrap Icons",
+      "current": "1.13.1",
+      "latest": "1.13.1",
+      "update_available": false
+    },
+    "chartjs": {
+      "name": "Chart.js",
+      "current": "4.5.1",
+      "latest": "4.5.1",
+      "update_available": false
+    },
+    "jspdf": {
+      "name": "jsPDF",
+      "current": "3.0.3",
+      "latest": "3.0.3",
+      "update_available": false
+    },
+    "jspdf-autotable": {
+      "name": "jsPDF-AutoTable",
+      "current": "5.0.2",
+      "latest": "5.0.2",
+      "update_available": false
+    }
+  }
+}

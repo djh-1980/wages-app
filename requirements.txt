@@ -2,10 +2,10 @@
 # Install with: pip install -r requirements.txt
 
 # Web Framework
-Flask==2.3.3
+Flask==3.1.2
 
 # Environment Configuration
-python-dotenv==1.0.0
+python-dotenv==1.2.1
 
 # PDF Processing
 PyPDF2==3.0.1
@@ -15,11 +15,17 @@ Pillow>=10.0.0
 camelot-py[cv]>=0.11.0  # Table-based PDF extraction (requires opencv)
 
 # Gmail API Integration
-google-auth==2.23.3
-google-auth-oauthlib==1.1.0
-google-auth-httplib2==0.1.1
-google-api-python-client==2.103.0
+google-auth==2.47.0
+google-auth-oauthlib==1.2.4
+google-auth-httplib2==0.3.0
+google-api-python-client==2.188.0
 
 # Background Processing & File Monitoring
 schedule>=1.2.0
 watchdog>=3.0.0
+
+# HTTP Requests
+requests>=2.31.0
+
+# Timezone Support
+pytz>=2024.1

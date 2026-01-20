@@ -74,6 +74,8 @@ def create_app(config_name=None):
     from .routes.api_bank_import import bank_import_bp
     from .routes.api_recurring import recurring_bp
     from .routes.api_runsheet_testing import runsheet_testing_bp
+    from .routes.api_cdn import api_cdn_bp
+    from .routes.api_python_deps import api_python_deps_bp
     
     app.register_blueprint(main_bp)
     app.register_blueprint(runsheet_testing_bp)
@@ -96,5 +98,7 @@ def create_app(config_name=None):
     app.register_blueprint(expenses_bp)
     app.register_blueprint(bank_import_bp)
     app.register_blueprint(recurring_bp)
+    app.register_blueprint(api_cdn_bp)
+    app.register_blueprint(api_python_deps_bp)
     
     return app
