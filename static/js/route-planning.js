@@ -40,6 +40,14 @@ async function optimizeRoute(date) {
             displayOptimizedRoute(data);
             reorderJobsInModal(data);
             
+            // Auto-fill mileage field if it's empty (round up to nearest mile)
+            const mileageInput = document.getElementById(`mileage-${date}`);
+            if (mileageInput && (!mileageInput.value || mileageInput.value.trim() === '')) {
+                const roundedMiles = Math.ceil(data.total_distance_miles);
+                mileageInput.value = roundedMiles;
+                console.log(`✓ Auto-filled mileage: ${roundedMiles} miles (from ${data.total_distance_miles})`);
+            }
+            
             // Keep button green and change text
             button.innerHTML = '<i class="bi bi-check-circle-fill"></i> Route Optimized';
             button.classList.remove('btn-success');
@@ -337,7 +345,8 @@ async function saveRouteOrder() {
                 route_data: {
                     total_distance_miles: currentOptimizedRoute.total_distance_miles,
                     total_duration_minutes: currentOptimizedRoute.total_duration_minutes,
-                    total_jobs: currentOptimizedRoute.total_jobs
+                    total_jobs: currentOptimizedRoute.total_jobs,
+                    route: currentOptimizedRoute.route || []
                 }
             })
         });

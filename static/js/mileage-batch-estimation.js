@@ -77,7 +77,13 @@ async function startBatchEstimation() {
                         date: dateInfo.date,
                         job_count: dateInfo.job_count,
                         estimated_miles: routeData.total_distance_miles,
-                        estimated_time: routeData.total_duration_minutes
+                        estimated_time: routeData.total_duration_minutes,
+                        route_data: {
+                            total_distance_miles: routeData.total_distance_miles,
+                            total_duration_minutes: routeData.total_duration_minutes,
+                            total_jobs: routeData.total_jobs,
+                            route: routeData.route || []
+                        }
                     });
                     successCount++;
                     console.log(`✓ Estimated ${dateInfo.date}: ${routeData.total_distance_miles} miles`);
@@ -164,7 +170,8 @@ async function saveBatchEstimation() {
         let savedCount = 0;
         
         for (const result of estimationResults) {
-            const response = await fetch('/api/runsheets/update-statuses', {
+            // Save mileage
+            const mileageResponse = await fetch('/api/runsheets/update-statuses', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -177,13 +184,32 @@ async function saveBatchEstimation() {
                 })
             });
             
-            const data = await response.json();
-            if (data.success) {
+            const mileageData = await mileageResponse.json();
+            
+            // Save full route data to database
+            if (result.route_data) {
+                const routeResponse = await fetch('/api/route-planning/save-order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        date: result.date,
+                        job_order: [], // Job order already set by route optimization
+                        route_data: result.route_data
+                    })
+                });
+                
+                const routeData = await routeResponse.json();
+                if (mileageData.success && routeData.success) {
+                    savedCount++;
+                }
+            } else if (mileageData.success) {
                 savedCount++;
             }
         }
         
-        alert(`Successfully saved ${savedCount} mileage estimates!`);
+        alert(`Successfully saved ${savedCount} mileage estimates with route data!`);
         
         // Clear preview and reload data
         cancelBatchEstimation();

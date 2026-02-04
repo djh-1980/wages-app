@@ -294,25 +294,19 @@ def save_route_order():
                     WHERE id = ? AND date = ?
                 """, (order_index, job_id, date))
             
-            # Save full route data to route_optimizations table
+            # Save full route data to runsheet_daily_data table
             if route_data:
                 import json
                 cursor.execute("""
-                    INSERT INTO route_optimizations 
-                    (date, total_distance_miles, total_duration_minutes, total_jobs, route_data, updated_at)
-                    VALUES (?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                    INSERT INTO runsheet_daily_data 
+                    (date, route_data, updated_at)
+                    VALUES (?, ?, CURRENT_TIMESTAMP)
                     ON CONFLICT(date) DO UPDATE SET
-                        total_distance_miles = excluded.total_distance_miles,
-                        total_duration_minutes = excluded.total_duration_minutes,
-                        total_jobs = excluded.total_jobs,
                         route_data = excluded.route_data,
                         updated_at = CURRENT_TIMESTAMP
                 """, (
                     date,
-                    route_data.get('total_distance_miles'),
-                    route_data.get('total_duration_minutes'),
-                    route_data.get('total_jobs'),
-                    json.dumps(route_data.get('route', []))
+                    json.dumps(route_data)
                 ))
             
             conn.commit()
@@ -338,21 +332,22 @@ def get_saved_route(date):
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                SELECT total_distance_miles, total_duration_minutes, total_jobs, route_data
-                FROM route_optimizations
+                SELECT route_data
+                FROM runsheet_daily_data
                 WHERE date = ?
             """, (date,))
             
             row = cursor.fetchone()
             
-            if row:
+            if row and row[0]:
                 import json
+                route_data = json.loads(row[0])
                 return jsonify({
                     'success': True,
-                    'total_distance_miles': row[0],
-                    'total_duration_minutes': row[1],
-                    'total_jobs': row[2],
-                    'route': json.loads(row[3]) if row[3] else []
+                    'total_distance_miles': route_data.get('total_distance_miles'),
+                    'total_duration_minutes': route_data.get('total_duration_minutes'),
+                    'total_jobs': route_data.get('total_jobs'),
+                    'route': route_data.get('route', [])
                 })
             else:
                 return jsonify({'success': False, 'error': 'No saved route found'}), 404

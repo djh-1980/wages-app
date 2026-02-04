@@ -60,6 +60,7 @@ def init_database():
                 date TEXT PRIMARY KEY,
                 mileage REAL,
                 fuel_cost REAL,
+                route_data TEXT,
                 updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
             )
         """)
@@ -90,6 +91,12 @@ def init_database():
             cursor.execute("ALTER TABLE verbal_pay_confirmations ADD COLUMN updated_at TIMESTAMP")
             # Update existing rows to set updated_at = created_at
             cursor.execute("UPDATE verbal_pay_confirmations SET updated_at = created_at WHERE updated_at IS NULL")
+        
+        # Add route_data column if it doesn't exist (for existing databases)
+        try:
+            cursor.execute("SELECT route_data FROM runsheet_daily_data LIMIT 1")
+        except sqlite3.OperationalError:
+            cursor.execute("ALTER TABLE runsheet_daily_data ADD COLUMN route_data TEXT")
         
         # Initialize expense categories table
         cursor.execute("""
