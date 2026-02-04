@@ -4,6 +4,27 @@
 }
 
 /* Make extra status badges clickable */
+/* Runsheets page specific styles */
+
+/* Week shading for alternating weeks */
+table tbody tr.week-even,
+table tbody tr.week-even td {
+    background-color: #e7f3ff !important;
+}
+
+table tbody tr.week-odd,
+table tbody tr.week-odd td {
+    background-color: #ffffff !important;
+}
+
+.card.week-even {
+    background-color: #e7f3ff !important;
+}
+
+.card.week-odd {
+    background-color: #ffffff !important;
+}
+
 .cursor-pointer {
     cursor: pointer;
 }

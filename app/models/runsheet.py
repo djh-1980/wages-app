@@ -160,10 +160,13 @@ class RunsheetModel:
             SELECT 
                 id, date, job_number, customer, activity, job_address,
                 status, pay_amount, pay_rate, pay_units, pay_week, pay_year,
-                pay_updated_at, imported_at, postcode, notes, price_agreed
+                pay_updated_at, imported_at, postcode, notes, price_agreed, route_order
             FROM run_sheet_jobs
             WHERE date = ?
-            ORDER BY job_number
+            ORDER BY 
+                CASE WHEN route_order IS NOT NULL THEN 0 ELSE 1 END,
+                route_order,
+                job_number
         """
         rows = execute_query(query, (date,), fetch_all=True)
         return [dict(row) for row in rows]

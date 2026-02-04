@@ -48,8 +48,9 @@ def api_upload_files():
         files = request.files.getlist('files')
         file_type = request.form.get('type', 'general')  # payslips, runsheets, general
         auto_process = request.form.get('auto_process', 'true').lower() == 'true'
+        overwrite = request.form.get('overwrite', 'false').lower() == 'true'
         
-        log_settings_action('FILE_UPLOAD', f'Processing {len(files)} files, type: {file_type}, auto_process: {auto_process}')
+        log_settings_action('FILE_UPLOAD', f'Processing {len(files)} files, type: {file_type}, auto_process: {auto_process}, overwrite: {overwrite}')
         
         if not files or all(file.filename == '' for file in files):
             return jsonify({'error': 'No files selected'}), 400
@@ -107,7 +108,7 @@ def api_upload_files():
                 import threading
                 thread = threading.Thread(
                     target=process_uploaded_files_background,
-                    args=(uploaded_files, file_type)
+                    args=(uploaded_files, file_type, overwrite)
                 )
                 thread.daemon = True
                 thread.start()
@@ -261,7 +262,7 @@ def scan_directories():
         return jsonify({'error': str(e)}), 500
 
 # Helper functions
-def process_uploaded_files(uploaded_files, file_type):
+def process_uploaded_files(uploaded_files, file_type, overwrite=False):
     """Process uploaded files based on type."""
     results = []
     
@@ -269,12 +270,12 @@ def process_uploaded_files(uploaded_files, file_type):
         file_path = file_info['path']
         
         if file_type == 'runsheets':
-            result = process_single_runsheet(file_path)
+            result = process_single_runsheet(file_path, overwrite)
         elif file_type == 'payslips':
             result = process_single_payslip(file_path)
         else:
             # Auto-detect and process
-            result = auto_detect_and_process(file_path)
+            result = auto_detect_and_process(file_path, overwrite)
         
         results.append({
             'file': file_info['original_name'],
@@ -284,11 +285,11 @@ def process_uploaded_files(uploaded_files, file_type):
     return results
 
 
-def process_uploaded_files_background(uploaded_files, file_type):
+def process_uploaded_files_background(uploaded_files, file_type, overwrite=False):
     """Process uploaded files in background to avoid timeout."""
     try:
-        log_settings_action('FILE_UPLOAD', f'Background processing started for {len(uploaded_files)} files')
-        results = process_uploaded_files(uploaded_files, file_type)
+        log_settings_action('FILE_UPLOAD', f'Background processing started for {len(uploaded_files)} files (overwrite={overwrite})')
+        results = process_uploaded_files(uploaded_files, file_type, overwrite)
         
         success_count = sum(1 for r in results if r['result'].get('success'))
         log_settings_action('FILE_UPLOAD', f'Background processing complete: {success_count}/{len(results)} successful')
@@ -311,11 +312,15 @@ def process_single_payslip(file_path):
         'error': process.stderr if process.returncode != 0 else None
     }
 
-def process_single_runsheet(file_path):
+def process_single_runsheet(file_path, overwrite=False):
     """Process a single runsheet file and organize it."""
     # First, import the runsheet data
+    cmd = [sys.executable, 'scripts/production/import_run_sheets.py', '--file', file_path]
+    if overwrite:
+        cmd.append('--overwrite')
+    
     import_process = subprocess.run(
-        [sys.executable, 'scripts/production/import_run_sheets.py', '--file', file_path],
+        cmd,
         capture_output=True,
         text=True,
         timeout=60
@@ -355,7 +360,7 @@ def process_single_runsheet(file_path):
         'error': import_process.stderr
     }
 
-def auto_detect_and_process(file_path):
+def auto_detect_and_process(file_path, overwrite=False):
     """Auto-detect file type and process accordingly."""
     # Simple heuristic based on filename and content
     filename = Path(file_path).name.lower()
@@ -363,7 +368,7 @@ def auto_detect_and_process(file_path):
     if 'payslip' in filename or 'saser' in filename:
         return process_single_payslip(file_path)
     elif 'runsheet' in filename or 'run' in filename:
-        return process_single_runsheet(file_path)
+        return process_single_runsheet(file_path, overwrite)
     else:
         # Try both and see which succeeds
         try:
@@ -374,7 +379,7 @@ def auto_detect_and_process(file_path):
             pass
         
         try:
-            runsheet_result = process_single_runsheet(file_path)
+            runsheet_result = process_single_runsheet(file_path, overwrite)
             if runsheet_result['success']:
                 return runsheet_result
         except:

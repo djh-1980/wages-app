@@ -31,6 +31,9 @@ class RunSheetImporter:
         self.setup_logging()
         self.setup_database()
         
+        # Track dates that have been overwritten in this session
+        self.overwritten_dates = set()
+        
         # Enhanced activity patterns for better recognition
         self.activity_patterns = [
             'TECH EXCHANGE', 'NON TECH EXCHANGE', 'REPAIR WITH PARTS', 
@@ -80,6 +83,13 @@ class RunSheetImporter:
         # Add status column if it doesn't exist (for existing databases)
         try:
             cursor.execute("ALTER TABLE run_sheet_jobs ADD COLUMN status TEXT DEFAULT 'pending'")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
+        
+        # Add route_order column if it doesn't exist (for route optimization)
+        try:
+            cursor.execute("ALTER TABLE run_sheet_jobs ADD COLUMN route_order INTEGER")
         except sqlite3.OperationalError:
             # Column already exists
             pass
@@ -2238,15 +2248,30 @@ class RunSheetImporter:
         
         return jobs
     
-    def import_run_sheet(self, file_path: Path, base_path: Path = None) -> int:
+    def delete_jobs_for_dates(self, dates: List[str]):
+        """Delete all jobs for the specified dates (format: DD/MM/YYYY)."""
+        if not dates:
+            return
+        
+        cursor = self.conn.cursor()
+        for date in dates:
+            cursor.execute("DELETE FROM run_sheet_jobs WHERE date = ?", (date,))
+            deleted_count = cursor.rowcount
+            if deleted_count > 0:
+                print(f"  Deleted {deleted_count} existing jobs for {date}")
+            # Track this date as overwritten
+            self.overwritten_dates.add(date)
+        self.conn.commit()
+    
+    def import_run_sheet(self, file_path: Path, base_path: Path = None, overwrite: bool = False) -> int:
         """Import a single run sheet file."""
         # Check if this file has already been imported
         cursor = self.conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM run_sheet_jobs WHERE source_file = ?", (file_path.name,))
         already_imported = cursor.fetchone()[0] > 0
         
-        if already_imported:
-            # Skip already imported files
+        if already_imported and not overwrite:
+            # Skip already imported files unless overwrite is enabled
             return 0
         
         if base_path:
@@ -2268,6 +2293,19 @@ class RunSheetImporter:
             if not jobs:
                 print(f"  ⚠️  No jobs found for {self.name}")
                 return 0
+            
+            # Check if any dates in this file have already been overwritten
+            unique_dates = list(set(job.get('date') for job in jobs if job.get('date')))
+            if not overwrite and any(date in self.overwritten_dates for date in unique_dates):
+                overlapping_dates = [d for d in unique_dates if d in self.overwritten_dates]
+                print(f"  ⚠️  Skipping file - dates {overlapping_dates} were already overwritten in this session")
+                return 0
+            
+            # If overwrite is enabled, delete existing jobs for these dates
+            if overwrite:
+                if unique_dates:
+                    print(f"  Overwrite mode: Deleting existing jobs for {len(unique_dates)} date(s)")
+                    self.delete_jobs_for_dates(unique_dates)
             
             # Insert jobs into database
             cursor = self.conn.cursor()
@@ -2556,6 +2594,7 @@ def main():
     parser.add_argument('--date', type=str, help='Import files for specific date (YYYY-MM-DD)')
     parser.add_argument('--date-range', nargs=2, metavar=('START', 'END'), help='Import files for date range (YYYY-MM-DD YYYY-MM-DD)')
     parser.add_argument('--force-reparse', action='store_true', help='Force re-parsing of existing files')
+    parser.add_argument('--overwrite', action='store_true', help='Delete existing jobs for these dates before importing')
     args = parser.parse_args()
     
     importer = RunSheetImporter(name=args.name)
@@ -2569,7 +2608,9 @@ def main():
                 sys.exit(1)
             
             print(f"Importing single file: {file_path}")
-            imported = importer.import_run_sheet(file_path)
+            if args.overwrite:
+                print("⚠️  Overwrite mode enabled - will delete existing jobs for these dates")
+            imported = importer.import_run_sheet(file_path, overwrite=args.overwrite)
             
             if imported > 0:
                 print(f"\n✓ Successfully imported {imported} jobs from {file_path.name}")

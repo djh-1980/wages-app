@@ -45,25 +45,41 @@ class FileUploadManager {
                 
                 <div class="upload-options mt-3" style="display: none;">
                     <div class="row g-2">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <select class="form-select" id="fileTypeSelect">
                                 <option value="auto">Auto-detect type</option>
                                 <option value="payslips">Payslips</option>
                                 <option value="runsheets">Runsheets</option>
                             </select>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-check">
                                 <input class="form-check-input" type="checkbox" id="autoProcessCheck" checked>
                                 <label class="form-check-label" for="autoProcessCheck">
-                                    Auto-process after upload
+                                    Auto-process
                                 </label>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
+                            <div class="form-check">
+                                <input class="form-check-input" type="checkbox" id="overwriteCheck">
+                                <label class="form-check-label" for="overwriteCheck" title="Delete existing jobs for these dates and replace with new data">
+                                    <i class="bi bi-exclamation-triangle text-warning"></i> Overwrite
+                                </label>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
                             <button type="button" class="btn btn-success w-100" id="uploadBtn" disabled>
-                                <i class="bi bi-upload"></i> Upload Files
+                                <i class="bi bi-upload"></i> Upload
                             </button>
+                        </div>
+                    </div>
+                    <div class="row mt-2" id="overwriteWarning" style="display: none;">
+                        <div class="col-12">
+                            <div class="alert alert-warning alert-sm mb-0 py-2">
+                                <i class="bi bi-exclamation-triangle me-1"></i>
+                                <small><strong>Warning:</strong> Overwrite will delete ALL existing jobs for the dates in these runsheets and replace them with new data.</small>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -95,6 +111,8 @@ class FileUploadManager {
         const fileInput = document.getElementById('fileInput');
         const browseBtn = document.getElementById('browseBtn');
         const uploadBtn = document.getElementById('uploadBtn');
+        const overwriteCheck = document.getElementById('overwriteCheck');
+        const overwriteWarning = document.getElementById('overwriteWarning');
         
         // Drag and drop events
         uploadArea.addEventListener('dragover', this.handleDragOver.bind(this));
@@ -114,6 +132,11 @@ class FileUploadManager {
         
         // Upload button
         uploadBtn.addEventListener('click', this.startUpload.bind(this));
+        
+        // Overwrite checkbox - show/hide warning
+        overwriteCheck.addEventListener('change', (e) => {
+            overwriteWarning.style.display = e.target.checked ? 'block' : 'none';
+        });
     }
     
     handleDragOver(e) {
@@ -225,6 +248,7 @@ class FileUploadManager {
         
         const fileType = document.getElementById('fileTypeSelect').value;
         const autoProcess = document.getElementById('autoProcessCheck').checked;
+        const overwrite = document.getElementById('overwriteCheck').checked;
         
         try {
             const formData = new FormData();
@@ -235,6 +259,7 @@ class FileUploadManager {
             
             formData.append('type', fileType === 'auto' ? 'general' : fileType);
             formData.append('auto_process', autoProcess ? 'true' : 'false');
+            formData.append('overwrite', overwrite ? 'true' : 'false');
             
             const response = await fetch('/api/upload/files', {
                 method: 'POST',

@@ -417,10 +417,36 @@
         </div>
     </div>
 </div>
+
+<!-- Job Notes Modal -->
+<div class="modal fade" id="jobNotesModal" tabindex="-1" aria-labelledby="jobNotesModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="jobNotesModalLabel">Job Notes</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="mb-3">
+                    <label for="jobNotesText" class="form-label">Notes / Reminders</label>
+                    <textarea class="form-control" id="jobNotesText" rows="5" placeholder="e.g., 2 desks to install - need to be paid for 2 desks"></textarea>
+                    <small class="text-muted">Add notes or reminders about this job (e.g., multiple items, special requirements)</small>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="saveJobNotesBtn" onclick="saveJobNotes()">
+                    <i class="bi bi-save"></i> Save Notes
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
 {% endblock %}
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/runsheets.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/runsheet-analytics.js') }}?v={{ range(1000, 9999) | random }}"></script>
+<script src="{{ url_for('static', filename='js/route-planning.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/runsheets-init.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}

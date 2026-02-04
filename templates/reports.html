@@ -521,7 +521,7 @@
             </div>
 
             <!-- Mileage Charts -->
-            <div class="col-md-8">
+            <div class="col-12">
                 <div class="card">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
@@ -544,127 +544,72 @@
                 </div>
             </div>
 
-            <div class="col-md-4">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="bi bi-pie-chart text-success"></i> Fuel Cost Breakdown
-                        </h5>
-                        <div class="chart-container-small">
-                            <canvas id="fuelCostChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Mileage Reports -->
-            <div class="col-md-6">
-                <div class="card">
-                    <div class="card-body">
-                        <h5 class="card-title">
-                            <i class="bi bi-file-earmark-text text-info"></i> Mileage Reports
-                        </h5>
-                        <p class="card-text text-muted">Generate detailed mileage and fuel cost reports.</p>
-                        
-                        <div class="list-group list-group-flush">
-                            <div class="list-group-item">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <i class="bi bi-calendar-month text-primary"></i>
-                                        <strong>Monthly Summary</strong>
-                                        <br>
-                                        <small class="text-muted">Miles and costs by month</small>
-                                    </div>
-                                    <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="generateMonthlyMileageReport('csv')">
-                                            <i class="bi bi-file-earmark-spreadsheet"></i> CSV
-                                        </button>
-                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="generateMonthlyMileageReport('pdf')">
-                                            <i class="bi bi-file-earmark-pdf"></i> PDF
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="list-group-item">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <i class="bi bi-speedometer2 text-warning"></i>
-                                        <strong>High Mileage Days</strong>
-                                        <br>
-                                        <small class="text-muted">Days with 200+ miles</small>
-                                    </div>
-                                    <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="generateHighMileageDays('csv')">
-                                            <i class="bi bi-file-earmark-spreadsheet"></i> CSV
-                                        </button>
-                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="generateHighMileageDays('pdf')">
-                                            <i class="bi bi-file-earmark-pdf"></i> PDF
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="list-group-item">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <i class="bi bi-fuel-pump text-success"></i>
-                                        <strong>Fuel Efficiency</strong>
-                                        <br>
-                                        <small class="text-muted">Cost per mile analysis</small>
-                                    </div>
-                                    <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="generateFuelEfficiencyReport('csv')">
-                                            <i class="bi bi-file-earmark-spreadsheet"></i> CSV
-                                        </button>
-                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="generateFuelEfficiencyReport('pdf')">
-                                            <i class="bi bi-file-earmark-pdf"></i> PDF
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <div class="list-group-item">
-                                <div class="d-flex justify-content-between align-items-center">
-                                    <div>
-                                        <i class="bi bi-exclamation-triangle text-danger"></i>
-                                        <strong>Missing Data</strong>
-                                        <br>
-                                        <small class="text-muted">Find gaps in mileage records</small>
-                                    </div>
-                                    <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-outline-primary btn-sm" onclick="generateMissingMileageReport('csv')">
-                                            <i class="bi bi-file-earmark-spreadsheet"></i> CSV
-                                        </button>
-                                        <button type="button" class="btn btn-outline-danger btn-sm" onclick="generateMissingMileageReport('pdf')">
-                                            <i class="bi bi-file-earmark-pdf"></i> PDF
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Recent Mileage Data -->
-            <div class="col-md-6">
+            <!-- Batch Mileage Estimation -->
+            <div class="col-12">
                 <div class="card">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
-                            <h5 class="card-title mb-0">
-                                <i class="bi bi-clock-history text-secondary"></i> Recent Mileage
-                            </h5>
-                            <button class="btn btn-sm btn-outline-primary" onclick="loadRecentMileage()">
-                                <i class="bi bi-arrow-clockwise"></i> Refresh
-                            </button>
+                            <div>
+                                <h5 class="card-title mb-0">
+                                    <i class="bi bi-calculator text-success"></i> Batch Mileage Estimation
+                                </h5>
+                                <p class="text-muted mb-0">Automatically estimate mileage for days with missing records using route optimization</p>
+                            </div>
+                            <div class="d-flex gap-2">
+                                <select class="form-select form-select-sm" id="batchEstimateYear" style="width: auto;">
+                                    <option value="">Select Year</option>
+                                    <option value="2026">2026</option>
+                                    <option value="2025">2025</option>
+                                    <option value="2024">2024</option>
+                                    <option value="2023">2023</option>
+                                    <option value="2022">2022</option>
+                                </select>
+                                <button class="btn btn-success btn-sm" id="batchEstimateBtn" onclick="startBatchEstimation()">
+                                    <i class="bi bi-lightning-charge"></i> Estimate All Missing
+                                </button>
+                            </div>
                         </div>
-                        <div id="recentMileageData">
-                            <div class="text-center py-4">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
+                        
+                        <!-- Progress Bar -->
+                        <div id="batchEstimationProgress" style="display: none;">
+                            <div class="alert alert-info">
+                                <div class="d-flex justify-content-between align-items-center mb-2">
+                                    <span><i class="bi bi-hourglass-split"></i> Estimating mileage...</span>
+                                    <span id="progressText">0 / 0</span>
                                 </div>
-                                <p class="mt-2 text-muted">Loading recent data...</p>
+                                <div class="progress">
+                                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" role="progressbar" style="width: 0%"></div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Preview Table -->
+                        <div id="estimationPreview" style="display: none;">
+                            <div class="alert alert-success">
+                                <i class="bi bi-check-circle"></i> Estimation complete! Review the results below and save when ready.
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover">
+                                    <thead>
+                                        <tr>
+                                            <th>Date</th>
+                                            <th>Jobs</th>
+                                            <th class="text-end">Estimated Miles</th>
+                                            <th class="text-end">Estimated Time</th>
+                                            <th class="text-center">Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="estimationPreviewBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="d-flex justify-content-end gap-2 mt-3">
+                                <button class="btn btn-secondary" onclick="cancelBatchEstimation()">
+                                    <i class="bi bi-x-circle"></i> Cancel
+                                </button>
+                                <button class="btn btn-primary" onclick="saveBatchEstimation()">
+                                    <i class="bi bi-save"></i> Save All Estimates
+                                </button>
                             </div>
                         </div>
                     </div>
@@ -1126,5 +1071,6 @@
 <script src="{{ url_for('static', filename='js/reports.js') }}"></script>
 <script src="{{ url_for('static', filename='js/weekly-summary.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/verbal-pay.js') }}?v={{ range(1000, 9999) | random }}"></script>
+<script src="{{ url_for('static', filename='js/mileage-batch-estimation.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/mileage-management.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}

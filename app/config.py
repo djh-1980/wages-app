@@ -15,6 +15,10 @@ load_dotenv()
 class Config:
     """Base configuration class."""
     
+    # Application Version
+    VERSION = '2.1.0'
+    BUILD_DATE = '2026.02.04'
+    
     # Base Directory
     BASE_DIR = Path(__file__).resolve().parent.parent
     

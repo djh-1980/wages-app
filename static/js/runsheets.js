@@ -11,6 +11,16 @@ let currentFilters = {
     day: ''
 };
 
+// Helper function to calculate simple week number for shading
+function calculateSimpleWeek(dateStr) {
+    const dateParts = dateStr.split('/');
+    const dateObj = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+    const dayOfWeek = dateObj.getDay(); // 0 = Sunday
+    const weekStart = new Date(dateObj);
+    weekStart.setDate(dateObj.getDate() - dayOfWeek); // Go back to Sunday
+    return Math.floor(weekStart.getTime() / (7 * 24 * 60 * 60 * 1000));
+}
+
 // Note: This file is now used on the dedicated runsheets page
 // Data loading is triggered from the page template
 
@@ -232,6 +242,11 @@ async function loadRunSheetsList(page = 1) {
             tbody.innerHTML = data.runsheets.map(rs => {
                 const activities = rs.activities ? rs.activities.split(',').slice(0, 3).join(', ') : 'N/A';
                 
+                // Use company week number if available from backend, otherwise calculate simple week
+                const weekNumber = rs.company_week || calculateSimpleWeek(rs.date);
+                const isEvenWeek = weekNumber % 2 === 0;
+                const weekClass = isEvenWeek ? 'week-even' : 'week-odd';
+                
                 // Get completion status for this date
                 const status = statusData[rs.date];
                 let statusBadge = '';
@@ -273,7 +288,7 @@ async function loadRunSheetsList(page = 1) {
                 }
 
                 return `
-                    <tr>
+                    <tr class="${weekClass}">
                         <td><strong>${rs.date}</strong></td>
                         <td class="text-center">
                             <span class="badge bg-primary">${rs.job_count} jobs</span>
@@ -297,6 +312,11 @@ async function loadRunSheetsList(page = 1) {
             if (mobileCards) {
                 mobileCards.innerHTML = data.runsheets.map(rs => {
                 const activities = rs.activities ? rs.activities.split(',').slice(0, 2).join(', ') : 'N/A';
+                
+                // Use company week number for shading
+                const weekNumber = rs.company_week || calculateSimpleWeek(rs.date);
+                const isEvenWeek = weekNumber % 2 === 0;
+                const weekClass = isEvenWeek ? 'week-even' : 'week-odd';
                 
                 // Get completion status for this date
                 const status = statusData[rs.date];
@@ -333,7 +353,7 @@ async function loadRunSheetsList(page = 1) {
                 }
                 
                 return `
-                    <div class="card mb-3 shadow-sm" style="border-radius: 12px;">
+                    <div class="card mb-3 shadow-sm ${weekClass}" style="border-radius: 12px;">
                         <div class="card-body p-3">
                             <div class="d-flex justify-content-between align-items-start mb-2">
                                 <div>
@@ -433,8 +453,12 @@ async function viewRunSheetJobs(date) {
         const response = await fetch(`/api/runsheets/jobs?date=${encodeURIComponent(date)}`);
         const data = await response.json();
         
-        // Store jobs globally for edit function
+        // Store jobs and date globally for edit function and route optimization
         window.currentRunsheetJobs = data.jobs;
+        window.currentRunsheetDate = date;
+        
+        // Check if route was previously optimized
+        const hasRouteOrder = data.jobs && data.jobs.length > 0 && data.jobs.some(job => job.route_order !== null);
         
         if (data.jobs && data.jobs.length > 0) {
             // Debug: log first job to see what data we have
@@ -462,12 +486,17 @@ async function viewRunSheetJobs(date) {
                                 <div class="mb-3">
                                     <div class="d-flex justify-content-between align-items-start mb-2">
                                         <p class="mb-0"><strong>${data.jobs.length} jobs</strong> on this day</p>
-                                        <p class="mb-0 text-success fw-bold">
-                                            Total Pay: ${(() => {
-                                                const totalPay = data.jobs.reduce((sum, job) => sum + (job.pay_amount || 0), 0);
-                                                return totalPay > 0 ? CurrencyFormatter.format(totalPay) : 'No pay data';
-                                            })()}
-                                        </p>
+                                        <div class="d-flex gap-2 align-items-center">
+                                            <button class="btn btn-sm btn-success" id="optimizeRouteBtn" onclick="optimizeRoute('${date}')">
+                                                <i class="bi bi-map"></i> Optimize Route
+                                            </button>
+                                            <p class="mb-0 text-success fw-bold">
+                                                Total Pay: ${(() => {
+                                                    const totalPay = data.jobs.reduce((sum, job) => sum + (job.pay_amount || 0), 0);
+                                                    return totalPay > 0 ? CurrencyFormatter.format(totalPay) : 'No pay data';
+                                                })()}
+                                            </p>
+                                        </div>
                                     </div>
                                     <div class="d-flex flex-wrap gap-1">
                                         <span class="badge bg-success" id="completedCount">0 Completed</span>
@@ -504,7 +533,10 @@ async function viewRunSheetJobs(date) {
                                                     <td><strong>${job.job_number}</strong></td>
                                                     <td>${mappedCustomer || 'N/A'}</td>
                                                     <td><span class="badge bg-info">${job.activity || 'N/A'}</span></td>
-                                                    <td><small>${job.job_address || 'N/A'}, ${job.postcode || ''}</small></td>
+                                                    <td>
+                                                        <small>${job.job_address || 'N/A'}, ${job.postcode || ''}</small>
+                                                        ${job.notes ? `<div class="mt-1"><span class="badge bg-warning text-dark" style="cursor: pointer; white-space: normal; text-align: left; display: block;" onclick="openJobNotesModal(${job.id}, '${job.job_number.replace(/'/g, "\\'")}')" title="Click to edit note"><i class="bi bi-sticky-fill me-1"></i>${job.notes}</span></div>` : `<div class="mt-1"><small class="text-muted" style="cursor: pointer;" onclick="openJobNotesModal(${job.id}, '${job.job_number.replace(/'/g, "\\'")}')" title="Click to add note"><i class="bi bi-plus-circle me-1"></i>Add note</small></div>`}
+                                                    </td>
                                                     <td>
                                                         <span class="status-badge ${status === 'extra' ? 'cursor-pointer' : ''}" id="status-${job.id}" ${status === 'extra' ? `onclick="editExtraJob(${job.id}, '${date}')" title="Click to edit"` : ''}>${statusBadge}</span>
                                                         ${job.price_agreed && job.price_agreed > 0 ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-currency-pound"></i> £${job.price_agreed.toFixed(2)}</span></div>` : ''}
@@ -565,7 +597,8 @@ async function viewRunSheetJobs(date) {
                                                     </div>
                                                     ${job.pay_amount ? `<strong class="text-success">£${job.pay_amount.toFixed(2)}</strong>` : '<span class="text-muted small">No pay data</span>'}
                                                 </div>
-                                                <p class="mb-3 small text-muted" style="font-size: 0.85rem; line-height: 1.4;">${job.job_address || 'N/A'}${job.postcode ? ', ' + job.postcode : ''}</p>
+                                                <p class="mb-2 small text-muted" style="font-size: 0.85rem; line-height: 1.4;">${job.job_address || 'N/A'}${job.postcode ? ', ' + job.postcode : ''}</p>
+                                                ${job.notes ? `<div class="mb-3"><span class="badge bg-warning text-dark w-100 py-2" style="cursor: pointer; white-space: normal; text-align: left; font-size: 0.85rem;" onclick="openJobNotesModal(${job.id}, '${job.job_number}')" title="Tap to edit note"><i class="bi bi-sticky-fill me-1"></i>${job.notes}</span></div>` : `<div class="mb-3"><small class="text-muted" style="cursor: pointer; display: block;" onclick="openJobNotesModal(${job.id}, '${job.job_number}')" title="Tap to add note"><i class="bi bi-plus-circle me-1"></i>Add note</small></div>`}
                                                 <div class="d-grid gap-3">
                                                     <button class="btn btn-success py-3" onclick="updateJobStatus(${job.id}, 'completed')" style="font-size: 1rem; font-weight: 500;">
                                                         <i class="bi bi-check-circle me-2"></i>Completed
@@ -668,7 +701,8 @@ async function viewRunSheetJobs(date) {
                                         <input type="number" class="form-control py-3" id="fuelCost-${date}" 
                                                placeholder="Enter fuel cost" step="0.01" min="0" style="font-size: 1rem;">
                                     </div>
-                                </div>
+                                <!-- Optimized Route Display -->
+                                <div id="optimizedRouteContainer" style="display: none;"></div>
                             </div>
                             <div class="modal-footer">
                                 <button type="button" class="btn btn-success" onclick="showAddJobForm('${date}')">
@@ -704,6 +738,78 @@ async function viewRunSheetJobs(date) {
             
             // Load existing mileage and fuel cost
             loadDailyData(date);
+            
+            // If route was previously optimized, load and show route details from database
+            if (hasRouteOrder) {
+                setTimeout(async () => {
+                    const container = document.getElementById('optimizedRouteContainer');
+                    if (container && window.displayOptimizedRoute) {
+                        try {
+                            // Try to load from database first
+                            const response = await fetch(`/api/route-planning/get-saved-route/${encodeURIComponent(date)}`);
+                            const routeData = await response.json();
+                            
+                            if (routeData.success && routeData.route) {
+                                // Display full route with collapsible section from database
+                                window.displayOptimizedRoute(routeData);
+                            } else {
+                                // Fallback to localStorage if database doesn't have it
+                                const localData = window.getStoredRouteData ? window.getStoredRouteData(date) : null;
+                                if (localData && localData.route) {
+                                    window.displayOptimizedRoute(localData);
+                                } else if (localData) {
+                                    container.innerHTML = `
+                                        <div class="alert alert-success mt-3">
+                                            <h6 class="mb-2">
+                                                <i class="bi bi-check-circle-fill"></i> Route Optimized!
+                                            </h6>
+                                            <div class="row">
+                                                <div class="col-md-4">
+                                                    <strong>Total Distance:</strong> ${localData.total_distance_miles} miles
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <strong>Estimated Time:</strong> ${Math.floor(localData.total_duration_minutes / 60)}h ${Math.round(localData.total_duration_minutes % 60)}m
+                                                </div>
+                                                <div class="col-md-4">
+                                                    <strong>Jobs:</strong> ${localData.total_jobs}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    `;
+                                    container.style.display = 'block';
+                                } else {
+                                    container.innerHTML = `
+                                        <div class="alert alert-success mt-3">
+                                            <h6 class="mb-2">
+                                                <i class="bi bi-check-circle-fill"></i> Route Previously Optimized!
+                                            </h6>
+                                            <p class="mb-0 text-muted">Jobs are shown in optimized route order. Click "Optimize Route" to recalculate.</p>
+                                        </div>
+                                    `;
+                                    container.style.display = 'block';
+                                }
+                            }
+                        } catch (error) {
+                            console.error('Failed to load saved route:', error);
+                            // Show basic message if loading fails
+                            container.innerHTML = `
+                                <div class="alert alert-success mt-3">
+                                    <h6 class="mb-2">
+                                        <i class="bi bi-check-circle-fill"></i> Route Previously Optimized!
+                                    </h6>
+                                    <p class="mb-0 text-muted">Jobs are shown in optimized route order. Click "Optimize Route" to recalculate.</p>
+                                </div>
+                            `;
+                            container.style.display = 'block';
+                        }
+                    }
+                    const btn = document.getElementById('optimizeRouteBtn');
+                    if (btn) {
+                        btn.innerHTML = '<i class="bi bi-check-circle-fill"></i> Route Optimized';
+                        btn.classList.add('btn-success');
+                    }
+                }, 100);
+            }
             
             // Add formatting to fuel cost field when user finishes entering value
             const fuelCostInput = document.getElementById(`fuelCost-${date}`);
@@ -755,12 +861,19 @@ async function updateJobStatus(jobId, status) {
     console.log('Found badges:', allStatusBadges.length);
     
     if (allRows.length > 0 && allStatusBadges.length > 0) {
-        const newBadgeHTML = getStatusBadge(status);
+        // Check current status - if clicking same status, toggle back to pending
+        const currentStatus = allRows[0].dataset.status;
+        const newStatus = (currentStatus === status) ? 'pending' : status;
+        
+        console.log('Current status:', currentStatus);
+        console.log('Final status:', newStatus);
+        
+        const newBadgeHTML = getStatusBadge(newStatus);
         console.log('New badge HTML:', newBadgeHTML);
         
         // Update ALL instances (desktop and mobile)
         allRows.forEach(row => {
-            row.dataset.status = status;
+            row.dataset.status = newStatus;
             console.log('Updated row:', row);
         });
         
@@ -782,7 +895,7 @@ async function updateJobStatus(jobId, status) {
                 },
                 body: JSON.stringify({
                     job_id: jobId,
-                    status: status
+                    status: newStatus
                 })
             });
             
@@ -790,6 +903,26 @@ async function updateJobStatus(jobId, status) {
             
             if (result.success) {
                 console.log('✓ Status saved to database');
+                
+                // Auto-optimize route only when changing TO completed/missed/DNCO (not when toggling back to pending)
+                if (['completed', 'missed', 'dnco', 'DNCO'].includes(newStatus) && 
+                    currentStatus !== newStatus && 
+                    window.optimizeRoute && 
+                    window.currentRunsheetDate) {
+                    console.log(`Job marked as ${newStatus} - triggering route optimization`);
+                    setTimeout(async () => {
+                        try {
+                            await window.optimizeRoute(window.currentRunsheetDate);
+                            // Auto-save the optimized route
+                            if (window.saveRouteOrder) {
+                                await window.saveRouteOrder();
+                                console.log('✓ Route auto-saved after status change');
+                            }
+                        } catch (error) {
+                            console.error('Failed to auto-optimize route:', error);
+                        }
+                    }, 500);
+                }
             } else {
                 console.error('Error saving status:', result.error);
                 alert('Error saving status: ' + (result.error || 'Unknown error'));
@@ -1130,7 +1263,14 @@ async function saveAllJobStatuses(date) {
     const mileage = mileageValue === '' ? null : parseFloat(mileageValue);
     const fuelCost = fuelCostValue === '' ? null : parseFloat(fuelCostValue);
     
-    if (updates.length === 0 && mileage === null && fuelCost === null) {
+    // Save route order if route was optimized
+    let routeOrderSaved = false;
+    if (window.saveRouteOrder) {
+        const routeResult = await window.saveRouteOrder();
+        routeOrderSaved = routeResult.success;
+    }
+    
+    if (updates.length === 0 && mileage === null && fuelCost === null && !routeOrderSaved) {
         alert('No changes to save');
         return;
     }
@@ -1155,6 +1295,9 @@ async function saveAllJobStatuses(date) {
             let message = '';
             if (updates.length > 0) {
                 message += `Updated ${updates.length} job statuses. `;
+            }
+            if (routeOrderSaved) {
+                message += 'Route order saved. ';
             }
             if (mileage !== null || fuelCost !== null) {
                 message += 'Saved mileage and fuel cost.';
@@ -1203,6 +1346,123 @@ async function deleteJob(jobId, date) {
         }
     } catch (error) {
         console.error('Error deleting job:', error);
-        alert('Error deleting job');
+        alert('Error deleting job. Please try again.');
     }
+}
+
+// Job Notes Functions
+let currentJobNotesId = null;
+
+async function openJobNotesModal(jobId, jobNumber) {
+    currentJobNotesId = jobId;
+    
+    // Get existing notes
+    try {
+        const response = await fetch(`/api/jobs/${jobId}/notes`);
+        const data = await response.json();
+        
+        if (data.success) {
+            const notes = data.notes || '';
+            const newNotes = prompt(`Notes for Job #${jobNumber}:\n\n(e.g., "2 desks to install - need to be paid for 2 desks")`, notes);
+            
+            if (newNotes !== null && newNotes !== notes) {
+                // Save the notes
+                await saveJobNotesInline(jobId, newNotes);
+            }
+        }
+    } catch (error) {
+        console.error('Error loading notes:', error);
+        alert('Error loading notes');
+    }
+}
+
+async function saveJobNotesInline(jobId, notes) {
+    try {
+        const response = await fetch(`/api/jobs/${jobId}/notes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ notes })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Reload the current view to update the note icon
+            const currentDate = document.querySelector('.modal.show .modal-title')?.textContent.match(/\d{2}\/\d{2}\/\d{4}/);
+            if (currentDate) {
+                viewRunSheetJobs(currentDate[0]);
+            }
+            alert('Notes saved successfully');
+        } else {
+            alert('Error saving notes: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error saving notes:', error);
+        alert('Error saving notes');
+    }
+}
+
+async function saveJobNotes() {
+    if (!currentJobNotesId) return;
+    
+    const notes = document.getElementById('jobNotesText').value;
+    const saveBtn = document.getElementById('saveJobNotesBtn');
+    const originalText = saveBtn.innerHTML;
+    
+    try {
+        saveBtn.disabled = true;
+        saveBtn.innerHTML = '<i class="bi bi-hourglass-split"></i> Saving...';
+        
+        const response = await fetch(`/api/jobs/${currentJobNotesId}/notes`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ notes })
+        });
+        
+        const data = await response.json();
+        
+        if (data.success) {
+            // Close modal
+            const modal = bootstrap.Modal.getInstance(document.getElementById('jobNotesModal'));
+            modal.hide();
+            
+            // Reload the jobs view to update the note icon
+            const dateElement = document.querySelector('.modal.show .modal-title');
+            if (dateElement) {
+                const date = dateElement.textContent.match(/\d{2}\/\d{2}\/\d{4}/);
+                if (date) {
+                    viewRunSheetJobs(date[0]);
+                }
+            }
+            
+            showNotification('Notes saved successfully', 'success');
+        } else {
+            alert('Error saving notes: ' + (data.error || 'Unknown error'));
+        }
+    } catch (error) {
+        console.error('Error saving notes:', error);
+        alert('Error saving notes');
+    } finally {
+        saveBtn.disabled = false;
+        saveBtn.innerHTML = originalText;
+    }
+}
+
+function showNotification(message, type = 'info') {
+    // Simple notification - you can enhance this
+    const alertClass = type === 'success' ? 'alert-success' : type === 'danger' ? 'alert-danger' : 'alert-info';
+    const notification = document.createElement('div');
+    notification.className = `alert ${alertClass} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
+    notification.style.zIndex = '9999';
+    notification.innerHTML = `
+        ${message}
+        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+    `;
+    document.body.appendChild(notification);
+    
+    setTimeout(() => notification.remove(), 3000);
 }
