@@ -7,12 +7,29 @@ from datetime import datetime
 import os
 
 # Version Information
-APP_VERSION = "2.4.0"
-BUILD_DATE = "2026.01.13"
-RELEASE_DATE = datetime(2026, 1, 13)
+APP_VERSION = "2.5.0"
+BUILD_DATE = "2026.02.04"
+RELEASE_DATE = datetime(2026, 2, 4)
 
 # Changelog - Add new entries at the top
 CHANGELOG = [
+    {
+        "version": "2.5.0",
+        "date": "February 4, 2026",
+        "type": "minor",  # major, minor, patch
+        "changes": [
+            "🗺️ NEW: Intelligent route optimization with automatic recalculation",
+            "📍 Completed jobs automatically move to top in completion order",
+            "🚫 DNCO jobs excluded from route calculations (never visited)",
+            "🔄 Status toggle - click action button twice to revert to pending",
+            "📊 Batch mileage estimation for historical dates (2025 and earlier)",
+            "🎯 Redesigned mileage management page with estimation tools",
+            "💾 Persistent route storage in database (survives browser clear)",
+            "🔀 Route recalculates when marking jobs as completed, missed, or DNCO",
+            "🏠 Routes include home → depot → jobs → home for accurate mileage",
+            "⚡ Progress bar and preview table for batch mileage estimation"
+        ]
+    },
     {
         "version": "2.4.0",
         "date": "January 13, 2026",
