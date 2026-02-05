@@ -62,12 +62,85 @@ def geocode_postcode(postcode):
         return None
 
 
-def calculate_route_simple(coordinates):
+def optimize_waypoint_order(coordinates, optimization_mode='distance'):
+    """
+    Optimize waypoint order using nearest-neighbor algorithm to minimize crisscrossing.
+    Returns optimized order of indices.
+    """
+    import math
+    
+    if len(coordinates) <= 2:
+        return list(range(len(coordinates)))
+    
+    # Calculate distance between two points (Haversine formula)
+    def haversine_distance(coord1, coord2):
+        lon1, lat1 = coord1
+        lon2, lat2 = coord2
+        R = 6371  # Earth radius in km
+        
+        dlat = math.radians(lat2 - lat1)
+        dlon = math.radians(lon2 - lon1)
+        a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+        c = 2 * math.asin(math.sqrt(a))
+        return R * c
+    
+    # Nearest neighbor algorithm
+    n = len(coordinates)
+    visited = [False] * n
+    order = []
+    
+    # Start from first point (home)
+    current = 0
+    order.append(current)
+    visited[current] = True
+    
+    # Visit remaining points in nearest-neighbor order
+    for _ in range(n - 1):
+        nearest_dist = float('inf')
+        nearest_idx = -1
+        
+        for i in range(n):
+            if not visited[i]:
+                dist = haversine_distance(coordinates[current], coordinates[i])
+                if dist < nearest_dist:
+                    nearest_dist = dist
+                    nearest_idx = i
+        
+        if nearest_idx != -1:
+            order.append(nearest_idx)
+            visited[nearest_idx] = True
+            current = nearest_idx
+    
+    return order
+
+def calculate_route_simple(coordinates, optimization_mode='distance'):
     """
     Calculate route through multiple waypoints using OpenRouteService.
+    Route order: Home → Depot → Optimized Jobs → Home
+    Only job waypoints are optimized, home and depot stay fixed.
     Returns route with distance and duration.
     """
     try:
+        # Optimize job waypoints only
+        # Structure: [Home, Depot, Job1, Job2, ..., JobN, Home]
+        # Keep: Home (index 0), Depot (index 1), Home (index -1) fixed
+        # Optimize: Jobs (indices 2 to -2)
+        
+        if len(coordinates) > 4:  # Home + Depot + at least 1 job + Home return
+            home_start = coordinates[0]
+            depot = coordinates[1]
+            jobs = coordinates[2:-1]  # All jobs (exclude home start, depot, and home return)
+            home_end = coordinates[-1]
+            
+            # Optimize job order starting from depot location
+            jobs_with_depot = [depot] + jobs
+            optimized_order = optimize_waypoint_order(jobs_with_depot, optimization_mode)
+            
+            # Rebuild coordinates: Home → Depot → Optimized Jobs → Home
+            # Skip first item in optimized_order (it's the depot)
+            optimized_jobs = [jobs_with_depot[i] for i in optimized_order[1:]]
+            coordinates = [home_start, depot] + optimized_jobs + [home_end]
+        
         # Use OSRM API (free, no key needed)
         # Format: lon,lat;lon,lat;...
         coords_str = ';'.join([f"{coord[0]},{coord[1]}" for coord in coordinates])
@@ -103,7 +176,8 @@ def calculate_route_simple(coordinates):
                 'total_duration_seconds': route.get('duration', 0),
                 'total_distance_miles': round(route.get('distance', 0) * 0.000621371, 2),
                 'total_duration_minutes': round(route.get('duration', 0) / 60, 1),
-                'legs': legs
+                'legs': legs,
+                'optimized_coordinates': coordinates  # Return optimized order
             }
         
         return {'success': False, 'error': 'No route found'}
@@ -117,50 +191,31 @@ def calculate_route_simple(coordinates):
 def optimize_route_for_date():
     """
     Optimize route for a specific date's jobs.
-    Expects: { "date": "DD/MM/YYYY", "include_depot": true/false }
+    Expects: { "date": "DD/MM/YYYY", "include_depot": true/false, "optimization_mode": "distance"|"time" }
     Returns optimized job order with distances and times.
     """
     try:
         data = request.get_json() or {}
         date = data.get('date')
         include_depot = data.get('include_depot', True)
+        optimization_mode = data.get('optimization_mode', 'distance')  # 'distance' or 'time'
         
         if not date:
             return jsonify({'success': False, 'error': 'Date is required'}), 400
         
         # Get jobs for this date
-        # For historical estimation, include all jobs (except deleted)
-        # For current day optimization, exclude completed/DNCO jobs
+        # Only optimize pending jobs - exclude completed, DNCO, and missed
         with get_db_connection() as conn:
             cursor = conn.cursor()
             
-            # Check if this is a historical date (not today)
-            from datetime import datetime
-            try:
-                job_date = datetime.strptime(date, '%d/%m/%Y').date()
-                today = datetime.now().date()
-                is_historical = job_date < today
-            except:
-                is_historical = False
-            
-            if is_historical:
-                # Historical: include all jobs except deleted and DNCO (never visited)
-                cursor.execute("""
-                    SELECT id, job_number, customer, job_address, postcode, activity
-                    FROM run_sheet_jobs
-                    WHERE date = ?
-                    AND status NOT IN ('deleted', 'dnco', 'DNCO')
-                    ORDER BY id
-                """, (date,))
-            else:
-                # Current day: exclude completed/DNCO jobs
-                cursor.execute("""
-                    SELECT id, job_number, customer, job_address, postcode, activity
-                    FROM run_sheet_jobs
-                    WHERE date = ?
-                    AND status NOT IN ('deleted', 'dnco', 'DNCO', 'completed')
-                    ORDER BY id
-                """, (date,))
+            # Only include pending jobs for route optimization
+            cursor.execute("""
+                SELECT id, job_number, customer, job_address, postcode, activity
+                FROM run_sheet_jobs
+                WHERE date = ?
+                AND status NOT IN ('deleted', 'dnco', 'DNCO', 'completed', 'missed')
+                ORDER BY id
+            """, (date,))
             
             jobs = []
             for row in cursor.fetchall():
@@ -231,15 +286,34 @@ def optimize_route_for_date():
         if len(waypoints) < 3:
             return jsonify({'success': False, 'error': 'Not enough valid postcodes to create route'}), 400
         
-        # Calculate route
-        route_result = calculate_route_simple(waypoints)
+        # Store original waypoints and info for reordering
+        original_waypoints = waypoints.copy()
+        original_waypoint_info = waypoint_info.copy()
+        
+        # Calculate route with optimization mode (this reorders waypoints internally)
+        route_result = calculate_route_simple(waypoints, optimization_mode=optimization_mode)
         
         if not route_result.get('success'):
             return jsonify({'success': False, 'error': route_result.get('error', 'Route calculation failed')}), 500
         
-        # Build response with waypoint details
+        # Get optimized coordinates to determine new order
+        optimized_coords = route_result.get('optimized_coordinates', waypoints)
+        
+        # Reorder waypoint_info to match optimized coordinates
+        reordered_waypoint_info = []
+        used_indices = set()  # Track which waypoints we've already matched
+        
+        for opt_coord in optimized_coords:
+            # Find matching waypoint info by comparing coordinates
+            for i, orig_coord in enumerate(original_waypoints):
+                if i not in used_indices and abs(opt_coord[0] - orig_coord[0]) < 0.0001 and abs(opt_coord[1] - orig_coord[1]) < 0.0001:
+                    reordered_waypoint_info.append(original_waypoint_info[i])
+                    used_indices.add(i)
+                    break
+        
+        # Build response with reordered waypoint details
         optimized_route = []
-        for i, waypoint in enumerate(waypoint_info):
+        for i, waypoint in enumerate(reordered_waypoint_info):
             leg_info = route_result['legs'][i] if i < len(route_result['legs']) else None
             
             optimized_route.append({

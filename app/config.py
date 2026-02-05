@@ -46,6 +46,9 @@ class Config:
     GMAIL_TOKEN_FILE = os.environ.get('GMAIL_TOKEN') or 'token.json'
     GMAIL_SCOPES = ['https://www.googleapis.com/auth/gmail.readonly']
     
+    # Google Maps API
+    GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')
+    
     # Sync Configuration
     AUTO_SYNC_ENABLED = os.environ.get('AUTO_SYNC_ENABLED', 'true').lower() == 'true'
     SYNC_TIMEOUT_SECONDS = int(os.environ.get('SYNC_TIMEOUT', '300'))  # 5 minutes

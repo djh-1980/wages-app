@@ -87,13 +87,13 @@ async function loadDiscrepancyReport() {
                     </div>
                     <div class="col-md-4">
                         <p class="text-warning"><strong>Missing from Runsheets:</strong> ${summary.missing_from_runsheets_count}</p>
-                        <p class="text-warning"><strong>Value:</strong> £${summary.missing_from_runsheets_value?.toFixed(2)}</p>
+                        <p class="text-warning"><strong>Value:</strong> ${CurrencyFormatter.format(summary.missing_from_runsheets_value)}</p>
                         <p class="text-danger"><strong>Missing from Payslips:</strong> ${summary.missing_from_payslips_count}</p>
-                        <p class="text-danger"><strong>Value:</strong> £${summary.missing_from_payslips_value?.toFixed(2)}</p>
+                        <p class="text-danger"><strong>Value:</strong> ${CurrencyFormatter.format(summary.missing_from_payslips_value)}</p>
                     </div>
                     <div class="col-md-4">
                         <p class="text-info"><strong>Amount Mismatches:</strong> ${summary.amount_mismatches_count}</p>
-                        <p class="text-info"><strong>Total Difference:</strong> £${summary.amount_mismatches_difference?.toFixed(2)}</p>
+                        <p class="text-info"><strong>Total Difference:</strong> ${CurrencyFormatter.format(summary.amount_mismatches_difference)}</p>
                     </div>
                 </div>
             </div>
@@ -105,7 +105,7 @@ async function loadDiscrepancyReport() {
                 <div class="card border-warning mb-3">
                     <div class="card-header bg-warning text-dark">
                         <h6 class="mb-0"><i class="bi bi-exclamation-triangle"></i> Jobs Paid but Missing from Runsheets (${data.missing_from_runsheets.length})</h6>
-                        <small>You were paid £${summary.missing_from_runsheets_value?.toFixed(2)} for these but don't have runsheet records</small>
+                        <small>You were paid ${CurrencyFormatter.format(summary.missing_from_runsheets_value)} for these but don't have runsheet records</small>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -125,7 +125,7 @@ async function loadDiscrepancyReport() {
                                             <td><strong>${j.job_number}</strong></td>
                                             <td>${j.client || 'N/A'}</td>
                                             <td>${j.location || 'N/A'}</td>
-                                            <td class="text-success"><strong>£${j.amount?.toFixed(2)}</strong></td>
+                                            <td class="text-success"><strong>${CurrencyFormatter.format(j.amount)}</strong></td>
                                             <td>${j.date || 'N/A'}</td>
                                         </tr>
                                     `).join('')}
@@ -143,7 +143,7 @@ async function loadDiscrepancyReport() {
                 <div class="card border-danger mb-3">
                     <div class="card-header bg-danger text-white">
                         <h6 class="mb-0"><i class="bi bi-exclamation-circle"></i> Jobs Worked but Not Paid (${data.missing_from_payslips.length})</h6>
-                        <small>You worked these jobs (£${summary.missing_from_payslips_value?.toFixed(2)}) but weren't paid</small>
+                        <small>You worked these jobs (${CurrencyFormatter.format(summary.missing_from_payslips_value)}) but weren't paid</small>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -164,7 +164,7 @@ async function loadDiscrepancyReport() {
                                             <td><strong>${j.job_number}</strong></td>
                                             <td>${j.customer || 'N/A'}</td>
                                             <td><small>${j.activity || 'N/A'}</small></td>
-                                            <td class="text-danger"><strong>£${j.pay_amount?.toFixed(2)}</strong></td>
+                                            <td class="text-danger"><strong>${CurrencyFormatter.format(j.pay_amount)}</strong></td>
                                             <td>${j.date || 'N/A'}</td>
                                             <td><span class="badge bg-secondary">${j.status}</span></td>
                                         </tr>
@@ -183,7 +183,7 @@ async function loadDiscrepancyReport() {
                 <div class="card border-info mb-3">
                     <div class="card-header bg-info text-white">
                         <h6 class="mb-0"><i class="bi bi-arrow-left-right"></i> Amount Mismatches (${data.amount_mismatches.length})</h6>
-                        <small>Jobs where payslip amount differs from runsheet amount (£${summary.amount_mismatches_difference?.toFixed(2)} total difference)</small>
+                        <small>Jobs where payslip amount differs from runsheet amount (${CurrencyFormatter.format(summary.amount_mismatches_difference)} total difference)</small>
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
@@ -203,10 +203,10 @@ async function loadDiscrepancyReport() {
                                         <tr>
                                             <td><strong>${j.job_number}</strong></td>
                                             <td>${j.customer || 'N/A'}</td>
-                                            <td class="text-success">£${j.payslip_amount?.toFixed(2)}</td>
-                                            <td class="text-primary">£${j.runsheet_amount?.toFixed(2)}</td>
+                                            <td class="text-success">${CurrencyFormatter.format(j.payslip_amount)}</td>
+                                            <td class="text-primary">${CurrencyFormatter.format(j.runsheet_amount)}</td>
                                             <td class="${j.difference > 0 ? 'text-success' : 'text-danger'}">
-                                                <strong>${j.difference > 0 ? '+' : ''}£${j.difference?.toFixed(2)}</strong>
+                                                <strong>${j.difference > 0 ? '+' : ''}${CurrencyFormatter.format(j.difference)}</strong>
                                             </td>
                                             <td>${j.date || 'N/A'}</td>
                                         </tr>
@@ -859,22 +859,145 @@ async function loadMileageData() {
             const costPerMileEl = document.getElementById('costPerMile');
             
             if (totalMilesEl) totalMilesEl.textContent = data.summary.total_miles.toLocaleString();
-            if (totalFuelCostEl) totalFuelCostEl.textContent = `£${data.summary.total_fuel_cost.toFixed(2)}`;
+            if (totalFuelCostEl) totalFuelCostEl.textContent = `£${data.summary.total_fuel_cost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
             if (avgMilesPerDayEl) avgMilesPerDayEl.textContent = data.summary.avg_miles_per_day.toFixed(1);
             if (costPerMileEl) costPerMileEl.textContent = `£${data.summary.cost_per_mile.toFixed(3)}`;
+            
+            // Calculate HMRC mileage allowance (45p first 10k miles, 25p after)
+            const totalMiles = data.summary.total_miles;
+            let allowance = 0;
+            if (totalMiles <= 10000) {
+                allowance = totalMiles * 0.45;
+            } else {
+                allowance = (10000 * 0.45) + ((totalMiles - 10000) * 0.25);
+            }
+            const taxYearAllowanceEl = document.getElementById('taxYearAllowance');
+            if (taxYearAllowanceEl) {
+                taxYearAllowanceEl.textContent = `£${allowance.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            }
+            
+            // Show actual costs for comparison
+            const actualCostsEl = document.getElementById('actualCosts');
+            if (actualCostsEl) {
+                actualCostsEl.textContent = `£${data.summary.total_fuel_cost.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+            }
             
             console.log('Summary cards updated');
             
             // Update charts
             console.log('Updating charts with data:', data.monthly_data.length, 'months');
             updateMileageTrendsChart(data.monthly_data);
-            updateFuelCostChart(data.fuel_breakdown);
+            updateFuelCostChartSeparate(data.monthly_data);
+            updateMonthlyBreakdownTable(data.monthly_data);
         } else {
             console.error('API returned error:', data.error);
         }
     } catch (error) {
         console.error('Error loading mileage data:', error);
     }
+}
+
+function updateMonthlyBreakdownTable(monthlyData) {
+    const tbody = document.getElementById('monthlyBreakdownBody');
+    if (!tbody || !monthlyData || monthlyData.length === 0) return;
+    
+    // Store data globally for sorting and export
+    window.monthlyMileageData = monthlyData;
+    
+    let html = '';
+    monthlyData.forEach(month => {
+        const efficiency = month.total_fuel_cost > 0 ? (month.total_miles / month.total_fuel_cost).toFixed(2) : 'N/A';
+        const avgPerDay = month.working_days > 0 ? (month.total_miles / month.working_days).toFixed(1) : '0.0';
+        
+        // Flag anomalies (unusually high or low)
+        const isHighMileage = month.total_miles > 3000;
+        const isLowMileage = month.total_miles < 500 && month.working_days > 0;
+        const rowClass = isHighMileage ? 'table-warning' : isLowMileage ? 'table-info' : '';
+        
+        html += `
+            <tr class="${rowClass}">
+                <td><strong>${month.month}</strong></td>
+                <td>${month.total_miles.toLocaleString()}</td>
+                <td>${CurrencyFormatter.format(month.total_fuel_cost)}</td>
+                <td>${efficiency}</td>
+                <td>${month.working_days || 0}</td>
+                <td>${avgPerDay}</td>
+            </tr>
+        `;
+    });
+    
+    tbody.innerHTML = html;
+}
+
+let sortDirection = {};
+function sortMonthlyTable(column) {
+    if (!window.monthlyMileageData) return;
+    
+    const direction = sortDirection[column] === 'asc' ? 'desc' : 'asc';
+    sortDirection[column] = direction;
+    
+    const sorted = [...window.monthlyMileageData].sort((a, b) => {
+        let valA, valB;
+        
+        switch(column) {
+            case 'month':
+                valA = a.month;
+                valB = b.month;
+                break;
+            case 'miles':
+                valA = a.total_miles;
+                valB = b.total_miles;
+                break;
+            case 'fuel':
+                valA = a.total_fuel_cost;
+                valB = b.total_fuel_cost;
+                break;
+            case 'efficiency':
+                valA = a.total_fuel_cost > 0 ? a.total_miles / a.total_fuel_cost : 0;
+                valB = b.total_fuel_cost > 0 ? b.total_miles / b.total_fuel_cost : 0;
+                break;
+            case 'days':
+                valA = a.working_days || 0;
+                valB = b.working_days || 0;
+                break;
+            case 'avg':
+                valA = a.working_days > 0 ? a.total_miles / a.working_days : 0;
+                valB = b.working_days > 0 ? b.total_miles / b.working_days : 0;
+                break;
+        }
+        
+        if (direction === 'asc') {
+            return valA > valB ? 1 : -1;
+        } else {
+            return valA < valB ? 1 : -1;
+        }
+    });
+    
+    updateMonthlyBreakdownTable(sorted);
+}
+
+function exportMileageCSV() {
+    if (!window.monthlyMileageData) return;
+    
+    let csv = 'Month,Miles,Fuel Cost,Miles per £,Working Days,Avg Miles/Day\n';
+    
+    window.monthlyMileageData.forEach(month => {
+        const efficiency = month.total_fuel_cost > 0 ? (month.total_miles / month.total_fuel_cost).toFixed(2) : '0';
+        const avgPerDay = month.working_days > 0 ? (month.total_miles / month.working_days).toFixed(1) : '0';
+        
+        csv += `${month.month},${month.total_miles},${month.total_fuel_cost.toFixed(2)},${efficiency},${month.working_days || 0},${avgPerDay}\n`;
+    });
+    
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `mileage-report-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+}
+
+function exportMileagePDF() {
+    alert('PDF export feature coming soon! For now, use CSV export or print this page.');
 }
 
 function updateMileageTrendsChart(monthlyData) {
@@ -897,9 +1020,8 @@ function updateMileageTrendsChart(monthlyData) {
     
     const months = monthlyData.map(d => d.month);
     const miles = monthlyData.map(d => d.total_miles);
-    const costs = monthlyData.map(d => d.total_fuel_cost);
     
-    console.log('Chart data prepared:', { months, miles, costs });
+    console.log('Chart data prepared:', { months, miles });
     
     // Check if Chart.js is loaded
     if (typeof Chart === 'undefined') {
@@ -916,31 +1038,99 @@ function updateMileageTrendsChart(monthlyData) {
                 data: miles,
                 borderColor: 'rgb(54, 162, 235)',
                 backgroundColor: 'rgba(54, 162, 235, 0.1)',
-                yAxisID: 'y'
-            }, {
-                label: 'Fuel Cost (£)',
-                data: costs,
-                borderColor: 'rgb(255, 99, 132)',
-                backgroundColor: 'rgba(255, 99, 132, 0.1)',
-                yAxisID: 'y1'
+                fill: true,
+                tension: 0.4
             }]
         },
         options: {
             responsive: true,
             maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                }
+            },
             scales: {
                 y: {
-                    type: 'linear',
-                    display: true,
-                    position: 'left',
-                    title: { display: true, text: 'Miles' }
-                },
-                y1: {
-                    type: 'linear',
-                    display: true,
-                    position: 'right',
-                    title: { display: true, text: 'Fuel Cost (£)' },
+                    beginAtZero: true,
+                    title: { display: true, text: 'Miles' },
                     grid: { drawOnChartArea: false }
+                }
+            }
+        }
+    });
+}
+
+function updateFuelCostChartSeparate(monthlyData) {
+    console.log('updateFuelCostChartSeparate called with data:', monthlyData);
+    const ctx = document.getElementById('fuelCostChart');
+    if (!ctx) {
+        console.error('fuelCostChart canvas not found');
+        return;
+    }
+    
+    // Destroy existing chart if it exists
+    if (window.fuelCostChartInstance && typeof window.fuelCostChartInstance.destroy === 'function') {
+        window.fuelCostChartInstance.destroy();
+    }
+    
+    if (!monthlyData || monthlyData.length === 0) {
+        console.warn('No monthly data provided for fuel cost chart');
+        return;
+    }
+    
+    const months = monthlyData.map(d => d.month);
+    const costs = monthlyData.map(d => d.total_fuel_cost);
+    
+    // Check if Chart.js is loaded
+    if (typeof Chart === 'undefined') {
+        console.error('Chart.js is not loaded');
+        return;
+    }
+    
+    window.fuelCostChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: months,
+            datasets: [{
+                label: 'Fuel Cost',
+                data: costs,
+                backgroundColor: 'rgba(255, 99, 132, 0.7)',
+                borderColor: 'rgb(255, 99, 132)',
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    display: false
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            let label = context.dataset.label || '';
+                            if (label) {
+                                label += ': ';
+                            }
+                            if (context.parsed.y !== null) {
+                                label += '£' + context.parsed.y.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                            }
+                            return label;
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    title: { display: true, text: 'Cost (£)' },
+                    ticks: {
+                        callback: function(value) {
+                            return '£' + value.toLocaleString('en-GB', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                        }
+                    }
                 }
             }
         }

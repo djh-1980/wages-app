@@ -26,7 +26,8 @@ main_bp = Blueprint('main', __name__)
 @main_bp.route('/')
 def index():
     """Main landing page - redirect to runsheets."""
-    return render_template('runsheets.html')
+    from ..config import Config
+    return render_template('runsheets.html', google_maps_api_key=Config.GOOGLE_MAPS_API_KEY)
 
 
 @main_bp.route('/wages')
@@ -44,7 +45,8 @@ def paypoint():
 @main_bp.route('/runsheets')
 def runsheets():
     """Run sheets page."""
-    return render_template('runsheets.html')
+    from ..config import Config
+    return render_template('runsheets.html', google_maps_api_key=Config.GOOGLE_MAPS_API_KEY)
 
 
 @main_bp.route('/reports')

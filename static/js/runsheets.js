@@ -539,7 +539,7 @@ async function viewRunSheetJobs(date) {
                                                     </td>
                                                     <td>
                                                         <span class="status-badge ${status === 'extra' ? 'cursor-pointer' : ''}" id="status-${job.id}" ${status === 'extra' ? `onclick="editExtraJob(${job.id}, '${date}')" title="Click to edit"` : ''}>${statusBadge}</span>
-                                                        ${job.price_agreed && job.price_agreed > 0 ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-currency-pound"></i> £${job.price_agreed.toFixed(2)}</span></div>` : ''}
+                                                        ${job.price_agreed && job.price_agreed > 0 ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-currency-pound"></i> ${CurrencyFormatter.format(job.price_agreed)}</span></div>` : ''}
                                                     </td>
                                                     <td class="text-end">
                                                         ${job.pay_amount ? `<strong class="${job.price_agreed && job.pay_amount < job.price_agreed ? 'text-danger' : 'text-success'}">${CurrencyFormatter.format(job.pay_amount)}${job.price_agreed && job.pay_amount < job.price_agreed ? ' <i class="bi bi-exclamation-triangle-fill"></i>' : ''}</strong>` : '<span class="text-muted">No pay data</span>'}
@@ -591,11 +591,11 @@ async function viewRunSheetJobs(date) {
                                                         <span class="badge bg-info px-3 py-2" style="font-size: 0.8rem;">${job.activity || 'N/A'}</span>
                                                         ${job.price_agreed && job.price_agreed > 0 ? `
                                                             <span class="badge bg-warning text-dark px-2 py-1 ms-2" style="font-size: 0.75rem;">
-                                                                Agreed: £${job.price_agreed.toFixed(2)}
+                                                                Agreed: ${CurrencyFormatter.format(job.price_agreed)}
                                                             </span>
                                                         ` : ''}
                                                     </div>
-                                                    ${job.pay_amount ? `<strong class="text-success">£${job.pay_amount.toFixed(2)}</strong>` : '<span class="text-muted small">No pay data</span>'}
+                                                    ${job.pay_amount ? `<strong class="text-success">${CurrencyFormatter.format(job.pay_amount)}</strong>` : '<span class="text-muted small">No pay data</span>'}
                                                 </div>
                                                 <p class="mb-2 small text-muted" style="font-size: 0.85rem; line-height: 1.4;">${job.job_address || 'N/A'}${job.postcode ? ', ' + job.postcode : ''}</p>
                                                 ${job.notes ? `<div class="mb-3"><span class="badge bg-warning text-dark w-100 py-2" style="cursor: pointer; white-space: normal; text-align: left; font-size: 0.85rem;" onclick="openJobNotesModal(${job.id}, '${job.job_number}')" title="Tap to edit note"><i class="bi bi-sticky-fill me-1"></i>${job.notes}</span></div>` : `<div class="mb-3"><small class="text-muted" style="cursor: pointer; display: block;" onclick="openJobNotesModal(${job.id}, '${job.job_number}')" title="Tap to add note"><i class="bi bi-plus-circle me-1"></i>Add note</small></div>`}
@@ -701,6 +701,7 @@ async function viewRunSheetJobs(date) {
                                         <input type="number" class="form-control py-3" id="fuelCost-${date}" 
                                                placeholder="Enter fuel cost" step="0.01" min="0" style="font-size: 1rem;">
                                     </div>
+                                </div>
                                 <!-- Optimized Route Display -->
                                 <div id="optimizedRouteContainer" style="display: none;"></div>
                             </div>
@@ -904,22 +905,31 @@ async function updateJobStatus(jobId, status) {
             if (result.success) {
                 console.log('✓ Status saved to database');
                 
-                // Auto-optimize route only when changing TO completed/missed/DNCO (not when toggling back to pending)
-                if (['completed', 'missed', 'dnco', 'DNCO'].includes(newStatus) && 
-                    currentStatus !== newStatus && 
-                    window.optimizeRoute && 
-                    window.currentRunsheetDate) {
-                    console.log(`Job marked as ${newStatus} - triggering route optimization`);
+                // Check if all jobs are now completed (no pending jobs left)
+                const allRows = document.querySelectorAll('[id^="job-row-"]');
+                const seenJobIds = new Set();
+                let pendingCount = 0;
+                
+                allRows.forEach(row => {
+                    const jobId = row.id.replace('job-row-', '');
+                    if (!seenJobIds.has(jobId)) {
+                        seenJobIds.add(jobId);
+                        const status = row.dataset.status;
+                        if (status === 'pending') {
+                            pendingCount++;
+                        }
+                    }
+                });
+                
+                // If no pending jobs left and we have optimized route data, save it
+                if (pendingCount === 0 && window.saveRouteOrder) {
+                    console.log('✓ All jobs completed - saving final route data');
                     setTimeout(async () => {
                         try {
-                            await window.optimizeRoute(window.currentRunsheetDate);
-                            // Auto-save the optimized route
-                            if (window.saveRouteOrder) {
-                                await window.saveRouteOrder();
-                                console.log('✓ Route auto-saved after status change');
-                            }
+                            await window.saveRouteOrder();
+                            console.log('✓ Final route data saved');
                         } catch (error) {
-                            console.error('Failed to auto-optimize route:', error);
+                            console.error('Failed to save final route data:', error);
                         }
                     }, 500);
                 }

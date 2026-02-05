@@ -520,13 +520,48 @@
                 </div>
             </div>
 
-            <!-- Mileage Charts -->
+            <!-- Mileage Allowance Calculator -->
             <div class="col-12">
+                <div class="card bg-light border-primary">
+                    <div class="card-body">
+                        <div class="row align-items-center mb-3">
+                            <div class="col-md-6">
+                                <h5 class="card-title mb-2">
+                                    <i class="bi bi-calculator text-success"></i> HMRC Mileage Allowance
+                                </h5>
+                                <p class="mb-0 text-muted">
+                                    <strong>45p/mile</strong> for first 10,000 miles, then <strong>25p/mile</strong>
+                                </p>
+                            </div>
+                            <div class="col-md-3 text-md-center">
+                                <div class="mt-2 mt-md-0">
+                                    <div class="text-muted small">Mileage Method</div>
+                                    <h4 class="mb-0 text-success" id="taxYearAllowance">£0.00</h4>
+                                </div>
+                            </div>
+                            <div class="col-md-3 text-md-center">
+                                <div class="mt-2 mt-md-0">
+                                    <div class="text-muted small">Actual Costs</div>
+                                    <h4 class="mb-0 text-danger" id="actualCosts">£0.00</h4>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="alert alert-warning mb-0">
+                            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+                            <strong>Tax Rule:</strong> You can claim <strong>EITHER</strong> mileage allowance <strong>OR</strong> actual van costs (fuel, insurance, repairs), not both. 
+                            Since you claim actual costs, this is for comparison only.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mileage Charts -->
+            <div class="col-md-6">
                 <div class="card">
                     <div class="card-body">
                         <div class="d-flex justify-content-between align-items-center mb-3">
                             <h5 class="card-title mb-0">
-                                <i class="bi bi-graph-up text-primary"></i> Monthly Mileage Trends
+                                <i class="bi bi-graph-up text-primary"></i> Monthly Mileage
                             </h5>
                             <select class="form-select form-select-sm" id="mileageYear" style="width: auto;" onchange="loadMileageData()">
                                 <option value="">All Years</option>
@@ -539,6 +574,73 @@
                         </div>
                         <div class="chart-container">
                             <canvas id="mileageTrendsChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Fuel Cost Chart -->
+            <div class="col-md-6">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-fuel-pump text-danger"></i> Monthly Fuel Cost
+                            </h5>
+                            <select class="form-select form-select-sm" id="fuelCostYear" style="width: auto;" onchange="loadMileageData()">
+                                <option value="">All Years</option>
+                                <option value="2026">2026</option>
+                                <option value="2025">2025</option>
+                                <option value="2024">2024</option>
+                                <option value="2023">2023</option>
+                                <option value="2022">2022</option>
+                            </select>
+                        </div>
+                        <div class="chart-container">
+                            <canvas id="fuelCostChart"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Monthly Breakdown Table -->
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-center mb-3">
+                            <h5 class="card-title mb-0">
+                                <i class="bi bi-table text-primary"></i> Monthly Breakdown
+                            </h5>
+                            <div class="d-flex gap-2">
+                                <button class="btn btn-success btn-sm" onclick="exportMileageCSV()">
+                                    <i class="bi bi-file-earmark-spreadsheet"></i> Export CSV
+                                </button>
+                                <button class="btn btn-danger btn-sm" onclick="exportMileagePDF()">
+                                    <i class="bi bi-file-earmark-pdf"></i> Export PDF
+                                </button>
+                            </div>
+                        </div>
+                        <div class="table-responsive">
+                            <table class="table table-hover table-sm" id="monthlyBreakdownTable">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th style="cursor: pointer;" onclick="sortMonthlyTable('month')">Month <i class="bi bi-arrow-down-up"></i></th>
+                                        <th style="cursor: pointer;" onclick="sortMonthlyTable('miles')">Miles <i class="bi bi-arrow-down-up"></i></th>
+                                        <th style="cursor: pointer;" onclick="sortMonthlyTable('fuel')">Fuel Cost <i class="bi bi-arrow-down-up"></i></th>
+                                        <th style="cursor: pointer;" onclick="sortMonthlyTable('efficiency')">Miles/£ <i class="bi bi-arrow-down-up"></i></th>
+                                        <th style="cursor: pointer;" onclick="sortMonthlyTable('days')">Working Days <i class="bi bi-arrow-down-up"></i></th>
+                                        <th style="cursor: pointer;" onclick="sortMonthlyTable('avg')">Avg Miles/Day <i class="bi bi-arrow-down-up"></i></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="monthlyBreakdownBody">
+                                    <tr>
+                                        <td colspan="6" class="text-center py-4">
+                                            <div class="spinner-border text-primary" role="status"></div>
+                                            <p class="mt-2 text-muted">Loading data...</p>
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
                         </div>
                     </div>
                 </div>
@@ -616,62 +718,6 @@
                 </div>
             </div>
 
-            <!-- Missing Mileage Management -->
-            <div class="col-12">
-                <div class="card">
-                    <div class="card-body">
-                        <div class="d-flex justify-content-between align-items-center mb-3">
-                            <div>
-                                <h5 class="card-title mb-0">
-                                    <i class="bi bi-exclamation-triangle text-warning"></i> Missing Mileage Data
-                                </h5>
-                                <p class="text-muted mb-0">Days with jobs but no mileage records - potential lost allowance</p>
-                            </div>
-                            <div class="d-flex gap-2">
-                                <select class="form-select form-select-sm" id="missingMileageYear" style="width: auto;" onchange="loadMissingMileageReport()">
-                                    <option value="">All Years</option>
-                                    <option value="2026">2026</option>
-                                    <option value="2025">2025</option>
-                                    <option value="2024">2024</option>
-                                    <option value="2023">2023</option>
-                                    <option value="2022">2022</option>
-                                    <option value="2021">2021</option>
-                                </select>
-                                <select class="form-select form-select-sm" id="missingMileageMonth" style="width: auto;" onchange="loadMissingMileageReport()">
-                                    <option value="">All Months</option>
-                                    <option value="01">January</option>
-                                    <option value="02">February</option>
-                                    <option value="03">March</option>
-                                    <option value="04">April</option>
-                                    <option value="05">May</option>
-                                    <option value="06">June</option>
-                                    <option value="07">July</option>
-                                    <option value="08">August</option>
-                                    <option value="09">September</option>
-                                    <option value="10">October</option>
-                                    <option value="11">November</option>
-                                    <option value="12">December</option>
-                                </select>
-                                <button class="btn btn-primary btn-sm" onclick="loadMissingMileageReport()">
-                                    <i class="bi bi-arrow-clockwise"></i> Refresh
-                                </button>
-                                <button class="btn btn-success btn-sm" onclick="showAddMileageModal()">
-                                    <i class="bi bi-plus-lg"></i> Add Entry
-                                </button>
-                            </div>
-                        </div>
-                        
-                        <div id="missingMileageReportContent">
-                            <div class="text-center py-5">
-                                <div class="spinner-border text-primary" role="status">
-                                    <span class="visually-hidden">Loading...</span>
-                                </div>
-                                <p class="mt-3 text-muted">Loading missing mileage report...</p>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-            </div>
         </div>
     </div>
 

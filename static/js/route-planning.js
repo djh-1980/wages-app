@@ -97,10 +97,15 @@ function displayOptimizedRoute(data) {
 
         <div class="card mt-3">
             <div class="card-header bg-primary text-white d-flex justify-content-between align-items-center" style="cursor: pointer;" onclick="toggleRouteDetails()">
-                <h6 class="mb-0"><i class="bi bi-signpost-2"></i> Optimized Route Order</h6>
+                <h6 class="mb-0">
+                    <i class="bi bi-signpost-2"></i> Optimized Route Order
+                </h6>
                 <i class="bi bi-chevron-down" id="routeToggleIcon"></i>
             </div>
             <div class="card-body p-0" id="routeDetailsBody" style="display: none;">
+                <!-- Map container at the top - responsive height -->
+                <div id="routeMapInline" style="height: 300px; width: 100%; border-bottom: 1px solid #dee2e6;"></div>
+                
                 <div class="list-group list-group-flush">
     `;
 
@@ -164,6 +169,31 @@ function displayOptimizedRoute(data) {
 
     container.innerHTML = html;
     container.style.display = 'block';
+    
+    // Store route data globally for map display
+    window.currentRouteData = data;
+    
+    // Create map modal if it doesn't exist
+    if (!document.getElementById('routeMapModal')) {
+        const mapModalHTML = `
+            <div class="modal fade" id="routeMapModal" tabindex="-1" aria-labelledby="routeMapModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-fullscreen">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title" id="routeMapModalLabel">
+                                <i class="bi bi-map"></i> Route Map
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body p-0">
+                            <div id="routeMap" style="height: 100%; width: 100%;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        document.body.insertAdjacentHTML('beforeend', mapModalHTML);
+    }
 }
 
 function reorderJobsInModal(data) {
@@ -172,31 +202,30 @@ function reorderJobsInModal(data) {
         return;
     }
     
+    console.log('Reordering jobs based on optimized route...');
+    console.log('Route waypoints:', data.route.length);
+    
     // Create a map of job IDs to their route order
     const routeOrderMap = new Map();
     let orderIndex = 1;
     
     data.route.forEach(waypoint => {
         if (waypoint.type === 'job' && waypoint.job) {
+            console.log(`Route position ${orderIndex}: Job ${waypoint.job.job_number} (ID: ${waypoint.job.id})`);
             routeOrderMap.set(waypoint.job.id, orderIndex++);
         }
     });
     
-    // Sort jobs: completed first (by when they were completed), then by route order
+    console.log('Route order map size:', routeOrderMap.size);
+    
+    // Sort jobs by optimized route order
     const sortedJobs = [...window.currentRunsheetJobs].sort((a, b) => {
-        const aCompleted = a.status === 'completed';
-        const bCompleted = b.status === 'completed';
-        
-        // If both completed or both not completed, sort by route order
-        if (aCompleted === bCompleted) {
-            const orderA = routeOrderMap.get(a.id) || 999;
-            const orderB = routeOrderMap.get(b.id) || 999;
-            return orderA - orderB;
-        }
-        
-        // Completed jobs go first
-        return aCompleted ? -1 : 1;
+        const orderA = routeOrderMap.get(a.id) || 999;
+        const orderB = routeOrderMap.get(b.id) || 999;
+        return orderA - orderB;
     });
+    
+    console.log('Jobs reordered. First 3 jobs:', sortedJobs.slice(0, 3).map(j => j.job_number));
     
     // Update global jobs array
     window.currentRunsheetJobs = sortedJobs;
@@ -227,7 +256,7 @@ function reRenderJobTable(jobs) {
                     </td>
                     <td>
                         <span class="status-badge ${status === 'extra' ? 'cursor-pointer' : ''}" id="status-${job.id}" ${status === 'extra' ? `onclick="editExtraJob(${job.id}, '${job.date}')" title="Click to edit"` : ''}>${statusBadge}</span>
-                        ${job.price_agreed && job.price_agreed > 0 ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-currency-pound"></i> £${job.price_agreed.toFixed(2)}</span></div>` : ''}
+                        ${job.price_agreed && job.price_agreed > 0 ? `<div class="mt-1"><span class="badge bg-warning text-dark"><i class="bi bi-currency-pound"></i> ${CurrencyFormatter.format(job.price_agreed)}</span></div>` : ''}
                     </td>
                     <td class="text-end">
                         ${job.pay_amount ? `<strong class="${job.price_agreed && job.pay_amount < job.price_agreed ? 'text-danger' : 'text-success'}">${CurrencyFormatter.format(job.pay_amount)}${job.price_agreed && job.pay_amount < job.price_agreed ? ' <i class="bi bi-exclamation-triangle-fill"></i>' : ''}</strong>` : '<span class="text-muted">No pay data</span>'}
@@ -317,12 +346,289 @@ function toggleRouteDetails() {
             body.style.display = 'block';
             icon.classList.remove('bi-chevron-down');
             icon.classList.add('bi-chevron-up');
+            
+            // Initialize inline map when expanded
+            if (!window.routeMapInlineInstance) {
+                setTimeout(() => {
+                    initializeInlineRouteMap();
+                }, 100);
+            }
         } else {
             body.style.display = 'none';
             icon.classList.remove('bi-chevron-up');
             icon.classList.add('bi-chevron-down');
         }
     }
+}
+
+function initializeInlineRouteMap() {
+    if (!window.currentRouteData || !window.currentRouteData.route) {
+        console.error('No route data available for inline map');
+        return;
+    }
+    
+    const mapElement = document.getElementById('routeMapInline');
+    if (!mapElement) {
+        console.error('Inline map element not found');
+        return;
+    }
+    
+    // Check if Google Maps is loaded
+    if (typeof google === 'undefined' || !google.maps) {
+        console.error('Google Maps not loaded');
+        return;
+    }
+    
+    const route = window.currentRouteData.route;
+    
+    // Initialize map
+    const map = new google.maps.Map(mapElement, {
+        zoom: 10,
+        center: { lat: 53.4808, lng: -2.2426 }, // Manchester center
+        mapTypeId: 'roadmap'
+    });
+    
+    const directionsService = new google.maps.DirectionsService();
+    const directionsRenderer = new google.maps.DirectionsRenderer({
+        map: map,
+        suppressMarkers: true,
+        polylineOptions: {
+            strokeColor: '#4285F4',
+            strokeOpacity: 0.8,
+            strokeWeight: 5
+        }
+    });
+    
+    // Collect waypoints
+    const waypoints = [];
+    
+    route.forEach((waypoint, index) => {
+        if (index > 0 && index < route.length - 1) {
+            waypoints.push({
+                location: waypoint.postcode,
+                stopover: true
+            });
+        }
+    });
+    
+    // Use Google Directions API
+    if (route.length >= 2) {
+        const origin = route[0].postcode;
+        const destination = route[route.length - 1].postcode;
+        
+        const request = {
+            origin: origin,
+            destination: destination,
+            waypoints: waypoints,
+            travelMode: 'DRIVING',
+            optimizeWaypoints: false
+        };
+        
+        directionsService.route(request, (result, status) => {
+            if (status === 'OK') {
+                directionsRenderer.setDirections(result);
+                
+                // Add custom markers
+                route.forEach((waypoint, index) => {
+                    const geocoder = new google.maps.Geocoder();
+                    
+                    geocoder.geocode({ address: waypoint.postcode }, (results, status) => {
+                        if (status === 'OK' && results[0]) {
+                            const position = results[0].geometry.location;
+                            
+                            let markerLabel = waypoint.sequence.toString();
+                            
+                            if (waypoint.type === 'home') {
+                                markerLabel = 'H';
+                            } else if (waypoint.type === 'depot') {
+                                markerLabel = 'D';
+                            }
+                            
+                            const marker = new google.maps.Marker({
+                                position: position,
+                                map: map,
+                                label: {
+                                    text: markerLabel,
+                                    color: 'white',
+                                    fontWeight: 'bold'
+                                },
+                                title: waypoint.label,
+                                zIndex: 1000
+                            });
+                            
+                            const infoContent = `
+                                <div style="padding: 10px;">
+                                    <h6>${waypoint.label}</h6>
+                                    <p style="margin: 5px 0;"><strong>Postcode:</strong> ${waypoint.postcode}</p>
+                                    ${waypoint.type === 'job' ? `
+                                        <p style="margin: 5px 0;"><strong>Job:</strong> #${waypoint.job.job_number}</p>
+                                        <p style="margin: 5px 0;"><strong>Activity:</strong> ${waypoint.job.activity}</p>
+                                    ` : ''}
+                                    ${waypoint.distance_to_next_miles > 0 ? `
+                                        <p style="margin: 5px 0; color: #1a73e8;">
+                                            <strong>Next:</strong> ${waypoint.distance_to_next_miles} mi (${waypoint.time_to_next_minutes} min)
+                                        </p>
+                                    ` : ''}
+                                </div>
+                            `;
+                            
+                            const infoWindow = new google.maps.InfoWindow({
+                                content: infoContent
+                            });
+                            
+                            marker.addListener('click', () => {
+                                infoWindow.open(map, marker);
+                            });
+                        }
+                    });
+                });
+            } else {
+                console.error('Directions request failed:', status);
+            }
+        });
+    }
+    
+    window.routeMapInlineInstance = map;
+}
+
+function initializeRouteMap() {
+    if (!window.currentRouteData || !window.currentRouteData.route) {
+        console.error('No route data available for map');
+        return;
+    }
+    
+    const mapElement = document.getElementById('routeMap');
+    if (!mapElement) {
+        console.error('Map element not found');
+        return;
+    }
+    
+    // Check if Google Maps is loaded
+    if (typeof google === 'undefined' || !google.maps) {
+        alert('Google Maps is loading... Please try again in a moment.');
+        return;
+    }
+    
+    const route = window.currentRouteData.route;
+    
+    // Initialize map
+    const map = new google.maps.Map(mapElement, {
+        zoom: 10,
+        center: { lat: 53.4808, lng: -2.2426 }, // Manchester center
+        mapTypeId: 'roadmap'
+    });
+    
+    const bounds = new google.maps.LatLngBounds();
+    const directionsService = new google.maps.DirectionsService();
+    const directionsRenderer = new google.maps.DirectionsRenderer({
+        map: map,
+        suppressMarkers: true, // We'll add custom markers
+        polylineOptions: {
+            strokeColor: '#4285F4',
+            strokeOpacity: 0.8,
+            strokeWeight: 5
+        }
+    });
+    
+    // Collect all waypoints with their postcodes
+    const waypoints = [];
+    const waypointData = [];
+    
+    route.forEach((waypoint, index) => {
+        waypointData.push(waypoint);
+        if (index > 0 && index < route.length - 1) {
+            // Middle waypoints for Directions API
+            waypoints.push({
+                location: waypoint.postcode,
+                stopover: true
+            });
+        }
+    });
+    
+    // Use Google Directions API to get actual road route
+    if (route.length >= 2) {
+        const origin = route[0].postcode;
+        const destination = route[route.length - 1].postcode;
+        
+        const request = {
+            origin: origin,
+            destination: destination,
+            waypoints: waypoints,
+            travelMode: 'DRIVING',
+            optimizeWaypoints: false // We already optimized
+        };
+        
+        directionsService.route(request, (result, status) => {
+            if (status === 'OK') {
+                directionsRenderer.setDirections(result);
+                
+                // Add custom markers for each waypoint
+                route.forEach((waypoint, index) => {
+                    const geocoder = new google.maps.Geocoder();
+                    
+                    geocoder.geocode({ address: waypoint.postcode }, (results, status) => {
+                        if (status === 'OK' && results[0]) {
+                            const position = results[0].geometry.location;
+                            bounds.extend(position);
+                            
+                            let markerLabel = waypoint.sequence.toString();
+                            let markerColor = '#4285F4';
+                            
+                            if (waypoint.type === 'home') {
+                                markerLabel = 'H';
+                                markerColor = '#34A853';
+                            } else if (waypoint.type === 'depot') {
+                                markerLabel = 'D';
+                                markerColor = '#4285F4';
+                            }
+                            
+                            const marker = new google.maps.Marker({
+                                position: position,
+                                map: map,
+                                label: {
+                                    text: markerLabel,
+                                    color: 'white',
+                                    fontWeight: 'bold'
+                                },
+                                title: waypoint.label,
+                                zIndex: 1000
+                            });
+                            
+                            const infoContent = `
+                                <div style="padding: 10px;">
+                                    <h6>${waypoint.label}</h6>
+                                    <p style="margin: 5px 0;"><strong>Postcode:</strong> ${waypoint.postcode}</p>
+                                    ${waypoint.type === 'job' ? `
+                                        <p style="margin: 5px 0;"><strong>Job:</strong> #${waypoint.job.job_number}</p>
+                                        <p style="margin: 5px 0;"><strong>Activity:</strong> ${waypoint.job.activity}</p>
+                                        <p style="margin: 5px 0;"><small>${waypoint.job.address}</small></p>
+                                    ` : ''}
+                                    ${waypoint.distance_to_next_miles > 0 ? `
+                                        <p style="margin: 5px 0; color: #1a73e8;">
+                                            <strong>Next:</strong> ${waypoint.distance_to_next_miles} mi (${waypoint.time_to_next_minutes} min)
+                                        </p>
+                                    ` : ''}
+                                </div>
+                            `;
+                            
+                            const infoWindow = new google.maps.InfoWindow({
+                                content: infoContent
+                            });
+                            
+                            marker.addListener('click', () => {
+                                infoWindow.open(map, marker);
+                            });
+                        }
+                    });
+                });
+            } else {
+                console.error('Directions request failed:', status);
+                alert('Could not load route on map. Error: ' + status);
+            }
+        });
+    }
+    
+    window.routeMapInstance = map;
 }
 
 async function saveRouteOrder() {

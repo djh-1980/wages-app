@@ -7,12 +7,37 @@ from datetime import datetime
 import os
 
 # Version Information
-APP_VERSION = "2.5.0"
-BUILD_DATE = "2026.02.04"
-RELEASE_DATE = datetime(2026, 2, 4)
+APP_VERSION = "2.6.0"
+BUILD_DATE = "2026.02.05"
+RELEASE_DATE = datetime(2026, 2, 5)
 
 # Changelog - Add new entries at the top
 CHANGELOG = [
+    {
+        "version": "2.6.0",
+        "date": "February 5, 2026",
+        "type": "minor",  # major, minor, patch
+        "changes": [
+            "🗺️ ENHANCED: Advanced route optimization with nearest-neighbor algorithm",
+            "🚫 Fixed route crisscrossing - routes now follow logical geographic flow",
+            "📍 Route structure: Home → Depot → Optimized Jobs → Home",
+            "🗺️ Interactive map with actual road routes (Google Directions API)",
+            "📱 Inline map display - no separate modal needed",
+            "🔄 Duplicate job handling for same-location addresses",
+            "📊 Job table reorders to match optimized route sequence",
+            "💾 All route data persists across devices (database storage)",
+            "🔒 Google Maps API key secured in environment variables",
+            "💰 HMRC Mileage Allowance calculator with tax comparison",
+            "📊 Side-by-side charts: Monthly Mileage + Fuel Cost breakdown",
+            "📈 Fuel efficiency tracking (Miles per £ spent)",
+            "📋 Monthly breakdown table with sortable columns",
+            "💾 CSV export for tax records and accountant submissions",
+            "⚠️ Anomaly detection - highlights unusual mileage months",
+            "💷 Site-wide thousand separators for all currency amounts",
+            "🧹 Removed redundant Missing Mileage Data section",
+            "📱 Mobile-optimized map and responsive layouts throughout"
+        ]
+    },
     {
         "version": "2.5.0",
         "date": "February 4, 2026",
