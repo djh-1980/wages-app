@@ -751,13 +751,30 @@ async function viewRunSheetJobs(date) {
                             const routeData = await response.json();
                             
                             if (routeData.success && routeData.route) {
+                                // Set global variables so map can be initialized
+                                if (window.currentOptimizedRoute !== undefined) {
+                                    window.currentOptimizedRoute = routeData;
+                                }
+                                if (window.currentRouteDate !== undefined) {
+                                    window.currentRouteDate = date;
+                                }
+                                
                                 // Display full route with collapsible section from database
                                 window.displayOptimizedRoute(routeData);
+                                console.log('✓ Loaded saved route from database with', routeData.route.length, 'waypoints');
                             } else {
                                 // Fallback to localStorage if database doesn't have it
                                 const localData = window.getStoredRouteData ? window.getStoredRouteData(date) : null;
                                 if (localData && localData.route) {
+                                    // Set global variables
+                                    if (window.currentOptimizedRoute !== undefined) {
+                                        window.currentOptimizedRoute = localData;
+                                    }
+                                    if (window.currentRouteDate !== undefined) {
+                                        window.currentRouteDate = date;
+                                    }
                                     window.displayOptimizedRoute(localData);
+                                    console.log('✓ Loaded route from localStorage');
                                 } else if (localData) {
                                     container.innerHTML = `
                                         <div class="alert alert-success mt-3">
