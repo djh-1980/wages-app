@@ -5,6 +5,7 @@ Uses OpenRouteService API for route optimization.
 
 from flask import Blueprint, jsonify, request
 import requests
+import math
 from ..utils.logging_utils import log_settings_action
 from ..database import get_db_connection
 
@@ -64,123 +65,182 @@ def geocode_postcode(postcode):
 
 def optimize_waypoint_order(coordinates, optimization_mode='distance'):
     """
-    Optimize waypoint order using nearest-neighbor algorithm to minimize crisscrossing.
-    Returns optimized order of indices.
+    Optimize waypoint order using nearest neighbor algorithm followed by 2-opt improvement.
+    Returns list of indices representing optimal order.
     """
-    import math
-    
     if len(coordinates) <= 2:
         return list(range(len(coordinates)))
     
-    # Calculate distance between two points (Haversine formula)
     def haversine_distance(coord1, coord2):
-        lon1, lat1 = coord1
-        lon2, lat2 = coord2
-        R = 6371  # Earth radius in km
+        """Calculate distance between two coordinates in km"""
+        lat1, lon1 = coord1[1], coord1[0]
+        lat2, lon2 = coord2[1], coord2[0]
         
-        dlat = math.radians(lat2 - lat1)
-        dlon = math.radians(lon2 - lon1)
-        a = math.sin(dlat/2)**2 + math.cos(math.radians(lat1)) * math.cos(math.radians(lat2)) * math.sin(dlon/2)**2
+        R = 6371  # Earth's radius in km
+        
+        lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+        dlat = lat2 - lat1
+        dlon = lon2 - lon1
+        
+        a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
         c = 2 * math.asin(math.sqrt(a))
+        
         return R * c
     
-    # Nearest neighbor algorithm
+    def calculate_total_distance(order, coords):
+        """Calculate total distance for a given route order"""
+        total = 0
+        for i in range(len(order) - 1):
+            total += haversine_distance(coords[order[i]], coords[order[i + 1]])
+        return total
+    
+    def two_opt_improve(order, coords, max_iterations=500):
+        """Improve route using 2-opt algorithm to eliminate crossings
+        Keep first element (depot) fixed, only optimize jobs after it"""
+        best_order = order[:]
+        best_distance = calculate_total_distance(best_order, coords)
+        improved = True
+        
+        while improved:
+            improved = False
+            
+            # Try all possible 2-opt swaps, keeping depot at index 0
+            # Start from index 1 to allow swapping the first job
+            for i in range(1, len(best_order) - 2):
+                for j in range(i + 2, len(best_order)):
+                    # Create new route by reversing segment between i and j
+                    # This keeps depot at position 0
+                    new_order = best_order[:i] + best_order[i:j][::-1] + best_order[j:]
+                    new_distance = calculate_total_distance(new_order, coords)
+                    
+                    if new_distance < best_distance:
+                        best_order = new_order
+                        best_distance = new_distance
+                        improved = True
+        
+        return best_order
+    
+    # Use angle-based sweep algorithm for better geographic routing
+    # This creates a logical flow around the depot instead of just picking nearest
+    import math
+    
     n = len(coordinates)
-    visited = [False] * n
-    order = []
+    if n <= 1:
+        return list(range(n))
     
-    # Start from first point (home)
-    current = 0
-    order.append(current)
-    visited[current] = True
+    depot = coordinates[0]
     
-    # Visit remaining points in nearest-neighbor order
-    for _ in range(n - 1):
-        nearest_dist = float('inf')
-        nearest_idx = -1
-        
-        for i in range(n):
-            if not visited[i]:
-                dist = haversine_distance(coordinates[current], coordinates[i])
-                if dist < nearest_dist:
-                    nearest_dist = dist
-                    nearest_idx = i
-        
-        if nearest_idx != -1:
-            order.append(nearest_idx)
-            visited[nearest_idx] = True
-            current = nearest_idx
+    # Calculate angle from depot to each point
+    def calculate_angle(point):
+        """Calculate angle from depot to point (in radians)"""
+        dx = point[0] - depot[0]  # longitude difference
+        dy = point[1] - depot[1]  # latitude difference
+        return math.atan2(dy, dx)
+    
+    # Create list of (index, angle, distance) for all points except depot
+    points_with_angles = []
+    for i in range(1, n):
+        angle = calculate_angle(coordinates[i])
+        dist = haversine_distance(depot, coordinates[i])
+        points_with_angles.append((i, angle, dist))
+    
+    # Sort by angle to create a sweep around the depot
+    # This creates a logical geographic flow (e.g., clockwise or counterclockwise)
+    points_with_angles.sort(key=lambda x: x[1])
+    
+    # Build initial order: depot first, then points in angular order
+    order = [0] + [p[0] for p in points_with_angles]
+    
+    # Apply 2-opt improvement to eliminate any remaining inefficiencies
+    order = two_opt_improve(order, coordinates)
     
     return order
 
 def calculate_route_simple(coordinates, optimization_mode='distance'):
     """
-    Calculate route through multiple waypoints using OpenRouteService.
+    Calculate route through multiple waypoints using Google Directions API with waypoint optimization.
     Route order: Home → Depot → Optimized Jobs → Home
     Only job waypoints are optimized, home and depot stay fixed.
     Returns route with distance and duration.
     """
     try:
-        # Optimize job waypoints only
+        from ..config import Config
+        
+        if len(coordinates) < 4:  # Need at least Home + Depot + 1 job + Home return
+            return {'success': False, 'error': 'Not enough waypoints for optimization'}
+        
         # Structure: [Home, Depot, Job1, Job2, ..., JobN, Home]
-        # Keep: Home (index 0), Depot (index 1), Home (index -1) fixed
-        # Optimize: Jobs (indices 2 to -2)
+        home_start = coordinates[0]
+        depot = coordinates[1]
+        jobs = coordinates[2:-1]  # All jobs (exclude home start, depot, and home return)
+        home_end = coordinates[-1]
         
-        if len(coordinates) > 4:  # Home + Depot + at least 1 job + Home return
-            home_start = coordinates[0]
-            depot = coordinates[1]
-            jobs = coordinates[2:-1]  # All jobs (exclude home start, depot, and home return)
-            home_end = coordinates[-1]
-            
-            # Optimize job order starting from depot location
-            jobs_with_depot = [depot] + jobs
-            optimized_order = optimize_waypoint_order(jobs_with_depot, optimization_mode)
-            
-            # Rebuild coordinates: Home → Depot → Optimized Jobs → Home
-            # Skip first item in optimized_order (it's the depot)
-            optimized_jobs = [jobs_with_depot[i] for i in optimized_order[1:]]
-            coordinates = [home_start, depot] + optimized_jobs + [home_end]
+        # Use Google Directions API with waypoint optimization
+        # Set origin as depot (not home) so route starts from depot
+        origin = f"{depot[1]},{depot[0]}"  # lat,lng - Start from depot
+        destination = f"{home_end[1]},{home_end[0]}"  # lat,lng - End at home
         
-        # Use OSRM API (free, no key needed)
-        # Format: lon,lat;lon,lat;...
-        coords_str = ';'.join([f"{coord[0]},{coord[1]}" for coord in coordinates])
+        # Only jobs go in waypoints to be optimized (depot is now origin)
+        waypoints_list = [f"{job[1]},{job[0]}" for job in jobs]  # Only jobs to optimize
+        waypoints_str = '|'.join(waypoints_list)
         
-        url = f"http://router.project-osrm.org/route/v1/driving/{coords_str}"
+        url = "https://maps.googleapis.com/maps/api/directions/json"
         params = {
-            'overview': 'full',
-            'geometries': 'geojson',
-            'steps': 'true'
+            'origin': origin,
+            'destination': destination,
+            'waypoints': f'optimize:true|{waypoints_str}',  # optimize:true tells Google to reorder job waypoints
+            'key': Config.GOOGLE_MAPS_API_KEY
         }
         
         response = requests.get(url, params=params, timeout=30)
         response.raise_for_status()
-        
         data = response.json()
         
-        if data.get('code') == 'Ok' and data.get('routes'):
+        if data.get('status') == 'OK' and data.get('routes'):
             route = data['routes'][0]
             
-            # Extract leg information (segments between waypoints)
+            # Get optimized waypoint order
+            waypoint_order = route.get('waypoint_order', [])
+            
+            # Rebuild coordinates in optimized order
+            # waypoint_order indices refer to jobs array
+            optimized_coords = [home_start, depot]  # Always start with home then depot
+            
+            # Add jobs in Google's optimized order
+            for idx in waypoint_order:
+                optimized_coords.append(jobs[idx])
+            
+            optimized_coords.append(home_end)  # End at home
+            
+            # Extract distance and duration
+            total_distance_meters = 0
+            total_duration_seconds = 0
             legs = []
+            
             for leg in route.get('legs', []):
+                dist = leg.get('distance', {}).get('value', 0)
+                dur = leg.get('duration', {}).get('value', 0)
+                total_distance_meters += dist
+                total_duration_seconds += dur
                 legs.append({
-                    'distance_meters': leg.get('distance', 0),
-                    'duration_seconds': leg.get('duration', 0),
-                    'distance_miles': round(leg.get('distance', 0) * 0.000621371, 2),
-                    'duration_minutes': round(leg.get('duration', 0) / 60, 1)
+                    'distance_meters': dist,
+                    'duration_seconds': dur,
+                    'distance_miles': round(dist * 0.000621371, 2),
+                    'duration_minutes': round(dur / 60, 1)
                 })
             
             return {
                 'success': True,
-                'total_distance_meters': route.get('distance', 0),
-                'total_duration_seconds': route.get('duration', 0),
-                'total_distance_miles': round(route.get('distance', 0) * 0.000621371, 2),
-                'total_duration_minutes': round(route.get('duration', 0) / 60, 1),
+                'total_distance_meters': total_distance_meters,
+                'total_duration_seconds': total_duration_seconds,
+                'total_distance_miles': round(total_distance_meters * 0.000621371, 2),
+                'total_duration_minutes': round(total_duration_seconds / 60, 1),
                 'legs': legs,
-                'optimized_coordinates': coordinates  # Return optimized order
+                'optimized_coordinates': optimized_coords,
+                'waypoint_order': waypoint_order
             }
         
-        return {'success': False, 'error': 'No route found'}
+        return {'success': False, 'error': f"Google API error: {data.get('status', 'Unknown')}"}
         
     except Exception as e:
         log_settings_action('ROUTE_PLANNING', f'Route calculation failed: {str(e)}', 'ERROR')
