@@ -29,6 +29,9 @@ async function optimizeRoute(date) {
             currentOptimizedRoute = data;
             currentRouteDate = date;
             
+            // Clear existing map instance so it gets re-initialized
+            window.routeMapInlineInstance = null;
+            
             // Store route data for later retrieval
             storeRouteData(date, {
                 total_distance_miles: data.total_distance_miles,

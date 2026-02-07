@@ -326,8 +326,23 @@ def process_single_runsheet(file_path, overwrite=False):
         timeout=60
     )
     
-    # If import successful, organize the file and sync with payslips
+    # If import successful, mark as manually uploaded and organize
     if import_process.returncode == 0:
+        # Mark all jobs from this upload as manually uploaded to protect from auto-sync
+        try:
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                # Get the date from the most recently imported jobs from this file
+                cursor.execute("""
+                    UPDATE run_sheet_jobs 
+                    SET manually_uploaded = 1 
+                    WHERE source_file = ? 
+                    AND imported_at >= datetime('now', '-1 minute')
+                """, (Path(file_path).name,))
+                conn.commit()
+                log_settings_action('MANUAL_UPLOAD', f'Marked {cursor.rowcount} jobs as manually uploaded from {Path(file_path).name}')
+        except Exception as e:
+            log_settings_action('MANUAL_UPLOAD', f'Failed to mark jobs as manually uploaded: {str(e)}', 'ERROR')
         # Organize the file
         organize_process = subprocess.run(
             [sys.executable, 'scripts/organize_uploaded_runsheets.py'],

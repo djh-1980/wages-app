@@ -94,6 +94,13 @@ class RunSheetImporter:
             # Column already exists
             pass
         
+        # Add manually_uploaded column to protect manual uploads from auto-sync overwrites
+        try:
+            cursor.execute("ALTER TABLE run_sheet_jobs ADD COLUMN manually_uploaded INTEGER DEFAULT 0")
+        except sqlite3.OperationalError:
+            # Column already exists
+            pass
+        
         self.conn.commit()
     
     def setup_logging(self):
@@ -2321,6 +2328,19 @@ class RunSheetImporter:
                     
                     if ('RICO' in customer or 'RICO' in activity or 'RICO' in address):
                         print(f"  Skipping RICO Depots job {job.get('job_number')} - {customer}")
+                        skipped_count += 1
+                        continue
+                    
+                    # Check if this date has been manually uploaded - if so, skip it
+                    cursor.execute("""
+                        SELECT manually_uploaded FROM run_sheet_jobs 
+                        WHERE date = ? 
+                        LIMIT 1
+                    """, (job.get('date'),))
+                    
+                    date_check = cursor.fetchone()
+                    if date_check and date_check[0] == 1:
+                        print(f"  Skipping date {job.get('date')} - manually uploaded, protected from auto-sync")
                         skipped_count += 1
                         continue
                     
