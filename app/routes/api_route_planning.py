@@ -264,9 +264,30 @@ def optimize_route_for_date():
             return jsonify({'success': False, 'error': 'Date is required'}), 400
         
         # Get jobs for this date
-        # Only optimize pending jobs - exclude completed, DNCO, and missed
         with get_db_connection() as conn:
             cursor = conn.cursor()
+            
+            # Check if any jobs are already completed (to start route from there)
+            cursor.execute("""
+                SELECT id, job_number, customer, job_address, postcode, activity
+                FROM run_sheet_jobs
+                WHERE date = ?
+                AND status = 'completed'
+                ORDER BY id DESC
+                LIMIT 1
+            """, (date,))
+            
+            completed_job = None
+            completed_row = cursor.fetchone()
+            if completed_row:
+                completed_job = {
+                    'id': completed_row[0],
+                    'job_number': completed_row[1],
+                    'customer': completed_row[2],
+                    'address': completed_row[3],
+                    'postcode': completed_row[4],
+                    'activity': completed_row[5]
+                }
             
             # Only include pending jobs for route optimization
             cursor.execute("""
@@ -291,35 +312,121 @@ def optimize_route_for_date():
         if not jobs:
             return jsonify({'success': False, 'error': 'No jobs found for this date'}), 404
         
-        # Build waypoint list: Home -> [Depot] -> Jobs -> Home
+        # Build waypoint list
         waypoints = []
         waypoint_info = []
         
-        # 1. Start at home
+        # Get home coordinates (needed for return journey)
         home_coords = geocode_postcode(HOME_POSTCODE)
         if not home_coords:
             return jsonify({'success': False, 'error': f'Could not geocode home postcode: {HOME_POSTCODE}'}), 400
         
-        waypoints.append(home_coords)
-        waypoint_info.append({
-            'type': 'home',
-            'label': 'Home',
-            'postcode': HOME_POSTCODE
-        })
+        # Track already-traveled distance for accurate mileage
+        already_traveled_miles = 0
+        already_traveled_minutes = 0
+        already_traveled_legs = []  # Store individual leg distances
         
-        # 2. Add depot if requested
-        if include_depot:
+        # Determine starting point
+        if completed_job and completed_job['postcode']:
+            # Calculate already-traveled distance: Home → Depot → Completed Job
             depot_coords = geocode_postcode(DEPOT_POSTCODE)
-            if depot_coords:
-                waypoints.append(depot_coords)
+            completed_coords = geocode_postcode(completed_job['postcode'])
+            
+            if depot_coords and completed_coords:
+                # Calculate Home → Depot → Completed Job distance using Google Directions API
+                try:
+                    from ..config import Config
+                    import requests
+                    
+                    origin = f"{home_coords[1]},{home_coords[0]}"  # lat,lng
+                    destination = f"{completed_coords[1]},{completed_coords[0]}"  # lat,lng
+                    waypoint = f"{depot_coords[1]},{depot_coords[0]}"  # lat,lng
+                    
+                    log_settings_action('ROUTE_PLANNING', f'Calculating already-traveled: {HOME_POSTCODE} → {DEPOT_POSTCODE} → {completed_job["postcode"]}')
+                    
+                    url = "https://maps.googleapis.com/maps/api/directions/json"
+                    params = {
+                        'origin': origin,
+                        'destination': destination,
+                        'waypoints': waypoint,
+                        'key': Config.GOOGLE_MAPS_API_KEY
+                    }
+                    
+                    response = requests.get(url, params=params, timeout=30)
+                    data = response.json()
+                    
+                    log_settings_action('ROUTE_PLANNING', f'Google API status: {data.get("status")}')
+                    
+                    if data.get('status') == 'OK' and data.get('routes'):
+                        route = data['routes'][0]
+                        legs = route.get('legs', [])
+                        
+                        # Store individual leg distances
+                        for leg in legs:
+                            dist_meters = leg.get('distance', {}).get('value', 0)
+                            dur_seconds = leg.get('duration', {}).get('value', 0)
+                            already_traveled_legs.append({
+                                'distance_miles': round(dist_meters * 0.000621371, 2),
+                                'duration_minutes': round(dur_seconds / 60, 1)
+                            })
+                        
+                        total_distance_meters = sum(leg.get('distance', {}).get('value', 0) for leg in legs)
+                        total_duration_seconds = sum(leg.get('duration', {}).get('value', 0) for leg in legs)
+                        
+                        already_traveled_miles = round(total_distance_meters * 0.000621371, 2)
+                        already_traveled_minutes = round(total_duration_seconds / 60, 1)
+                        
+                        log_settings_action('ROUTE_PLANNING', f'Already traveled: {already_traveled_miles} miles (Home → Depot → Job {completed_job["job_number"]})')
+                    else:
+                        log_settings_action('ROUTE_PLANNING', f'Google API error: {data.get("status")} - {data.get("error_message", "No error message")}', 'WARNING')
+                except Exception as e:
+                    log_settings_action('ROUTE_PLANNING', f'Failed to calculate already-traveled distance: {str(e)}', 'WARNING')
+                    import traceback
+                    log_settings_action('ROUTE_PLANNING', f'Traceback: {traceback.format_exc()}', 'WARNING')
+            
+            # Start optimization from completed job location (you're already there)
+            start_coords = geocode_postcode(completed_job['postcode'])
+            if start_coords:
+                waypoints.append(start_coords)
                 waypoint_info.append({
-                    'type': 'depot',
-                    'label': 'Depot',
-                    'postcode': DEPOT_POSTCODE
+                    'type': 'current_location',
+                    'label': f"Current Location (Job {completed_job['job_number']})",
+                    'postcode': completed_job['postcode'],
+                    'job': completed_job
                 })
+                log_settings_action('ROUTE_PLANNING', f'Starting route optimization from completed job {completed_job["job_number"]} at {completed_job["postcode"]}')
+            else:
+                # Fallback to home if geocoding completed job fails
+                waypoints.append(home_coords)
+                waypoint_info.append({
+                    'type': 'home',
+                    'label': 'Home',
+                    'postcode': HOME_POSTCODE
+                })
+        else:
+            # No completed jobs - start from home
+            waypoints.append(home_coords)
+            waypoint_info.append({
+                'type': 'home',
+                'label': 'Home',
+                'postcode': HOME_POSTCODE
+            })
+            
+            # Add depot if requested and no completed jobs
+            if include_depot:
+                depot_coords = geocode_postcode(DEPOT_POSTCODE)
+                if depot_coords:
+                    waypoints.append(depot_coords)
+                    waypoint_info.append({
+                        'type': 'depot',
+                        'label': 'Depot',
+                        'postcode': DEPOT_POSTCODE
+                    })
         
         # 3. Add all job postcodes
         job_waypoints = []
+        skipped_jobs = []  # Track jobs that couldn't be geocoded
+        
         for job in jobs:
             if job['postcode']:
                 coords = geocode_postcode(job['postcode'])
@@ -334,6 +441,10 @@ def optimize_route_for_date():
                     job_waypoints.append(job)
                 else:
                     log_settings_action('ROUTE_PLANNING', f"Could not geocode job {job['job_number']} postcode: {job['postcode']}", 'WARNING')
+                    skipped_jobs.append(job)
+            else:
+                log_settings_action('ROUTE_PLANNING', f"Job {job['job_number']} has no postcode", 'WARNING')
+                skipped_jobs.append(job)
         
         # 4. Return to home
         waypoints.append(home_coords)
@@ -350,8 +461,31 @@ def optimize_route_for_date():
         original_waypoints = waypoints.copy()
         original_waypoint_info = waypoint_info.copy()
         
-        # Calculate route with optimization mode (this reorders waypoints internally)
-        route_result = calculate_route_simple(waypoints, optimization_mode=optimization_mode)
+        # Merge duplicate consecutive postcodes before sending to Google
+        # Track which jobs share locations so we can expand them back later
+        merged_waypoints = []
+        merged_waypoint_info = []
+        duplicate_groups = []  # Track groups of jobs at same location
+        
+        i = 0
+        while i < len(waypoints):
+            merged_waypoints.append(waypoints[i])
+            group = [waypoint_info[i]]
+            
+            # Check if next waypoints have same postcode
+            j = i + 1
+            while j < len(waypoints) and waypoints[j] == waypoints[i]:
+                group.append(waypoint_info[j])
+                j += 1
+            
+            merged_waypoint_info.append(group[0])  # Use first job as representative
+            duplicate_groups.append(group)  # Store all jobs at this location
+            i = j
+        
+        log_settings_action('ROUTE_PLANNING', f'Merged {len(waypoints)} waypoints into {len(merged_waypoints)} unique locations')
+        
+        # Calculate route with merged waypoints (no duplicates)
+        route_result = calculate_route_simple(merged_waypoints, optimization_mode=optimization_mode)
         
         if not route_result.get('success'):
             return jsonify({'success': False, 'error': route_result.get('error', 'Route calculation failed')}), 500
@@ -359,42 +493,145 @@ def optimize_route_for_date():
         # Get optimized coordinates to determine new order
         optimized_coords = route_result.get('optimized_coordinates', waypoints)
         
-        # Reorder waypoint_info to match optimized coordinates
-        reordered_waypoint_info = []
-        used_indices = set()  # Track which waypoints we've already matched
+        # Reorder merged waypoint groups to match optimized coordinates
+        reordered_groups = []
+        used_indices = set()
         
         for opt_coord in optimized_coords:
-            # Find matching waypoint info by comparing coordinates
-            for i, orig_coord in enumerate(original_waypoints):
-                if i not in used_indices and abs(opt_coord[0] - orig_coord[0]) < 0.0001 and abs(opt_coord[1] - orig_coord[1]) < 0.0001:
-                    reordered_waypoint_info.append(original_waypoint_info[i])
+            # Find matching merged waypoint by comparing coordinates
+            for i, merged_coord in enumerate(merged_waypoints):
+                if i not in used_indices and abs(opt_coord[0] - merged_coord[0]) < 0.0001 and abs(opt_coord[1] - merged_coord[1]) < 0.0001:
+                    reordered_groups.append(duplicate_groups[i])
                     used_indices.add(i)
                     break
         
+        # Expand groups back into individual waypoints
+        reordered_waypoint_info = []
+        for group in reordered_groups:
+            for waypoint in group:
+                reordered_waypoint_info.append(waypoint)
+        
         # Build response with reordered waypoint details
         optimized_route = []
+        
+        # If we started from a completed job, add the already-traveled waypoints to the display
+        if completed_job and already_traveled_miles > 0:
+            # Add Home as first waypoint (with distance to Depot)
+            home_to_depot = already_traveled_legs[0] if len(already_traveled_legs) > 0 else {'distance_miles': 0, 'duration_minutes': 0}
+            optimized_route.append({
+                'sequence': 1,
+                'type': 'home',
+                'label': 'Home (Start)',
+                'postcode': HOME_POSTCODE,
+                'job': None,
+                'distance_to_next_miles': home_to_depot['distance_miles'],
+                'time_to_next_minutes': home_to_depot['duration_minutes'],
+                'already_completed': True
+            })
+            
+            # Add Depot as second waypoint (with distance to Completed Job)
+            depot_to_completed = already_traveled_legs[1] if len(already_traveled_legs) > 1 else {'distance_miles': 0, 'duration_minutes': 0}
+            optimized_route.append({
+                'sequence': 2,
+                'type': 'depot',
+                'label': 'Depot',
+                'postcode': DEPOT_POSTCODE,
+                'job': None,
+                'distance_to_next_miles': depot_to_completed['distance_miles'],
+                'time_to_next_minutes': depot_to_completed['duration_minutes'],
+                'already_completed': True
+            })
+            
+            # Note: The completed job will be added as "Current Location" in the optimized route below
+            # so we don't add it here to avoid duplicates
+        
+        # Add the optimized remaining route
+        sequence_offset = len(optimized_route)
+        
+        # Important: If we added Home/Depot at the start, reordered_waypoint_info starts with
+        # the "Current Location" (completed job), but we've already added Home/Depot to optimized_route.
+        # Google's legs[0] is from Current Location to first job, legs[1] is first job to second job, etc.
+        # So the leg indices match the waypoint indices in reordered_waypoint_info directly.
+        
+        log_settings_action('ROUTE_PLANNING', f'Total legs from Google: {len(route_result.get("legs", []))}')
+        log_settings_action('ROUTE_PLANNING', f'Total waypoints in optimized route: {len(reordered_waypoint_info)}')
+        log_settings_action('ROUTE_PLANNING', f'Already added to display (Home/Depot): {sequence_offset} waypoints')
+        
+        # Map legs to expanded waypoints
+        # Google gave us clean legs for merged waypoints (no duplicates)
+        # Now we need to map them to the expanded waypoint list
+        # Jobs at the same location get 0 miles between them
+        
+        leg_index = 0
+        group_index = 0
+        
         for i, waypoint in enumerate(reordered_waypoint_info):
-            leg_info = route_result['legs'][i] if i < len(route_result['legs']) else None
+            # Check if this is the first waypoint in a group
+            group_start = sum(len(g) for g in reordered_groups[:group_index])
+            group_size = len(reordered_groups[group_index]) if group_index < len(reordered_groups) else 1
+            position_in_group = i - group_start
+            
+            if position_in_group < group_size - 1:
+                # Not the last job in this group - show 0 miles to next job at same location
+                leg_info = {'distance_miles': 0, 'duration_minutes': 0}
+            elif position_in_group == group_size - 1:
+                # Last job in this group - use the leg to next different location
+                leg_info = route_result['legs'][leg_index] if leg_index < len(route_result['legs']) else None
+                leg_index += 1
+                group_index += 1
+            else:
+                leg_info = None
+            
+            if waypoint.get('job'):
+                job_num = waypoint["job"].get("job_number")
+                if leg_info:
+                    log_settings_action('ROUTE_PLANNING', f'Job {job_num} (waypoint {i}, group {group_index-1}, pos {position_in_group}): {leg_info["distance_miles"]} mi, {leg_info["duration_minutes"]} min')
+                else:
+                    log_settings_action('ROUTE_PLANNING', f'Job {job_num} (waypoint {i}): NO LEG (last waypoint)', 'INFO')
             
             optimized_route.append({
-                'sequence': i + 1,
+                'sequence': sequence_offset + i + 1,
                 'type': waypoint['type'],
                 'label': waypoint['label'],
                 'postcode': waypoint['postcode'],
                 'job': waypoint.get('job'),
                 'distance_to_next_miles': leg_info['distance_miles'] if leg_info else 0,
-                'time_to_next_minutes': leg_info['duration_minutes'] if leg_info else 0
+                'time_to_next_minutes': leg_info['duration_minutes'] if leg_info else 0,
+                'already_completed': False
             })
         
-        log_settings_action('ROUTE_PLANNING', f'Optimized route for {date}: {len(job_waypoints)} jobs, {route_result["total_distance_miles"]} miles')
+        # Add skipped jobs at the end with clear indication
+        if skipped_jobs:
+            for skipped_job in skipped_jobs:
+                optimized_route.append({
+                    'sequence': len(optimized_route) + 1,
+                    'type': 'skipped_job',
+                    'label': f"Job {skipped_job['job_number']} (No Location Data)",
+                    'postcode': skipped_job.get('postcode', 'N/A'),
+                    'job': skipped_job,
+                    'distance_to_next_miles': 0,
+                    'time_to_next_minutes': 0,
+                    'already_completed': False,
+                    'missing_location': True
+                })
+            log_settings_action('ROUTE_PLANNING', f'Skipped {len(skipped_jobs)} jobs with missing/invalid postcodes')
+        
+        # Add already-traveled distance to totals for accurate mileage
+        total_distance_miles = route_result['total_distance_miles'] + already_traveled_miles
+        total_duration_minutes = route_result['total_duration_minutes'] + already_traveled_minutes
+        
+        log_settings_action('ROUTE_PLANNING', f'Optimized route for {date}: {len(job_waypoints)} jobs, {total_distance_miles} miles (includes {already_traveled_miles} already traveled)')
         
         return jsonify({
             'success': True,
             'date': date,
-            'total_distance_miles': route_result['total_distance_miles'],
-            'total_duration_minutes': route_result['total_duration_minutes'],
+            'total_distance_miles': total_distance_miles,
+            'total_duration_minutes': total_duration_minutes,
             'total_jobs': len(job_waypoints),
-            'route': optimized_route
+            'skipped_jobs': len(skipped_jobs),
+            'route': optimized_route,
+            'already_traveled_miles': already_traveled_miles,
+            'already_traveled_minutes': already_traveled_minutes
         })
         
     except Exception as e:

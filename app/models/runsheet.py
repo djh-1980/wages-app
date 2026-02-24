@@ -164,6 +164,7 @@ class RunsheetModel:
             FROM run_sheet_jobs
             WHERE date = ?
             ORDER BY 
+                CASE WHEN status = 'completed' THEN 0 ELSE 1 END,
                 CASE WHEN route_order IS NOT NULL THEN 0 ELSE 1 END,
                 route_order,
                 job_number
