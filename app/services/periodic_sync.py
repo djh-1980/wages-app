@@ -464,8 +464,9 @@ class PeriodicSyncService:
                     from pathlib import Path
                     import os
                     import time
+                    from app.config import Config
                     
-                    payslip_dir = Path('data/documents/payslips')
+                    payslip_dir = Path(Config.PAYSLIPS_DIR)
                     recent_files = []
                     
                     # Look for PDF files modified in the last 24 hours

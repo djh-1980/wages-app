@@ -6,9 +6,10 @@ Extracted from web_app.py to centralize database operations.
 import sqlite3
 from pathlib import Path
 from contextlib import contextmanager
+from .config import Config
 
-# Database configuration
-DB_PATH = "data/database/payslips.db"
+# Database configuration - use Config for centralized path management
+DB_PATH = Config.DATABASE_PATH
 
 
 def get_db():

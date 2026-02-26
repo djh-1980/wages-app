@@ -14,6 +14,7 @@ import os
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / 'scripts' / 'testing'))
 
 from camelot_runsheet_parser import CamelotRunsheetParser
+from app.config import Config
 
 DB_PATH = "data/database/payslips.db"
 
@@ -24,7 +25,7 @@ runsheet_testing_bp = Blueprint('runsheet_testing', __name__, url_prefix='/api/r
 def get_available_files():
     """Get list of available runsheet files for testing."""
     try:
-        runsheets_dir = Path('data/documents/runsheets')
+        runsheets_dir = Path(Config.RUNSHEETS_DIR)
         
         # Get filter parameters
         filter_year = request.args.get('year', '2025')

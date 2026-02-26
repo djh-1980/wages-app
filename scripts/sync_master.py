@@ -15,8 +15,9 @@ from pathlib import Path
 # Add app to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-# Import unified logger
+# Import unified logger and config
 from app.utils.sync_logger import sync_logger
+from app.config import Config
 
 class MasterSync:
     def __init__(self):
@@ -114,7 +115,7 @@ class MasterSync:
     
     def _has_recent_payslips(self):
         """Check if there are recent payslip files to process"""
-        payslip_dir = self.base_dir / "data/documents/payslips"
+        payslip_dir = Path(Config.PAYSLIPS_DIR)
         if not payslip_dir.exists():
             return False
             

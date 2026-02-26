@@ -227,11 +227,11 @@ def hybrid_sync():
 def scan_directories():
     """Scan for unprocessed files in various directories."""
     try:
+        from app.config import Config
         directories_to_scan = [
-            Path('data/documents/payslips'),
-            Path('data/documents/runsheets'), 
+            Path(Config.PAYSLIPS_DIR),
+            Path(Config.RUNSHEETS_DIR), 
             Path('data/uploads'),
-            Path('data/processing/manual'),
             Path('data/processing/manual')
         ]
         

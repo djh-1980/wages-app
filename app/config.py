@@ -31,6 +31,10 @@ class Config:
     DATABASE_BACKUP_DIR = os.environ.get('BACKUP_DIR') or 'data/database/backups'
     DATABASE_BACKUP_RETENTION_DAYS = int(os.environ.get('BACKUP_RETENTION_DAYS', '30'))
     
+    # Document Storage Configuration
+    RUNSHEETS_DIR = os.environ.get('RUNSHEETS_DIR') or 'data/documents/runsheets'
+    PAYSLIPS_DIR = os.environ.get('PAYSLIPS_DIR') or 'data/documents/payslips'
+    
     # Upload Configuration
     UPLOAD_FOLDER = os.environ.get('UPLOAD_FOLDER') or 'PaySlips'
     ALLOWED_EXTENSIONS = {'pdf'}

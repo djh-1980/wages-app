@@ -6,6 +6,7 @@ Optionally organizes by date and imports to database.
 """
 
 import os
+import sys
 import base64
 import re
 from datetime import datetime
@@ -18,6 +19,10 @@ from googleapiclient.discovery import build
 import PyPDF2
 import sqlite3
 
+# Add app to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from app.config import Config
+
 # If modifying these scopes, delete the file token.json.
 SCOPES = [
     'https://www.googleapis.com/auth/gmail.readonly',
@@ -25,9 +30,12 @@ SCOPES = [
 ]
 
 class GmailRunSheetDownloader:
-    def __init__(self, download_dir='RunSheets'):
+    def __init__(self, download_dir=None):
+        # Use Config.RUNSHEETS_DIR if no directory specified
+        if download_dir is None:
+            download_dir = Config.RUNSHEETS_DIR
         self.download_dir = Path(download_dir)
-        self.download_dir.mkdir(exist_ok=True)
+        self.download_dir.mkdir(parents=True, exist_ok=True)
         self.service = None
         
     def extract_date_from_pdf_filename(self, filename: str) -> str:
@@ -638,8 +646,8 @@ class GmailRunSheetDownloader:
         print(f"✓ Found {len(messages)} payslip emails (Tuesdays at 1300)")
         print()
         
-        # Download attachments to data/documents/payslips folder
-        payslip_dir = Path('data/documents/payslips')
+        # Download attachments to configured payslips directory
+        payslip_dir = Path(Config.PAYSLIPS_DIR)
         payslip_dir.mkdir(parents=True, exist_ok=True)
         
         print("📥 Downloading payslips...")
@@ -803,7 +811,7 @@ def main():
             # Assume it's a date
             after_date = arg
     
-    downloader = GmailRunSheetDownloader('data/documents/runsheets')
+    downloader = GmailRunSheetDownloader()  # Uses Config.RUNSHEETS_DIR
     
     if mode == 'all':
         downloader.download_all(after_date)

@@ -10,7 +10,12 @@ from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
 import json
+import sys
+import os
 
+# Add app to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from app.config import Config
 
 class PayslipExtractor:
     def __init__(self, db_path: str = "data/database/payslips.db"):
@@ -465,7 +470,10 @@ class PayslipExtractor:
             print(f"  ✗ Error: {e}")
             return None
     
-    def process_all_payslips(self, payslips_dir: str = "data/documents/payslips", recent_days: int = None):
+    def process_all_payslips(self, payslips_dir: str = None, recent_days: int = None):
+        """Process all payslip PDFs in the directory."""
+        if payslips_dir is None:
+            payslips_dir = Config.PAYSLIPS_DIR
         """Process all payslip PDFs in the directory."""
         payslips_path = Path(payslips_dir)
         
@@ -618,7 +626,7 @@ def main():
                 sys.exit(1)
         else:
             # Process all payslips (with optional filters)
-            payslips_dir = args.directory if args.directory else "data/documents/payslips"
+            payslips_dir = args.directory if args.directory else Config.PAYSLIPS_DIR
             extractor.process_all_payslips(payslips_dir, recent_days=args.recent)
             extractor.get_summary_stats()
     finally:

@@ -4,15 +4,20 @@ Import daily run sheets and extract job information.
 Scans for: Name, Date, Job Number, Customer, Activity
 """
 
-import PyPDF2
-import re
+import sys
+import os
 import sqlite3
+import re
 from pathlib import Path
 from datetime import datetime
 from typing import Dict, List, Optional
 import csv
 import logging
 import sys
+
+# Add app to path for config import
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+from app.config import Config
 
 # Add testing directory to path for Camelot parser
 sys.path.insert(0, str(Path(__file__).parent.parent / 'testing'))
@@ -2648,7 +2653,7 @@ def main():
             print(f"Only importing files modified after {cutoff_date.strftime('%Y-%m-%d')}")
             
             # Use find command for fast file discovery (much faster than Python rglob)
-            run_sheets_path = Path('data/documents/runsheets')
+            run_sheets_path = Path(Config.RUNSHEETS_DIR)
             
             # Find files modified in last N days using system find command
             try:
@@ -2686,7 +2691,7 @@ def main():
                 print(f"Importing runsheets for date: {target_date.strftime('%d/%m/%Y')}")
                 
                 # Find files with this date in the filename
-                run_sheets_path = Path('data/documents/runsheets')
+                run_sheets_path = Path(Config.RUNSHEETS_DIR)
                 files = []
                 for file_path in run_sheets_path.rglob('*.pdf'):
                     if date_str in file_path.name or target_date.strftime('%d/%m/%Y') in file_path.name:
@@ -2725,7 +2730,7 @@ def main():
                     current_date += timedelta(days=1)
                 
                 # Find files with these dates in the filename
-                run_sheets_path = Path('data/documents/runsheets')
+                run_sheets_path = Path(Config.RUNSHEETS_DIR)
                 files = []
                 for file_path in run_sheets_path.rglob('*.pdf'):
                     for date_str in target_dates:
