@@ -137,7 +137,7 @@ class MasterSync:
                 sys.executable,
                 'scripts/production/import_run_sheets.py',
                 '--recent', '7'  # Last 7 days
-            ], capture_output=True, text=True, timeout=300)
+            ], capture_output=True, text=True, timeout=900)
             
             if result.returncode == 0:
                 # Count imported jobs from output
@@ -170,7 +170,7 @@ class MasterSync:
                 sys.executable,
                 'scripts/production/extract_payslips.py',
                 '--recent', '7'  # Last 7 days
-            ], capture_output=True, text=True, timeout=180)
+            ], capture_output=True, text=True, timeout=600)
             
             if result.returncode == 0:
                 # Count imported jobs from output
