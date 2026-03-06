@@ -431,69 +431,38 @@ class RunSheetImporter:
             except Exception as e:
                 self.logger.warning(f"Camelot failed: {e}, falling back to text parsing")
         
-        # Fallback to text parsing using pdfplumber for better quality
+        # Fallback to text parsing
         jobs = []
         
-        try:
-            import pdfplumber
+        with open(pdf_path, 'rb') as file:
+            reader = PyPDF2.PdfReader(file)
             
-            with pdfplumber.open(pdf_path) as pdf:
-                # Process each page separately
-                for page_num, page in enumerate(pdf.pages):
-                    page_text = page.extract_text()
-                    if not page_text:
-                        continue
-                        
-                    lines = page_text.split('\n')
-                    
-                    # Check if this page is for the specified person
-                    is_my_page = False
-                    for i in range(min(5, len(lines))):
-                        if self.name.lower() in lines[i].lower():
-                            is_my_page = True
-                            break
-                    
-                    if not is_my_page:
-                        continue
-                    
-                    # Detect runsheet format
-                    is_multi_driver = self.detect_multi_driver_format(lines)
-                    
-                    if is_multi_driver:
-                        # Use multi-driver parsing logic
-                        page_jobs = self.parse_multi_driver_page(lines)
-                    else:
-                        # Use single-driver parsing logic
-                        page_jobs = self.parse_single_driver_page(lines)
-                    
-                    jobs.extend(page_jobs)
-                    
-        except ImportError:
-            # Fallback to PyPDF2 if pdfplumber not available
-            with open(pdf_path, 'rb') as file:
-                reader = PyPDF2.PdfReader(file)
+            # Process each page separately
+            for page_num, page in enumerate(reader.pages):
+                page_text = page.extract_text()
+                lines = page_text.split('\n')
                 
-                for page_num, page in enumerate(reader.pages):
-                    page_text = page.extract_text()
-                    lines = page_text.split('\n')
-                    
-                    is_my_page = False
-                    for i in range(min(5, len(lines))):
-                        if self.name.lower() in lines[i].lower():
-                            is_my_page = True
-                            break
-                    
-                    if not is_my_page:
-                        continue
-                    
-                    is_multi_driver = self.detect_multi_driver_format(lines)
-                    
-                    if is_multi_driver:
-                        page_jobs = self.parse_multi_driver_page(lines)
-                    else:
-                        page_jobs = self.parse_single_driver_page(lines)
-                    
-                    jobs.extend(page_jobs)
+                # Check if this page is for the specified person
+                is_my_page = False
+                for i in range(min(5, len(lines))):
+                    if self.name.lower() in lines[i].lower():
+                        is_my_page = True
+                        break
+                
+                if not is_my_page:
+                    continue
+                
+                # Detect runsheet format
+                is_multi_driver = self.detect_multi_driver_format(lines)
+                
+                if is_multi_driver:
+                    # Use multi-driver parsing logic
+                    page_jobs = self.parse_multi_driver_page(lines)
+                else:
+                    # Use single-driver parsing logic
+                    page_jobs = self.parse_single_driver_page(lines)
+                
+                jobs.extend(page_jobs)
         
         return jobs
     
@@ -2676,36 +2645,35 @@ def main():
                 sys.exit(1)
                 
         elif args.recent:
-            # Only import files with dates in last N days (based on filename, not modification time)
+            # Only import recent files - use find command for performance
             from datetime import datetime, timedelta
-            import re
+            import subprocess
             cutoff_date = datetime.now() - timedelta(days=args.recent)
             
-            print(f"Importing runsheets with dates after {cutoff_date.strftime('%d/%m/%Y')}")
+            print(f"Only importing files modified after {cutoff_date.strftime('%Y-%m-%d')}")
             
+            # Use find command for fast file discovery (much faster than Python rglob)
             run_sheets_path = Path(Config.RUNSHEETS_DIR)
             
-            # Find all PDF files and filter by date in filename
-            files = []
-            date_pattern = re.compile(r'(\d{2})-(\d{2})-(\d{4})')  # DD-MM-YYYY
+            # Find files modified in last N days using system find command
+            try:
+                result = subprocess.run(
+                    ['find', str(run_sheets_path), '-name', '*.pdf', '-mtime', f'-{args.recent + 1}', '-type', 'f'],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+                file_paths = [Path(p.strip()) for p in result.stdout.split('\n') if p.strip()]
+            except:
+                # Fallback to Python method if find fails
+                files = []
+                for file_path in run_sheets_path.rglob('*.pdf'):
+                    if datetime.fromtimestamp(file_path.stat().st_mtime) > cutoff_date:
+                        files.append(file_path)
+                file_paths = files
             
-            for file_path in run_sheets_path.rglob('*.pdf'):
-                # Extract date from filename
-                match = date_pattern.search(file_path.name)
-                if match:
-                    try:
-                        day, month, year = match.groups()
-                        file_date = datetime(int(year), int(month), int(day))
-                        
-                        # Include if date is within recent range
-                        if file_date >= cutoff_date:
-                            files.append(file_path)
-                    except ValueError:
-                        # Invalid date in filename, skip
-                        continue
-            
-            print(f"Found {len(files)} files with dates in last {args.recent} days")
-            file_paths = files
+            print(f"Found {len(file_paths)} recent files")
+            files = file_paths
             
             imported = 0
             for file_path in files:
