@@ -431,38 +431,69 @@ class RunSheetImporter:
             except Exception as e:
                 self.logger.warning(f"Camelot failed: {e}, falling back to text parsing")
         
-        # Fallback to text parsing
+        # Fallback to text parsing using pdfplumber for better quality
         jobs = []
         
-        with open(pdf_path, 'rb') as file:
-            reader = PyPDF2.PdfReader(file)
+        try:
+            import pdfplumber
             
-            # Process each page separately
-            for page_num, page in enumerate(reader.pages):
-                page_text = page.extract_text()
-                lines = page_text.split('\n')
+            with pdfplumber.open(pdf_path) as pdf:
+                # Process each page separately
+                for page_num, page in enumerate(pdf.pages):
+                    page_text = page.extract_text()
+                    if not page_text:
+                        continue
+                        
+                    lines = page_text.split('\n')
+                    
+                    # Check if this page is for the specified person
+                    is_my_page = False
+                    for i in range(min(5, len(lines))):
+                        if self.name.lower() in lines[i].lower():
+                            is_my_page = True
+                            break
+                    
+                    if not is_my_page:
+                        continue
+                    
+                    # Detect runsheet format
+                    is_multi_driver = self.detect_multi_driver_format(lines)
+                    
+                    if is_multi_driver:
+                        # Use multi-driver parsing logic
+                        page_jobs = self.parse_multi_driver_page(lines)
+                    else:
+                        # Use single-driver parsing logic
+                        page_jobs = self.parse_single_driver_page(lines)
+                    
+                    jobs.extend(page_jobs)
+                    
+        except ImportError:
+            # Fallback to PyPDF2 if pdfplumber not available
+            with open(pdf_path, 'rb') as file:
+                reader = PyPDF2.PdfReader(file)
                 
-                # Check if this page is for the specified person
-                is_my_page = False
-                for i in range(min(5, len(lines))):
-                    if self.name.lower() in lines[i].lower():
-                        is_my_page = True
-                        break
-                
-                if not is_my_page:
-                    continue
-                
-                # Detect runsheet format
-                is_multi_driver = self.detect_multi_driver_format(lines)
-                
-                if is_multi_driver:
-                    # Use multi-driver parsing logic
-                    page_jobs = self.parse_multi_driver_page(lines)
-                else:
-                    # Use single-driver parsing logic
-                    page_jobs = self.parse_single_driver_page(lines)
-                
-                jobs.extend(page_jobs)
+                for page_num, page in enumerate(reader.pages):
+                    page_text = page.extract_text()
+                    lines = page_text.split('\n')
+                    
+                    is_my_page = False
+                    for i in range(min(5, len(lines))):
+                        if self.name.lower() in lines[i].lower():
+                            is_my_page = True
+                            break
+                    
+                    if not is_my_page:
+                        continue
+                    
+                    is_multi_driver = self.detect_multi_driver_format(lines)
+                    
+                    if is_multi_driver:
+                        page_jobs = self.parse_multi_driver_page(lines)
+                    else:
+                        page_jobs = self.parse_single_driver_page(lines)
+                    
+                    jobs.extend(page_jobs)
         
         return jobs
     
