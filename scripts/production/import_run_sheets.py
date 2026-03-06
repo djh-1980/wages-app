@@ -2645,35 +2645,36 @@ def main():
                 sys.exit(1)
                 
         elif args.recent:
-            # Only import recent files - use find command for performance
+            # Only import files with dates in last N days (based on filename, not modification time)
             from datetime import datetime, timedelta
-            import subprocess
+            import re
             cutoff_date = datetime.now() - timedelta(days=args.recent)
             
-            print(f"Only importing files modified after {cutoff_date.strftime('%Y-%m-%d')}")
+            print(f"Importing runsheets with dates after {cutoff_date.strftime('%d/%m/%Y')}")
             
-            # Use find command for fast file discovery (much faster than Python rglob)
             run_sheets_path = Path(Config.RUNSHEETS_DIR)
             
-            # Find files modified in last N days using system find command
-            try:
-                result = subprocess.run(
-                    ['find', str(run_sheets_path), '-name', '*.pdf', '-mtime', f'-{args.recent + 1}', '-type', 'f'],
-                    capture_output=True,
-                    text=True,
-                    timeout=10
-                )
-                file_paths = [Path(p.strip()) for p in result.stdout.split('\n') if p.strip()]
-            except:
-                # Fallback to Python method if find fails
-                files = []
-                for file_path in run_sheets_path.rglob('*.pdf'):
-                    if datetime.fromtimestamp(file_path.stat().st_mtime) > cutoff_date:
-                        files.append(file_path)
-                file_paths = files
+            # Find all PDF files and filter by date in filename
+            files = []
+            date_pattern = re.compile(r'(\d{2})-(\d{2})-(\d{4})')  # DD-MM-YYYY
             
-            print(f"Found {len(file_paths)} recent files")
-            files = file_paths
+            for file_path in run_sheets_path.rglob('*.pdf'):
+                # Extract date from filename
+                match = date_pattern.search(file_path.name)
+                if match:
+                    try:
+                        day, month, year = match.groups()
+                        file_date = datetime(int(year), int(month), int(day))
+                        
+                        # Include if date is within recent range
+                        if file_date >= cutoff_date:
+                            files.append(file_path)
+                    except ValueError:
+                        # Invalid date in filename, skip
+                        continue
+            
+            print(f"Found {len(files)} files with dates in last {args.recent} days")
+            file_paths = files
             
             imported = 0
             for file_path in files:
