@@ -309,7 +309,8 @@ class GmailRunSheetDownloader:
         
         if recent_only:
             # Search recent emails without date restriction (includes future dates)
-            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR subject:runsheet OR filename:runsheet) newer_than:7d'
+            # Extended to 14 days to ensure we don't miss any recent runsheets
+            query = f'has:attachment filename:pdf (subject:"RUN SHEETS" OR subject:runsheet OR filename:runsheet) newer_than:14d'
         else:
             # Use original date-based search
             # Gmail filename search is case-insensitive, so just use lowercase
@@ -475,7 +476,11 @@ class GmailRunSheetDownloader:
         messages = self.search_run_sheet_emails(after_date, recent_only=recent_only)
         
         if not messages:
-            print("No run sheet emails found")
+            print("⚠️  No run sheet emails found")
+            print("   This could mean:")
+            print("   - No new runsheets in Gmail")
+            print("   - Gmail search query didn't match any emails")
+            print("   - Gmail authentication issue")
             return
         
         print(f"✓ Found {len(messages)} emails with run sheets")

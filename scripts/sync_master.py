@@ -80,9 +80,19 @@ class MasterSync:
                 for line in result.stdout.split('\n'):
                     if 'Downloaded:' in line or 'Saved:' in line:
                         self.results['runsheets_downloaded'] += 1
-                self.log(f"   ✅ Downloaded {self.results['runsheets_downloaded']} runsheets")
+                
+                # Log the actual output for debugging
+                if self.results['runsheets_downloaded'] == 0:
+                    self.log(f"   ⚠️  No runsheets downloaded (script succeeded but found 0 files)")
+                    # Check if Gmail auth failed
+                    if 'authentication failed' in result.stdout.lower() or 'no run sheet emails found' in result.stdout.lower():
+                        self.log(f"   📋 Download script output: {result.stdout[-500:]}")
+                        self.results['errors'].append("Runsheet download: No emails found or auth failed")
+                else:
+                    self.log(f"   ✅ Downloaded {self.results['runsheets_downloaded']} runsheets")
             else:
-                self.log(f"   ❌ Runsheet download failed: {result.stderr}")
+                self.log(f"   ❌ Runsheet download failed with exit code {result.returncode}")
+                self.log(f"   📋 Error output: {result.stderr[:500]}")
                 self.results['errors'].append("Runsheet download failed")
                 
         except Exception as e:
@@ -149,10 +159,15 @@ class MasterSync:
                         if numbers:
                             self.results['runsheet_jobs_imported'] += int(numbers[0])
                 
-                self.log(f"   ✅ Imported {self.results['runsheet_jobs_imported']} runsheet jobs")
+                if self.results['runsheet_jobs_imported'] == 0:
+                    self.log(f"   ⚠️  No runsheet jobs imported (0 jobs processed)")
+                    self.log(f"   📋 This usually means no new runsheet PDFs were found")
+                else:
+                    self.log(f"   ✅ Imported {self.results['runsheet_jobs_imported']} runsheet jobs")
                 return True
             else:
-                self.log(f"   ❌ Runsheet import failed")
+                self.log(f"   ❌ Runsheet import failed with exit code {result.returncode}")
+                self.log(f"   📋 Error: {result.stderr[:500]}")
                 self.results['errors'].append("Runsheet import failed")
                 return False
                 
