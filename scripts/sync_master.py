@@ -142,11 +142,24 @@ class MasterSync:
         """Phase 2a: Import runsheet data"""
         self.log("📋 Phase 2a: Importing runsheets...")
         
+        # Check if there are unprocessed runsheet files
+        runsheets_dir = Path(Config.RUNSHEETS_DIR)
+        unprocessed_count = 0
+        if runsheets_dir.exists():
+            from datetime import timedelta
+            cutoff = datetime.now() - timedelta(days=14)
+            for pdf_file in runsheets_dir.rglob("*.pdf"):
+                if datetime.fromtimestamp(pdf_file.stat().st_mtime) > cutoff:
+                    unprocessed_count += 1
+        
+        if unprocessed_count > 0:
+            self.log(f"   📁 Found {unprocessed_count} recent runsheet PDFs to process")
+        
         try:
             result = subprocess.run([
                 sys.executable,
                 'scripts/production/import_run_sheets.py',
-                '--recent', '7'  # Last 7 days
+                '--recent', '14'  # Last 14 days to match download range
             ], capture_output=True, text=True, timeout=900)
             
             if result.returncode == 0:
