@@ -145,21 +145,28 @@ class MasterSync:
         # Check if there are unprocessed runsheet files
         runsheets_dir = Path(Config.RUNSHEETS_DIR)
         unprocessed_count = 0
+        # Only import files downloaded in THIS sync session (last 5 minutes)
+        # Smart sync already checked DB and only downloaded missing dates
+        from datetime import timedelta
+        cutoff = datetime.now() - timedelta(minutes=5)
+        unprocessed_count = 0
+        
         if runsheets_dir.exists():
-            from datetime import timedelta
-            cutoff = datetime.now() - timedelta(days=14)
-            for pdf_file in runsheets_dir.rglob("*.pdf"):
+            for pdf_file in runsheets_dir.rglob('*.pdf'):
                 if datetime.fromtimestamp(pdf_file.stat().st_mtime) > cutoff:
                     unprocessed_count += 1
         
         if unprocessed_count > 0:
-            self.log(f"   📁 Found {unprocessed_count} recent runsheet PDFs to process")
+            self.log(f"   📁 Found {unprocessed_count} newly downloaded runsheet PDFs to import")
+        else:
+            self.log(f"   ℹ️  No new runsheets to import (smart sync found no missing dates)")
         
         try:
+            # Use minutes instead of days - only import files from this sync session
             result = subprocess.run([
                 sys.executable,
                 'scripts/production/import_run_sheets.py',
-                '--recent', '30'  # Last 30 days to match missing detection window
+                '--recent', '0'  # Modified today (last 24 hours max)
             ], capture_output=True, text=True, timeout=900)
             
             if result.returncode == 0:
