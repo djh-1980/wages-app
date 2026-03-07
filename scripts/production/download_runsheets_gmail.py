@@ -251,7 +251,7 @@ class GmailRunSheetDownloader:
     
     def find_missing_runsheet_dates(self, days_back=30):
         """Find dates in the last N days that don't have run sheets in the database."""
-        db_path = Path('data/payslips.db')
+        db_path = Path('data/database/payslips.db')
         if not db_path.exists():
             print(f"❌ Database not found: {db_path}")
             return []
@@ -274,9 +274,10 @@ class GmailRunSheetDownloader:
             conn.close()
             
             # Generate all dates in the last N days (excluding weekends)
+            # PLUS tomorrow (runsheets arrive in evening for next day)
             from datetime import datetime, timedelta
             
-            end_date = datetime.now()
+            end_date = datetime.now() + timedelta(days=1)  # Include tomorrow
             start_date = end_date - timedelta(days=days_back)
             
             expected_dates = set()

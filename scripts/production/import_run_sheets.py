@@ -24,8 +24,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent / 'testing'))
 try:
     from camelot_runsheet_parser import CamelotRunsheetParser
     CAMELOT_AVAILABLE = True
-except ImportError:
+    print("✅ Camelot parser loaded successfully - using table extraction")
+except ImportError as e:
     CAMELOT_AVAILABLE = False
+    print(f"⚠️  Camelot parser not available: {e}")
+    print("   Falling back to text-based parsing (pdfplumber/PyPDF2)")
 
 
 class RunSheetImporter:
@@ -415,54 +418,27 @@ class RunSheetImporter:
         return job if len(job) >= 2 else None
     
     def parse_pdf_run_sheet(self, pdf_path: str) -> List[Dict]:
-        """Parse PDF using Camelot table extraction (with text fallback)."""
+        """Parse PDF using Camelot table extraction - SIMPLIFIED."""
         
-        # Try Camelot first (99% quality)
+        # Use ONLY Camelot for multi-driver runsheets
         if CAMELOT_AVAILABLE:
             try:
                 parser = CamelotRunsheetParser(driver_name=self.name)
                 jobs = parser.parse_pdf(pdf_path)
                 
                 if len(jobs) > 0:
-                    self.logger.info(f"Camelot extracted {len(jobs)} jobs from {Path(pdf_path).name}")
+                    print(f"  ✅ Camelot extracted {len(jobs)} jobs")
                     return jobs
                 else:
-                    self.logger.warning(f"Camelot found no jobs, trying text parsing")
+                    print(f"  ⚠️  Camelot found no jobs for {self.name}")
+                    return []
             except Exception as e:
-                self.logger.warning(f"Camelot failed: {e}, falling back to text parsing")
-        
-        # Fallback to text parsing
-        jobs = []
-        
-        with open(pdf_path, 'rb') as file:
-            reader = PyPDF2.PdfReader(file)
-            
-            # Process each page separately
-            for page_num, page in enumerate(reader.pages):
-                page_text = page.extract_text()
-                lines = page_text.split('\n')
-                
-                # Check if this page is for the specified person
-                is_my_page = False
-                for i in range(min(5, len(lines))):
-                    if self.name.lower() in lines[i].lower():
-                        is_my_page = True
-                        break
-                
-                if not is_my_page:
-                    continue
-                
-                # Detect runsheet format
-                is_multi_driver = self.detect_multi_driver_format(lines)
-                
-                if is_multi_driver:
-                    # Use multi-driver parsing logic
-                    page_jobs = self.parse_multi_driver_page(lines)
-                else:
-                    # Use single-driver parsing logic
-                    page_jobs = self.parse_single_driver_page(lines)
-                
-                jobs.extend(page_jobs)
+                print(f"  ❌ Camelot parsing failed: {e}")
+                return []
+        else:
+            print(f"  ❌ Camelot not available - cannot parse multi-driver runsheets")
+            print(f"     Install: pip install camelot-py[cv] ghostscript")
+            return []
         
         return jobs
     

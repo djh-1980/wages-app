@@ -66,13 +66,13 @@ class MasterSync:
         
         os.chdir(self.base_dir)
         
-        # Download runsheets
-        self.log("   Downloading runsheets...")
+        # Download runsheets - smart mode (only missing dates)
+        self.log("   Checking database for missing runsheets...")
         try:
             result = subprocess.run([
                 sys.executable, 
                 'scripts/production/download_runsheets_gmail.py', 
-                '--runsheets', '--recent'
+                '--missing'
             ], capture_output=True, text=True, timeout=120)
             
             if result.returncode == 0:
@@ -159,7 +159,7 @@ class MasterSync:
             result = subprocess.run([
                 sys.executable,
                 'scripts/production/import_run_sheets.py',
-                '--recent', '14'  # Last 14 days to match download range
+                '--recent', '30'  # Last 30 days to match missing detection window
             ], capture_output=True, text=True, timeout=900)
             
             if result.returncode == 0:
