@@ -620,6 +620,24 @@ class GmailRunSheetDownloader:
         print("MISSING SHEETS DOWNLOAD COMPLETE")
         print("=" * 70)
         print(f"📥 Downloaded {total_downloaded} files")
+        
+        # Organize downloaded files into year/month folders
+        if downloaded_files:
+            print()
+            print("🗂️  Organizing files...")
+            organized_count = 0
+            for filename in downloaded_files:
+                try:
+                    pdf_path = self.download_dir / filename
+                    if pdf_path.exists():
+                        organized_path = self.organize_pdf(pdf_path)
+                        if organized_path and organized_path != pdf_path:
+                            organized_count += 1
+                except Exception as e:
+                    print(f"  ⚠️  Could not organize {filename}: {e}")
+            
+            print(f"✅ Organized {organized_count} files into year/month folders")
+        
         print()
         print("💡 Tip: Run the sync again to import these files into the database")
         print("   and check if the missing dates are now covered.")
