@@ -2622,7 +2622,7 @@ def main():
             # Find files modified in last N days using system find command
             try:
                 result = subprocess.run(
-                    ['find', str(run_sheets_path), '-name', '*.pdf', '-mtime', f'-{args.recent + 1}', '-type', 'f'],
+                    ['find', str(run_sheets_path), '-name', '*.pdf', '-not', '-name', '._*', '-mtime', f'-{args.recent + 1}', '-type', 'f'],
                     capture_output=True,
                     text=True,
                     timeout=10
@@ -2632,6 +2632,9 @@ def main():
                 # Fallback to Python method if find fails
                 files = []
                 for file_path in run_sheets_path.rglob('*.pdf'):
+                    # Skip macOS resource fork files
+                    if file_path.name.startswith('._'):
+                        continue
                     if datetime.fromtimestamp(file_path.stat().st_mtime) > cutoff_date:
                         files.append(file_path)
                 file_paths = files
@@ -2658,6 +2661,9 @@ def main():
                 run_sheets_path = Path(Config.RUNSHEETS_DIR)
                 files = []
                 for file_path in run_sheets_path.rglob('*.pdf'):
+                    # Skip macOS resource fork files
+                    if file_path.name.startswith('._'):
+                        continue
                     if date_str in file_path.name or target_date.strftime('%d/%m/%Y') in file_path.name:
                         files.append(file_path)
                 
@@ -2697,6 +2703,9 @@ def main():
                 run_sheets_path = Path(Config.RUNSHEETS_DIR)
                 files = []
                 for file_path in run_sheets_path.rglob('*.pdf'):
+                    # Skip macOS resource fork files
+                    if file_path.name.startswith('._'):
+                        continue
                     for date_str in target_dates:
                         if date_str in file_path.name:
                             files.append(file_path)
