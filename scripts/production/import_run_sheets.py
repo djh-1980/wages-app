@@ -2405,27 +2405,15 @@ class RunSheetImporter:
     
     def import_all_run_sheets(self, run_sheets_dir: str = None):
         """Import all run sheet files from directory."""
-        # Check multiple possible locations
-        possible_dirs = [
-            run_sheets_dir,
-            "RunSheets",
-            "docs/Run Sheets",
-            "Run Sheets"
-        ] if run_sheets_dir else ["RunSheets", "docs/Run Sheets", "Run Sheets"]
+        # Use Config.RUNSHEETS_DIR from .env if no directory specified
+        if run_sheets_dir is None:
+            run_sheets_dir = Config.RUNSHEETS_DIR
         
-        run_sheets_path = None
-        for dir_path in possible_dirs:
-            if dir_path and Path(dir_path).exists():
-                run_sheets_path = Path(dir_path)
-                break
+        run_sheets_path = Path(run_sheets_dir)
         
-        if not run_sheets_path:
-            print(f"Error: No run sheets directory found")
-            print(f"Checked: {', '.join([d for d in possible_dirs if d])}")
-            print(f"Creating data/runsheets/ directory...")
-            run_sheets_path = Path("data/runsheets")
-            run_sheets_path.mkdir(parents=True, exist_ok=True)
-            print(f"Please add run sheet files to data/runsheets/")
+        if not run_sheets_path.exists():
+            print(f"Error: Run sheets directory not found: {run_sheets_path}")
+            print(f"Please check RUNSHEETS_DIR in .env file")
             return
         
         print(f"Using directory: {run_sheets_path}")

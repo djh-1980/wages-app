@@ -123,7 +123,8 @@ def reimport_runsheet(pdf_path: str, replace_existing: bool = False, preview_onl
 
 def reimport_month(year: str, month: str, replace_existing: bool = False, preview_only: bool = True):
     """Re-import all runsheets for a specific month."""
-    runsheets_dir = Path('data/documents/runsheets')
+    from app.config import Config
+    runsheets_dir = Path(Config.RUNSHEETS_DIR)
     
     # Connect to database to check attendance
     conn = sqlite3.connect(DB_PATH)
