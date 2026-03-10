@@ -267,6 +267,7 @@ function updateSyncSummary(log) {
     let jobsImported = 0;
     let payUpdated = 0;
     let errors = 0;
+    let errorMessages = [];
     
     // Parse downloaded files
     const downloadMatch = log.match(/Downloaded (\d+) files/i) || log.match(/📥 Downloaded (\d+)/);
@@ -280,11 +281,18 @@ function updateSyncSummary(log) {
     const payMatch = log.match(/Jobs updated: (\d+)/i);
     if (payMatch) payUpdated = parseInt(payMatch[1]);
     
-    // Count errors
-    const errorMatches = log.match(/❌|Error:|FAILED|Errors \((\d+)\)/gi);
-    if (errorMatches) {
-        const errorCountMatch = log.match(/Errors \((\d+)\)/);
-        errors = errorCountMatch ? parseInt(errorCountMatch[1]) : errorMatches.length;
+    // Extract error messages
+    const lines = log.split('\n');
+    for (let line of lines) {
+        if (line.includes('❌') || line.includes('Error:') || line.includes('FAILED') || line.includes('⚠️  Errors')) {
+            errorMessages.push(line.trim());
+        }
+    }
+    errors = errorMessages.length;
+    
+    // Display errors in log if any
+    if (errors > 0) {
+        displayErrorsInLog(errorMessages);
     }
     
     // Update UI
@@ -312,6 +320,28 @@ function updateSyncSummary(log) {
     // Show content, hide loading
     summaryDiv.style.display = 'none';
     contentDiv.style.display = 'block';
+}
+
+function displayErrorsInLog(errorMessages) {
+    const logWindow = document.getElementById('syncLogWindow');
+    if (!logWindow || errorMessages.length === 0) return;
+    
+    // Create error section at the top of the log
+    const errorSection = document.createElement('div');
+    errorSection.className = 'alert alert-danger mb-3';
+    errorSection.innerHTML = `
+        <h6 class="alert-heading mb-2">
+            <i class="bi bi-exclamation-triangle-fill me-2"></i>
+            Errors Found (${errorMessages.length})
+        </h6>
+        <hr>
+        <ul class="mb-0">
+            ${errorMessages.map(msg => `<li>${msg}</li>`).join('')}
+        </ul>
+    `;
+    
+    // Insert at the beginning of the log window
+    logWindow.insertBefore(errorSection, logWindow.firstChild);
 }
 
 function clearSyncLog() {
