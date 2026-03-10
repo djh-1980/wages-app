@@ -282,7 +282,7 @@ class GmailRunSheetDownloader:
             
             conn.close()
             
-            # Generate all dates in the last N days (excluding weekends)
+            # Generate all dates in the last N days (including all 7 days)
             # PLUS tomorrow (runsheets arrive in evening for next day)
             from datetime import datetime, timedelta
             
@@ -293,10 +293,9 @@ class GmailRunSheetDownloader:
             current_date = start_date
             
             while current_date <= end_date:
-                # Skip weekends (Saturday=5, Sunday=6)
-                if current_date.weekday() < 5:  # Monday=0 to Friday=4
-                    date_str = current_date.strftime('%d/%m/%Y')
-                    expected_dates.add(date_str)
+                # Include all days (user works 7 days a week)
+                date_str = current_date.strftime('%d/%m/%Y')
+                expected_dates.add(date_str)
                 current_date += timedelta(days=1)
             
             # Find missing dates (exclude both existing dates AND attendance dates)
