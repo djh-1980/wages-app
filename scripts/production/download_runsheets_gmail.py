@@ -260,15 +260,13 @@ class GmailRunSheetDownloader:
             conn = sqlite3.connect(str(db_path))
             cursor = conn.cursor()
             
-            # Get all dates from the last N days that have run sheet jobs
+            # Get all dates that have run sheet jobs (no date filter - we'll filter in Python)
             cursor.execute("""
                 SELECT DISTINCT date 
                 FROM run_sheet_jobs 
                 WHERE date IS NOT NULL 
                 AND date != ''
-                AND date >= date('now', '-{} days')
-                ORDER BY date DESC
-            """.format(days_back))
+            """)
             
             existing_dates = {row[0] for row in cursor.fetchall()}
             conn.close()
