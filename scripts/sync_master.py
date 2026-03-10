@@ -166,7 +166,7 @@ class MasterSync:
             result = subprocess.run([
                 sys.executable,
                 'scripts/production/import_run_sheets.py',
-                '--recent', '0'  # Modified today (last 24 hours max)
+                '--recent-minutes', '10'  # Only files modified in last 10 minutes
             ], capture_output=True, text=True, timeout=900)
             
             if result.returncode == 0:

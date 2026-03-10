@@ -2578,8 +2578,9 @@ def main():
     
     parser = argparse.ArgumentParser(description='Import run sheets from PDFs')
     parser.add_argument('--name', default='Daniel Hanson', help='Driver name to search for')
-    parser.add_argument('--recent', type=int, help='Only import files modified in last N days')
-    parser.add_argument('--file', type=str, help='Import a single specific file')
+    parser.add_argument('--recent', type=int, help='Import run sheets modified in the last N days')
+    parser.add_argument('--recent-minutes', type=int, help='Import run sheets modified in the last N minutes')
+    parser.add_argument('--file', type=str, help='Import a specific run sheet file')
     parser.add_argument('--date', type=str, help='Import files for specific date (YYYY-MM-DD)')
     parser.add_argument('--date-range', nargs=2, metavar=('START', 'END'), help='Import files for date range (YYYY-MM-DD YYYY-MM-DD)')
     parser.add_argument('--force-reparse', action='store_true', help='Force re-parsing of existing files')
@@ -2608,6 +2609,31 @@ def main():
                 print(f"\n⚠️  No jobs imported from {file_path.name}")
                 sys.exit(1)
                 
+        elif args.recent_minutes:
+            # Only import files modified in last N minutes (for sync automation)
+            from datetime import datetime, timedelta
+            cutoff_date = datetime.now() - timedelta(minutes=args.recent_minutes)
+            
+            print(f"Only importing files modified after {cutoff_date.strftime('%Y-%m-%d %H:%M:%S')}")
+            
+            # Use Python method for minute-based filtering (find doesn't support minutes)
+            run_sheets_path = Path(Config.RUNSHEETS_DIR)
+            files = []
+            for file_path in run_sheets_path.rglob('*.pdf'):
+                # Skip macOS resource fork files
+                if file_path.name.startswith('._'):
+                    continue
+                if datetime.fromtimestamp(file_path.stat().st_mtime) > cutoff_date:
+                    files.append(file_path)
+            
+            print(f"Found {len(files)} recent files")
+            
+            imported = 0
+            for file_path in files:
+                imported += importer.import_run_sheet(file_path, run_sheets_path)
+            
+            print(f"\nImported {imported} jobs from {len(files)} files")
+            
         elif args.recent:
             # Only import recent files - use find command for performance
             from datetime import datetime, timedelta
