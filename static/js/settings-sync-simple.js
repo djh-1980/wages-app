@@ -215,9 +215,14 @@ async function refreshSyncLog() {
         const logWindow = document.getElementById('syncLogWindow');
         if (logWindow) {
             if (data.success && data.log) {
-                logWindow.innerHTML = `<pre>${data.log}</pre>`;
+                // Format the log with color coding
+                const formattedLog = formatSyncLog(data.log);
+                logWindow.innerHTML = formattedLog;
                 // Scroll to bottom
                 logWindow.scrollTop = logWindow.scrollHeight;
+                
+                // Parse and update summary
+                updateSyncSummary(data.log);
             } else {
                 logWindow.innerHTML = '<div class="text-muted">No log data available</div>';
             }
@@ -229,6 +234,84 @@ async function refreshSyncLog() {
             logWindow.innerHTML = '<div class="text-danger">Error loading log</div>';
         }
     }
+}
+
+function formatSyncLog(log) {
+    // Add color coding and icons to log output
+    let formatted = log
+        .replace(/✅/g, '<span class="text-success">✅</span>')
+        .replace(/❌/g, '<span class="text-danger">❌</span>')
+        .replace(/⚠️/g, '<span class="text-warning">⚠️</span>')
+        .replace(/📥/g, '<span class="text-primary">📥</span>')
+        .replace(/📧/g, '<span class="text-info">📧</span>')
+        .replace(/🔄/g, '<span class="text-primary">🔄</span>')
+        .replace(/📈/g, '<span class="text-success">📈</span>')
+        .replace(/Downloaded:/g, '<strong class="text-primary">Downloaded:</strong>')
+        .replace(/Imported:/g, '<strong class="text-success">Imported:</strong>')
+        .replace(/Error:/g, '<strong class="text-danger">Error:</strong>')
+        .replace(/SUCCESS/g, '<strong class="text-success">SUCCESS</strong>')
+        .replace(/FAILED/g, '<strong class="text-danger">FAILED</strong>');
+    
+    return `<pre>${formatted}</pre>`;
+}
+
+function updateSyncSummary(log) {
+    // Parse log to extract key metrics
+    const summaryDiv = document.getElementById('lastSyncSummary');
+    const contentDiv = document.getElementById('lastSyncContent');
+    
+    if (!summaryDiv || !contentDiv) return;
+    
+    // Extract metrics from log
+    let filesDownloaded = 0;
+    let jobsImported = 0;
+    let payUpdated = 0;
+    let errors = 0;
+    
+    // Parse downloaded files
+    const downloadMatch = log.match(/Downloaded (\d+) files/i) || log.match(/📥 Downloaded (\d+)/);
+    if (downloadMatch) filesDownloaded = parseInt(downloadMatch[1]);
+    
+    // Parse imported jobs
+    const importMatch = log.match(/Imported (\d+) jobs/i) || log.match(/Runsheet jobs: (\d+)/);
+    if (importMatch) jobsImported = parseInt(importMatch[1]);
+    
+    // Parse pay data synced
+    const payMatch = log.match(/Jobs updated: (\d+)/i);
+    if (payMatch) payUpdated = parseInt(payMatch[1]);
+    
+    // Count errors
+    const errorMatches = log.match(/❌|Error:|FAILED|Errors \((\d+)\)/gi);
+    if (errorMatches) {
+        const errorCountMatch = log.match(/Errors \((\d+)\)/);
+        errors = errorCountMatch ? parseInt(errorCountMatch[1]) : errorMatches.length;
+    }
+    
+    // Update UI
+    document.getElementById('syncFilesDownloaded').textContent = filesDownloaded;
+    document.getElementById('syncJobsImported').textContent = jobsImported;
+    document.getElementById('syncPayUpdated').textContent = payUpdated;
+    document.getElementById('syncErrors').textContent = errors;
+    
+    // Update error card color
+    const errorCard = document.getElementById('syncErrors').closest('.bg-light');
+    if (errorCard) {
+        if (errors > 0) {
+            errorCard.classList.remove('bg-light');
+            errorCard.classList.add('bg-danger', 'bg-opacity-10');
+        } else {
+            errorCard.classList.remove('bg-danger', 'bg-opacity-10');
+            errorCard.classList.add('bg-light');
+        }
+    }
+    
+    // Update timestamp
+    const now = new Date();
+    document.getElementById('syncLastTime').textContent = now.toLocaleString();
+    
+    // Show content, hide loading
+    summaryDiv.style.display = 'none';
+    contentDiv.style.display = 'block';
 }
 
 function clearSyncLog() {
