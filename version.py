@@ -7,12 +7,29 @@ from datetime import datetime
 import os
 
 # Version Information
-APP_VERSION = "2.6.0"
-BUILD_DATE = "2026.02.05"
-RELEASE_DATE = datetime(2026, 2, 5)
+APP_VERSION = "2.7.0"
+BUILD_DATE = "2026.03.10"
+RELEASE_DATE = datetime(2026, 3, 10)
 
 # Changelog - Add new entries at the top
 CHANGELOG = [
+    {
+        "version": "2.7.0",
+        "date": "March 10, 2026",
+        "type": "minor",  # major, minor, patch
+        "changes": [
+            "🔄 FIXED: Runsheet sync missing date detection now works with DD/MM/YYYY format",
+            "⚡ OPTIMIZED: Download only emails matching missing dates (no re-downloading)",
+            "📅 ENHANCED: Attendance integration - excludes days off from missing dates",
+            "🗓️ FIXED: Removed weekend exclusion - now checks all 7 days (user works weekends)",
+            "💾 FIXED: Import memory crashes with --recent-minutes argument",
+            "📊 NEW: Last Sync Summary card showing key metrics at a glance",
+            "🎨 ENHANCED: Color-coded sync log with formatted output",
+            "⚠️ NEW: Separate error listing in sync log for better visibility",
+            "🧹 REMOVED: Auto-Sync badge from navbar (consolidated in settings)",
+            "🔧 FIXED: Missing Runsheets API updated to match download script logic"
+        ]
+    },
     {
         "version": "2.6.0",
         "date": "February 5, 2026",
