@@ -24,7 +24,7 @@ def get_missing_runsheets():
         conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
         
-        # Get all dates from the last 30 days that have run sheet jobs
+        # Get all dates that have run sheet jobs
         cursor.execute("""
             SELECT DISTINCT date 
             FROM run_sheet_jobs 
@@ -33,9 +33,20 @@ def get_missing_runsheets():
         """)
         
         existing_dates = {row[0] for row in cursor.fetchall()}
+        
+        # Get all dates with attendance records (days off)
+        cursor.execute("""
+            SELECT DISTINCT date 
+            FROM attendance 
+            WHERE date IS NOT NULL 
+            AND date != ''
+        """)
+        
+        attendance_dates = {row[0] for row in cursor.fetchall()}
+        
         conn.close()
         
-        # Generate all weekday dates in the last 30 days + tomorrow
+        # Generate all dates in the last 30 days + tomorrow (including all 7 days)
         end_date = datetime.now() + timedelta(days=1)  # Include tomorrow
         start_date = end_date - timedelta(days=30)
         
@@ -43,9 +54,10 @@ def get_missing_runsheets():
         current_date = start_date
         
         while current_date <= end_date:
-            # Skip weekends (Saturday=5, Sunday=6)
-            if current_date.weekday() < 5:  # Monday=0 to Friday=4
-                date_str = current_date.strftime('%d/%m/%Y')
+            # Include all days (user works 7 days a week)
+            date_str = current_date.strftime('%d/%m/%Y')
+            # Only add if not in attendance (day off)
+            if date_str not in attendance_dates:
                 expected_dates.append({
                     'date': date_str,
                     'missing': date_str not in existing_dates
