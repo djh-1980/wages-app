@@ -269,6 +269,17 @@ class GmailRunSheetDownloader:
             """)
             
             existing_dates = {row[0] for row in cursor.fetchall()}
+            
+            # Get all dates with attendance records (days off, sick days, etc.)
+            cursor.execute("""
+                SELECT DISTINCT date 
+                FROM attendance 
+                WHERE date IS NOT NULL 
+                AND date != ''
+            """)
+            
+            attendance_dates = {row[0] for row in cursor.fetchall()}
+            
             conn.close()
             
             # Generate all dates in the last N days (excluding weekends)
@@ -288,8 +299,8 @@ class GmailRunSheetDownloader:
                     expected_dates.add(date_str)
                 current_date += timedelta(days=1)
             
-            # Find missing dates
-            missing_dates = expected_dates - existing_dates
+            # Find missing dates (exclude both existing dates AND attendance dates)
+            missing_dates = expected_dates - existing_dates - attendance_dates
             
             return sorted(list(missing_dates), key=lambda x: datetime.strptime(x, '%d/%m/%Y'))
             
