@@ -2276,6 +2276,49 @@ def api_generate_custom_report_pdf():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@data_bp.route('/download-missing-runsheets', methods=['POST'])
+def api_download_missing_runsheets():
+    """Download missing runsheets from Gmail."""
+    log_settings_action('DOWNLOAD_MISSING_RUNSHEETS', 'Starting missing runsheets download')
+    
+    try:
+        # Run the download script with --missing flag
+        result = subprocess.run(
+            [sys.executable, 'scripts/production/download_runsheets_gmail.py', '--missing'],
+            capture_output=True,
+            text=True,
+            timeout=300,
+            cwd=str(Path(__file__).parent.parent.parent)
+        )
+        
+        # Count downloaded files from output
+        downloaded = 0
+        for line in result.stdout.split('\n'):
+            if 'Downloaded:' in line or 'Saved:' in line:
+                downloaded += 1
+        
+        if result.returncode == 0:
+            log_settings_action('DOWNLOAD_MISSING_RUNSHEETS', f'Successfully downloaded {downloaded} runsheets')
+            return jsonify({
+                'success': True,
+                'downloaded': downloaded,
+                'message': f'Downloaded {downloaded} missing runsheets'
+            })
+        else:
+            error_msg = result.stderr[:500] if result.stderr else 'Unknown error'
+            log_settings_action('DOWNLOAD_MISSING_RUNSHEETS', f'Failed: {error_msg}')
+            return jsonify({
+                'success': False,
+                'error': error_msg
+            }), 500
+            
+    except subprocess.TimeoutExpired:
+        log_settings_action('DOWNLOAD_MISSING_RUNSHEETS', 'Timeout after 5 minutes')
+        return jsonify({'success': False, 'error': 'Download timeout after 5 minutes'}), 500
+    except Exception as e:
+        log_settings_action('DOWNLOAD_MISSING_RUNSHEETS', f'Error: {str(e)}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
 @data_bp.route('/run-master-sync', methods=['POST'])
 def api_run_master_sync():
     """Run the master sync script."""

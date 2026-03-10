@@ -78,6 +78,81 @@ function showError(message) {
     showStatus(message, 'danger');
 }
 
+// Missing Runsheets functions
+async function checkMissingRunsheets() {
+    try {
+        const response = await fetch('/api/sync/missing-runsheets');
+        const result = await response.json();
+        
+        if (result.success) {
+            const statusDiv = document.getElementById('missingRunsheetsStatus');
+            const contentDiv = document.getElementById('missingRunsheetsContent');
+            const alertDiv = document.getElementById('missingRunsheetsAlert');
+            const countSpan = document.getElementById('missingCount');
+            const listDiv = document.getElementById('missingDatesList');
+            const container = document.getElementById('missingDatesContainer');
+            
+            statusDiv.style.display = 'none';
+            contentDiv.style.display = 'block';
+            
+            countSpan.textContent = result.missing_count;
+            
+            if (result.missing_count === 0) {
+                alertDiv.className = 'alert alert-success mb-3';
+                alertDiv.innerHTML = '<i class="bi bi-check-circle me-2"></i><strong>Last 30 days:</strong> No missing dates ✅';
+                listDiv.style.display = 'none';
+            } else {
+                alertDiv.className = 'alert alert-warning mb-3';
+                alertDiv.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i><strong>Last 30 days:</strong> ${result.missing_count} missing dates`;
+                
+                // Show list of missing dates
+                container.innerHTML = result.missing_dates.map(date => 
+                    `<div class="list-group-item">
+                        <i class="bi bi-calendar-x text-warning me-2"></i>${date}
+                    </div>`
+                ).join('');
+                listDiv.style.display = 'block';
+            }
+        }
+    } catch (error) {
+        console.error('Error checking missing runsheets:', error);
+        showError('Failed to check for missing runsheets');
+    }
+}
+
+async function downloadMissingRunsheets() {
+    const btn = document.getElementById('downloadMissingBtn');
+    const originalText = btn.innerHTML;
+    
+    try {
+        btn.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Downloading...';
+        btn.disabled = true;
+        
+        showStatus('Downloading missing runsheets from Gmail...');
+        
+        const response = await fetch('/api/data/download-missing-runsheets', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        const result = await response.json();
+        
+        if (result.success) {
+            showSuccess(`Downloaded ${result.downloaded || 0} runsheets successfully!`);
+            // Refresh the missing runsheets check
+            setTimeout(() => checkMissingRunsheets(), 2000);
+        } else {
+            showError(result.error || 'Failed to download missing runsheets');
+        }
+    } catch (error) {
+        console.error('Error downloading missing runsheets:', error);
+        showError('Failed to download missing runsheets');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
 // Master Sync functions
 async function runMasterSyncManual() {
     const btn = document.getElementById('manualSyncBtn');
@@ -242,8 +317,7 @@ document.addEventListener('DOMContentLoaded', function() {
     // Load initial data
     loadLatestSyncData();
     refreshSyncLog();
-    
-    // Set up auto-updating
+    checkMissingRunsheets();
     startAutoUpdating();
     
     // Initialize file upload if the container exists
