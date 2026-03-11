@@ -310,7 +310,16 @@ def optimize_route_for_date():
                 })
         
         if not jobs:
-            return jsonify({'success': False, 'error': 'No jobs found for this date'}), 404
+            # Debug: Check total jobs for this date regardless of status
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT COUNT(*), GROUP_CONCAT(status) FROM run_sheet_jobs WHERE date = ?", (date,))
+                total_count, statuses = cursor.fetchone()
+            
+            return jsonify({
+                'success': False, 
+                'error': f'No jobs available for route optimization. Total jobs for {date}: {total_count}. Statuses: {statuses}'
+            }), 404
         
         # Build waypoint list
         waypoints = []
