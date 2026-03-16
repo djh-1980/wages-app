@@ -2580,6 +2580,7 @@ def main():
     parser.add_argument('--name', default='Daniel Hanson', help='Driver name to search for')
     parser.add_argument('--recent', type=int, help='Import run sheets modified in the last N days')
     parser.add_argument('--recent-minutes', type=int, help='Import run sheets modified in the last N minutes')
+    parser.add_argument('--unprocessed', action='store_true', help='Import only files not yet processed (tracked in database)')
     parser.add_argument('--file', type=str, help='Import a specific run sheet file')
     parser.add_argument('--date', type=str, help='Import files for specific date (YYYY-MM-DD)')
     parser.add_argument('--date-range', nargs=2, metavar=('START', 'END'), help='Import files for date range (YYYY-MM-DD YYYY-MM-DD)')
@@ -2609,6 +2610,54 @@ def main():
                 print(f"\n⚠️  No jobs imported from {file_path.name}")
                 sys.exit(1)
                 
+        elif args.unprocessed:
+            # Import only files not yet processed (tracked in database)
+            import sqlite3
+            
+            print("Importing only unprocessed files...")
+            
+            # Get list of already processed files from database
+            db_path = Path(Config.DATABASE_PATH)
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+            
+            cursor.execute("SELECT filename FROM processed_files")
+            processed_files = {row[0] for row in cursor.fetchall()}
+            conn.close()
+            
+            print(f"Found {len(processed_files)} already processed files in database")
+            
+            # Find all PDF files
+            run_sheets_path = Path(Config.RUNSHEETS_DIR)
+            all_files = []
+            for file_path in run_sheets_path.rglob('*.pdf'):
+                # Skip macOS resource fork files
+                if file_path.name.startswith('._'):
+                    continue
+                # Only include if not already processed
+                if file_path.name not in processed_files:
+                    all_files.append(file_path)
+            
+            print(f"Found {len(all_files)} unprocessed files to import")
+            
+            imported = 0
+            for file_path in all_files:
+                job_count = importer.import_run_sheet(file_path, run_sheets_path)
+                imported += job_count
+                
+                # Mark file as processed in database
+                if job_count > 0:
+                    conn = sqlite3.connect(str(db_path))
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        INSERT OR REPLACE INTO processed_files (filename, file_path, job_count)
+                        VALUES (?, ?, ?)
+                    """, (file_path.name, str(file_path), job_count))
+                    conn.commit()
+                    conn.close()
+            
+            print(f"\nImported {imported} jobs from {len(all_files)} files")
+            
         elif args.recent_minutes:
             # Only import files modified in last N minutes (for sync automation)
             from datetime import datetime, timedelta

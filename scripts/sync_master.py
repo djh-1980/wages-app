@@ -162,11 +162,11 @@ class MasterSync:
             self.log(f"   ℹ️  No new runsheets to import (smart sync found no missing dates)")
         
         try:
-            # Use minutes instead of days - only import files from this sync session
+            # Import only unprocessed files (tracked in database)
             result = subprocess.run([
                 sys.executable,
                 'scripts/production/import_run_sheets.py',
-                '--recent-minutes', '10'  # Only files modified in last 10 minutes
+                '--unprocessed'  # Only import files not yet processed
             ], capture_output=True, text=True, timeout=900)
             
             if result.returncode == 0:
