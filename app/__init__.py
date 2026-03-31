@@ -2,13 +2,29 @@
 Flask application factory and configuration.
 """
 
-from flask import Flask
+import logging
+import os
+from datetime import datetime
+
+import pytz
+from flask import Flask, flash, redirect, url_for
+from flask_login import LoginManager
+from flask_wtf.csrf import CSRFProtect
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
+
 from .database import init_database
 from .config import get_config, Config
 from .utils.logging_utils import LoggerManager
-import os
-import pytz
-from datetime import datetime
+
+logger = logging.getLogger(__name__)
+
+# Initialize Flask-Limiter
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://"
+)
 
 
 def create_app(config_name=None):
@@ -29,6 +45,30 @@ def create_app(config_name=None):
     # Initialize configuration
     config_class.init_app(app)
     
+    # Initialize CSRF Protection
+    csrf = CSRFProtect(app)
+    
+    # Initialize Rate Limiter
+    limiter.init_app(app)
+    
+    # Initialize Flask-Login
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+    login_manager.login_view = 'auth.login'
+    login_manager.login_message = 'Please log in to access this page.'
+    login_manager.login_message_category = 'info'
+    
+    @login_manager.user_loader
+    def load_user(user_id):
+        from .models.user import User
+        logger.debug(f"Loading user with ID: {user_id}")
+        user = User.get_by_id(int(user_id))
+        if user:
+            logger.debug(f"User loaded: {user.username}, is_active: {user.is_active}, is_authenticated: {user.is_authenticated}")
+        else:
+            logger.debug(f"User not found for ID: {user_id}")
+        return user
+    
     # Set application timezone to UK
     os.environ['TZ'] = 'Europe/London'
     app.config['TIMEZONE'] = pytz.timezone('Europe/London')
@@ -37,6 +77,12 @@ def create_app(config_name=None):
     LoggerManager.initialize(
         log_dir=config_class.LOG_DIR,
         log_level=config_class.LOG_LEVEL
+    )
+    
+    # Configure root logger
+    logging.basicConfig(
+        level=app.config.get('LOG_LEVEL', 'INFO'),
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
     )
     
     # Initialize database
@@ -53,6 +99,7 @@ def create_app(config_name=None):
     register_middleware(app)
     
     # Register blueprints
+    from .routes.auth import auth_bp
     from .routes.main import main_bp
     from .routes.api_payslips import payslips_bp
     from .routes.api_runsheets import runsheets_bp
@@ -78,9 +125,10 @@ def create_app(config_name=None):
     from .routes.api_python_deps import api_python_deps_bp
     from .routes.api_job_notes import job_notes_bp
     from .routes.api_route_planning import route_planning_bp
+    from .routes.api_hmrc import hmrc_bp
     
+    app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
-    app.register_blueprint(runsheet_testing_bp)
     app.register_blueprint(payslips_bp)
     app.register_blueprint(runsheets_bp)
     app.register_blueprint(reports_bp)
@@ -100,9 +148,21 @@ def create_app(config_name=None):
     app.register_blueprint(expenses_bp)
     app.register_blueprint(bank_import_bp)
     app.register_blueprint(recurring_bp)
+    app.register_blueprint(runsheet_testing_bp)
     app.register_blueprint(api_cdn_bp)
     app.register_blueprint(api_python_deps_bp)
     app.register_blueprint(job_notes_bp)
     app.register_blueprint(route_planning_bp)
+    app.register_blueprint(hmrc_bp)
+    
+    # Protect all routes with authentication
+    from .auth_protection import protect_all_routes
+    protect_all_routes(app)
+    
+    # Error handler for rate limiting
+    @app.errorhandler(429)
+    def ratelimit_handler(e):
+        flash('Too many login attempts. Please wait 5 minutes and try again.', 'error')
+        return redirect(url_for('auth.login'))
     
     return app

@@ -18,6 +18,9 @@
                 </div>
                 <div class="col-12 col-md-6">
                     <div class="d-grid gap-2">
+                        <button class="btn btn-danger" id="hmrcSubmitBtn" onclick="showHMRCSubmitModal()" style="display: none;">
+                            <i class="bi bi-send-fill"></i> Submit to HMRC MTD
+                        </button>
                         <button class="btn btn-info" onclick="downloadGmailReceipts()">
                             <i class="bi bi-envelope-arrow-down"></i> Download Receipts from Gmail
                         </button>
@@ -586,6 +589,74 @@
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" onclick="saveTemplate()">Save Template</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- HMRC MTD Submission Modal -->
+<div class="modal fade" id="hmrcSubmitModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="bi bi-send-fill"></i> Submit to HMRC Making Tax Digital</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <!-- Step 1: Select Quarter -->
+                <div id="hmrcStep1">
+                    <h6>Select Tax Year and Quarter</h6>
+                    <div class="row mb-3">
+                        <div class="col-md-6">
+                            <label for="hmrcTaxYear" class="form-label">Tax Year</label>
+                            <select class="form-select" id="hmrcTaxYear">
+                                <!-- Populated by JavaScript -->
+                            </select>
+                        </div>
+                        <div class="col-md-6">
+                            <label for="hmrcQuarter" class="form-label">Quarter</label>
+                            <select class="form-select" id="hmrcQuarter">
+                                <option value="Q1">Q1 (Apr 6 - Jul 5)</option>
+                                <option value="Q2">Q2 (Jul 6 - Oct 5)</option>
+                                <option value="Q3">Q3 (Oct 6 - Jan 5)</option>
+                                <option value="Q4">Q4 (Jan 6 - Apr 5)</option>
+                            </select>
+                        </div>
+                    </div>
+                    <button class="btn btn-primary" onclick="previewHMRCSubmission()">
+                        <i class="bi bi-eye"></i> Preview Submission
+                    </button>
+                </div>
+
+                <!-- Step 2: Preview -->
+                <div id="hmrcStep2" style="display: none;">
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Review your submission data before sending to HMRC
+                    </div>
+                    
+                    <div id="hmrcPreviewData">
+                        <!-- Populated by JavaScript -->
+                    </div>
+
+                    <div class="d-flex gap-2 mt-3">
+                        <button class="btn btn-secondary" onclick="backToStep1()">
+                            <i class="bi bi-arrow-left"></i> Back
+                        </button>
+                        <button class="btn btn-success" onclick="confirmHMRCSubmission()">
+                            <i class="bi bi-send-check"></i> Confirm & Submit
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 3: Result -->
+                <div id="hmrcStep3" style="display: none;">
+                    <div id="hmrcResult">
+                        <!-- Populated by JavaScript -->
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>

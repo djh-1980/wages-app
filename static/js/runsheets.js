@@ -908,9 +908,7 @@ async function updateJobStatus(jobId, status) {
         try {
             const response = await fetch('/api/runsheets/update-job-status', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: getJSONHeaders(),
                 body: JSON.stringify({
                     job_id: jobId,
                     status: newStatus
@@ -1121,9 +1119,7 @@ async function addExtraJob(date) {
             // Update existing job
             response = await fetch(`/api/runsheets/edit-job/${editingJobId}`, {
                 method: 'PUT',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: getJSONHeaders(),
                 body: JSON.stringify({
                     job_number: jobNumber,
                     customer: customer,
@@ -1137,9 +1133,7 @@ async function addExtraJob(date) {
             // Add new job
             response = await fetch('/api/runsheets/add-job', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: getJSONHeaders(),
                 body: JSON.stringify({
                     date: date,
                     job_number: jobNumber,
@@ -1305,9 +1299,7 @@ async function saveAllJobStatuses(date) {
     try {
         const response = await fetch('/api/runsheets/update-statuses', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 date: date,
                 updates: updates,
@@ -1351,7 +1343,8 @@ async function deleteJob(jobId, date) {
     
     try {
         const response = await fetch(`/api/runsheets/delete-job/${jobId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getCSRFHeaders()
         });
         
         const result = await response.json();
@@ -1407,9 +1400,7 @@ async function saveJobNotesInline(jobId, notes) {
     try {
         const response = await fetch(`/api/jobs/${jobId}/notes`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ notes })
         });
         

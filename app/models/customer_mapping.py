@@ -6,6 +6,8 @@ Handles customer name mapping and consolidation
 import sqlite3
 from pathlib import Path
 
+from ..database import get_db_connection
+
 class CustomerMappingModel:
     def __init__(self):
         self.db_path = Path(__file__).parent.parent.parent / 'data/database/payslips.db'

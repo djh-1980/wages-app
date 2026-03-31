@@ -217,7 +217,7 @@ async function addAttendanceRecord() {
     try {
         const response = await fetch('/api/settings/attendance', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ date: formattedDate, reason, notes })
         });
         
@@ -281,7 +281,7 @@ async function addAttendanceRange() {
         const addPromises = dates.map(date =>
             fetch('/api/settings/attendance', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getJSONHeaders(),
                 body: JSON.stringify({ date, reason, notes })
             })
         );
@@ -306,7 +306,8 @@ async function deleteAttendanceRecord(id) {
     
     try {
         const response = await fetch(`/api/settings/attendance/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getCSRFHeaders()
         });
         
         const result = await response.json();

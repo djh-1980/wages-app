@@ -40,7 +40,7 @@ async function saveCompanyYear() {
     try {
         const response = await fetch('/api/settings/company-year', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ year_start: yearStart })
         });
         
@@ -198,7 +198,10 @@ async function backupDatabase() {
     try {
         showStatus('Creating database backup...');
         
-        const response = await fetch('/api/data/backup', { method: 'POST' });
+        const response = await fetch('/api/data/backup', { 
+            method: 'POST',
+            headers: getCSRFHeaders()
+        });
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -298,7 +301,7 @@ async function deleteBackup(filename) {
     try {
         const response = await fetch(`/api/data/backups/delete`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ filename: filename })
         });
         
@@ -331,6 +334,7 @@ function uploadBackup(input) {
     
     fetch('/api/data/upload-backup', {
         method: 'POST',
+        headers: getCSRFHeaders(),
         body: formData
     })
     .then(response => response.json())
@@ -367,7 +371,7 @@ async function restoreBackup(filename) {
         
         const response = await fetch('/api/data/restore', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ filename: filename })
         });
         
@@ -622,7 +626,10 @@ function confirmClearExpenses() {
 async function clearExpenses() {
     try {
         showStatus('Clearing all expenses... This may take a moment.');
-        const response = await fetch('/api/expenses/clear-all', { method: 'POST' });
+        const response = await fetch('/api/expenses/clear-all', { 
+            method: 'POST',
+            headers: getCSRFHeaders()
+        });
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -655,7 +662,10 @@ function confirmClearAllData() {
 async function clearAllData() {
     try {
         showStatus('Clearing all data... This may take a moment.');
-        const response = await fetch('/api/data/clear-all', { method: 'POST' });
+        const response = await fetch('/api/data/clear-all', { 
+            method: 'POST',
+            headers: getCSRFHeaders()
+        });
         
         if (!response.ok) {
             throw new Error(`HTTP ${response.status}: ${response.statusText}`);
@@ -844,9 +854,7 @@ async function reparseRunsheets() {
     try {
         const response = await fetch('/api/housekeeping/reparse-runsheets', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 start_date: startDate,
                 end_date: endDate
@@ -872,9 +880,7 @@ async function reparseRecentRunsheets() {
     try {
         const response = await fetch('/api/housekeeping/reparse-runsheets', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 recent_days: 7
             })
@@ -902,9 +908,7 @@ async function reparseSpecificDate() {
     try {
         const response = await fetch('/api/housekeeping/reparse-runsheets', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 specific_date: todayFormatted
             })
@@ -932,9 +936,7 @@ async function validateAddresses() {
     try {
         const response = await fetch('/api/housekeeping/validate-addresses', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 recent_days: parseInt(days)
             })
@@ -970,9 +972,7 @@ async function validateSpecificDate() {
     try {
         const response = await fetch('/api/housekeeping/validate-addresses', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 specific_date: formattedDate
             })
@@ -1001,9 +1001,7 @@ async function validateAllAddresses() {
     try {
         const response = await fetch('/api/housekeeping/validate-addresses', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 validate_all: true
             })
@@ -1320,9 +1318,7 @@ async function createCustomerGroup() {
         
         const response = await fetch('/api/customer-mapping/bulk-add', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ mappings })
         });
         
@@ -1378,7 +1374,8 @@ async function confirmDeleteGroup() {
         // Delete each mapping
         for (const mapping of mappingsToDelete) {
             await fetch(`/api/customer-mapping/mappings/${mapping.id}`, {
-                method: 'DELETE'
+                method: 'DELETE',
+                headers: getCSRFHeaders()
             });
         }
         
@@ -1565,9 +1562,7 @@ async function confirmEditGroup() {
             promises.push(
                 fetch('/api/customer-mapping/mappings', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: getJSONHeaders(),
                     body: JSON.stringify({
                         original_customer: customer,
                         mapped_customer: newGroupName,
@@ -1584,9 +1579,7 @@ async function confirmEditGroup() {
                 promises.push(
                     fetch(`/api/customer-mapping/mappings/${mapping.id}`, {
                         method: 'PUT',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
+                        headers: getJSONHeaders(),
                         body: JSON.stringify({
                             original_customer: mapping.original_customer,
                             mapped_customer: newGroupName,
@@ -1859,7 +1852,7 @@ async function updateSingleCDN(libId) {
     try {
         const response = await fetch('/api/cdn/update', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ libraries: [libId] })
         });
         
@@ -1888,7 +1881,7 @@ async function updateAllCDN() {
     try {
         const response = await fetch('/api/cdn/update-all', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: getJSONHeaders()
         });
         
         const data = await response.json();
@@ -2054,7 +2047,7 @@ async function updateSinglePythonDep(packageName, version) {
     try {
         const response = await fetch('/api/python-deps/update', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ packages: { [packageName]: version } })
         });
         
@@ -2089,7 +2082,7 @@ async function updatePythonDepsByType(type) {
     try {
         const response = await fetch('/api/python-deps/update-by-type', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ type: type })
         });
         

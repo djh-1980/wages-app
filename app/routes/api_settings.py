@@ -7,12 +7,14 @@ import os
 import shutil
 import subprocess
 from datetime import datetime
+from pathlib import Path
+import json
+
 from flask import Blueprint, jsonify, request
+
 from ..models.attendance import AttendanceModel
 from ..models.settings import SettingsModel
 from ..utils.logging_utils import log_settings_action
-from pathlib import Path
-import json
 import os
 
 settings_bp = Blueprint('settings_api', __name__, url_prefix='/api/settings')

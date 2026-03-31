@@ -142,7 +142,7 @@ async function initializeTables() {
     try {
         const response = await fetch('/api/paypoint/initialize', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: getJSONHeaders()
         });
         
         const data = await response.json();
@@ -549,7 +549,7 @@ window.addStock = async function() {
         
         const response = await fetch('/api/paypoint/devices', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 paypoint_type: paypointType,
                 serial_ptid: serialPtid,
@@ -596,7 +596,7 @@ window.useStock = async function() {
         // Deploy and return in one API call
         const response = await fetch(`/api/paypoint/devices/${deviceId}/deploy`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 job_number: jobNumber,
                 customer: customer,
@@ -739,7 +739,7 @@ window.deployDevice = async function() {
         
         const response = await fetch(`/api/paypoint/devices/${deviceId}/deploy`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 job_number: jobNumber,
                 customer: customer,
@@ -786,7 +786,7 @@ window.returnDevice = async function() {
         
         const response = await fetch(`/api/paypoint/deployments/${deploymentId}/return`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 return_serial_ptid: returnSerialPtid,
                 return_trace: returnTrace,
@@ -1209,7 +1209,7 @@ async function updateStock(id) {
         
         const response = await fetch(`/api/paypoint/stock/${id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 paypoint_type: paypointType,
                 serial_ptid: serialPtid,
@@ -1249,7 +1249,8 @@ async function deleteStock(id) {
     
     try {
         const response = await fetch(`/api/paypoint/stock/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getCSRFHeaders()
         });
         
         const data = await response.json();
@@ -1319,7 +1320,7 @@ async function updateReturn(id) {
     try {
         const response = await fetch(`/api/paypoint/returns/${id}`, {
             method: 'PUT',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 job_number: jobNumber,
                 customer: customer,
@@ -1379,7 +1380,8 @@ async function deleteReturn(id) {
     
     try {
         const response = await fetch(`/api/paypoint/returns/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getCSRFHeaders()
         });
         
         const data = await response.json();

@@ -4,6 +4,7 @@ Manages templates for recurring expenses with smart matching
 """
 
 from datetime import datetime, timedelta
+
 from ..database import get_db_connection, execute_query
 
 

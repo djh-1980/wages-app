@@ -3,9 +3,10 @@ Paypoint model - handles Paypoint stock management database operations.
 Tracks stock items, usage, and audit trails for Paypoint devices and consumables.
 """
 
-from ..database import get_db_connection, execute_query
 import sqlite3
 from datetime import datetime
+
+from ..database import get_db_connection, execute_query
 
 
 class PaypointModel:

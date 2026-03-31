@@ -1,13 +1,15 @@
 """
-Helper methods for periodic sync service.
-Database queries and email notifications.
+Helper functions for syncing runsheet and payslip data.
 """
 
+import logging
 import sqlite3
-from datetime import datetime
+import time
 from pathlib import Path
-from typing import Optional, Dict, Any
 
+from app.database import get_db_connection
+
+logger = logging.getLogger(__name__)
 
 DB_PATH = "data/database/payslips.db"
 
@@ -33,7 +35,7 @@ def get_latest_runsheet_date() -> Optional[str]:
             return result[0]
         return None
     except Exception as e:
-        print(f"Error getting latest runsheet date: {e}")
+        logger.error(f"Error getting latest runsheet date: {e}")
         return None
     finally:
         if conn:
@@ -60,7 +62,7 @@ def get_latest_payslip_week() -> Optional[str]:
             return f"Week {result[0]}, {result[1]}"
         return None
     except Exception as e:
-        print(f"Error getting latest payslip week: {e}")
+        logger.error(f"Error getting latest payslip week: {e}")
         return None
     finally:
         if conn:
@@ -105,7 +107,7 @@ def sync_payslips_to_runsheets() -> int:
             
             paypoint_updated = cursor.rowcount
             if paypoint_updated > 0:
-                print(f"Set {paypoint_updated} PayPoint audit jobs to £0")
+                logger.info(f"Set {paypoint_updated} PayPoint audit jobs to £0")
             
             # Update pay information
             cursor.execute("""
@@ -188,20 +190,20 @@ def sync_payslips_to_runsheets() -> int:
             
             conn.commit()
             
-            print(f"✅ Successfully updated {jobs_updated} runsheet jobs with pay data")
+            logger.info(f"Successfully updated {jobs_updated} runsheet jobs with pay data")
             return jobs_updated
             
         except Exception as e:
-            print(f"❌ Sync attempt {attempt + 1} failed: {e}")
+            logger.warning(f"Sync attempt {attempt + 1} failed: {e}")
             if conn:
                 conn.close()
                 conn = None
             
             if attempt < max_retries - 1:
-                print(f"   Retrying in 2 seconds...")
+                logger.info(f"Retrying in 2 seconds...")
                 time.sleep(2)
             else:
-                print(f"❌ All {max_retries} sync attempts failed")
+                logger.error(f"All {max_retries} sync attempts failed")
                 return 0
     
     return 0

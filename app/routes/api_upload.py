@@ -3,25 +3,53 @@ File upload and manual processing API routes.
 Handles drag-and-drop uploads, local file processing, and hybrid sync.
 """
 
-from flask import Blueprint, request, jsonify, current_app
-from werkzeug.utils import secure_filename
-from pathlib import Path
+import logging
 import os
+import shutil
 import subprocess
 import sys
 from datetime import datetime
-import shutil
+from pathlib import Path
+
+import magic
+from flask import Blueprint, request, jsonify, current_app
+from werkzeug.utils import secure_filename
+
 from ..utils.logging_utils import log_settings_action
 from ..database import get_db_connection
+
+logger = logging.getLogger(__name__)
 
 upload_bp = Blueprint('upload_api', __name__, url_prefix='/api/upload')
 
 ALLOWED_EXTENSIONS = {'pdf'}
+ALLOWED_MIMES = {'application/pdf', 'text/csv', 'text/plain'}
 
 def allowed_file(filename):
     """Check if file extension is allowed."""
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
+
+def validate_upload_file(file):
+    """Validate uploaded file for security: size, MIME type, and filename."""
+    # Check size before reading whole file
+    file.seek(0, 2)
+    size = file.tell()
+    file.seek(0)
+    if size > 50 * 1024 * 1024:
+        raise ValueError("File exceeds 50MB limit")
+
+    # Verify actual MIME type, not just extension
+    mime = magic.from_buffer(file.read(2048), mime=True)
+    file.seek(0)
+    if mime not in ALLOWED_MIMES:
+        raise ValueError(f"File type not allowed: {mime}")
+
+    # Secure filename with fallback
+    filename = secure_filename(file.filename)
+    if not filename:
+        filename = f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bin"
+    return filename
 
 def get_upload_path(file_type='general'):
     """Get appropriate upload path based on file type."""
@@ -62,15 +90,12 @@ def api_upload_files():
         
         # Process each file
         for file in files:
-            if file and file.filename and allowed_file(file.filename):
+            if file and file.filename:
                 try:
-                    # Secure filename and add timestamp to avoid conflicts
-                    filename = secure_filename(file.filename)
+                    # Validate file security (size, MIME type, filename)
+                    filename = validate_upload_file(file)
                     
-                    # Handle case where secure_filename returns empty string
-                    if not filename:
-                        filename = f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-                    
+                    # Add timestamp to avoid conflicts
                     timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
                     name, ext = os.path.splitext(filename)
                     
@@ -93,6 +118,12 @@ def api_upload_files():
                     
                     log_settings_action('FILE_UPLOAD', f'Uploaded {file.filename} as {unique_filename}')
                     
+                except ValueError as e:
+                    # Security validation failed
+                    error_msg = f"{file.filename}: {str(e)}"
+                    errors.append(error_msg)
+                    log_settings_action('FILE_UPLOAD', error_msg, 'ERROR')
+                    continue
                 except Exception as e:
                     error_msg = f"Failed to upload {file.filename}: {str(e)}"
                     errors.append(error_msg)
@@ -129,8 +160,9 @@ def api_upload_files():
         })
         
     except Exception as e:
+        logger.error(f'File upload failed: {e}')
         log_settings_action('FILE_UPLOAD', f'Upload failed: {str(e)}', 'ERROR')
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @upload_bp.route('/process-local', methods=['POST'])
 def process_local_files():
@@ -158,8 +190,9 @@ def process_local_files():
         })
         
     except Exception as e:
+        logger.error(f'Local file processing failed: {e}')
         log_settings_action('LOCAL_PROCESS', f'Processing failed: {str(e)}', 'ERROR')
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @upload_bp.route('/hybrid-sync', methods=['POST'])
 def hybrid_sync():
@@ -220,8 +253,9 @@ def hybrid_sync():
         })
         
     except Exception as e:
+        logger.error(f'Hybrid sync failed: {e}')
         log_settings_action('HYBRID_SYNC', f'Hybrid sync failed: {str(e)}', 'ERROR')
-        return jsonify({'error': str(e)}), 500
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 @upload_bp.route('/scan-directories', methods=['GET'])
 def scan_directories():
@@ -259,7 +293,8 @@ def scan_directories():
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error scanning for files: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Helper functions
 def process_uploaded_files(uploaded_files, file_type, overwrite=False):

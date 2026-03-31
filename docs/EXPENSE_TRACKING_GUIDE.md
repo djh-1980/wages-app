@@ -1,199 +1,237 @@
-# Expense Tracking System - Quick Start Guide
+# Expense Tracking Guide - Maximize Your Tax Relief
 
-## Overview
+## 📊 Your Expense Categories (HMRC Compliant)
 
-The TVS Wages app now includes a comprehensive expense tracking system designed for HMRC Making Tax Digital (MTD) compliance. This system helps you track all business expenses and generate tax-ready reports.
+### **Vehicle Costs (HMRC Box 20)**
 
-## Your Specific Setup
+#### Option A: Mileage Allowance (RECOMMENDED - Simpler)
+- **Rate:** 45p per mile (first 10,000 miles), 25p per mile thereafter
+- **What it covers:** ALL vehicle costs (fuel, insurance, tax, repairs, depreciation, loan interest)
+- **Receipts needed:** None - just keep mileage log (you already have this!)
+- **Annual estimate:** ~£11,062 (based on 36,250 miles/year)
 
-Based on your situation (100% business van, £50k annual income):
+#### Option B: Actual Costs (More Complex)
+- **Fuel:** Keep all receipts (~£7,000/year)
+- **Insurance:** Annual policy (~£360/year)
+- **Tax:** Annual VED (~£35/year)
+- **AA Membership:** Annual fee (~£360/year)
+- **Loan Interest:** Only interest portion, not capital (~£800/year)
+- **Repairs/Servicing:** Keep all receipts (~£1,000/year)
+- **Depreciation:** Van value decline (~£2,760/year)
+- **Annual estimate:** ~£12,315
 
-### Monthly Recurring Expenses to Track
-
-1. **Van Loan**: £196/month
-2. **Van Insurance**: £338/month
-3. **Work Phone**: £__/month (enter your amount)
-4. **Apple Insurance**: £__/month (enter your amount)
-5. **Software Subscriptions**: £__/month (iCloud, etc.)
-6. **Home Office**: £26/month (£6/week simplified allowance)
-
-### One-Time/Variable Expenses
-
-- Fuel (daily) - **Bank statement is proof!**
-- Road tax (annual - £300)
-- MOT (annual - £55)
-- Servicing (as needed - ~£400/year)
-- Repairs (as needed)
-- Tyres (as needed)
-- Tools and equipment
-- Work boots/safety gear
-- Training courses
-
-## Getting Started
-
-### 1. First Time Setup (5 minutes)
-
-1. **Restart the Flask server** to initialize the database tables
-2. **Navigate to Expenses** page (new menu item in navigation)
-3. **Add your recurring expenses**:
-   - Click "Add Expense"
-   - Enter date, category, amount
-   - Check "Recurring Expense"
-   - Select frequency (monthly/quarterly/annually)
-   - Save
-
-### 2. Set Up Your Recurring Expenses
-
-Add these one-time, then they'll remind you monthly:
-
-```
-Van Loan
-- Date: 01/12/2024 (or your payment date)
-- Category: Vehicle Costs
-- Amount: 196
-- Description: Van loan payment
-- Recurring: Yes (Monthly)
-
-Van Insurance
-- Date: 01/12/2024
-- Category: Vehicle Costs
-- Amount: 338
-- Description: Van insurance
-- Recurring: Yes (Monthly)
-
-Work Phone
-- Date: 01/12/2024
-- Category: Admin Costs
-- Amount: [your amount]
-- Description: Work phone contract
-- Recurring: Yes (Monthly)
-
-Apple Insurance
-- Date: 01/12/2024
-- Category: Admin Costs
-- Amount: [your amount]
-- Description: AppleCare+
-- Recurring: Yes (Monthly)
-```
-
-### 3. Daily Workflow
-
-**After each work day** (takes 2 minutes):
-1. Go to Run Sheets page
-2. Enter mileage and fuel (as you already do)
-3. If you bought anything else (tools, boots, etc.):
-   - Go to Expenses page
-   - Click "Add Expense"
-   - Enter details
-   - Done!
-
-### 4. Monthly Workflow (1st of month)
-
-The system will remind you about recurring expenses. Simply:
-1. Check they've been paid
-2. Click to confirm (or edit if amount changed)
-
-## HMRC Categories Explained
-
-The system uses official HMRC Self-Assessment categories:
-
-| Category | Box | What Goes Here |
-|----------|-----|----------------|
-| **Vehicle Costs** | 20 | Van loan, insurance, tax, MOT, repairs, tyres, fuel |
-| **Travel Costs** | 21 | Parking, tolls (not fuel - that's in Vehicle) |
-| **Admin Costs** | 23 | Phone, internet, stationery |
-| **Professional Fees** | 27 | Accountant, subscriptions |
-| **Other Expenses** | 29 | Tools, work boots, training, software |
-
-## Tax Year Information
-
-- **Tax year runs**: April 6 - April 5
-- **Current tax year**: 2024/2025 (ends April 5, 2025)
-- **Next tax year**: 2025/2026 (starts April 6, 2025)
-
-The system automatically calculates which tax year each expense belongs to.
-
-## Backfilling This Year's Expenses
-
-Since we're near the end of the 2024/25 tax year, you should add:
-
-### December 2024 - April 2025
-
-1. **Van loan**: 5 months × £196 = £980
-2. **Van insurance**: 5 months × £338 = £1,690
-3. **Fuel**: Estimate from your records
-4. **Any other expenses**: Tools, repairs, etc.
-
-**How to backfill:**
-- Add each month separately
-- Use 1st of each month as the date
-- Mark as recurring for future months
-
-## Reports and Exports
-
-### View Summary
-- Filter by tax year to see totals
-- See breakdown by HMRC category
-- Track monthly spending
-
-### MTD Export (Coming Soon)
-- One-click export for your accountant
-- HMRC-ready format
-- Includes all income and expenses
-
-## Expected Tax Savings
-
-Based on your £50k income and estimated £12-13k expenses:
-
-**Without tracking everything:**
-- Taxable profit: ~£46,500
-- Tax bill: ~£11,500
-
-**With full expense tracking:**
-- Taxable profit: ~£37,000
-- Tax bill: ~£8,500
-- **You save: £3,000/year!**
-
-## Tips for Success
-
-1. **Enter expenses immediately** - Don't wait until month-end
-2. **Take photos of receipts** - Store in your phone/cloud
-3. **Be consistent** - Set a reminder to check monthly
-4. **Ask your accountant** - If unsure about an expense
-5. **Keep it simple** - The system does the hard work
-
-## Common Questions
-
-**Q: What if I forget to enter an expense?**
-A: Just add it later with the correct date. The system will put it in the right tax year.
-
-**Q: Can I edit or delete expenses?**
-A: Yes! Click the edit or delete button next to any expense.
-
-**Q: What about VAT?**
-A: There's a VAT field if you're VAT registered. Leave it at 0 if not.
-
-**Q: How do I prove expenses to HMRC?**
-A: Keep receipts for 5 years. Bank statements work for recurring payments.
-
-**Q: What if my recurring amount changes?**
-A: Edit the expense for that month with the new amount.
-
-## Next Steps
-
-1. ✅ Restart Flask server
-2. ✅ Add your recurring expenses
-3. ✅ Backfill December-April expenses
-4. ✅ Set monthly reminder to confirm recurring expenses
-5. ✅ Start tracking all business expenses going forward
-
-## Support
-
-If you need help:
-1. Check this guide
-2. Ask your accountant about specific expenses
-3. Refer to HMRC self-employment guidance
+**⚠️ IMPORTANT:** You can only use ONE method - not both!
 
 ---
 
-**Remember**: You're potentially missing £2,000-4,000 in legitimate tax deductions every year by not tracking properly. This system makes it effortless!
+### **Home Office (HMRC Box 22)**
+
+#### Simplified Method (RECOMMENDED)
+- **Rate:** £6 per week = £312/year
+- **Receipts needed:** None
+- **What it covers:** Proportion of rent, utilities, council tax, internet
+
+#### Actual Costs Method
+- Calculate % of home used for business
+- Claim that % of: rent/mortgage interest, utilities, council tax, internet
+- **Receipts needed:** All utility bills, rent/mortgage statements
+- **More complex but may give higher relief if you have dedicated office space**
+
+---
+
+### **IT & Server Costs**
+
+#### Server & Hosting (HMRC Box 22)
+- Server electricity (~£600/year)
+- Server hardware (depreciate over 3-5 years)
+- UPS/backup power
+- Cooling/ventilation
+- **Receipts:** Electricity bills, hardware invoices
+
+#### Software & Subscriptions (HMRC Box 23)
+- AI subscriptions (ChatGPT, Claude, etc.)
+- Development tools & IDEs
+- Domain names & SSL certificates
+- Cloud backup services
+- Monitoring/analytics tools
+- **Receipts:** Email confirmations, invoices, bank statements
+
+#### IT Equipment (HMRC Box 28)
+- Computers, laptops, monitors
+- Networking equipment
+- Server upgrades
+- **Claim:** Depreciation or Annual Investment Allowance (AIA)
+- **Receipts:** Purchase invoices
+
+#### IT Insurance (HMRC Box 22)
+- Insurance for IT equipment and server
+- **Receipts:** Annual policy document
+
+---
+
+### **Communication (HMRC Box 23)**
+
+#### Mobile Phone
+- Claim business use % of monthly bill
+- Typical: 80% for delivery drivers
+- **Receipts:** Monthly bills or bank statements
+
+#### Internet
+- If dedicated business line: 100% claimable
+- If shared: Claim business % (e.g., 60-80%)
+- **Receipts:** Monthly bills or bank statements
+
+---
+
+### **Work Clothing & Equipment (HMRC Box 29)**
+
+#### Protective Clothing
+- Work boots (steel toe caps)
+- Hi-vis jackets/vests
+- Gloves (work gloves, winter gloves)
+- Waterproofs
+- **HMRC Rule:** Must be specifically for work, not everyday clothing
+- **Receipts:** Keep all receipts
+
+#### Tools & Equipment
+- Trolley/hand truck
+- Straps and tie-downs
+- Delivery bags
+- Phone holder/mount
+- Power banks/chargers
+- **Receipts:** Keep all receipts
+
+---
+
+### **Professional Fees (HMRC Box 27)**
+- Accountant fees
+- Legal fees
+- Professional subscriptions
+- **Receipts:** Invoices from professionals
+
+---
+
+### **Financial Costs**
+
+#### Interest (HMRC Box 25)
+- Bank loan interest (not capital repayment)
+- Credit card interest on business purchases
+- **Receipts:** Loan statements showing interest breakdown
+
+#### Financial Charges (HMRC Box 26)
+- Bank account fees
+- Card processing fees
+- PayPal/Stripe fees
+- **Receipts:** Bank statements
+
+---
+
+## 💰 Maximum Tax Relief Strategy
+
+### **Recommended Annual Expenses to Track:**
+
+1. **Mileage Allowance:** £11,062 (auto-calculated from your mileage data)
+2. **Home Office:** £312 (£6/week simplified)
+3. **Server & Hosting:** £600 (electricity estimate)
+4. **Business Internet:** £400 (80% of annual cost)
+5. **Mobile Phone:** £400 (80% business use)
+6. **Software & AI:** £200 (subscriptions)
+7. **IT Insurance:** £100
+8. **Protective Clothing:** £200
+9. **Tools & Equipment:** £200
+10. **Professional Fees:** £1,092 (accountant)
+11. **Financial Charges:** £100 (bank fees)
+
+**TOTAL: ~£14,666/year**
+
+---
+
+## 📝 What Receipts Do You Need?
+
+### **NO RECEIPTS NEEDED:**
+- ✅ Mileage Allowance (just keep mileage log)
+- ✅ Home Office Simplified (£6/week)
+- ✅ Bank charges (statements are proof)
+
+### **BANK STATEMENTS ACCEPTABLE:**
+- ✅ Recurring subscriptions (AI, software)
+- ✅ Utilities (electricity, internet)
+- ✅ Insurance payments
+- ✅ Phone bills
+- ✅ AA membership
+
+### **RECEIPTS REQUIRED:**
+- ❌ IT equipment over £50
+- ❌ Protective clothing
+- ❌ Tools & equipment
+- ❌ Professional fees
+- ❌ Any single expense over £50
+
+---
+
+## 🎯 How to Use This App
+
+### **1. Daily Mileage**
+- Already tracked automatically in runsheet data
+- App will auto-calculate quarterly mileage expenses
+
+### **2. Add Regular Expenses**
+- Go to Expenses page
+- Click "Add Expense"
+- Select category
+- Enter amount and date
+- Upload receipt (if required)
+
+### **3. Quarterly HMRC Submissions**
+- App automatically calculates quarterly totals
+- Preview submission before sending
+- Submit directly to HMRC MTD
+
+---
+
+## 📊 Comparison: Last Year vs. This Year
+
+### **2024/2025 (Your Actual Return):**
+- Income: £69,555
+- Expenses: £32,356
+- Taxable Profit: £37,199
+- Tax + NI: £6,403.54
+
+### **2025/2026 (Recommended Strategy):**
+- Income: ~£70,000 (estimated)
+- Expenses: ~£14,666 (if using mileage allowance)
+- Taxable Profit: ~£55,334
+- Tax + NI: ~£13,500
+
+**⚠️ NOTE:** Your accountant claimed £21,961 in vehicle expenses last year, which is much higher than the mileage allowance. Ask your accountant what method they used and whether you should continue with actual costs or switch to mileage allowance.
+
+---
+
+## 🔧 Next Steps
+
+1. **Decide on vehicle expense method:**
+   - Mileage allowance (simpler, £11,062)
+   - Actual costs (more work, potentially £12,315+)
+
+2. **Start tracking all expenses in this app**
+
+3. **Keep receipts for:**
+   - IT equipment purchases
+   - Protective clothing
+   - Tools & equipment
+   - Professional fees
+
+4. **Let the app auto-calculate mileage** from your daily runsheet data
+
+5. **Submit quarterly to HMRC MTD** using the built-in submission feature
+
+---
+
+## 📞 Questions?
+
+Contact your accountant to discuss:
+- Which vehicle expense method is best for you
+- Whether to use simplified or actual home office costs
+- How to maximize your specific tax relief
+
+**This app will track everything and generate HMRC-compliant submissions automatically.**

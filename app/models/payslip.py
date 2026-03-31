@@ -3,8 +3,9 @@ Payslip model - handles all payslip-related database operations.
 Extracted from web_app.py to improve code organization.
 """
 
-from ..database import get_db_connection, execute_query
 import json
+
+from ..database import get_db_connection, execute_query
 
 
 class PayslipModel:

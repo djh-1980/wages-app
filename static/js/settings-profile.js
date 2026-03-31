@@ -96,7 +96,7 @@ async function saveProfile() {
     try {
         const response = await fetch('/api/settings/profile', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify(profileData)
         });
         
@@ -188,7 +188,7 @@ async function saveEmailSettings() {
     try {
         const response = await fetch('/api/settings/email-notifications', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify(settings)
         });
         

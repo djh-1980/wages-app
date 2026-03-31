@@ -3,20 +3,21 @@ DataService - Business logic for data management operations.
 Handles sync, backup, validation, and data integrity operations.
 """
 
+import json
+import os
+import shutil
+import sqlite3
+import subprocess
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
 from ..models.payslip import PayslipModel
 from ..models.runsheet import RunsheetModel
 from ..models.attendance import AttendanceModel
 from ..models.settings import SettingsModel
 from ..database import get_db_connection, DB_PATH
 from ..utils.logging_utils import log_settings_action
-from pathlib import Path
-from datetime import datetime, timedelta
-import subprocess
-import sys
-import sqlite3
-import shutil
-import json
-import os
 
 
 class DataService:
@@ -559,9 +560,13 @@ class DataService:
                 
                 stats = {}
                 
-                # Table counts
+                # Table counts - whitelist of allowed tables to prevent SQL injection
+                ALLOWED_TABLES = {'payslips', 'job_items', 'run_sheet_jobs', 'attendance', 'settings'}
                 tables = ['payslips', 'job_items', 'run_sheet_jobs', 'attendance', 'settings']
                 for table in tables:
+                    # Validate table name against whitelist
+                    if table not in ALLOWED_TABLES:
+                        continue
                     try:
                         cursor.execute(f"SELECT COUNT(*) FROM {table}")
                         stats[f'{table}_count'] = cursor.fetchone()[0]

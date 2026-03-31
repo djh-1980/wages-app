@@ -3,10 +3,11 @@ API routes for runsheet extraction testing and comparison.
 Allows testing different extraction methods and comparing results.
 """
 
-from flask import Blueprint, request, jsonify
-from pathlib import Path
-import sys
 import sqlite3
+import sys
+from pathlib import Path
+
+from flask import Blueprint, request, jsonify
 import re
 import os
 

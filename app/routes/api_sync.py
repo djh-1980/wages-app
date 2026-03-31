@@ -2,10 +2,12 @@
 Sync API routes - Handle synchronization between different data sources.
 """
 
-from flask import Blueprint, jsonify, request
-from ..services.runsheet_sync_service import RunsheetSyncService
 import subprocess
 import sys
+
+from flask import Blueprint, jsonify, request
+
+from ..services.runsheet_sync_service import RunsheetSyncService
 from pathlib import Path
 import sqlite3
 from datetime import datetime, timedelta

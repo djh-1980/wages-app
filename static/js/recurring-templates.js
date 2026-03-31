@@ -192,14 +192,14 @@ async function saveTemplate() {
             // Update existing
             response = await fetch(`/api/recurring/templates/update/${templateId}`, {
                 method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
+                headers: getJSONHeaders(),
                 body: JSON.stringify(templateData)
             });
         } else {
             // Add new
             response = await fetch('/api/recurring/templates/add', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: getJSONHeaders(),
                 body: JSON.stringify(templateData)
             });
         }
@@ -232,7 +232,7 @@ async function toggleTemplateActive(templateId, isActive) {
     try {
         const response = await fetch(`/api/recurring/templates/update/${templateId}`, {
             method: 'PUT',
-            headers: {'Content-Type': 'application/json'},
+            headers: getJSONHeaders(),
             body: JSON.stringify({ is_active: isActive })
         });
         
@@ -263,7 +263,8 @@ async function deleteTemplate(templateId) {
     
     try {
         const response = await fetch(`/api/recurring/templates/delete/${templateId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getCSRFHeaders()
         });
         
         const data = await response.json();

@@ -2,12 +2,16 @@
 Expense API routes blueprint for HMRC MTD compliance.
 """
 
-from flask import Blueprint, jsonify, request, send_file
-from werkzeug.utils import secure_filename
-from ..models.expense import ExpenseModel
-from datetime import datetime
-from pathlib import Path
+import logging
 import os
+from pathlib import Path
+
+from flask import Blueprint, request, jsonify, send_file
+from werkzeug.utils import secure_filename
+
+from ..models.expense import ExpenseModel
+
+logger = logging.getLogger(__name__)
 
 expenses_bp = Blueprint('expenses_api', __name__, url_prefix='/api/expenses')
 
@@ -25,9 +29,10 @@ def api_get_categories():
     """Get all expense categories."""
     try:
         categories = ExpenseModel.get_categories()
-        return jsonify({'categories': categories})
+        return jsonify({'success': True, 'data': categories})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting expense categories: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @expenses_bp.route('/add', methods=['POST'])
@@ -76,9 +81,10 @@ def api_get_expenses():
             tax_year=tax_year
         )
         
-        return jsonify({'expenses': expenses, 'count': len(expenses)})
+        return jsonify({'success': True, 'data': {'expenses': expenses, 'count': len(expenses)}})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting expenses: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @expenses_bp.route('/<int:expense_id>')
@@ -88,11 +94,12 @@ def api_get_expense(expense_id):
         expense = ExpenseModel.get_expense_by_id(expense_id)
         
         if not expense:
-            return jsonify({'error': 'Expense not found'}), 404
+            return jsonify({'success': False, 'error': 'Expense not found'}), 404
         
-        return jsonify({'expense': expense})
+        return jsonify({'success': True, 'data': expense})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting expense {expense_id}: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @expenses_bp.route('/update/<int:expense_id>', methods=['PUT'])
@@ -145,7 +152,7 @@ def api_delete_expense(expense_id):
                         receipt_path.unlink()  # Delete the file
                 except Exception as e:
                     # Log error but don't fail the delete
-                    print(f"Error deleting receipt file: {e}")
+                    logger.warning(f"Error deleting receipt file: {e}")
             
             return jsonify({'success': True})
         else:
@@ -175,7 +182,8 @@ def api_get_summary():
             'total_expenses': round(total_expenses, 2)
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting expense summary: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @expenses_bp.route('/recurring')
@@ -183,9 +191,10 @@ def api_get_recurring():
     """Get all recurring expenses."""
     try:
         recurring = ExpenseModel.get_recurring_expenses()
-        return jsonify({'recurring_expenses': recurring})
+        return jsonify({'success': True, 'data': recurring})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting recurring expenses: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @expenses_bp.route('/tax-years')
@@ -204,9 +213,10 @@ def api_get_tax_years():
         if current_tax_year not in tax_years:
             tax_years.insert(0, current_tax_year)
         
-        return jsonify({'tax_years': tax_years})
+        return jsonify({'success': True, 'data': tax_years})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting tax years: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @expenses_bp.route('/mtd-export')
@@ -225,9 +235,10 @@ def api_mtd_export():
         
         export_data = ExpenseModel.get_mtd_export(tax_year)
         
-        return jsonify(export_data)
+        return jsonify({'success': True, 'data': export_data})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error exporting MTD data: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @expenses_bp.route('/upload-receipt', methods=['POST'])
@@ -289,6 +300,7 @@ def api_upload_receipt():
             'filename': filename
         })
     except Exception as e:
+        logger.error(f'Error uploading receipt: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -303,11 +315,12 @@ def api_view_receipt(filepath):
         full_path = project_root / filepath
         
         if not full_path.exists():
-            return jsonify({'error': 'Receipt not found'}), 404
+            return jsonify({'success': False, 'error': 'Receipt not found'}), 404
         
         return send_file(str(full_path))
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting receipt: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @expenses_bp.route('/clear-all', methods=['POST'])
@@ -321,4 +334,5 @@ def api_clear_all_expenses():
             'message': f'Successfully deleted {deleted_count} expense records'
         })
     except Exception as e:
+        logger.error(f'Error clearing expenses: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500

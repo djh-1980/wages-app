@@ -1,45 +1,46 @@
 #!/bin/bash
-# Quick deployment script - Update server and clear Cloudflare cache
+# TVS Wages - Production Deployment Script
+# Usage: ./deploy.sh
 
 set -e  # Exit on error
 
 echo "=========================================="
-echo "TVS Wages - Quick Deploy"
+echo "TVS Wages - Production Deployment"
 echo "=========================================="
-echo
+echo ""
 
-# Step 1: Update server
-echo "📦 Updating server..."
-ssh -i ~/.ssh/tvs_wages_proxmox tvswages@192.168.1.202 << 'EOF'
-cd /var/www/tvs-wages
-echo "  - Pulling latest code from GitHub..."
+# Navigate to project directory
+cd /opt/tvstcms
+
+# Stash any local changes
+echo "📦 Stashing local changes..."
+git stash
+
+# Pull latest changes from git
+echo "⬇️  Pulling latest changes from git..."
 git pull origin main
-echo "  - Restarting application..."
+
+# Activate virtual environment and install/update dependencies
+echo "📚 Updating dependencies..."
+source venv/bin/activate
+pip install -q -r requirements.txt
+
+# Restart the web service
+echo "🔄 Restarting web service..."
 sudo systemctl restart tvs-wages
-echo "  ✓ Server updated!"
-EOF
 
-echo
+# Check service status
+echo ""
+echo "✅ Deployment complete!"
+echo ""
+echo "Service status:"
+sudo systemctl status tvs-wages --no-pager -l
 
-# Step 2: Clear Cloudflare cache
-echo "🔄 Clearing Cloudflare cache..."
-echo "  Please manually purge cache in Cloudflare Dashboard:"
-echo "  1. Go to: https://dash.cloudflare.com"
-echo "  2. Select: daniel-hanson.co.uk"
-echo "  3. Caching → Purge Everything"
-echo
-echo "  Or purge specific files:"
-echo "  - https://tvs.daniel-hanson.co.uk/static/css/reports.css"
-echo "  - https://tvs.daniel-hanson.co.uk/static/css/unified-styles.css"
-echo "  - https://tvs.daniel-hanson.co.uk/static/js/weekly-summary.js"
-echo
+echo ""
+echo "Recent sync logs:"
+tail -20 logs/auto_sync.log
 
+echo ""
 echo "=========================================="
-echo "✅ Deployment Complete!"
+echo "Deployment finished successfully!"
 echo "=========================================="
-echo
-echo "Next steps:"
-echo "  1. Clear Cloudflare cache (see above)"
-echo "  2. Hard refresh browser: Cmd+Shift+R"
-echo "  3. Test at: http://tvs.daniel-hanson.co.uk"
-echo

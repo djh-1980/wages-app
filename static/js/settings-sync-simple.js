@@ -132,7 +132,7 @@ async function downloadMissingRunsheets() {
         
         const response = await fetch('/api/data/download-missing-runsheets', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: getJSONHeaders()
         });
         
         const result = await response.json();
@@ -166,7 +166,7 @@ async function runMasterSyncManual() {
         
         const response = await fetch('/api/data/run-master-sync', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+            headers: getJSONHeaders()
         });
         
         const result = await response.json();
@@ -358,7 +358,10 @@ async function testGmailConnection() {
     
     try {
         showStatus('Testing Gmail connection...');
-        const response = await fetch('/api/gmail/test-connection', { method: 'POST' });
+        const response = await fetch('/api/gmail/test-connection', { 
+            method: 'POST',
+            headers: getCSRFHeaders()
+        });
         const result = await response.json();
         
         if (result.success) {

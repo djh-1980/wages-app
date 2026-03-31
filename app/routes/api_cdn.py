@@ -2,9 +2,10 @@
 API endpoints for CDN version management
 """
 
-from flask import Blueprint, jsonify, request
-from pathlib import Path
 import sys
+from pathlib import Path
+
+from flask import Blueprint, jsonify, request
 
 # Add scripts directory to path
 scripts_dir = Path(__file__).parent.parent.parent / 'scripts'

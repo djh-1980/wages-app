@@ -3,10 +3,16 @@ Gmail integration API routes blueprint.
 Extracted from web_app.py to improve code organization.
 """
 
-from flask import Blueprint, jsonify, request
-from pathlib import Path
+import logging
 import subprocess
 import sys
+from pathlib import Path
+
+from flask import Blueprint, request, jsonify
+
+from ..utils.logging_utils import log_settings_action
+
+logger = logging.getLogger(__name__)
 
 gmail_bp = Blueprint('gmail_api', __name__, url_prefix='/api/gmail')
 
@@ -55,11 +61,13 @@ def api_gmail_download():
             }), 500
         
     except subprocess.TimeoutExpired:
+        logger.error('Download timed out (took longer than 5 minutes)')
         return jsonify({
             'success': False,
             'error': 'Download timed out (took longer than 5 minutes)'
         }), 500
     except Exception as e:
+        logger.error(f'Error downloading payslips from Gmail: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -80,7 +88,8 @@ def api_gmail_status():
             'token_path': str(token_path)
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting Gmail auth status: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @gmail_bp.route('/download-receipts', methods=['POST'])
@@ -123,11 +132,13 @@ def api_gmail_download_receipts():
             }), 500
         
     except subprocess.TimeoutExpired:
+        logger.error('Download timed out (took longer than 5 minutes)')
         return jsonify({
             'success': False,
             'error': 'Download timed out (took longer than 5 minutes)'
         }), 500
     except Exception as e:
+        logger.error(f'Error downloading runsheets from Gmail: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -148,11 +159,11 @@ try:
     downloader = GmailRunSheetDownloader()
     if downloader.authenticate():
         profile = downloader.service.users().getProfile(userId="me").execute()
-        print(f"SUCCESS:{profile.get('emailAddress', 'Connected')}")
+        logger.info(f"Gmail authentication successful: {profile.get('emailAddress', 'Connected')}")
     else:
-        print("ERROR:Authentication failed")
+        logger.error("Gmail authentication failed")
 except Exception as e:
-    print(f"ERROR:{str(e)}")
+    logger.error(f"Gmail authentication error: {str(e)}")
 '''],
             capture_output=True,
             text=True,
@@ -175,12 +186,14 @@ except Exception as e:
             })
             
     except subprocess.TimeoutExpired:
+        logger.error('Gmail connection test timed out after 30 seconds')
         return jsonify({
             'success': False,
             'error': 'Gmail connection test timed out after 30 seconds'
         })
     except Exception as e:
+        logger.error(f'Gmail connection test failed: {e}')
         return jsonify({
             'success': False,
             'error': f'Test failed: {str(e)}'
-        })
+        }), 500

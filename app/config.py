@@ -4,11 +4,12 @@ Centralized configuration with environment support and feature flags.
 """
 
 import os
-from pathlib import Path
 from datetime import timedelta
+from pathlib import Path
+
+from dotenv import load_dotenv
 
 # Load environment variables from .env file if it exists
-from dotenv import load_dotenv
 load_dotenv()
 
 
@@ -23,8 +24,19 @@ class Config:
     BASE_DIR = Path(__file__).resolve().parent.parent
     
     # Flask Configuration
-    SECRET_KEY = os.environ.get('SECRET_KEY') or 'dev-secret-key-change-in-production'
+    SECRET_KEY = os.environ.get('SECRET_KEY')
+    if not SECRET_KEY:
+        raise ValueError(
+            "SECRET_KEY environment variable is not set. "
+            "Generate one with: python -c 'import secrets; print(secrets.token_hex(32))'"
+        )
     MAX_CONTENT_LENGTH = 50 * 1024 * 1024  # 50MB max file upload
+    
+    # Session Security Configuration
+    SESSION_COOKIE_SECURE = os.environ.get('FLASK_ENV') == 'production'  # HTTPS only in production
+    SESSION_COOKIE_HTTPONLY = True  # Prevent JavaScript access to session cookies
+    SESSION_COOKIE_SAMESITE = 'Lax'  # CSRF protection
+    PERMANENT_SESSION_LIFETIME = timedelta(hours=4)  # 4 hours (matches HMRC token lifetime)
     
     # Database Configuration
     DATABASE_PATH = os.environ.get('DATABASE_PATH') or 'data/database/payslips.db'
@@ -52,6 +64,34 @@ class Config:
     
     # Google Maps API
     GOOGLE_MAPS_API_KEY = os.environ.get('GOOGLE_MAPS_API_KEY', '')
+    
+    # HMRC MTD API Configuration
+    HMRC_CLIENT_ID = os.environ.get('HMRC_CLIENT_ID', '')
+    HMRC_CLIENT_SECRET = os.environ.get('HMRC_CLIENT_SECRET', '')
+    HMRC_REDIRECT_URI = os.environ.get('HMRC_REDIRECT_URI', 'http://localhost:5000/api/hmrc/auth/callback')
+    HMRC_ENVIRONMENT = os.environ.get('HMRC_ENVIRONMENT', 'sandbox')  # sandbox or production
+    HMRC_SERVER_TOKEN = os.environ.get('HMRC_SERVER_TOKEN', '')  # For server-to-server auth
+    
+    @property
+    def HMRC_API_BASE_URL(self):
+        """Get HMRC API base URL based on environment."""
+        if self.HMRC_ENVIRONMENT == 'production':
+            return 'https://api.service.hmrc.gov.uk'
+        return 'https://test-api.service.hmrc.gov.uk'
+    
+    @property
+    def HMRC_AUTH_URL(self):
+        """Get HMRC authorization URL."""
+        if self.HMRC_ENVIRONMENT == 'production':
+            return 'https://api.service.hmrc.gov.uk/oauth/authorize'
+        return 'https://test-api.service.hmrc.gov.uk/oauth/authorize'
+    
+    @property
+    def HMRC_TOKEN_URL(self):
+        """Get HMRC token URL."""
+        if self.HMRC_ENVIRONMENT == 'production':
+            return 'https://api.service.hmrc.gov.uk/oauth/token'
+        return 'https://test-api.service.hmrc.gov.uk/oauth/token'
     
     # Sync Configuration
     AUTO_SYNC_ENABLED = os.environ.get('AUTO_SYNC_ENABLED', 'true').lower() == 'true'

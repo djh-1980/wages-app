@@ -2,8 +2,9 @@
 Expense model - handles all expense-related database operations for HMRC MTD compliance.
 """
 
-from ..database import get_db_connection, execute_query
 from datetime import datetime
+
+from ..database import get_db_connection, execute_query
 
 
 class ExpenseModel:
@@ -78,12 +79,22 @@ class ExpenseModel:
         params = []
         
         if start_date:
-            query += " AND e.date >= ?"
-            params.append(start_date)
+            # Convert DD/MM/YYYY to YYYY-MM-DD for proper date comparison
+            query += """ AND date(substr(e.date, 7, 4) || '-' || 
+                              substr(e.date, 4, 2) || '-' || 
+                              substr(e.date, 1, 2)) >= date(substr(?, 7, 4) || '-' || 
+                              substr(?, 4, 2) || '-' || 
+                              substr(?, 1, 2))"""
+            params.extend([start_date, start_date, start_date])
         
         if end_date:
-            query += " AND e.date <= ?"
-            params.append(end_date)
+            # Convert DD/MM/YYYY to YYYY-MM-DD for proper date comparison
+            query += """ AND date(substr(e.date, 7, 4) || '-' || 
+                              substr(e.date, 4, 2) || '-' || 
+                              substr(e.date, 1, 2)) <= date(substr(?, 7, 4) || '-' || 
+                              substr(?, 4, 2) || '-' || 
+                              substr(?, 1, 2))"""
+            params.extend([end_date, end_date, end_date])
         
         if category_id:
             query += " AND e.category_id = ?"

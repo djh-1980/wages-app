@@ -2,10 +2,11 @@
 Mileage API routes for managing mileage entries and detecting missing data
 """
 
-from flask import Blueprint, request, jsonify
-from datetime import datetime, timedelta
-import sqlite3
 import os
+import sqlite3
+from datetime import datetime, timedelta
+
+from flask import Blueprint, request, jsonify
 from app.models.mileage import MileageModel
 
 mileage_bp = Blueprint('api_mileage', __name__)

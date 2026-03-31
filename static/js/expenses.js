@@ -370,14 +370,14 @@ async function saveExpense() {
             // Update existing
             response = await fetch(`/api/expenses/update/${expenseId}`, {
                 method: 'PUT',
-                headers: {'Content-Type': 'application/json'},
+                headers: getJSONHeaders(),
                 body: JSON.stringify(expenseData)
             });
         } else {
             // Add new
             response = await fetch('/api/expenses/add', {
                 method: 'POST',
-                headers: {'Content-Type': 'application/json'},
+                headers: getJSONHeaders(),
                 body: JSON.stringify(expenseData)
             });
         }
@@ -421,6 +421,7 @@ async function uploadReceipt(file, date, category, amount) {
         
         const response = await fetch('/api/expenses/upload-receipt', {
             method: 'POST',
+            headers: getCSRFHeaders(),
             body: formData
         });
         
@@ -566,7 +567,8 @@ async function deleteExpense(expenseId) {
     
     try {
         const response = await fetch(`/api/expenses/delete/${expenseId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getCSRFHeaders()
         });
         
         const data = await response.json();
@@ -729,6 +731,7 @@ async function parseStatement() {
         
         const response = await fetch('/api/bank-import/parse', {
             method: 'POST',
+            headers: getCSRFHeaders(),
             body: formData
         });
         
@@ -1042,7 +1045,7 @@ async function importTransactions() {
         
         const response = await fetch('/api/bank-import/import', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: getJSONHeaders(),
             body: JSON.stringify({ transactions: selectedTransactions })
         });
         
@@ -1121,7 +1124,7 @@ async function downloadGmailReceipts() {
         
         const response = await fetch('/api/gmail/download-receipts', {
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 after_date: '2024/04/06'  // Tax year start
             })
@@ -1141,3 +1144,259 @@ async function downloadGmailReceipts() {
         showExpenseNotification('Failed to download receipts from Gmail', 'error');
     }
 }
+
+// ============================================================================
+// HMRC MTD Submission
+// ============================================================================
+
+let hmrcSubmissionData = null;
+
+/**
+ * Check HMRC connection status and show/hide submit button
+ */
+async function checkHMRCConnection() {
+    try {
+        const response = await fetch('/api/hmrc/auth/status');
+        const data = await response.json();
+        
+        const submitBtn = document.getElementById('hmrcSubmitBtn');
+        if (data.connected) {
+            submitBtn.style.display = 'block';
+        } else {
+            submitBtn.style.display = 'none';
+        }
+    } catch (error) {
+        console.error('Error checking HMRC connection:', error);
+    }
+}
+
+/**
+ * Show HMRC submission modal
+ */
+function showHMRCSubmitModal() {
+    // Populate tax years
+    const taxYearSelect = document.getElementById('hmrcTaxYear');
+    const currentYear = new Date().getFullYear();
+    const currentMonth = new Date().getMonth() + 1;
+    
+    // Tax year starts April 6
+    let startYear = currentMonth >= 4 ? currentYear : currentYear - 1;
+    
+    taxYearSelect.innerHTML = '';
+    for (let i = 0; i < 3; i++) {
+        const year = startYear - i;
+        const option = document.createElement('option');
+        option.value = `${year}/${year + 1}`;
+        option.textContent = `${year}/${year + 1}`;
+        if (i === 0) option.selected = true;
+        taxYearSelect.appendChild(option);
+    }
+    
+    // Reset modal
+    document.getElementById('hmrcStep1').style.display = 'block';
+    document.getElementById('hmrcStep2').style.display = 'none';
+    document.getElementById('hmrcStep3').style.display = 'none';
+    
+    const modal = new bootstrap.Modal(document.getElementById('hmrcSubmitModal'));
+    modal.show();
+}
+
+/**
+ * Preview HMRC submission
+ */
+async function previewHMRCSubmission() {
+    const taxYear = document.getElementById('hmrcTaxYear').value;
+    const quarter = document.getElementById('hmrcQuarter').value;
+    
+    try {
+        showExpenseNotification('Loading submission preview...', 'info');
+        
+        const response = await fetch(`/api/hmrc/period/preview?tax_year=${taxYear}&period_id=${quarter}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            hmrcSubmissionData = data.submission_data;
+            displayHMRCPreview(data.submission_data, data.validation);
+            
+            // Move to step 2
+            document.getElementById('hmrcStep1').style.display = 'none';
+            document.getElementById('hmrcStep2').style.display = 'block';
+        } else {
+            showExpenseNotification('Failed to load preview: ' + (data.error || 'Unknown error'), 'error');
+        }
+    } catch (error) {
+        console.error('Error loading preview:', error);
+        showExpenseNotification('Failed to load submission preview', 'error');
+    }
+}
+
+/**
+ * Display HMRC preview data
+ */
+function displayHMRCPreview(submissionData, validation) {
+    const previewDiv = document.getElementById('hmrcPreviewData');
+    
+    let html = '<div class="card mb-3">';
+    html += '<div class="card-header"><strong>Period Information</strong></div>';
+    html += '<div class="card-body">';
+    html += `<p><strong>From:</strong> ${submissionData.periodFromDate}</p>`;
+    html += `<p><strong>To:</strong> ${submissionData.periodToDate}</p>`;
+    html += '</div></div>';
+    
+    // Income
+    if (submissionData.incomes) {
+        html += '<div class="card mb-3">';
+        html += '<div class="card-header"><strong>Income</strong></div>';
+        html += '<div class="card-body">';
+        const turnover = parseFloat(submissionData.incomes.turnover) || 0;
+        const otherIncome = parseFloat(submissionData.incomes.other) || 0;
+        html += `<p><strong>Turnover:</strong> £${turnover.toFixed(2)}</p>`;
+        html += `<p><strong>Other:</strong> £${otherIncome.toFixed(2)}</p>`;
+        html += '</div></div>';
+    }
+    
+    // Expenses
+    if (submissionData.expenses) {
+        html += '<div class="card mb-3">';
+        html += '<div class="card-header"><strong>Expenses</strong></div>';
+        html += '<div class="card-body">';
+        
+        const expenseFields = {
+            'costOfGoodsBought': 'Cost of Goods',
+            'cisPaymentsToSubcontractors': 'CIS Payments',
+            'staffCosts': 'Staff Costs',
+            'travelCosts': 'Travel Costs',
+            'premisesRunningCosts': 'Premises Costs',
+            'maintenanceCosts': 'Maintenance',
+            'adminCosts': 'Admin Costs',
+            'advertisingCosts': 'Advertising',
+            'businessEntertainmentCosts': 'Entertainment',
+            'interest': 'Interest',
+            'financialCharges': 'Financial Charges',
+            'badDebt': 'Bad Debt',
+            'professionalFees': 'Professional Fees',
+            'depreciation': 'Depreciation',
+            'other': 'Other Expenses'
+        };
+        
+        for (const [key, label] of Object.entries(expenseFields)) {
+            if (submissionData.expenses[key]) {
+                const amount = parseFloat(submissionData.expenses[key].amount || submissionData.expenses[key]) || 0;
+                if (amount > 0) {
+                    html += `<p><strong>${label}:</strong> £${amount.toFixed(2)}</p>`;
+                }
+            }
+        }
+        
+        html += '</div></div>';
+    }
+    
+    // Validation
+    if (validation && !validation.valid) {
+        html += '<div class="alert alert-danger">';
+        html += '<strong>Validation Errors:</strong><ul>';
+        validation.errors.forEach(error => {
+            html += `<li>${error}</li>`;
+        });
+        html += '</ul></div>';
+    } else {
+        html += '<div class="alert alert-success">';
+        html += '<i class="bi bi-check-circle"></i> Submission data is valid and ready to send';
+        html += '</div>';
+    }
+    
+    previewDiv.innerHTML = html;
+}
+
+/**
+ * Go back to step 1
+ */
+function backToStep1() {
+    document.getElementById('hmrcStep1').style.display = 'block';
+    document.getElementById('hmrcStep2').style.display = 'none';
+}
+
+/**
+ * Confirm and submit to HMRC
+ */
+async function confirmHMRCSubmission() {
+    if (!confirm('Are you sure you want to submit this data to HMRC?\n\nThis will create an official submission record.')) {
+        return;
+    }
+    
+    const taxYear = document.getElementById('hmrcTaxYear').value;
+    const quarter = document.getElementById('hmrcQuarter').value;
+    
+    // Get NINO and Business ID from localStorage
+    const nino = localStorage.getItem('hmrc_nino');
+    const businessId = localStorage.getItem('hmrc_business_id');
+    
+    if (!nino || !businessId) {
+        showExpenseNotification('Please configure your NINO and Business ID in HMRC settings first', 'error');
+        return;
+    }
+    
+    try {
+        showExpenseNotification('Submitting to HMRC...', 'info');
+        
+        const response = await fetch('/api/hmrc/period/submit', {
+            method: 'POST',
+            headers: getJSONHeaders(),
+            body: JSON.stringify({
+                nino: nino,
+                business_id: businessId,
+                tax_year: taxYear,
+                period_id: quarter
+            })
+        });
+        
+        const data = await response.json();
+        
+        // Show result
+        displayHMRCResult(data);
+        
+        // Move to step 3
+        document.getElementById('hmrcStep2').style.display = 'none';
+        document.getElementById('hmrcStep3').style.display = 'block';
+        
+    } catch (error) {
+        console.error('Error submitting to HMRC:', error);
+        showExpenseNotification('Failed to submit to HMRC', 'error');
+    }
+}
+
+/**
+ * Display HMRC submission result
+ */
+function displayHMRCResult(result) {
+    const resultDiv = document.getElementById('hmrcResult');
+    
+    if (result.success) {
+        let html = '<div class="alert alert-success">';
+        html += '<h5><i class="bi bi-check-circle"></i> Submission Successful!</h5>';
+        html += '<p>Your quarterly update has been submitted to HMRC.</p>';
+        if (result.data && result.data.id) {
+            html += `<p><strong>Receipt ID:</strong> ${result.data.id}</p>`;
+        }
+        html += '</div>';
+        
+        resultDiv.innerHTML = html;
+        showExpenseNotification('Successfully submitted to HMRC!', 'success');
+    } else {
+        let html = '<div class="alert alert-danger">';
+        html += '<h5><i class="bi bi-x-circle"></i> Submission Failed</h5>';
+        html += `<p>${result.error || 'Unknown error occurred'}</p>`;
+        if (result.details) {
+            html += '<pre>' + JSON.stringify(result.details, null, 2) + '</pre>';
+        }
+        html += '</div>';
+        
+        resultDiv.innerHTML = html;
+        showExpenseNotification('Submission failed: ' + (result.error || 'Unknown error'), 'error');
+    }
+}
+
+// Check HMRC connection on page load
+document.addEventListener('DOMContentLoaded', function() {
+    checkHMRCConnection();
+});

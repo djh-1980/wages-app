@@ -2,10 +2,11 @@
 Mileage model for managing mileage entries and detecting missing data
 """
 
-import sqlite3
 import os
+import sqlite3
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional
+
 from ..database import get_db_connection
 
 class MileageModel:

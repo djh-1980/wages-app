@@ -2,11 +2,13 @@
 Application middleware for error handling, logging, and request processing.
 """
 
-from flask import request, jsonify, g
-from functools import wraps
-from datetime import datetime
 import time
 import traceback
+from datetime import datetime
+from functools import wraps
+
+from flask import request, jsonify, g
+
 from .utils.logging_utils import log_api_request, log_error
 from .config import FeatureFlags
 
@@ -41,6 +43,22 @@ def register_middleware(app):
             # Add performance headers
             response.headers['X-Response-Time'] = f"{duration_ms:.2f}ms"
             response.headers['X-Request-ID'] = getattr(g, 'request_id', 'unknown')
+            
+            # Add security headers for HMRC compliance
+            response.headers['Content-Security-Policy'] = (
+                "default-src 'self'; "
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net https://maps.googleapis.com; "
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net; "
+                "img-src 'self' data: https:; "
+                "font-src 'self' https://cdn.jsdelivr.net; "
+                "connect-src 'self' https://test-api.service.hmrc.gov.uk https://api.service.hmrc.gov.uk;"
+            )
+            response.headers['X-Content-Type-Options'] = 'nosniff'
+            response.headers['X-Frame-Options'] = 'DENY'
+            response.headers['X-XSS-Protection'] = '1; mode=block'
+            response.headers['Strict-Transport-Security'] = 'max-age=31536000; includeSubDomains'
+            response.headers['Referrer-Policy'] = 'strict-origin-when-cross-origin'
+            response.headers['Permissions-Policy'] = 'geolocation=(), microphone=(), camera=()'
             
         except Exception as e:
             # Don't let middleware errors break the response

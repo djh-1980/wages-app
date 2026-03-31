@@ -3,8 +3,9 @@ Verbal Pay Confirmation model - handles verbal pay amount confirmations from bos
 Allows tracking of verbal amounts told on Tuesday and comparing with actual payslip 2 weeks later.
 """
 
-from ..database import get_db_connection, execute_query
 from datetime import datetime
+
+from ..database import get_db_connection, execute_query
 
 
 class VerbalPayModel:

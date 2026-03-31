@@ -3,14 +3,15 @@ Real-time File Processor
 Processes payslips and runsheets immediately as they're downloaded.
 """
 
-import os
-import time
-import threading
 import logging
-from pathlib import Path
-from datetime import datetime
+import os
 import subprocess
 import sys
+import threading
+import time
+from datetime import datetime
+from pathlib import Path
+
 from watchdog.observers import Observer
 from watchdog.events import FileSystemEventHandler
 

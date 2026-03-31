@@ -3,15 +3,18 @@ Periodic Sync Service
 Handles automatic background syncing of recent files only.
 Older files can be processed manually when needed.
 """
+
 import logging
-import threading
-import time
-import schedule
+import sqlite3
 import subprocess
 import sys
-import sqlite3
+import threading
+import time
 from datetime import datetime, timedelta
 from pathlib import Path
+
+import schedule
+
 from .sync_helpers import (
     get_latest_runsheet_date,
     get_latest_payslip_week,

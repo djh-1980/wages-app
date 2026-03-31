@@ -85,7 +85,7 @@ async function saveVerbalConfirmation() {
     try {
         const response = await fetch('/api/verbal-pay/confirmations', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 week_number: weekNumber,
                 year: year,
@@ -143,7 +143,7 @@ async function checkVerbalMatch(payslipId, weekString, grossPay, netPay) {
             try {
                 await fetch('/api/verbal-pay/match-payslip', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
+                    headers: getJSONHeaders(),
                     body: JSON.stringify({
                         week_number: weekNumber,
                         year: year,

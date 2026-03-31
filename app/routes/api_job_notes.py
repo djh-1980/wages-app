@@ -2,10 +2,12 @@
 API routes for job notes/comments functionality.
 """
 
+import sqlite3
+
 from flask import Blueprint, jsonify, request
+
 from ..database import get_db_connection
 from ..utils.logging_utils import log_settings_action
-import sqlite3
 
 job_notes_bp = Blueprint('job_notes_api', __name__, url_prefix='/api/jobs')
 

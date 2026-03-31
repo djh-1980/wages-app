@@ -3,10 +3,12 @@ Verbal Pay Confirmation API routes.
 Handles verbal pay amount confirmations from boss.
 """
 
-from flask import Blueprint, jsonify, request
-from ..models.verbal_pay import VerbalPayModel
-from datetime import datetime
 import re
+from datetime import datetime
+
+from flask import Blueprint, jsonify, request
+
+from ..models.verbal_pay import VerbalPayModel
 
 verbal_pay_bp = Blueprint('verbal_pay_api', __name__, url_prefix='/api/verbal-pay')
 

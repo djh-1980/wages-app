@@ -1,0 +1,293 @@
+{% extends "base.html" %}
+
+{% block title %}HMRC MTD Settings - TVS Wages{% endblock %}
+
+{% block extra_css %}
+<style>
+    .connection-status {
+        padding: 1.5rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+    
+    .connection-status.connected {
+        background: linear-gradient(135deg, #28a745 0%, #20c997 100%);
+        color: white;
+    }
+    
+    .connection-status.disconnected {
+        background: linear-gradient(135deg, #6c757d 0%, #495057 100%);
+        color: white;
+    }
+    
+    .status-icon {
+        font-size: 3rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .environment-badge {
+        display: inline-block;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-size: 0.875rem;
+        font-weight: 600;
+        margin-left: 0.5rem;
+    }
+    
+    .environment-badge.sandbox {
+        background: #ffc107;
+        color: #000;
+    }
+    
+    .environment-badge.production {
+        background: #dc3545;
+        color: white;
+    }
+    
+    .obligation-card {
+        border-left: 4px solid #007bff;
+        margin-bottom: 1rem;
+    }
+    
+    .obligation-card.open {
+        border-left-color: #ffc107;
+    }
+    
+    .obligation-card.fulfilled {
+        border-left-color: #28a745;
+    }
+    
+    .submission-card {
+        border-left: 4px solid #6c757d;
+        margin-bottom: 1rem;
+    }
+    
+    .submission-card.submitted {
+        border-left-color: #28a745;
+    }
+    
+    .submission-card.failed {
+        border-left-color: #dc3545;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <div class="row">
+        <div class="col-12">
+            <h1 class="mb-4">
+                <i class="fas fa-landmark"></i> HMRC Making Tax Digital
+            </h1>
+        </div>
+    </div>
+    
+    <!-- Connection Status Card -->
+    <div class="row">
+        <div class="col-12">
+            <div id="connectionStatus" class="connection-status disconnected text-center">
+                <div class="status-icon">
+                    <i class="fas fa-plug"></i>
+                </div>
+                <h3>Not Connected</h3>
+                <p class="mb-0">Connect to HMRC to enable Making Tax Digital submissions</p>
+                <span class="environment-badge sandbox">Sandbox</span>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="row mb-4">
+        <div class="col-md-3 mb-3">
+            <button id="connectBtn" class="btn btn-primary btn-lg w-100">
+                <i class="fas fa-link"></i> Connect to HMRC
+            </button>
+        </div>
+        <div class="col-md-3 mb-3">
+            <button id="disconnectBtn" class="btn btn-danger btn-lg w-100" style="display: none;">
+                <i class="fas fa-unlink"></i> Disconnect
+            </button>
+        </div>
+        <div class="col-md-3 mb-3">
+            <button id="testConnectionBtn" class="btn btn-info btn-lg w-100" style="display: none;">
+                <i class="fas fa-vial"></i> Test Connection
+            </button>
+        </div>
+        <div class="col-md-3 mb-3">
+            <button id="refreshObligationsBtn" class="btn btn-secondary btn-lg w-100" style="display: none;">
+                <i class="fas fa-sync"></i> Refresh Obligations
+            </button>
+        </div>
+    </div>
+    
+    <!-- Configuration Card -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card settings-card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-cog"></i> Configuration
+                    </h5>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="ninoInput">National Insurance Number</label>
+                                <input type="text" class="form-control" id="ninoInput" placeholder="AA123456A">
+                                <small class="form-text text-muted">Required for MTD submissions</small>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="businessIdInput">Business ID</label>
+                                <input type="text" class="form-control" id="businessIdInput" placeholder="XAIS12345678901">
+                                <small class="form-text text-muted">Provided by HMRC after registration</small>
+                            </div>
+                        </div>
+                    </div>
+                    <button id="saveConfigBtn" class="btn btn-success">
+                        <i class="fas fa-save"></i> Save Configuration
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Tabs for Obligations and Submissions -->
+    <div class="row">
+        <div class="col-12">
+            <ul class="nav nav-pills mb-3" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" data-toggle="pill" href="#obligations">
+                        <i class="fas fa-calendar-check"></i> Quarterly Obligations
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-toggle="pill" href="#submissions">
+                        <i class="fas fa-paper-plane"></i> Submission History
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-toggle="pill" href="#help">
+                        <i class="fas fa-question-circle"></i> Help & Documentation
+                    </a>
+                </li>
+            </ul>
+            
+            <div class="tab-content">
+                <!-- Obligations Tab -->
+                <div class="tab-pane fade show active" id="obligations">
+                    <div class="card settings-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Quarterly Obligations</h5>
+                            <div id="obligationsList">
+                                <div class="text-center text-muted py-5">
+                                    <i class="fas fa-calendar-times fa-3x mb-3"></i>
+                                    <p>Connect to HMRC to view your quarterly obligations</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Submissions Tab -->
+                <div class="tab-pane fade" id="submissions">
+                    <div class="card settings-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Submission History</h5>
+                            <div id="submissionsList">
+                                <div class="text-center text-muted py-5">
+                                    <i class="fas fa-inbox fa-3x mb-3"></i>
+                                    <p>No submissions yet</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Help Tab -->
+                <div class="tab-pane fade" id="help">
+                    <div class="card settings-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Getting Started with HMRC MTD</h5>
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle"></i> What is Making Tax Digital?</h6>
+                                <p>Making Tax Digital (MTD) is HMRC's initiative to digitize the tax system. Self-employed individuals must submit quarterly updates of income and expenses digitally.</p>
+                            </div>
+                            
+                            <h6>Setup Steps:</h6>
+                            <ol>
+                                <li><strong>Register with HMRC:</strong> Sign up for MTD at <a href="https://www.gov.uk/guidance/sign-up-for-making-tax-digital-for-income-tax" target="_blank">gov.uk</a></li>
+                                <li><strong>Get Developer Credentials:</strong> Create an application at <a href="https://developer.service.hmrc.gov.uk" target="_blank">HMRC Developer Hub</a></li>
+                                <li><strong>Configure Environment Variables:</strong> Add your Client ID and Client Secret to the .env file</li>
+                                <li><strong>Connect:</strong> Click "Connect to HMRC" to authorize the application</li>
+                                <li><strong>Enter Details:</strong> Provide your NINO and Business ID</li>
+                                <li><strong>Submit Quarterly:</strong> Use the Expenses page to submit quarterly updates</li>
+                            </ol>
+                            
+                            <h6>Environment Variables Required:</h6>
+                            <pre class="bg-light p-3 rounded">
+HMRC_CLIENT_ID=your-client-id
+HMRC_CLIENT_SECRET=your-client-secret
+HMRC_REDIRECT_URI=http://localhost:5000/api/hmrc/auth/callback
+HMRC_ENVIRONMENT=sandbox  # or 'production'
+                            </pre>
+                            
+                            <h6>Quarterly Deadlines:</h6>
+                            <ul>
+                                <li><strong>Q1:</strong> April 6 - July 5 (Due: August 5)</li>
+                                <li><strong>Q2:</strong> July 6 - October 5 (Due: November 5)</li>
+                                <li><strong>Q3:</strong> October 6 - January 5 (Due: February 5)</li>
+                                <li><strong>Q4:</strong> January 6 - April 5 (Due: May 5)</li>
+                            </ul>
+                            
+                            <div class="alert alert-warning">
+                                <h6><i class="fas fa-exclamation-triangle"></i> Important Notes</h6>
+                                <ul class="mb-0">
+                                    <li>Always test in sandbox environment first</li>
+                                    <li>Keep your credentials secure and never commit them to version control</li>
+                                    <li>Quarterly submissions are mandatory - late submissions may incur penalties</li>
+                                    <li>Review all data before submitting to HMRC</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NINO/Business ID Modal -->
+<div class="modal fade" id="configModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Enter HMRC Details</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Before refreshing obligations, please provide your HMRC details:</p>
+                <div class="form-group">
+                    <label>National Insurance Number</label>
+                    <input type="text" class="form-control" id="modalNino" placeholder="AA123456A">
+                </div>
+                <div class="form-group">
+                    <label>Business ID</label>
+                    <input type="text" class="form-control" id="modalBusinessId" placeholder="XAIS12345678901">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="modalSaveBtn">Save & Continue</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/settings-hmrc.js') }}"></script>
+{% endblock %}

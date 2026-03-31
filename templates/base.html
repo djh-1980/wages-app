@@ -6,6 +6,7 @@
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>{% block title %}TVS TCMS{% endblock %}</title>
     
     <!-- Favicon -->
@@ -99,6 +100,9 @@
                             <li><a class="dropdown-item {% if request.path == '/settings/system' %}active{% endif %}" href="/settings/system">
                                 <i class="bi bi-gear-fill me-2"></i>System
                             </a></li>
+                            <li><a class="dropdown-item {% if request.path == '/settings/hmrc' %}active{% endif %}" href="/settings/hmrc">
+                                <i class="bi bi-bank me-2"></i>HMRC MTD
+                            </a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item {% if request.path == '/settings/about' %}active{% endif %}" href="/settings/about">
                                 <i class="bi bi-info-circle me-2"></i>About
@@ -151,6 +155,9 @@
     <!-- jsPDF for PDF export -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/3.0.3/jspdf.umd.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.2/jspdf.plugin.autotable.min.js"></script>
+    
+    <!-- CSRF Token Helper (must load first) -->
+    <script src="{{ url_for('static', filename='js/csrf-helper.js') }}?v={{ range(1000, 9999) | random }}"></script>
     
     <!-- UK Timezone Utilities -->
     <script src="{{ url_for('static', filename='js/timezone-utils.js') }}?v={{ range(1000, 9999) | random }}"></script>

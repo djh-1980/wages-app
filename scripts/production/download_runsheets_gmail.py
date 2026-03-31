@@ -16,7 +16,7 @@ from google.oauth2.credentials import Credentials
 from google.oauth2 import service_account
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
-import PyPDF2
+import pdfplumber
 import sqlite3
 
 # Add app to path for config import
@@ -51,9 +51,8 @@ class GmailRunSheetDownloader:
     def extract_date_from_pdf(self, pdf_path: Path) -> str:
         """Extract date from PDF to determine folder structure."""
         try:
-            with open(pdf_path, 'rb') as file:
-                reader = PyPDF2.PdfReader(file)
-                for page in reader.pages[:3]:
+            with pdfplumber.open(pdf_path) as pdf:
+                for page in pdf.pages[:3]:
                     text = page.extract_text()
                     lines = text.split('\n')
                     
@@ -73,12 +72,11 @@ class GmailRunSheetDownloader:
     def has_driver_name(self, pdf_path: Path, driver_name: str = "Hanson, Daniel") -> bool:
         """Check if this runsheet contains Daniel Hanson's jobs (single or multi-driver)."""
         try:
-            with open(pdf_path, 'rb') as file:
-                reader = PyPDF2.PdfReader(file)
+            with pdfplumber.open(pdf_path) as pdf:
                 # Check ALL pages for driver name
                 # Large multi-driver runsheets can have 100+ pages with Daniel appearing late
-                for page_num in range(len(reader.pages)):
-                    text = reader.pages[page_num].extract_text()
+                for page_num in range(len(pdf.pages)):
+                    text = pdf.pages[page_num].extract_text()
                     # Accept if it contains Daniel Hanson's name in any format
                     if ("daniel hanson" in text.lower() or
                         "hanson, daniel" in text.lower() or

@@ -3,11 +3,16 @@ Reports and analytics API routes blueprint.
 Extracted from web_app.py to improve code organization.
 """
 
+import logging
+
 from flask import Blueprint, jsonify, request
+
 from ..models.payslip import PayslipModel
 from ..models.runsheet import RunsheetModel
 from ..database import get_db_connection
 from ..services.report_service import ReportService
+
+logger = logging.getLogger(__name__)
 
 reports_bp = Blueprint('reports_api', __name__, url_prefix='/api')
 
@@ -34,9 +39,10 @@ def api_clients():
             """, (limit,))
             
             rows = [dict(row) for row in cursor.fetchall()]
-            return jsonify(rows)
+            return jsonify({'success': True, 'data': rows})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting clients: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/job_types')
@@ -61,9 +67,10 @@ def api_job_types():
             """, (limit,))
             
             rows = [dict(row) for row in cursor.fetchall()]
-            return jsonify(rows)
+            return jsonify({'success': True, 'data': rows})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting job types: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/all_clients')
@@ -80,9 +87,10 @@ def api_all_clients():
             """)
             
             clients = [row['client'] for row in cursor.fetchall()]
-            return jsonify(clients)
+            return jsonify({'success': True, 'data': clients})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting client list: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/all_job_types')
@@ -99,9 +107,10 @@ def api_all_job_types():
             """)
             
             job_types = [row['job_type'] for row in cursor.fetchall()]
-            return jsonify(job_types)
+            return jsonify({'success': True, 'data': job_types})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting job type list: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/custom_report')
@@ -207,9 +216,10 @@ def api_custom_report():
                                 row['job_type_group'] = group_name
                                 break
             
-            return jsonify(rows)
+            return jsonify({'success': True, 'data': rows})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting custom report: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/year_comparison')
@@ -240,9 +250,10 @@ def api_year_comparison():
                     for row in cursor.fetchall()
                 ]
         
-        return jsonify(comparison_data)
+        return jsonify({'success': True, 'data': comparison_data})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting year comparison: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/earnings_forecast')
@@ -263,7 +274,7 @@ def api_earnings_forecast():
             current_year_data = [dict(row) for row in cursor.fetchall()]
             
             if not current_year_data:
-                return jsonify({'error': 'No data available'}), 404
+                return jsonify({'success': False, 'error': 'No data available'}), 404
             
             current_year = current_year_data[0]['tax_year']
             weeks_worked = len(current_year_data)
@@ -306,6 +317,7 @@ def api_earnings_forecast():
             projected_year_end = total_earned + sum(f['predicted_amount'] for f in forecast_data)
             
             return jsonify({
+                'success': True,
                 'current_year': current_year,
                 'weeks_worked': weeks_worked,
                 'total_earned': total_earned,
@@ -316,7 +328,8 @@ def api_earnings_forecast():
                 'projected_year_end': projected_year_end
             })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting earnings forecast: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/client_heatmap')
@@ -373,11 +386,13 @@ def api_client_heatmap():
             top_clients = [row['client'] for row in cursor.fetchall()]
             
             return jsonify({
+                'success': True,
                 'heatmap_data': rows,
                 'top_clients': top_clients
             })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting client heatmap: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/weekly_performance')
@@ -429,12 +444,14 @@ def api_weekly_performance():
             average = cursor.fetchone()['avg']
             
             return jsonify({
+                'success': True,
                 'best_weeks': best_weeks,
                 'worst_weeks': worst_weeks,
                 'average': average
             })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting weekly performance: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/discrepancies')
@@ -465,7 +482,7 @@ def api_reports_discrepancies():
                     week_number = result['week_number']
                     tax_year = result['tax_year']
                 else:
-                    return jsonify({'error': 'No payslips found'}), 404
+                    return jsonify({'success': False, 'error': 'No payslips found'}), 404
             
             # Get the date range for this week using company calendar
             sunday, saturday = company_calendar.get_week_dates(week_number, tax_year)
@@ -482,7 +499,7 @@ def api_reports_discrepancies():
             placeholders = ','.join('?' * len(dates_in_week))
             
             # Get all job numbers from payslips for this week
-            cursor.execute(f"""
+            cursor.execute("""
                 SELECT ji.job_number, ji.client, ji.location, ji.amount, ji.date, ji.description,
                        p.week_number, p.tax_year
                 FROM job_items ji
@@ -508,12 +525,13 @@ def api_reports_discrepancies():
                     }
             
             # Get all job numbers from run sheets for the same week date range
-            cursor.execute(f"""
+            query = f"""
                 SELECT job_number, customer, activity, job_address, pay_amount, date, status
                 FROM run_sheet_jobs
                 WHERE date IN ({placeholders})
                 AND job_number IS NOT NULL AND job_number != ''
-            """, dates_in_week)
+            """
+            cursor.execute(query, dates_in_week)
             
             runsheet_jobs = {}
             for row in cursor.fetchall():
@@ -582,6 +600,7 @@ def api_reports_discrepancies():
             match_rate = round((matched_jobs / total_payslip_jobs * 100), 1) if total_payslip_jobs > 0 else 0
             
             return jsonify({
+                'success': True,
                 'summary': {
                     'week_number': week_number,
                     'tax_year': tax_year,
@@ -605,7 +624,8 @@ def api_reports_discrepancies():
                 'runsheet_jobs': runsheet_jobs
             })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting weekly details: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/email-audit')
@@ -633,7 +653,7 @@ def api_email_audit_trail():
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             
             # Get email audit log
-            cursor.execute(f"""
+            query1 = f"""
                 SELECT 
                     id,
                     job_number,
@@ -651,19 +671,21 @@ def api_email_audit_trail():
                 FROM email_audit_log
                 WHERE {where_clause}
                 ORDER BY sent_at DESC
-            """, params)
+            """
+            cursor.execute(query1, params)
             
             emails = [dict(row) for row in cursor.fetchall()]
             
             # Get summary statistics
-            cursor.execute(f"""
+            query2 = f"""
                 SELECT 
                     COUNT(*) as total_emails,
                     SUM(agreed_rate) as total_agreed_value,
                     COUNT(DISTINCT job_number) as unique_jobs
                 FROM email_audit_log
                 WHERE {where_clause}
-            """, params)
+            """
+            cursor.execute(query2, params)
             
             summary = dict(cursor.fetchone())
             
@@ -673,7 +695,8 @@ def api_email_audit_trail():
                 'summary': summary
             })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting email summary: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/comprehensive')
@@ -683,9 +706,10 @@ def api_comprehensive_report():
         year = request.args.get('year', type=int)
         month = request.args.get('month', type=int)
         report = ReportService.generate_comprehensive_report(year, month)
-        return jsonify(report)
+        return jsonify({'success': True, 'data': report})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error generating comprehensive report: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/earnings-jobs-correlation')
@@ -693,9 +717,10 @@ def api_earnings_jobs_correlation():
     """Analyze correlation between earnings and job counts."""
     try:
         correlation = ReportService.analyze_earnings_vs_jobs_correlation()
-        return jsonify(correlation)
+        return jsonify({'success': True, 'data': correlation})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error analyzing earnings correlation: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/client-profitability')
@@ -703,9 +728,10 @@ def api_client_profitability():
     """Get detailed client profitability analysis."""
     try:
         profitability = ReportService.generate_client_profitability_report()
-        return jsonify(profitability)
+        return jsonify({'success': True, 'data': profitability})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error generating profitability report: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/seasonal-patterns')
@@ -713,9 +739,10 @@ def api_seasonal_patterns():
     """Analyze seasonal patterns in earnings and activity."""
     try:
         patterns = ReportService.analyze_seasonal_patterns()
-        return jsonify(patterns)
+        return jsonify({'success': True, 'data': patterns})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error analyzing seasonal patterns: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/export-custom')
@@ -739,9 +766,10 @@ def api_export_custom():
             response.headers['Content-Disposition'] = 'attachment; filename=custom_report.csv'
             return response
         else:
-            return jsonify({'data': export_data})
+            return jsonify({'success': True, 'data': export_data})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error exporting report data: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 # ===== MILEAGE REPORTS =====
@@ -764,7 +792,7 @@ def api_mileage_summary():
                 params.append(year)
             
             # Get summary statistics
-            cursor.execute(f"""
+            query1 = f"""
                 SELECT 
                     COUNT(*) as total_days,
                     COALESCE(SUM(mileage), 0) as total_miles,
@@ -772,7 +800,8 @@ def api_mileage_summary():
                     COALESCE(AVG(mileage), 0) as avg_miles_per_day
                 FROM runsheet_daily_data 
                 {where_clause}
-            """, params)
+            """
+            cursor.execute(query1, params)
             
             summary = cursor.fetchone()
             
@@ -782,7 +811,7 @@ def api_mileage_summary():
                 cost_per_mile = summary['total_fuel_cost'] / summary['total_miles']
             
             # Get monthly breakdown (date format is DD/MM/YYYY)
-            cursor.execute(f"""
+            query2 = f"""
                 SELECT 
                     substr(date, 4, 7) as month,
                     SUM(mileage) as total_miles,
@@ -793,12 +822,13 @@ def api_mileage_summary():
                 {where_clause}
                 GROUP BY substr(date, 4, 7)
                 ORDER BY substr(date, 7, 4), substr(date, 4, 2)
-            """, params)
+            """
+            cursor.execute(query2, params)
             
             monthly_data = [dict(row) for row in cursor.fetchall()]
             
             # Get fuel cost breakdown (ranges)
-            cursor.execute(f"""
+            query3 = f"""
                 SELECT 
                     CASE 
                         WHEN fuel_cost = 0 THEN '£0'
@@ -819,7 +849,8 @@ def api_mileage_summary():
                         ELSE '£60+'
                     END
                 ORDER BY count DESC
-            """, params)
+            """
+            cursor.execute(query3, params)
             
             fuel_breakdown = [dict(row) for row in cursor.fetchall()]
             
@@ -837,6 +868,7 @@ def api_mileage_summary():
             })
             
     except Exception as e:
+        logger.error(f'Error getting mileage summary: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -866,6 +898,7 @@ def api_recent_mileage():
             })
             
     except Exception as e:
+        logger.error(f'Error getting recent mileage: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -902,7 +935,7 @@ def api_generate_monthly_mileage_report():
                 pdf_service = MileagePDFReportService()
                 pdf_path = pdf_service.create_monthly_mileage_pdf(data)
                 
-                return send_file(pdf_path, as_attachment=True, 
+                return send_file(pdf_path, as_attachment=True,
                                download_name='monthly_mileage_report.pdf',
                                mimetype='application/pdf')
             else:
@@ -941,6 +974,7 @@ def api_generate_monthly_mileage_report():
                 return response
             
     except Exception as e:
+        logger.error(f'Error generating mileage report: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -1006,6 +1040,7 @@ def api_generate_high_mileage_report():
                 return response
             
     except Exception as e:
+        logger.error(f'Error generating high mileage report: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -1041,7 +1076,7 @@ def api_extra_jobs_report():
             where_clause = " AND ".join(where_conditions)
             
             # Get extra jobs with details including agreed price and discrepancy
-            cursor.execute(f"""
+            query1 = f"""
                 SELECT 
                     job_number,
                     date,
@@ -1063,12 +1098,13 @@ def api_extra_jobs_report():
                 FROM run_sheet_jobs 
                 WHERE {where_clause}
                 ORDER BY date DESC, job_number DESC
-            """, params)
+            """
+            cursor.execute(query1, params)
             
             extra_jobs = [dict(row) for row in cursor.fetchall()]
             
             # Get summary statistics including discrepancy info
-            cursor.execute(f"""
+            query2 = f"""
                 SELECT 
                     COUNT(*) as total_jobs,
                     COUNT(DISTINCT date) as total_days,
@@ -1080,12 +1116,13 @@ def api_extra_jobs_report():
                     SUM(CASE WHEN price_agreed IS NOT NULL AND pay_amount IS NOT NULL THEN pay_amount - price_agreed ELSE 0 END) as total_discrepancy
                 FROM run_sheet_jobs 
                 WHERE {where_clause}
-            """, params)
+            """
+            cursor.execute(query2, params)
             
             summary = cursor.fetchone()
             
             # Get customer breakdown
-            cursor.execute(f"""
+            query3 = f"""
                 SELECT 
                     customer,
                     COUNT(*) as job_count,
@@ -1094,12 +1131,13 @@ def api_extra_jobs_report():
                 WHERE {where_clause}
                 GROUP BY customer
                 ORDER BY job_count DESC, total_pay DESC
-            """, params)
+            """
+            cursor.execute(query3, params)
             
             customer_breakdown = [dict(row) for row in cursor.fetchall()]
             
             # Get activity breakdown
-            cursor.execute(f"""
+            query4 = f"""
                 SELECT 
                     activity,
                     COUNT(*) as job_count,
@@ -1108,7 +1146,8 @@ def api_extra_jobs_report():
                 WHERE {where_clause}
                 GROUP BY activity
                 ORDER BY job_count DESC
-            """, params)
+            """
+            cursor.execute(query4, params)
             
             activity_breakdown = [dict(row) for row in cursor.fetchall()]
             
@@ -1139,6 +1178,7 @@ def api_extra_jobs_report():
             })
             
     except Exception as e:
+        logger.error(f'Error getting extra jobs: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -1242,9 +1282,10 @@ def api_export_extra_jobs():
                 response.headers['Content-Disposition'] = f'attachment; filename={filename}'
                 return response
             else:
-                return jsonify({'jobs': jobs})
+                return jsonify({'success': True, 'data': {'jobs': jobs}})
                 
     except Exception as e:
+        logger.error(f'Error exporting extra jobs: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -2061,7 +2102,8 @@ def api_weekly_summary():
             })
             
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting customer data: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/customers')
@@ -2085,9 +2127,10 @@ def api_customers():
                     'job_count': row[1]
                 })
             
-            return jsonify(customers)
+            return jsonify({'success': True, 'data': customers})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting customers list: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/customer_parsing')
@@ -2171,7 +2214,8 @@ def api_customer_parsing():
             })
             
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting data quality report: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @reports_bp.route('/earnings-analytics')

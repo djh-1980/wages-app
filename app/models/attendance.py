@@ -3,8 +3,9 @@ Attendance model - handles attendance tracking database operations.
 Extracted from web_app.py to improve code organization.
 """
 
-from ..database import get_db_connection, execute_query
 import sqlite3
+
+from ..database import get_db_connection, execute_query
 
 
 class AttendanceModel:

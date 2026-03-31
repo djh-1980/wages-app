@@ -3,11 +3,16 @@ Runsheet API routes blueprint.
 Extracted from web_app.py to improve code organization.
 """
 
+import json
+import logging
+from pathlib import Path
+
 from flask import Blueprint, jsonify, request
+
 from ..models.runsheet import RunsheetModel
 from ..services.runsheet_service import RunsheetService
-from pathlib import Path
-import json
+
+logger = logging.getLogger(__name__)
 
 runsheets_bp = Blueprint('runsheets_api', __name__, url_prefix='/api/runsheets')
 
@@ -17,9 +22,10 @@ def api_runsheets_summary():
     """Get enhanced run sheets summary with business intelligence."""
     try:
         summary = RunsheetService.get_dashboard_summary()
-        return jsonify(summary)
+        return jsonify({'success': True, 'data': summary})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting runsheets summary: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/list')
@@ -47,9 +53,10 @@ def api_runsheets_list():
             filter_week=filter_week, filter_day=filter_day
         )
         
-        return jsonify(result)
+        return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting runsheets list: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/jobs')
@@ -59,12 +66,13 @@ def api_runsheets_jobs():
         date = request.args.get('date')
         
         if not date:
-            return jsonify({'error': 'Date parameter required'}), 400
+            return jsonify({'success': False, 'error': 'Date parameter required'}), 400
         
         jobs = RunsheetModel.get_jobs_for_date(date)
-        return jsonify({'jobs': jobs, 'date': date})
+        return jsonify({'success': True, 'data': {'jobs': jobs, 'date': date}})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting jobs for date {date}: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/update-statuses', methods=['POST'])
@@ -87,6 +95,7 @@ def api_update_job_statuses():
         
         return jsonify({'success': True, 'updated': updated_count})
     except Exception as e:
+        logger.error(f'Error updating job statuses: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -97,12 +106,13 @@ def api_get_daily_data():
         date = request.args.get('date')
         
         if not date:
-            return jsonify({'error': 'Date parameter required'}), 400
+            return jsonify({'success': False, 'error': 'Date parameter required'}), 400
         
         daily_data = RunsheetModel.get_daily_data(date)
-        return jsonify(daily_data)
+        return jsonify({'success': True, 'data': daily_data})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting daily data for {date}: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/update-job-status', methods=['POST'])
@@ -209,7 +219,7 @@ def api_add_extra_job():
                         job_data, manager_email, user_email
                     )
             except Exception as email_error:
-                print(f"Email sending failed: {email_error}")
+                logger.warning(f"Email sending failed: {email_error}")
                 # Don't fail the whole request if email fails
         
         return jsonify({
@@ -218,6 +228,7 @@ def api_add_extra_job():
             'email_sent': email_sent
         })
     except Exception as e:
+        logger.error(f'Error adding job: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -298,6 +309,7 @@ def api_edit_job(job_id):
         else:
             return jsonify({'success': False, 'error': 'Job not found or update failed'}), 404
     except Exception as e:
+        logger.error(f'Error updating job: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -338,6 +350,7 @@ def api_delete_job(job_id):
         else:
             return jsonify({'success': False, 'error': 'Failed to delete job'}), 500
     except Exception as e:
+        logger.error(f'Error deleting job: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -346,9 +359,10 @@ def api_runsheets_autocomplete_data():
     """Get unique customers and activities for autocomplete."""
     try:
         autocomplete_data = RunsheetModel.get_autocomplete_data()
-        return jsonify(autocomplete_data)
+        return jsonify({'success': True, 'data': autocomplete_data})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting autocomplete data: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/completion-status')
@@ -356,9 +370,10 @@ def api_runsheets_completion_status():
     """Get completion status for all run sheet dates."""
     try:
         status_map = RunsheetModel.get_completion_status()
-        return jsonify(status_map)
+        return jsonify({'success': True, 'data': status_map})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting completion status: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/debug-status')
@@ -368,9 +383,10 @@ def api_debug_completion_status():
         # This would need to be implemented in the model if needed
         # For now, return the same as completion-status
         status_map = RunsheetModel.get_completion_status()
-        return jsonify(status_map)
+        return jsonify({'success': True, 'data': status_map})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting pay status: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/completion-analysis')
@@ -380,9 +396,10 @@ def api_completion_analysis():
         date_from = request.args.get('date_from')
         date_to = request.args.get('date_to')
         analysis = RunsheetService.analyze_job_completion_rates(date_from, date_to)
-        return jsonify(analysis)
+        return jsonify({'success': True, 'data': analysis})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error analyzing completion rates: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/customer-performance')
@@ -390,9 +407,10 @@ def api_customer_performance():
     """Get customer performance analysis."""
     try:
         analysis = RunsheetService.get_customer_performance_analysis()
-        return jsonify(analysis)
+        return jsonify({'success': True, 'data': analysis})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting customer performance: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/route-optimization/<date>')
@@ -400,9 +418,10 @@ def api_route_optimization(date):
     """Get route optimization suggestions for a specific date."""
     try:
         suggestions = RunsheetService.optimize_route_suggestions(date)
-        return jsonify(suggestions)
+        return jsonify({'success': True, 'data': suggestions})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error optimizing routes: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/daily-progress/<date>')
@@ -410,9 +429,10 @@ def api_daily_progress(date):
     """Get comprehensive daily progress tracking."""
     try:
         progress = RunsheetService.track_daily_progress(date)
-        return jsonify(progress)
+        return jsonify({'success': True, 'data': progress})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error tracking daily progress: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/update-pay-info', methods=['POST'])
@@ -420,9 +440,10 @@ def api_update_pay_info():
     """Update runsheet jobs with pay information from payslips."""
     try:
         result = RunsheetModel.update_job_pay_info()
-        return jsonify(result)
+        return jsonify({'success': True, 'data': result})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error updating job pay info: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/jobs-with-pay')
@@ -438,7 +459,8 @@ def api_jobs_with_pay():
             'count': len(jobs)
         })
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error getting pending jobs: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/discrepancy-report')
@@ -458,9 +480,10 @@ def api_discrepancy_report():
             year=year if year else None,
             month=month if month else None
         )
-        return jsonify(report)
+        return jsonify({'success': True, 'data': report})
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error generating activity report: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/discrepancy-pdf', methods=['POST'])
@@ -512,8 +535,8 @@ def api_discrepancy_pdf():
             
     except Exception as e:
         import traceback
-        print(f"PDF Generation Error: {e}")
-        print(traceback.format_exc())
+        logger.error(f"PDF Generation Error: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({'error': f'PDF generation failed: {str(e)}'}), 500
 
 
@@ -585,10 +608,11 @@ def api_discrepancy_csv():
                 headers={'Content-Disposition': f'attachment; filename={filename}'}
             )
         else:
-            return jsonify({'error': 'No missing jobs found for the selected criteria'}), 404
+            return jsonify({'success': False, 'error': 'No missing jobs found for the selected criteria'}), 404
             
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        logger.error(f'Error generating missing jobs report: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @runsheets_bp.route('/analytics')
@@ -618,7 +642,7 @@ def api_runsheets_analytics():
             where_clause = " AND ".join(where_conditions) if where_conditions else "1=1"
             
             # 1. STATUS BREAKDOWN (normalize DNCO case variations)
-            cursor.execute(f"""
+            query1 = f"""
                 SELECT 
                     CASE 
                         WHEN UPPER(status) = 'DNCO' THEN 'DNCO'
@@ -633,7 +657,8 @@ def api_runsheets_analytics():
                     ELSE status
                 END
                 ORDER BY count DESC
-            """, params)
+            """
+            cursor.execute(query1, params)
             status_breakdown = [dict(row) for row in cursor.fetchall()]
             
             # Calculate estimated DNCO loss (same logic as weekly reporting)
@@ -646,11 +671,12 @@ def api_runsheets_analytics():
             
             if dnco_count > 0:
                 # Get all DNCO jobs with customer and activity
-                cursor.execute(f"""
+                query2 = f"""
                     SELECT customer, activity, pay_amount
                     FROM run_sheet_jobs
                     WHERE {where_clause} AND UPPER(status) = 'DNCO'
-                """, params)
+                """
+                cursor.execute(query2, params)
                 
                 dnco_jobs = cursor.fetchall()
                 jobs_with_history = 0

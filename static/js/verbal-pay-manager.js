@@ -229,14 +229,14 @@ async function saveConfirmation() {
             // Update existing
             response = await fetch(`/api/verbal-pay/confirmations/${id}`, {
                 method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getJSONHeaders(),
                 body: JSON.stringify({ verbal_amount: amount, notes: notes })
             });
         } else {
             // Create new
             response = await fetch('/api/verbal-pay/confirmations', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: getJSONHeaders(),
                 body: JSON.stringify({
                     week_number: weekNumber,
                     year: year,
@@ -271,7 +271,8 @@ async function deleteConfirmation(id, weekNumber) {
     
     try {
         const response = await fetch(`/api/verbal-pay/confirmations/${id}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getCSRFHeaders()
         });
         
         const data = await response.json();
@@ -324,7 +325,7 @@ async function processBulkImport() {
     try {
         const response = await fetch('/api/verbal-pay/bulk-import', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ confirmations: confirmations })
         });
         

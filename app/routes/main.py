@@ -3,9 +3,10 @@ Main routes blueprint - handles page rendering routes.
 Extracted from web_app.py to improve code organization.
 """
 
-from flask import Blueprint, render_template
-import sys
 import os
+import sys
+
+from flask import Blueprint, render_template
 
 # Add the parent directory to the path to import version
 sys.path.append(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
@@ -103,3 +104,8 @@ def settings_about():
     """About page."""
     version_info = get_version_info()
     return render_template('settings/about.html', version_info=version_info)
+
+@main_bp.route('/settings/hmrc')
+def settings_hmrc():
+    """HMRC Making Tax Digital settings page."""
+    return render_template('settings/hmrc.html')

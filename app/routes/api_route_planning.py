@@ -3,9 +3,11 @@ API routes for route planning and optimization.
 Uses OpenRouteService API for route optimization.
 """
 
-from flask import Blueprint, jsonify, request
-import requests
 import math
+
+import requests
+from flask import Blueprint, jsonify, request
+
 from ..utils.logging_utils import log_settings_action
 from ..database import get_db_connection
 

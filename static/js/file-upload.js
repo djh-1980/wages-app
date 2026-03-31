@@ -263,6 +263,7 @@ class FileUploadManager {
             
             const response = await fetch('/api/upload/files', {
                 method: 'POST',
+                headers: getCSRFHeaders(),
                 body: formData
             });
             
@@ -476,9 +477,7 @@ class HybridSyncManager {
         try {
             const response = await fetch('/api/upload/process-local', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: getJSONHeaders(),
                 body: JSON.stringify(options)
             });
             
@@ -499,9 +498,7 @@ class HybridSyncManager {
         try {
             const response = await fetch('/api/upload/hybrid-sync', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: getJSONHeaders(),
                 body: JSON.stringify({ mode })
             });
             

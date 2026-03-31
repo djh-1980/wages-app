@@ -1,12 +1,14 @@
 """
 Separated Sync Service - Clear runsheet and payslip workflows
 """
+
 import logging
+import sqlite3
 import subprocess
 import sys
-import sqlite3
 from datetime import datetime, timedelta
 from pathlib import Path
+
 from .sync_helpers import (
     get_latest_runsheet_date,
     get_latest_payslip_week,

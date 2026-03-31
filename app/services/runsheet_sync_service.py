@@ -3,8 +3,15 @@ RunsheetSyncService - Handles synchronization between payslips and runsheets.
 Automatically updates runsheet data when payslips are processed.
 """
 
-from ..database import get_db_connection
+import logging
+import sqlite3
 from datetime import datetime
+from pathlib import Path
+from typing import Dict, Any, Optional
+
+from app.database import get_db_connection
+
+logger = logging.getLogger(__name__)
 
 
 class RunsheetSyncService:
@@ -20,7 +27,7 @@ class RunsheetSyncService:
         cursor = conn.cursor()
         
         try:
-            print("🔗 Syncing payslip data to runsheets...")
+            logger.info("Syncing payslip data to runsheets...")
             
             # Add pay columns if they don't exist (for new installations)
             pay_columns = [
@@ -94,11 +101,11 @@ class RunsheetSyncService:
             
             # Log results
             if pay_updated_count > 0:
-                print(f"✅ Updated {pay_updated_count} runsheet jobs with pay information")
+                logger.info(f"Updated {pay_updated_count} runsheet jobs with pay information")
             
             # Address updates now handled by improved parsers during import
             if pay_updated_count == 0:
-                print("✅ All runsheet pay data is already up to date")
+                logger.info("All runsheet pay data is already up to date")
             
             return {
                 'pay_updated': pay_updated_count,
@@ -108,7 +115,7 @@ class RunsheetSyncService:
             
         except Exception as e:
             conn.rollback()
-            print(f"❌ Error syncing payslip data: {e}")
+            logger.error(f"Error syncing payslip data: {e}")
             return {
                 'pay_updated': 0,
                 'address_updated': 0,
@@ -164,7 +171,7 @@ class RunsheetSyncService:
             }
             
         except Exception as e:
-            print(f"Error getting sync statistics: {e}")
+            logger.error(f"Error getting sync statistics: {e}")
             return None
         finally:
             conn.close()

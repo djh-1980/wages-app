@@ -3,9 +3,10 @@ Notifications API routes blueprint.
 Handles notification endpoints that were missing from the refactored structure.
 """
 
-from flask import Blueprint, jsonify, request
-from pathlib import Path
 import json
+from pathlib import Path
+
+from flask import Blueprint, jsonify, request
 
 notifications_bp = Blueprint('notifications_api', __name__, url_prefix='/api/notifications')
 

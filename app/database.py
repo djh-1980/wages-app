@@ -188,6 +188,69 @@ def init_database():
             )
         """)
         
+        # Initialize HMRC credentials table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS hmrc_credentials (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                access_token TEXT,
+                refresh_token TEXT,
+                expires_at TIMESTAMP,
+                scope TEXT,
+                environment TEXT DEFAULT 'sandbox',
+                is_active BOOLEAN DEFAULT 1,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Initialize HMRC obligations table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS hmrc_obligations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tax_year TEXT NOT NULL,
+                period_id TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                end_date TEXT NOT NULL,
+                due_date TEXT NOT NULL,
+                status TEXT NOT NULL,
+                received_date TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(period_id)
+            )
+        """)
+        
+        # Initialize HMRC submissions table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS hmrc_submissions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tax_year TEXT NOT NULL,
+                period_id TEXT NOT NULL,
+                submission_date TEXT,
+                status TEXT DEFAULT 'pending',
+                hmrc_receipt_id TEXT,
+                submission_data TEXT,
+                response_data TEXT,
+                error_message TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+            )
+        """)
+        
+        # Initialize users table for authentication
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS users (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                username TEXT NOT NULL UNIQUE,
+                email TEXT NOT NULL UNIQUE,
+                password_hash TEXT NOT NULL,
+                is_active BOOLEAN DEFAULT 1,
+                is_admin BOOLEAN DEFAULT 0,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                last_login TIMESTAMP
+            )
+        """)
+        
         conn.commit()
 
 

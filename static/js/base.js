@@ -42,7 +42,10 @@ async function handleAutoSyncBadgeClick() {
             // Show syncing animation
             icon.style.animation = 'spin 1s linear infinite';
             
-            const syncResponse = await fetch('/api/data/periodic-sync/force', { method: 'POST' });
+            const syncResponse = await fetch('/api/data/periodic-sync/force', { 
+                method: 'POST',
+                headers: getCSRFHeaders()
+            });
             const syncResult = await syncResponse.json();
             
             // Stop animation
@@ -212,7 +215,8 @@ document.addEventListener('DOMContentLoaded', function() {
     // Mark notifications as read when viewing run sheets page
     if (window.location.pathname === '/runsheets' || window.location.pathname === '/') {
         fetch('/api/notifications/runsheets/mark-read', {
-            method: 'POST'
+            method: 'POST',
+            headers: getCSRFHeaders()
         }).catch(err => console.error('Error marking notifications as read:', err));
     }
     

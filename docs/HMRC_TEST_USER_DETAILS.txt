@@ -1,0 +1,111 @@
+================================================================================
+HMRC MTD TEST USER CREDENTIALS
+================================================================================
+
+IMPORTANT: These are SANDBOX test credentials only. Do NOT use in production.
+
+--------------------------------------------------------------------------------
+TEST USER LOGIN (NEW - WITH SELF-EMPLOYMENT)
+--------------------------------------------------------------------------------
+User ID:           935917348463
+Password:          yeSn4tOBmXnU
+Email:             elvin.russel@example.com
+
+--------------------------------------------------------------------------------
+INDIVIDUAL DETAILS
+--------------------------------------------------------------------------------
+National Insurance Number (NINO):  OA965288C
+Name:                               Elvin Russel
+Date of Birth:                      1962-03-28
+Address:                            31 Earl's Court Road
+                                    Rugby
+                                    TS20 1PA
+
+Self Assessment UTR:                2798407418
+VAT Registration Number:            267927118
+VAT Registration Date:              2019-03-18
+EORI Number:                        GB164638501274
+Group Identifier:                   197611039720
+
+--------------------------------------------------------------------------------
+MTD INCOME TAX DETAILS
+--------------------------------------------------------------------------------
+MTD Income Tax ID:                  XJIT00546730626
+
+Self-Employment Business ID:        [HMRC SANDBOX LIMITATION]
+  Note: HMRC sandbox doesn't provide business IDs for test users.
+  
+  Try these options in order:
+  1. Use NINO as business ID: OA965288C
+  2. Standard test format: XAIS00000000001
+  3. MTD Income Tax ID: XJIT00546730626
+  
+  HMRC sandbox has limited documentation on this.
+
+--------------------------------------------------------------------------------
+HMRC APPLICATION CREDENTIALS
+--------------------------------------------------------------------------------
+Client ID:          R3HyT0Y25Q9X8uQlWonCgBpEly8y
+Client Secret:      [Stored in .env file]
+Redirect URI:       http://localhost:5001/api/hmrc/auth/callback
+
+Application Name:   TVS Wages MTD Integration
+Environment:        Sandbox
+Application ID:     d1754357-50ed-4c66-83d8-920cee051a0f
+
+--------------------------------------------------------------------------------
+API SUBSCRIPTIONS (Developer Hub)
+--------------------------------------------------------------------------------
+✓ Business Income Source Summary (MTD) - v3.0 (Beta)
+✓ Create Test User - v1.0 (Beta)
+✓ Individual Calculations (MTD) - v8.0 (Beta)
+✓ Obligations (MTD) - v3.0 (Beta)
+✓ Self Assessment Accounts (MTD) - v4.0 (Beta)
+✓ Self Employment Business (MTD) - v5.0 (Beta)
+✓ Test Fraud Prevention Headers - v1.0 (Beta)
+
+--------------------------------------------------------------------------------
+CONFIGURATION STEPS
+--------------------------------------------------------------------------------
+
+1. OAuth Connection:
+   - Go to Settings > HMRC MTD
+   - Click "Connect to HMRC"
+   - Login with User ID: 927919480913
+   - Authorize the application
+
+2. Configure NINO and Business ID:
+   - In HMRC Settings, click "Configure"
+   - Enter NINO: JK850249C
+   - Enter Business ID: [Fetch from API first - see below]
+   - Click Save
+
+3. Fetch Correct Business ID:
+   - Open browser console (F12)
+   - Run: fetch('/api/hmrc/businesses?nino=JK850249C').then(r=>r.json()).then(console.log)
+   - Copy the self-employment business ID from the response
+   - Update in HMRC settings
+
+4. Test Submission:
+   - Go to Expenses page
+   - Click "Submit to HMRC MTD"
+   - Select tax year and quarter
+   - Preview and submit
+
+--------------------------------------------------------------------------------
+IMPORTANT NOTES
+--------------------------------------------------------------------------------
+
+- The MTD Income Tax ID (XAIT00485555230) is NOT the same as the 
+  self-employment business ID needed for submissions
+  
+- You must fetch the correct business ID using the Business Details API
+  before attempting submissions
+
+- All test data is for SANDBOX environment only
+
+- When ready for production, update .env with:
+  HMRC_ENVIRONMENT=production
+  And use real credentials from HMRC
+
+================================================================================

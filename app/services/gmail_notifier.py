@@ -4,14 +4,18 @@ Uses the same Gmail API authentication as the download service to send notificat
 """
 
 import base64
+import logging
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from pathlib import Path
+from typing import Dict, Any
+
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 
+logger = logging.getLogger(__name__)
 
 # Gmail API scopes - need send permission
 SCOPES = [
@@ -42,18 +46,18 @@ class GmailNotifier:
                 try:
                     creds.refresh(Request())
                 except Exception as e:
-                    print(f"Token refresh failed: {e}")
+                    logger.warning(f"Token refresh failed: {e}")
                     # Try to re-authenticate
                     if credentials_path.exists():
                         flow = InstalledAppFlow.from_client_secrets_file(
                             str(credentials_path), SCOPES)
                         creds = flow.run_local_server(port=0)
                     else:
-                        print("Error: credentials.json not found!")
+                        logger.error("Error: credentials.json not found!")
                         return False
             else:
                 if not credentials_path.exists():
-                    print("Error: credentials.json not found!")
+                    logger.error("Error: credentials.json not found!")
                     return False
                     
                 flow = InstalledAppFlow.from_client_secrets_file(
@@ -107,11 +111,11 @@ class GmailNotifier:
                 body=send_message
             ).execute()
             
-            print(f"✅ Email sent successfully! Message ID: {result['id']}")
+            logger.info(f"Email sent successfully! Message ID: {result['id']}")
             return True
             
         except Exception as e:
-            print(f"❌ Failed to send email: {e}")
+            logger.error(f"Failed to send email: {e}")
             return False
     
     def send_sync_notification(self, sync_summary, recipient_email):

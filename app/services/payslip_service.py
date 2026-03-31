@@ -3,10 +3,11 @@ PayslipService - Business logic for payslip operations.
 Handles complex payslip calculations, analysis, and data processing.
 """
 
+import json
+from datetime import datetime, timedelta
+
 from ..models.payslip import PayslipModel
 from ..database import get_db_connection
-from datetime import datetime, timedelta
-import json
 
 
 class PayslipService:

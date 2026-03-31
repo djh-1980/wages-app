@@ -3,23 +3,28 @@ Data management API routes blueprint - sync, backup, export, clear operations.
 Extracted from web_app.py to improve code organization.
 """
 
+import csv
+import io
+import json
+import logging
+import os
+import sqlite3
+import subprocess
+import sys
+from datetime import datetime, timedelta
+from pathlib import Path
+
 from flask import Blueprint, jsonify, request, make_response, send_file
+
 from ..models.payslip import PayslipModel
 from ..models.runsheet import RunsheetModel
 from ..models.attendance import AttendanceModel
 from ..models.settings import SettingsModel
 from ..services.data_service import DataService
-from ..utils.logging_utils import log_settings_action
 from ..database import get_db_connection, DB_PATH
-from pathlib import Path
-from datetime import datetime
-import subprocess
-import sys
-import sqlite3
-import shutil
-import csv
-import io
-import os
+from ..utils.logging_utils import log_settings_action
+
+logger = logging.getLogger(__name__)
 
 data_bp = Blueprint('data_api', __name__, url_prefix='/api/data')
 
@@ -205,6 +210,7 @@ def api_get_payslip_sync_progress():
                 'progress': 'No progress available'
             })
     except Exception as e:
+        logger.error(f'Error getting payslip sync progress: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -234,6 +240,7 @@ def api_get_sync_progress():
             'lines': len(lines)
         })
     except Exception as e:
+        logger.error(f'Error getting sync progress: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -363,6 +370,7 @@ def api_reorganize_runsheets():
             'error': 'Reorganization timed out (took longer than 10 minutes)'
         }), 500
     except Exception as e:
+        logger.error(f'Error reorganizing runsheets: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -404,6 +412,7 @@ def api_backup_database():
             'path': str(backup_file)
         })
     except Exception as e:
+        logger.error(f'Error creating database backup: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -546,6 +555,7 @@ def api_upload_backup():
             'size_mb': round(size_mb, 2)
         })
     except Exception as e:
+        logger.error(f'Error uploading backup: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -586,6 +596,7 @@ def api_export_runsheets():
             
             return response
     except Exception as e:
+        logger.error(f'Error exporting runsheets: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -626,6 +637,7 @@ def api_export_payslips():
             
             return response
     except Exception as e:
+        logger.error(f'Error exporting payslips: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -642,6 +654,7 @@ def api_clear_runsheets():
             'message': f'Deleted {deleted} run sheet records'
         })
     except Exception as e:
+        logger.error(f'Error clearing runsheets: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -658,6 +671,7 @@ def api_clear_payslips():
             'message': f'Deleted {result["deleted_payslips"]} payslips and {result["deleted_jobs"]} job items'
         })
     except Exception as e:
+        logger.error(f'Error clearing payslips: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -679,6 +693,7 @@ def api_clear_all():
             'message': f'Database cleared: {payslip_result["deleted_payslips"]} payslips, {payslip_result["deleted_jobs"]} jobs, {runsheet_deleted} run sheets, {attendance_deleted} attendance records, {settings_deleted} settings'
         })
     except Exception as e:
+        logger.error(f'Error clearing all data: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -693,6 +708,7 @@ def api_intelligent_sync():
         result = DataService.perform_intelligent_sync(sync_type)
         return jsonify(result)
     except Exception as e:
+        logger.error(f'Error performing intelligent sync: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -706,9 +722,10 @@ def api_validate_integrity():
         validation = DataService.validate_data_integrity()
         return jsonify({
             'success': True,
-            'validation': validation
+            'data': {'validation': validation}
         })
     except Exception as e:
+        logger.error(f'Error validating data integrity: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -723,6 +740,7 @@ def api_intelligent_backup():
         result = DataService.create_intelligent_backup(backup_type)
         return jsonify(result)
     except Exception as e:
+        logger.error(f'Error creating intelligent backup: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -736,9 +754,10 @@ def api_optimize_database():
         result = DataService.optimize_database()
         return jsonify({
             'success': True,
-            'optimization_results': result
+            'data': {'optimization_results': result}
         })
     except Exception as e:
+        logger.error(f'Error optimizing database: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -778,17 +797,20 @@ def api_database_info():
         
         return jsonify({
             'success': True,
-            'size_bytes': size_bytes,
-            'size_mb': round(size_bytes / (1024 * 1024), 2),
-            'records': {
-                'payslips': payslips_count,
-                'runsheets': runsheets_count,
-                'jobs': jobs_count,
-                'attendance': attendance_count
-            },
-            'database_path': str(db_path)
+            'data': {
+                'size_bytes': size_bytes,
+                'size_mb': round(size_bytes / (1024 * 1024), 2),
+                'records': {
+                    'payslips': payslips_count,
+                    'runsheets': runsheets_count,
+                    'jobs': jobs_count,
+                    'attendance': attendance_count
+                },
+                'database_path': str(db_path)
+            }
         })
     except Exception as e:
+        logger.error(f'Error getting database info: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -832,11 +854,13 @@ def api_get_stats():
         
         return jsonify({
             'success': True,
-            'payslips': payslips_count,
-            'runsheets': runsheets_count,
-            'jobs': jobs_count,
-            'size': db_size,
-            'total_records': payslips_count + jobs_count
+            'data': {
+                'payslips': payslips_count,
+                'runsheets': runsheets_count,
+                'jobs': jobs_count,
+                'size': db_size,
+                'total_records': payslips_count + jobs_count
+            }
         })
         
     except Exception as e:
@@ -864,6 +888,7 @@ def api_get_periodic_sync_status():
             **status
         })
     except Exception as e:
+        logger.error(f'Error getting periodic sync status: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1007,6 +1032,7 @@ def api_get_sync_health():
         })
         
     except Exception as e:
+        logger.error(f'Error getting sync health: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1042,6 +1068,7 @@ def api_get_sync_config():
         })
         
     except Exception as e:
+        logger.error(f'Error getting sync config: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1230,6 +1257,7 @@ def api_list_backups():
             'backups': backups
         })
     except Exception as e:
+        logger.error(f'Error listing backups: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -1403,36 +1431,43 @@ def api_generate_custom_report():
         
         # Build date filter - dates are in DD/MM/YYYY format
         date_filter = ""
+        date_filter_params = []
         if year and week:
             # Filter by week number - get week start/end dates
             from datetime import datetime, timedelta
-            year_int = int(year)
-            week_int = int(week)
-            # Get first day of year
-            jan1 = datetime(year_int, 1, 1)
-            # Calculate week start (assuming week 1 starts on first Monday)
-            days_to_monday = (7 - jan1.weekday()) % 7
-            week_start = jan1 + timedelta(days=days_to_monday + (week_int - 1) * 7)
+            
+            # Calculate week start date (Sunday) from week number
+            # Week 1 starts on the first Sunday of the year
+            year_start = datetime(int(year), 1, 1)
+            days_to_sunday = (6 - year_start.weekday()) % 7
+            first_sunday = year_start + timedelta(days=days_to_sunday)
+            
+            # Calculate the start of the requested week
+            week_start = first_sunday + timedelta(weeks=int(week) - 1)
             week_end = week_start + timedelta(days=6)
             
-            # Generate list of dates in DD/MM/YYYY format for this week
+            # Generate all dates in the week in DD/MM/YYYY format
             week_dates = []
             current = week_start
-            while current <= week_end:
+            for _ in range(7):
                 week_dates.append(current.strftime('%d/%m/%Y'))
                 current += timedelta(days=1)
             
             # Create IN clause for exact date matching
             date_placeholders = ','.join(['?' for _ in week_dates])
             date_filter = f"AND date IN ({date_placeholders})"
+            date_filter_params = week_dates
             # Store week_dates for later use in query
             week_dates_filter = week_dates
         elif year and month:
-            date_filter = f"AND substr(date, 7, 4) = '{year}' AND substr(date, 4, 2) = '{int(month):02d}'"
+            date_filter = "AND substr(date, 7, 4) = ? AND substr(date, 4, 2) = ?"
+            date_filter_params = [str(year), f"{int(month):02d}"]
         elif year:
-            date_filter = f"AND substr(date, 7, 4) = '{year}'"
+            date_filter = "AND substr(date, 7, 4) = ?"
+            date_filter_params = [str(year)]
         elif month:
-            date_filter = f"AND substr(date, 4, 2) = '{int(month):02d}'"
+            date_filter = "AND substr(date, 4, 2) = ?"
+            date_filter_params = [f"{int(month):02d}"]
         
         with get_db_connection() as conn:
             cursor = conn.cursor()
@@ -1809,14 +1844,16 @@ def api_generate_custom_report():
                 
             elif report_type == 'comprehensive':
                 # Comprehensive Report
-                cursor.execute(f"SELECT COUNT(*), SUM(gross_pay), SUM(net_pay) FROM payslips WHERE 1=1 {date_filter}")
+                query1 = f"SELECT COUNT(*), SUM(gross_pay), SUM(net_pay) FROM payslips WHERE 1=1 {date_filter}"
+                cursor.execute(query1, date_filter_params)
                 earnings = cursor.fetchone()
                 
-                cursor.execute(f"""
+                query2 = f"""
                     SELECT COUNT(*), SUM(amount) FROM job_items ji
                     LEFT JOIN payslips p ON ji.payslip_id = p.id
                     WHERE 1=1 {date_filter.replace('date', 'p.date') if date_filter else ''}
-                """)
+                """
+                cursor.execute(query2, date_filter_params)
                 jobs = cursor.fetchone()
                 
                 report_data = {
@@ -1900,6 +1937,7 @@ def api_generate_custom_report():
         return jsonify({'success': True, 'data': report_data})
         
     except Exception as e:
+        logger.error(f'Error generating custom report: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -2270,7 +2308,7 @@ def api_generate_custom_report_pdf():
         )
         
     except Exception as e:
-        print(f"PDF generation error: {str(e)}")
+        logger.error(f'Error generating PDF report: {e}')
         import traceback
         traceback.print_exc()
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -2414,6 +2452,7 @@ def api_latest_sync_data():
         })
         
     except Exception as e:
+        logger.error(f'Error getting latest sync data: {e}')
         return jsonify({
             'success': False,
             'error': str(e)
@@ -2441,6 +2480,7 @@ def api_sync_log():
         })
         
     except Exception as e:
+        logger.error(f'Error reading sync log: {e}')
         return jsonify({
             'success': False,
             'error': str(e)

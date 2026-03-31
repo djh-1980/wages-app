@@ -84,41 +84,53 @@ class RunsheetModel:
             if sort_order.upper() not in ['ASC', 'DESC']:
                 sort_order = 'DESC'
             
-            # Build WHERE clause for filters
+            # Build WHERE clause for filters with parameterized queries
             # Exclude dates that have attendance entries (absent days)
             where_conditions = [
                 "r.date IS NOT NULL",
                 "NOT EXISTS (SELECT 1 FROM attendance a WHERE a.date = r.date)"
             ]
+            params = []
             
             if filter_year:
-                where_conditions.append(f"substr(r.date, 7, 4) = '{filter_year}'")
+                where_conditions.append("substr(r.date, 7, 4) = ?")
+                params.append(str(filter_year))
             
             if filter_month:
-                where_conditions.append(f"substr(r.date, 4, 2) = '{filter_month}'")
+                where_conditions.append("substr(r.date, 4, 2) = ?")
+                params.append(str(filter_month))
             
             if filter_week and filter_week.strip():
                 # Calculate week number from date
                 try:
                     week_num = int(filter_week)
-                    where_conditions.append(f"""
-                        CAST(strftime('%U', substr(r.date, 7, 4) || '-' || substr(r.date, 4, 2) || '-' || substr(r.date, 1, 2)) AS INTEGER) = {week_num - 1}
-                    """)
+                    where_conditions.append("CAST(strftime('%U', substr(r.date, 7, 4) || '-' || substr(r.date, 4, 2) || '-' || substr(r.date, 1, 2)) AS INTEGER) = ?")
+                    params.append(week_num - 1)
                 except ValueError:
                     pass  # Invalid week number, skip filter
             
             if filter_day:
                 # Day of week (0=Sunday, 1=Monday, etc.)
-                where_conditions.append(f"CAST(strftime('%w', substr(r.date, 7, 4) || '-' || substr(r.date, 4, 2) || '-' || substr(r.date, 1, 2)) AS INTEGER) = {filter_day}")
+                where_conditions.append("CAST(strftime('%w', substr(r.date, 7, 4) || '-' || substr(r.date, 4, 2) || '-' || substr(r.date, 1, 2)) AS INTEGER) = ?")
+                params.append(int(filter_day))
             
             where_clause = " AND ".join(where_conditions)
             
             # Get total count with filters
             count_query = f"SELECT COUNT(DISTINCT r.date) FROM run_sheet_jobs r WHERE {where_clause}"
-            cursor.execute(count_query)
+            cursor.execute(count_query, params)
             total = cursor.fetchone()[0]
             
             # Get run sheets grouped by date with sorting and filters
+            # Whitelist allowed sort columns to prevent SQL injection
+            ALLOWED_SORT_COLUMNS = {'date', 'job_count', 'daily_pay', 'mileage', 'fuel_cost'}
+            if sort_column not in ALLOWED_SORT_COLUMNS:
+                sort_column = 'date'
+            
+            # Validate sort order
+            if sort_order.upper() not in ('ASC', 'DESC'):
+                sort_order = 'DESC'
+            
             if sort_column == 'date':
                 order_clause = f"substr(r.date, 7, 4) || '-' || substr(r.date, 4, 2) || '-' || substr(r.date, 1, 2) {sort_order.upper()}"
             else:
@@ -141,7 +153,9 @@ class RunsheetModel:
                 ORDER BY {order_clause}
                 LIMIT ? OFFSET ?
             """
-            cursor.execute(query, (per_page, offset))
+            # Combine params with pagination params
+            query_params = params + [per_page, offset]
+            cursor.execute(query, query_params)
             
             runsheets = [dict(row) for row in cursor.fetchall()]
             

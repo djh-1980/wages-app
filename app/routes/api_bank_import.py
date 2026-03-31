@@ -7,6 +7,9 @@ from werkzeug.utils import secure_filename
 from ..models.bank_statement import BankStatementParser
 from ..models.expense import ExpenseModel
 from ..models.recurring_template import RecurringTemplateModel
+import logging
+
+logger = logging.getLogger(__name__)
 
 bank_import_bp = Blueprint('bank_import_api', __name__, url_prefix='/api/bank-import')
 
@@ -55,6 +58,7 @@ def api_parse_statement():
         })
     
     except Exception as e:
+        logger.error(f'Error parsing bank statement: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
@@ -130,4 +134,5 @@ def api_import_transactions():
         })
     
     except Exception as e:
+        logger.error(f'Error importing bank transactions: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500

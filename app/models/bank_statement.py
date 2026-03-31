@@ -1,5 +1,5 @@
 """
-Bank Statement Parser Model
+Bank Statement Parser
 Parses RBS CSV files and categorizes transactions for expense import
 """
 
@@ -7,6 +7,7 @@ import csv
 import re
 from datetime import datetime
 from typing import List, Dict, Optional
+
 from .recurring_template import RecurringTemplateModel
 
 

@@ -69,7 +69,7 @@ async function saveMileageEntry() {
     try {
         const response = await fetch('/api/mileage/entries', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 date: date,
                 start_mileage: startMileage,
@@ -241,7 +241,7 @@ async function addMileageFromRow(date) {
     try {
         const response = await fetch('/api/mileage/entries', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 date: date,
                 start_mileage: 0, // We don't have start/end, just total
@@ -433,7 +433,8 @@ async function deleteMileageEntry(entryId) {
     
     try {
         const response = await fetch(`/api/mileage/entries/${entryId}`, {
-            method: 'DELETE'
+            method: 'DELETE',
+            headers: getCSRFHeaders()
         });
         
         const data = await response.json();

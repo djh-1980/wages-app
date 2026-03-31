@@ -2,7 +2,8 @@ function generateMissingDatesReport() {
     showStatus('Generating missing dates report...');
     
     fetch('/api/data/reports/missing-dates', {
-        method: 'POST'
+        method: 'POST',
+        headers: getCSRFHeaders()
     })
     .then(response => response.json())
     .then(data => {
@@ -258,9 +259,7 @@ async function addDiscrepancyToRunsheet(jobNumber, client, location, amount) {
     try {
         const response = await fetch('/api/runsheets/add-job', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 date: formattedDate,
                 job_number: jobNumber,
@@ -1224,9 +1223,7 @@ function generateMonthlyMileageReport(format = 'csv') {
     
     fetch('/api/data/reports/monthly-mileage', { 
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: getJSONHeaders(),
         body: JSON.stringify({ format: format })
     })
         .then(response => {
@@ -1266,9 +1263,7 @@ function generateHighMileageDays(format = 'csv') {
     
     fetch('/api/data/reports/high-mileage-days', { 
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: getJSONHeaders(),
         body: JSON.stringify({ format: format })
     })
         .then(response => {
@@ -1305,7 +1300,10 @@ function generateHighMileageDays(format = 'csv') {
 function generateFuelEfficiencyReport() {
     showStatus('Calculating fuel efficiency metrics...');
     
-    fetch('/api/data/reports/fuel-efficiency', { method: 'POST' })
+    fetch('/api/data/reports/fuel-efficiency', { 
+        method: 'POST',
+        headers: getCSRFHeaders()
+    })
         .then(response => {
             if (response.headers.get('content-type')?.includes('text/csv')) {
                 // Direct CSV download
@@ -1342,9 +1340,7 @@ function generateMissingMileageReport(format = 'csv') {
     
     fetch('/api/data/reports/missing-mileage-data', { 
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: getJSONHeaders(),
         body: JSON.stringify({ format: format })
     })
         .then(response => {
@@ -1432,7 +1428,7 @@ async function generateDiscrepancyPDF() {
         // Use the PDF generation endpoint
         const response = await fetch('/api/runsheets/discrepancy-pdf', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ year, month })
         });
         
@@ -1487,7 +1483,7 @@ async function generateDiscrepancyCSV() {
         // Use the CSV generation endpoint
         const response = await fetch('/api/runsheets/discrepancy-csv', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ year, month })
         });
         
@@ -1720,9 +1716,7 @@ async function generateCustomReport() {
     try {
         const response = await fetch('/api/data/reports/custom', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 report_type: reportType,
                 year: year,
@@ -2261,9 +2255,7 @@ async function exportCustomReportPDF() {
         
         const response = await fetch('/api/data/reports/custom/pdf', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({
                 report_type: reportType,
                 year: year,
