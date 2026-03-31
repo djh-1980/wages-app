@@ -109,7 +109,8 @@ async function loadWeeklySummary(weekStart = null) {
         console.log('Loading weekly summary from:', url);
         
         const response = await fetch(url);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         console.log('Weekly summary data received:', data);
         

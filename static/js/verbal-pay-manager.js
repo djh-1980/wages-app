@@ -20,10 +20,14 @@ document.addEventListener('DOMContentLoaded', function() {
 // Load analytics
 async function loadAnalytics() {
     try {
-        const response = await fetch('/api/verbal-pay/analytics');
-        const data = await response.json();
+        const response = await fetch('/api/verbal-pay/analytics', {
+            credentials: 'same-origin',
+            headers: getCSRFHeaders()
+        });
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
-        if (data.success) {
+        if (data.success || responseData.success) {
             const analytics = data.analytics;
             document.getElementById('totalCount').textContent = analytics.total_confirmations;
             document.getElementById('matchedCount').textContent = analytics.matched_count;
@@ -38,10 +42,14 @@ async function loadAnalytics() {
 // Load all confirmations
 async function loadConfirmations() {
     try {
-        const response = await fetch('/api/verbal-pay/confirmations');
-        const data = await response.json();
+        const response = await fetch('/api/verbal-pay/confirmations', {
+            credentials: 'same-origin',
+            headers: getCSRFHeaders()
+        });
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
-        if (data.success) {
+        if (data.success || responseData.success) {
             allConfirmations = data.confirmations;
             displayConfirmations(allConfirmations);
         }
@@ -175,9 +183,13 @@ async function showAddModal() {
     
     // Get current week and year
     try {
-        const response = await fetch('/api/settings/company-year');
-        const data = await response.json();
-        if (data.success) {
+        const response = await fetch('/api/settings/company-year', {
+            credentials: 'same-origin',
+            headers: getCSRFHeaders()
+        });
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
+        if (data.success || responseData.success) {
             document.getElementById('modalYear').value = data.current_year;
             document.getElementById('modalWeekNumber').value = data.current_week;
         }
@@ -229,6 +241,7 @@ async function saveConfirmation() {
             // Update existing
             response = await fetch(`/api/verbal-pay/confirmations/${id}`, {
                 method: 'PUT',
+                credentials: 'same-origin',
                 headers: getJSONHeaders(),
                 body: JSON.stringify({ verbal_amount: amount, notes: notes })
             });
@@ -236,6 +249,7 @@ async function saveConfirmation() {
             // Create new
             response = await fetch('/api/verbal-pay/confirmations', {
                 method: 'POST',
+                credentials: 'same-origin',
                 headers: getJSONHeaders(),
                 body: JSON.stringify({
                     week_number: weekNumber,
@@ -272,6 +286,7 @@ async function deleteConfirmation(id, weekNumber) {
     try {
         const response = await fetch(`/api/verbal-pay/confirmations/${id}`, {
             method: 'DELETE',
+            credentials: 'same-origin',
             headers: getCSRFHeaders()
         });
         
@@ -325,6 +340,7 @@ async function processBulkImport() {
     try {
         const response = await fetch('/api/verbal-pay/bulk-import', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: getJSONHeaders(),
             body: JSON.stringify({ confirmations: confirmations })
         });

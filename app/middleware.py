@@ -27,7 +27,7 @@ def register_middleware(app):
         """Execute after each request."""
         try:
             # Calculate request duration
-            duration_ms = (time.time() - g.start_time) * 1000
+            duration_ms = (time.time() - g.get('start_time', time.time())) * 1000
             
             # Log API request
             log_api_request(

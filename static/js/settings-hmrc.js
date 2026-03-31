@@ -39,7 +39,8 @@ function setupEventListeners() {
 async function loadConnectionStatus() {
     try {
         const response = await fetch('/api/hmrc/auth/status');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         updateConnectionUI(data);
     } catch (error) {
@@ -96,9 +97,10 @@ function updateConnectionUI(status) {
 async function connectToHMRC() {
     try {
         const response = await fetch('/api/hmrc/auth/start');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
-        if (data.success && data.auth_url) {
+        if ((data.success || responseData.success) && data.auth_url) {
             // Redirect to HMRC authorization page
             window.location.href = data.auth_url;
         } else {
@@ -142,9 +144,10 @@ async function testConnection() {
     
     try {
         const response = await fetch('/api/hmrc/test-connection');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
-        if (data.success) {
+        if (data.success || responseData.success) {
             showNotification('Connection test successful!', 'success');
         } else {
             showNotification('Connection test failed: ' + (data.error || 'Unknown error'), 'warning');
@@ -172,9 +175,10 @@ async function refreshObligations() {
     
     try {
         const response = await fetch(`/api/hmrc/obligations?nino=${hmrcConfig.nino}`);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
-        if (data.success) {
+        if (data.success || responseData.success) {
             showNotification('Obligations refreshed successfully', 'success');
             loadObligations();
         } else {
@@ -192,7 +196,8 @@ async function refreshObligations() {
 async function loadObligations() {
     try {
         const response = await fetch('/api/hmrc/obligations/stored');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         const obligationsList = document.getElementById('obligationsList');
         
@@ -242,7 +247,8 @@ async function loadObligations() {
 async function loadSubmissions() {
     try {
         const response = await fetch('/api/hmrc/submissions');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         const submissionsList = document.getElementById('submissionsList');
         

@@ -161,7 +161,8 @@ async function initializeTables() {
 async function loadSummary() {
     try {
         const response = await fetch('/api/paypoint/summary');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         if (data.success) {
             updateSummaryCards(data.summary);
@@ -188,7 +189,8 @@ function updateSummaryCards(summary) {
 async function loadDevices() {
     try {
         const response = await fetch('/api/paypoint/stock');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         if (data.success) {
             devices = data.items;
@@ -447,7 +449,8 @@ function updateReturnsTable() {
 async function loadAuditHistory() {
     try {
         const response = await fetch('/api/paypoint/audit');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         if (data.success) {
             currentAuditHistory = data.audit_history;

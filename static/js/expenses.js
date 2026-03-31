@@ -74,7 +74,8 @@ function showRecurringTab() {
 async function loadCategories() {
     try {
         const response = await fetch('/api/expenses/categories');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         if (data.categories) {
             categories = data.categories;
@@ -129,7 +130,8 @@ function populateCategoryDropdowns() {
 async function loadTaxYears() {
     try {
         const response = await fetch('/api/expenses/tax-years');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         if (data.tax_years) {
             const select = document.getElementById('taxYearFilter');
@@ -165,7 +167,8 @@ async function loadExpenses() {
         if (endDate) url += `end_date=${convertDateToUK(endDate)}&`;
         
         const response = await fetch(url);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         if (data.expenses) {
             expenses = data.expenses;
@@ -287,7 +290,8 @@ function showAddExpenseModal() {
 async function editExpense(expenseId) {
     try {
         const response = await fetch(`/api/expenses/${expenseId}`);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         if (data.expense) {
             const expense = data.expense;
@@ -1157,7 +1161,8 @@ let hmrcSubmissionData = null;
 async function checkHMRCConnection() {
     try {
         const response = await fetch('/api/hmrc/auth/status');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         const submitBtn = document.getElementById('hmrcSubmitBtn');
         if (data.connected) {
@@ -1212,9 +1217,10 @@ async function previewHMRCSubmission() {
         showExpenseNotification('Loading submission preview...', 'info');
         
         const response = await fetch(`/api/hmrc/period/preview?tax_year=${taxYear}&period_id=${quarter}`);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
-        if (data.success) {
+        if (data.success || responseData.success) {
             hmrcSubmissionData = data.submission_data;
             displayHMRCPreview(data.submission_data, data.validation);
             

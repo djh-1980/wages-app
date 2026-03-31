@@ -782,7 +782,8 @@ async function loadMissingPayslips() {
     
     try {
         const response = await fetch('/api/payslips');
-        const payslips = await response.json();
+        const responseData = await response.json();
+        const payslips = responseData.success ? responseData.data : responseData;
         
         if (payslips.length === 0) {
             contentDiv.innerHTML = '<div class="alert alert-warning"><i class="bi bi-exclamation-triangle"></i> No payslips found in database!</div>';

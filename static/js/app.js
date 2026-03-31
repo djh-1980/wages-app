@@ -94,7 +94,8 @@ function setupEventListeners() {
 async function loadSummary() {
     try {
         const response = await fetch('/api/summary');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         // Update summary cards
         document.getElementById('totalEarnings').textContent = formatCurrency(data.overall.total_earnings);
@@ -132,7 +133,8 @@ async function loadWeeklyTrend(taxYear = '') {
             ? `/api/weekly_trend?tax_year=${taxYear}` 
             : '/api/weekly_trend?limit=26';
         const response = await fetch(url);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         const ctx = document.getElementById('weeklyChart').getContext('2d');
         
@@ -193,7 +195,8 @@ async function loadWeeklyTrend(taxYear = '') {
 async function loadTopClients() {
     try {
         const response = await fetch('/api/clients?limit=20'); // Get more to aggregate properly
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         // Wait for customer mappings to load
         await window.customerMapping.loadMappings();
@@ -330,40 +333,60 @@ window.loadPayslips = async function(taxYear = '') {
             </tr>
         `).join('');
         
-        // Check for verbal confirmations and add indicators
+        // Defer verbal confirmation checks to avoid blocking page load
+        // Check confirmations in background after page renders
         if (typeof checkVerbalMatch === 'function') {
-            const rows = tbody.querySelectorAll('tr[data-payslip-id]');
-            rows.forEach(async (row) => {
-                const payslipId = parseInt(row.dataset.payslipId);
-                const weekNumber = parseInt(row.dataset.week);
-                const year = parseInt(row.dataset.year);
-                const grossPay = parseFloat(row.dataset.gross) || 0;
-                const netPay = parseFloat(row.dataset.net) || 0;
+            setTimeout(() => {
+                const now = new Date();
+                const currentYear = now.getFullYear();
+                const twelveMonthsAgo = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate());
                 
-                const matchInfo = await checkVerbalMatch(payslipId, `Week ${weekNumber}, ${year}`, grossPay, netPay);
-                
-                if (matchInfo && matchInfo.hasConfirmation) {
-                    const indicator = row.querySelector('.verbal-match-indicator');
-                    if (indicator) {
-                        indicator.className = 'verbal-match-indicator ms-2';
-                        indicator.style.cursor = 'pointer';
-                        
-                        if (matchInfo.matched) {
-                            indicator.innerHTML = '<i class="bi bi-check-circle-fill text-success" title="Matches verbal confirmation"></i>';
-                        } else {
-                            const diff = matchInfo.difference;
-                            const sign = diff > 0 ? '+' : '';
+                const rows = tbody.querySelectorAll('tr[data-payslip-id]');
+                rows.forEach(async (row) => {
+                    const payslipId = parseInt(row.dataset.payslipId);
+                    const weekNumber = parseInt(row.dataset.week);
+                    const year = parseInt(row.dataset.year);
+                    const grossPay = parseFloat(row.dataset.gross) || 0;
+                    const netPay = parseFloat(row.dataset.net) || 0;
+                    
+                    // Only check verbal matches for payslips in the last 12 months
+                    // This reduces API calls from 500+ to ~52 per page load
+                    const isRecentPayslip = year >= currentYear - 1;
+                    
+                    if (!isRecentPayslip) {
+                        // For older payslips, show neutral indicator
+                        const indicator = row.querySelector('.verbal-match-indicator');
+                        if (indicator) {
+                            indicator.innerHTML = '<i class="bi bi-archive text-muted" title="Historical record"></i>';
+                        }
+                        return;
+                    }
+                    
+                    const matchInfo = await checkVerbalMatch(payslipId, `Week ${weekNumber}, ${year}`, grossPay, netPay);
+                    
+                    if (matchInfo && matchInfo.hasConfirmation) {
+                        const indicator = row.querySelector('.verbal-match-indicator');
+                        if (indicator) {
+                            indicator.className = 'verbal-match-indicator ms-2';
+                            indicator.style.cursor = 'pointer';
                             
-                            // Red only if losing money (negative difference), blue if getting more
-                            if (diff < 0) {
-                                indicator.innerHTML = `<br><small class="text-danger"><strong>${sign}${formatCurrency(diff)} vs verbal</strong></small>`;
+                            if (matchInfo.matched) {
+                                indicator.innerHTML = '<i class="bi bi-check-circle-fill text-success" title="Matches verbal confirmation"></i>';
                             } else {
-                                indicator.innerHTML = `<br><small class="text-info">${sign}${formatCurrency(diff)} vs verbal</small>`;
+                                const diff = matchInfo.difference;
+                                const sign = diff > 0 ? '+' : '';
+                                
+                                // Red only if losing money (negative difference), blue if getting more
+                                if (diff < 0) {
+                                    indicator.innerHTML = `<br><small class="text-danger"><strong>${sign}${formatCurrency(diff)} vs verbal</strong></small>`;
+                                } else {
+                                    indicator.innerHTML = `<br><small class="text-info">${sign}${formatCurrency(diff)} vs verbal</small>`;
+                                }
                             }
                         }
                     }
-                }
-            });
+                });
+            }, 100); // Defer by 100ms to allow page to render first
         }
         
     } catch (error) {
@@ -386,7 +409,8 @@ window.loadPayslips = async function(taxYear = '') {
 async function loadClients() {
     try {
         const response = await fetch('/api/clients?limit=20');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         // Update table
         const tbody = document.getElementById('clientsTable');
@@ -463,7 +487,8 @@ async function loadClients() {
 async function loadJobTypes() {
     try {
         const response = await fetch('/api/job_types?limit=20');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         // Update table
         const tbody = document.getElementById('jobTypesTable');
@@ -529,7 +554,8 @@ async function loadJobTypes() {
 async function loadTaxYears() {
     try {
         const response = await fetch('/api/tax_years');
-        const years = await response.json();
+        const responseData = await response.json();
+        const years = responseData.success ? responseData.data : responseData;
         
         // Populate payslips filter (if exists)
         const select = document.getElementById('taxYearFilter');
@@ -666,7 +692,8 @@ async function viewPayslip(payslipId) {
     
     try {
         const response = await fetch(`/api/payslip/${payslipId}`);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         const p = data.payslip;
         
@@ -767,7 +794,8 @@ async function performSearch(query) {
     
     try {
         const response = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         if (data.length === 0) {
             resultsDiv.innerHTML = '<div class="alert alert-info">No results found</div>';
@@ -847,7 +875,8 @@ async function generateDateRangeReport() {
     try {
         const url = taxYear ? `/api/payslips?tax_year=${taxYear}` : '/api/payslips';
         const response = await fetch(url);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         let html = `
             <h5 class="mb-4">${taxYear ? `Tax Year ${taxYear}` : 'All Years'} - Earnings Report</h5>
@@ -934,7 +963,8 @@ async function generateClientReport() {
     try {
         const url = limit === 'all' ? '/api/clients?limit=1000' : `/api/clients?limit=${limit}`;
         const response = await fetch(url);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         const totalEarnings = data.reduce((sum, c) => sum + c.total_amount, 0);
         const totalJobs = data.reduce((sum, c) => sum + c.job_count, 0);
@@ -1025,7 +1055,8 @@ async function generateJobTypeReport() {
     try {
         const url = limit === 'all' ? '/api/job_types?limit=1000' : `/api/job_types?limit=${limit}`;
         const response = await fetch(url);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         const totalEarnings = data.reduce((sum, j) => sum + j.total_amount, 0);
         const totalJobs = data.reduce((sum, j) => sum + j.job_count, 0);
@@ -1115,7 +1146,8 @@ async function generateMonthlyReport() {
     
     try {
         const response = await fetch('/api/monthly_breakdown');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         const filteredData = taxYear ? data.filter(d => d.tax_year === taxYear) : data;
         

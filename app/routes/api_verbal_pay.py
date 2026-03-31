@@ -7,13 +7,16 @@ import re
 from datetime import datetime
 
 from flask import Blueprint, jsonify, request
+from flask_login import login_required
 
 from ..models.verbal_pay import VerbalPayModel
+from .. import limiter
 
 verbal_pay_bp = Blueprint('verbal_pay_api', __name__, url_prefix='/api/verbal-pay')
 
 
 @verbal_pay_bp.route('/confirmations', methods=['GET'])
+@login_required
 def get_all_confirmations():
     """Get all verbal pay confirmations."""
     try:
@@ -27,6 +30,7 @@ def get_all_confirmations():
 
 
 @verbal_pay_bp.route('/confirmations', methods=['POST'])
+@login_required
 def add_confirmation():
     """Add a new verbal pay confirmation."""
     try:
@@ -69,6 +73,7 @@ def add_confirmation():
 
 
 @verbal_pay_bp.route('/confirmations/<int:confirmation_id>', methods=['DELETE'])
+@login_required
 def delete_confirmation(confirmation_id):
     """Delete a verbal pay confirmation."""
     try:
@@ -82,6 +87,8 @@ def delete_confirmation(confirmation_id):
 
 
 @verbal_pay_bp.route('/confirmations/week/<int:week_number>/year/<int:year>', methods=['GET'])
+@login_required
+@limiter.limit("500 per hour", override_defaults=True)
 def get_confirmation_for_week(week_number, year):
     """Get verbal pay confirmation for a specific week."""
     try:
@@ -102,6 +109,7 @@ def get_confirmation_for_week(week_number, year):
 
 
 @verbal_pay_bp.route('/confirmations/<int:confirmation_id>', methods=['PUT'])
+@login_required
 def update_confirmation(confirmation_id):
     """Update an existing verbal pay confirmation."""
     try:
@@ -139,6 +147,7 @@ def update_confirmation(confirmation_id):
 
 
 @verbal_pay_bp.route('/analytics', methods=['GET'])
+@login_required
 def get_analytics():
     """Get analytics on verbal pay accuracy."""
     try:
@@ -152,6 +161,7 @@ def get_analytics():
 
 
 @verbal_pay_bp.route('/bulk-import', methods=['POST'])
+@login_required
 def bulk_import():
     """Bulk import multiple verbal confirmations."""
     try:
@@ -173,6 +183,8 @@ def bulk_import():
 
 
 @verbal_pay_bp.route('/match-payslip', methods=['POST'])
+@login_required
+@limiter.limit("500 per hour", override_defaults=True)
 def match_payslip():
     """Match a payslip with verbal confirmation."""
     try:

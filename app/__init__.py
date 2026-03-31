@@ -69,6 +69,14 @@ def create_app(config_name=None):
             logger.debug(f"User not found for ID: {user_id}")
         return user
     
+    @login_manager.unauthorized_handler
+    def unauthorized():
+        """Handle unauthorized access - return 401 JSON for API requests, redirect otherwise."""
+        from flask import request, jsonify, redirect, url_for
+        if request.path.startswith('/api/'):
+            return jsonify({'error': 'Unauthorized', 'message': 'Please log in to access this resource'}), 401
+        return redirect(url_for('auth.login', next=request.url))
+    
     # Set application timezone to UK
     os.environ['TZ'] = 'Europe/London'
     app.config['TIMEZONE'] = pytz.timezone('Europe/London')

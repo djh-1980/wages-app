@@ -101,7 +101,8 @@ function sortRunSheets(column) {
 async function loadRunSheetsSummary() {
     try {
         const response = await fetch('/api/runsheets/summary');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         // Update summary cards
         document.getElementById('rsTotalDays').textContent = data.overall.total_days || 0;
@@ -231,8 +232,12 @@ async function loadRunSheetsList(page = 1) {
             fetch('/api/runsheets/completion-status')
         ]);
         
-        const data = await listResponse.json();
-        const statusData = await statusResponse.json();
+        const listData = await listResponse.json();
+        const statusDataResponse = await statusResponse.json();
+        
+        // Handle new API response format with success/data wrapper
+        const data = listData.success ? listData.data : listData;
+        const statusData = statusDataResponse.success ? statusDataResponse.data : statusDataResponse;
         
         const tbody = document.getElementById('runsheetsList');
         const mobileCards = document.getElementById('runsheetsCardsList');
@@ -451,7 +456,8 @@ function updateRSPagination(currentPage, totalPages) {
 async function viewRunSheetJobs(date) {
     try {
         const response = await fetch(`/api/runsheets/jobs?date=${encodeURIComponent(date)}`);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         // Store jobs and date globally for edit function and route optimization
         window.currentRunsheetJobs = data.jobs;
@@ -1000,7 +1006,8 @@ async function showAddJobForm(date) {
     try {
         console.log('Loading autocomplete data...');
         const response = await fetch('/api/runsheets/autocomplete-data');
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         console.log('Autocomplete data received:', data);
         
@@ -1246,7 +1253,8 @@ function editExtraJob(jobId, date) {
 async function loadDailyData(date) {
     try {
         const response = await fetch(`/api/runsheets/daily-data?date=${encodeURIComponent(date)}`);
-        const data = await response.json();
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
         
         if (data.mileage !== null && data.mileage !== undefined) {
             document.getElementById(`mileage-${date}`).value = data.mileage;

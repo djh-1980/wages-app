@@ -15,7 +15,10 @@ async function showVerbalPayModal() {
     let weekNumber = 1;
     
     try {
-        const response = await fetch('/api/settings/company-year');
+        const response = await fetch('/api/settings/company-year', {
+            credentials: 'same-origin',
+            headers: getCSRFHeaders()
+        });
         const data = await response.json();
         if (data.success) {
             companyYear = data.current_year;
@@ -85,6 +88,7 @@ async function saveVerbalConfirmation() {
     try {
         const response = await fetch('/api/verbal-pay/confirmations', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: getJSONHeaders(),
             body: JSON.stringify({
                 week_number: weekNumber,
@@ -123,7 +127,10 @@ async function checkVerbalMatch(payslipId, weekString, grossPay, netPay) {
     const year = parseInt(match[2]);
     
     try {
-        const response = await fetch(`/api/verbal-pay/confirmations/week/${weekNumber}/year/${year}`);
+        const response = await fetch(`/api/verbal-pay/confirmations/week/${weekNumber}/year/${year}`, {
+            credentials: 'same-origin',
+            headers: getCSRFHeaders()
+        });
         const data = await response.json();
         
         if (data.success && data.confirmation) {
@@ -143,6 +150,7 @@ async function checkVerbalMatch(payslipId, weekString, grossPay, netPay) {
             try {
                 await fetch('/api/verbal-pay/match-payslip', {
                     method: 'POST',
+                    credentials: 'same-origin',
                     headers: getJSONHeaders(),
                     body: JSON.stringify({
                         week_number: weekNumber,
