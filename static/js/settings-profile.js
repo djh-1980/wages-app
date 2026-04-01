@@ -113,22 +113,95 @@ async function saveProfile() {
     }
 }
 
+// Password change functions
+async function changePassword(e) {
+    e.preventDefault();
+    
+    const currentPassword = document.getElementById('currentPassword').value;
+    const newPassword = document.getElementById('newPassword').value;
+    const confirmPassword = document.getElementById('confirmPassword').value;
+    
+    // Client-side validation
+    if (!currentPassword || !newPassword || !confirmPassword) {
+        showError('All password fields are required');
+        return;
+    }
+    
+    if (newPassword.length < 8) {
+        showError('New password must be at least 8 characters');
+        return;
+    }
+    
+    if (!/\d/.test(newPassword)) {
+        showError('New password must contain at least one number');
+        return;
+    }
+    
+    if (newPassword !== confirmPassword) {
+        showError('New passwords do not match');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/user/change-password', {
+            method: 'POST',
+            headers: getJSONHeaders(),
+            body: JSON.stringify({
+                current_password: currentPassword,
+                new_password: newPassword,
+                confirm_password: confirmPassword
+            })
+        });
+        
+        const data = await response.json();
+        
+        if (response.ok && data.success) {
+            showSuccess('✓ Password changed successfully! You can now use your new password to log in.');
+            // Clear the form
+            document.getElementById('changePasswordForm').reset();
+            // Remove validation classes
+            document.querySelectorAll('#changePasswordForm .form-control').forEach(field => {
+                field.classList.remove('is-valid', 'is-invalid');
+            });
+        } else {
+            showError(data.error || 'Failed to change password');
+        }
+    } catch (error) {
+        console.error('Error changing password:', error);
+        showError('Failed to change password. Please try again.');
+    }
+}
+
+// Load user account information
+async function loadUserInfo() {
+    try {
+        const response = await fetch('/api/user/profile');
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.user) {
+                document.getElementById('username').value = data.user.username || '';
+                document.getElementById('accountStatus').value = data.user.is_active ? 'Active' : 'Inactive';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading user info:', error);
+    }
+}
+
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Profile settings page loaded');
     loadProfile();
     loadEmailSettings();
+    loadUserInfo();
     
-    // Add form validation
-    const form = document.querySelector('form');
-    if (form) {
-        form.addEventListener('submit', function(e) {
-            e.preventDefault();
-            saveProfile();
-        });
+    // Add password change form handler
+    const passwordForm = document.getElementById('changePasswordForm');
+    if (passwordForm) {
+        passwordForm.addEventListener('submit', changePassword);
     }
     
-    // Add real-time validation
+    // Add real-time validation for email
     const emailField = document.getElementById('userEmail');
     if (emailField) {
         emailField.addEventListener('blur', function() {
@@ -139,6 +212,52 @@ document.addEventListener('DOMContentLoaded', function() {
             } else {
                 this.classList.remove('is-invalid');
                 this.classList.add('is-valid');
+            }
+        });
+    }
+    
+    // Add real-time validation for password strength
+    const newPasswordField = document.getElementById('newPassword');
+    if (newPasswordField) {
+        newPasswordField.addEventListener('input', function() {
+            const password = this.value;
+            const hasMinLength = password.length >= 8;
+            const hasNumber = /\d/.test(password);
+            
+            if (password.length > 0) {
+                if (!hasMinLength) {
+                    this.classList.add('is-invalid');
+                    this.classList.remove('is-valid');
+                } else if (!hasNumber) {
+                    this.classList.add('is-invalid');
+                    this.classList.remove('is-valid');
+                } else {
+                    this.classList.remove('is-invalid');
+                    this.classList.add('is-valid');
+                }
+            } else {
+                this.classList.remove('is-invalid', 'is-valid');
+            }
+        });
+    }
+    
+    // Add real-time validation for password confirmation
+    const confirmPasswordField = document.getElementById('confirmPassword');
+    if (confirmPasswordField) {
+        confirmPasswordField.addEventListener('input', function() {
+            const newPassword = document.getElementById('newPassword').value;
+            const confirmPassword = this.value;
+            
+            if (confirmPassword.length > 0) {
+                if (newPassword !== confirmPassword) {
+                    this.classList.add('is-invalid');
+                    this.classList.remove('is-valid');
+                } else {
+                    this.classList.remove('is-invalid');
+                    this.classList.add('is-valid');
+                }
+            } else {
+                this.classList.remove('is-invalid', 'is-valid');
             }
         });
     }

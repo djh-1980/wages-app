@@ -447,7 +447,7 @@ class PeriodicSyncService:
                 self.logger.info(f"Importing runsheets (downloaded: {sync_summary['runsheets_downloaded']})")
                 try:
                     import_result = subprocess.run(
-                        [sys.executable, 'scripts/production/import_run_sheets.py', '--recent', '14'],
+                        [sys.executable, 'scripts/production/import_run_sheets.py', '--recent', '365'],
                         capture_output=True,
                         text=True,
                         timeout=600  # 10 minutes for large batches
@@ -876,19 +876,11 @@ class PeriodicSyncService:
         if not runsheets_dir.exists():
             return []
         
-        # Get all DH_*.pdf files (recent files from last 14 days)
-        from datetime import datetime, timedelta
-        cutoff_time = datetime.now() - timedelta(days=14)
-        pdf_files = []
-        
-        for pdf_file in runsheets_dir.rglob('DH_*.pdf'):
-            # Skip macOS resource fork files
-            if pdf_file.name.startswith('._'):
-                continue
-            # Only include recent files (last 14 days)
-            file_mtime = datetime.fromtimestamp(pdf_file.stat().st_mtime)
-            if file_mtime > cutoff_time:
-                pdf_files.append(pdf_file)
+        # Get all DH_*.pdf files (skip macOS resource fork files)
+        pdf_files = [
+            f for f in runsheets_dir.rglob('DH_*.pdf')
+            if not f.name.startswith('._')
+        ]
         
         # Get list of already-imported source files from local DB
         try:
@@ -903,6 +895,8 @@ class PeriodicSyncService:
         
         # Return files not yet in local DB
         unprocessed = [f for f in pdf_files if f.name not in imported_files]
+        if unprocessed:
+            self.logger.info(f"Found {len(unprocessed)} unprocessed runsheets on disk")
         return unprocessed
     
     def _estimate_next_sync(self):

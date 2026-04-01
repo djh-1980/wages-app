@@ -11,6 +11,7 @@ from pathlib import Path
 import json
 
 from flask import Blueprint, jsonify, request
+from flask_login import login_required
 
 from ..models.attendance import AttendanceModel
 from ..models.settings import SettingsModel
@@ -21,6 +22,7 @@ settings_bp = Blueprint('settings_api', __name__, url_prefix='/api/settings')
 
 
 @settings_bp.route('/profile', methods=['GET'])
+@login_required
 def api_get_profile():
     """Get user profile."""
     try:
@@ -41,6 +43,7 @@ def api_get_profile():
 
 
 @settings_bp.route('/profile', methods=['POST'])
+@login_required
 def api_save_profile():
     """Save user profile."""
     try:
@@ -370,6 +373,7 @@ def api_save_company_year():
 
 
 @settings_bp.route('/email-notifications', methods=['GET'])
+@login_required
 def api_get_email_settings():
     """Get email notification settings."""
     try:
@@ -384,6 +388,7 @@ def api_get_email_settings():
 
 
 @settings_bp.route('/email-notifications', methods=['POST'])
+@login_required
 def api_save_email_settings():
     """Save email notification settings."""
     try:

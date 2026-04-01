@@ -27,9 +27,15 @@
     <!-- Unified Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/unified-styles.css') }}"?v={{ range(1000, 9999) | random }}>
     
+    <!-- Mobile Enhancements -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-enhancements.css') }}"?v={{ range(1000, 9999) | random }}>
+    
     {% block extra_css %}{% endblock %}
 </head>
 <body>
+    <!-- Mobile Menu Overlay -->
+    <div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
+    
     <!-- Top Navigation -->
     <nav class="navbar navbar-expand-lg top-navbar">
         <div class="container-fluid">
@@ -88,9 +94,6 @@
                             <i class="bi bi-gear"></i> Settings
                         </a>
                         <ul class="dropdown-menu">
-                            <li><a class="dropdown-item {% if request.path == '/settings/profile' %}active{% endif %}" href="/settings/profile">
-                                <i class="bi bi-person-circle me-2"></i>Profile
-                            </a></li>
                             <li><a class="dropdown-item {% if request.path == '/settings/sync' %}active{% endif %}" href="/settings/sync">
                                 <i class="bi bi-arrow-repeat me-2"></i>Data & Sync
                             </a></li>
@@ -109,6 +112,20 @@
                             </a></li>
                         </ul>
                     </li>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown" aria-expanded="false">
+                            <i class="bi bi-person-circle"></i> {{ current_user.username }}
+                        </a>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><a class="dropdown-item" href="/settings/profile">
+                                <i class="bi bi-person-badge me-2"></i>My Account
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="/logout">
+                                <i class="bi bi-box-arrow-right me-2"></i>Logout
+                            </a></li>
+                        </ul>
+                    </li>
                 </ul>
             </div>
         </div>
@@ -116,7 +133,7 @@
 
     <!-- Global Search Modal -->
     <div class="modal fade" id="searchModal" tabindex="-1" aria-labelledby="searchModalLabel" aria-hidden="true">
-        <div class="modal-dialog modal-lg">
+        <div class="modal-dialog modal-lg modal-fullscreen-sm-down">
             <div class="modal-content">
                 <div class="modal-header">
                     <h5 class="modal-title" id="searchModalLabel">
@@ -149,6 +166,26 @@
         </div>
     </div>
 
+    <!-- Bottom Navigation Bar (Mobile Only) -->
+    <nav class="bottom-nav d-md-none">
+        <a href="/runsheets" class="bottom-nav-item {% if request.path == '/runsheets' or request.path == '/' %}active{% endif %}">
+            <i class="bi bi-calendar-check"></i>
+            <span>Run Sheets</span>
+        </a>
+        <a href="/wages" class="bottom-nav-item {% if request.path == '/wages' or request.path == '/verbal-pay' %}active{% endif %}">
+            <i class="bi bi-wallet2"></i>
+            <span>Wages</span>
+        </a>
+        <a href="/expenses" class="bottom-nav-item {% if request.path == '/expenses' %}active{% endif %}">
+            <i class="bi bi-receipt"></i>
+            <span>Expenses</span>
+        </a>
+        <a href="#" class="bottom-nav-item" data-bs-toggle="modal" data-bs-target="#searchModal">
+            <i class="bi bi-search"></i>
+            <span>Search</span>
+        </a>
+    </nav>
+
     <!-- jQuery (required for some Bootstrap components and legacy code) -->
     <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
     
@@ -173,6 +210,9 @@
     
     <!-- Base JavaScript -->
     <script src="{{ url_for('static', filename='js/base.js') }}?v={{ range(1000, 9999) | random }}"></script>
+    
+    <!-- Mobile Menu JavaScript -->
+    <script src="{{ url_for('static', filename='js/mobile-menu.js') }}?v={{ range(1000, 9999) | random }}"></script>
     
     {% block extra_js %}{% endblock %}
 </body>

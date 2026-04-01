@@ -102,3 +102,51 @@
 - Keep commits focused and atomic
 - Don't commit sensitive data, logs, or cache files
 - Update .gitignore as needed
+
+## UI & Design Standards
+
+### Framework & Libraries
+- Bootstrap 5.3.x is the UI framework - use it correctly and consistently
+- Bootstrap Icons (bi-*) for all icons - do not introduce other icon libraries
+- Follow Tabler.io admin dashboard design patterns for inspiration
+- Reference: https://tabler.io/preview for visual style guidance
+
+### Mobile-First Rules
+- ALL column classes must include col-12 for mobile: col-12 col-md-6, col-12 col-md-3 etc
+- Minimum touch target size: 44px height for all buttons and interactive elements
+- Font size minimum 16px on inputs to prevent iOS auto-zoom
+- Modals must be full-screen on mobile (max-width: 768px)
+- Nav tabs/pills must scroll horizontally on mobile, never wrap to multiple lines
+- Bottom navigation bar exists for mobile - keep it updated when adding new sections
+
+### Component Standards
+- Cards use the settings-card class for settings pages
+- Summary/stat cards use col-12 col-md-3 grid layout
+- Forms: labels above inputs, full-width on mobile, grouped in row g-3
+- Tables: always wrapped in table-responsive, provide card view for mobile
+- Buttons: primary actions full-width on mobile, use btn-lg for main CTAs
+- Dropdowns: touch-friendly padding (min 12px vertical) on mobile
+
+### Colour & Theming
+- Dark mode support via data-bs-theme attribute
+- Use CSS variables (--bs-*) not hardcoded hex values
+- Success: green, Warning: yellow, Error/Danger: red, Info: blue
+- Consistent with existing unified-styles.css
+
+### Notifications & Feedback
+- Always show success/error notifications for user actions
+- Use the existing showNotification() pattern
+- Loading states on all async buttons (spinner + disabled)
+- Never leave the user wondering if their action worked
+
+### Accessibility
+- All images need alt text
+- Form inputs need associated labels
+- Colour is never the only indicator of status (add icons/text too)
+- ARIA labels on icon-only buttons
+
+### Code Quality for UI
+- No inline styles - use CSS classes
+- No !important unless absolutely necessary and commented why
+- CSS goes in unified-styles.css or page-specific CSS files
+- JavaScript UI code follows existing patterns in base.js

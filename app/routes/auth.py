@@ -122,6 +122,54 @@ def change_password():
     return render_template('auth/change_password.html')
 
 
+# API Routes for password change
+@auth_bp.route('/api/user/change-password', methods=['POST'])
+@login_required
+def api_change_password():
+    """Change password via API (AJAX)."""
+    data = request.get_json()
+    current_password = data.get('current_password')
+    new_password = data.get('new_password')
+    confirm_password = data.get('confirm_password')
+    
+    if not all([current_password, new_password, confirm_password]):
+        return jsonify({'success': False, 'error': 'All fields are required'}), 400
+    
+    if not current_user.check_password(current_password):
+        return jsonify({'success': False, 'error': 'Current password is incorrect'}), 400
+    
+    if new_password != confirm_password:
+        return jsonify({'success': False, 'error': 'New passwords do not match'}), 400
+    
+    # Validate password strength (minimum 8 chars, at least one number)
+    if len(new_password) < 8:
+        return jsonify({'success': False, 'error': 'Password must be at least 8 characters'}), 400
+    
+    if not re.search(r'\d', new_password):
+        return jsonify({'success': False, 'error': 'Password must contain at least one number'}), 400
+    
+    if User.change_password(current_user.id, new_password):
+        logger.info(f"Password changed successfully for user {current_user.username}")
+        return jsonify({'success': True, 'message': 'Password changed successfully'})
+    else:
+        return jsonify({'success': False, 'error': 'Error changing password'}), 500
+
+
+@auth_bp.route('/api/user/profile', methods=['GET'])
+@login_required
+def api_get_user_profile():
+    """Get current user profile information."""
+    return jsonify({
+        'success': True,
+        'user': {
+            'username': current_user.username,
+            'email': current_user.email,
+            'is_admin': current_user.is_admin,
+            'is_active': current_user.is_active
+        }
+    })
+
+
 # API Routes for user management (admin only)
 @auth_bp.route('/api/users', methods=['GET'])
 @login_required
