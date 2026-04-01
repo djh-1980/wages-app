@@ -23,6 +23,7 @@ from .sync_helpers import (
     format_sync_email
 )
 from ..database import DB_PATH
+import os
 
 class PeriodicSyncService:
     def __init__(self):
@@ -429,12 +430,24 @@ class PeriodicSyncService:
             elif self.payslip_completed_this_week and now.weekday() == 1 and 6 <= now.hour <= 14:
                 self.logger.info("Payslip already processed this week - skipping until next Tuesday")
             
-            # Step 4: Import new runsheets (only if downloaded)
-            if sync_summary['runsheets_downloaded'] > 0:
-                self.logger.info(f"Importing {sync_summary['runsheets_downloaded']} new runsheets")
+            # Step 4: Import runsheets (if downloaded OR if unprocessed files exist on disk)
+            should_import_runsheets = sync_summary['runsheets_downloaded'] > 0
+            
+            # Always check for unprocessed files on disk, even if nothing was downloaded
+            # This handles the case where live system downloaded files but test system hasn't imported them yet
+            if not should_import_runsheets:
+                unprocessed = self._get_unprocessed_runsheets()
+                if unprocessed:
+                    should_import_runsheets = True
+                    self.logger.info(f"Found {len(unprocessed)} unprocessed runsheet(s) on disk (not in local DB)")
+                else:
+                    self.logger.debug("No new downloads and no unprocessed files on disk")
+            
+            if should_import_runsheets:
+                self.logger.info(f"Importing runsheets (downloaded: {sync_summary['runsheets_downloaded']})")
                 try:
                     import_result = subprocess.run(
-                        [sys.executable, 'scripts/production/import_run_sheets.py', '--recent', '0'],
+                        [sys.executable, 'scripts/production/import_run_sheets.py', '--recent', '14'],
                         capture_output=True,
                         text=True,
                         timeout=600  # 10 minutes for large batches
@@ -467,7 +480,6 @@ class PeriodicSyncService:
                 try:
                     from pathlib import Path
                     import os
-                    import time
                     from app.config import Config
                     
                     payslip_dir = Path(Config.PAYSLIPS_DIR)
@@ -853,6 +865,45 @@ class PeriodicSyncService:
             'latest_runsheet_date': get_latest_runsheet_date(),
             'latest_payslip_week': get_latest_payslip_week()
         }
+    
+    def _get_unprocessed_runsheets(self):
+        """Find runsheet PDFs on disk that haven't been imported into local DB."""
+        from pathlib import Path
+        import sqlite3
+        from app.config import Config
+        
+        runsheets_dir = Path(Config.RUNSHEETS_DIR)
+        if not runsheets_dir.exists():
+            return []
+        
+        # Get all DH_*.pdf files (recent files from last 14 days)
+        from datetime import datetime, timedelta
+        cutoff_time = datetime.now() - timedelta(days=14)
+        pdf_files = []
+        
+        for pdf_file in runsheets_dir.rglob('DH_*.pdf'):
+            # Skip macOS resource fork files
+            if pdf_file.name.startswith('._'):
+                continue
+            # Only include recent files (last 14 days)
+            file_mtime = datetime.fromtimestamp(pdf_file.stat().st_mtime)
+            if file_mtime > cutoff_time:
+                pdf_files.append(pdf_file)
+        
+        # Get list of already-imported source files from local DB
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute("SELECT DISTINCT source_file FROM run_sheet_jobs")
+            imported_files = {row[0] for row in cursor.fetchall()}
+            conn.close()
+        except Exception as e:
+            self.logger.error(f"Error checking imported files: {e}")
+            return []
+        
+        # Return files not yet in local DB
+        unprocessed = [f for f in pdf_files if f.name not in imported_files]
+        return unprocessed
     
     def _estimate_next_sync(self):
         """Estimate when the next sync will occur."""
