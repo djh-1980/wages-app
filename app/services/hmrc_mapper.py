@@ -161,7 +161,7 @@ class HMRCMapper:
         end_dt = datetime.strptime(end_date, '%Y-%m-%d')
         
         query = """
-            SELECT COALESCE(SUM(net_payment), 0) as total_income
+            SELECT COALESCE(SUM(gross_subcontractor_payment), 0) as total_income
             FROM payslips
             WHERE date(substr(period_end, 7, 4) || '-' || 
                        substr(period_end, 4, 2) || '-' || 

@@ -237,6 +237,21 @@ def init_database():
             )
         """)
         
+        # Initialize HMRC final declarations table
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS hmrc_final_declarations (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                tax_year TEXT NOT NULL,
+                calculation_id TEXT,
+                estimated_tax REAL,
+                status TEXT DEFAULT 'pending',
+                hmrc_receipt_id TEXT,
+                submitted_at TEXT,
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(tax_year, calculation_id)
+            )
+        """)
+        
         # Initialize users table for authentication
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS users (

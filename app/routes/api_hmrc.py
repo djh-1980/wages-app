@@ -376,6 +376,24 @@ def submit_period():
         except ValueError as e:
             return jsonify({'success': False, 'error': str(e)}), 400
         
+        # Check for duplicate submission unless force=true
+        force = request.args.get('force', 'false').lower() == 'true'
+        if not force:
+            query = """
+                SELECT id, status, hmrc_receipt_id 
+                FROM hmrc_submissions 
+                WHERE tax_year = ? AND period_id = ? AND status = 'submitted'
+                LIMIT 1
+            """
+            existing = execute_query(query, (data['tax_year'], data['period_id']), fetch_one=True)
+            if existing:
+                return jsonify({
+                    'success': False,
+                    'error': 'This period has already been submitted',
+                    'existing_submission_id': existing['id'],
+                    'hmrc_receipt_id': existing['hmrc_receipt_id']
+                }), 409
+        
         # Build submission data
         submission_data = HMRCMapper.build_period_submission(data['tax_year'], data['period_id'])
         
@@ -607,3 +625,232 @@ def _store_submission(tax_year, period_id, submission_data, result):
             error_message
         ))
         conn.commit()
+
+
+@hmrc_bp.route('/final-declaration/status')
+def final_declaration_status():
+    """
+    Check final declaration status for a tax year.
+    
+    Query params:
+        tax_year: Tax year (e.g., '2024/2025')
+    
+    Returns:
+        Status of quarterly submissions and final declaration
+    """
+    try:
+        tax_year = request.args.get('tax_year')
+        
+        if not tax_year:
+            return jsonify({'success': False, 'error': 'tax_year is required'}), 400
+        
+        try:
+            tax_year = validate_tax_year(tax_year)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            cursor.execute("""
+                SELECT period_id, status, hmrc_receipt_id, submission_date
+                FROM hmrc_submissions
+                WHERE tax_year = ? AND period_id IN ('Q1', 'Q2', 'Q3', 'Q4')
+                AND status = 'submitted'
+                ORDER BY period_id
+            """, (tax_year,))
+            
+            quarters = [dict(row) for row in cursor.fetchall()]
+            quarters_submitted = [q['period_id'] for q in quarters]
+            all_submitted = len(quarters_submitted) == 4
+            
+            cursor.execute("""
+                SELECT id, calculation_id, estimated_tax, status, hmrc_receipt_id, submitted_at
+                FROM hmrc_final_declarations
+                WHERE tax_year = ?
+                ORDER BY created_at DESC
+                LIMIT 1
+            """, (tax_year,))
+            
+            declaration = cursor.fetchone()
+            declaration_data = dict(declaration) if declaration else None
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'tax_year': tax_year,
+                'quarters_submitted': quarters_submitted,
+                'all_submitted': all_submitted,
+                'quarters_detail': quarters,
+                'calculation_id': declaration_data.get('calculation_id') if declaration_data else None,
+                'declaration_status': declaration_data.get('status') if declaration_data else 'not_started',
+                'declaration': declaration_data
+            }
+        })
+    except Exception as e:
+        logger.error(f'Error getting final declaration status: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/final-declaration/calculate', methods=['POST'])
+def calculate_final_declaration():
+    """
+    Trigger crystallisation (tax calculation) for a tax year.
+    
+    Query params:
+        tax_year: Tax year (e.g., '2024/2025')
+    
+    Returns:
+        Calculation ID and estimated tax
+    """
+    try:
+        tax_year = request.args.get('tax_year')
+        
+        if not tax_year:
+            return jsonify({'success': False, 'error': 'tax_year is required'}), 400
+        
+        try:
+            tax_year = validate_tax_year(tax_year)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT COUNT(*) as count
+                FROM hmrc_submissions
+                WHERE tax_year = ? AND period_id IN ('Q1', 'Q2', 'Q3', 'Q4')
+                AND status = 'submitted'
+            """, (tax_year,))
+            
+            result = cursor.fetchone()
+            if result['count'] < 4:
+                return jsonify({
+                    'success': False,
+                    'error': f'All 4 quarters must be submitted before calculating. Only {result["count"]} submitted.'
+                }), 400
+        
+        query = "SELECT nino FROM hmrc_credentials WHERE is_active = 1 LIMIT 1"
+        creds = execute_query(query, fetch_one=True)
+        
+        if not creds or not creds.get('nino'):
+            return jsonify({'success': False, 'error': 'NINO not found in credentials'}), 400
+        
+        nino = creds['nino']
+        
+        client = HMRCClient()
+        result = client.trigger_crystallisation(nino, tax_year)
+        
+        if not result.get('success'):
+            return jsonify(result)
+        
+        calculation_id = result.get('data', {}).get('calculationId') or result.get('data', {}).get('id')
+        estimated_tax = result.get('data', {}).get('totalIncomeTaxAndNicsDue', 0.0)
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                INSERT INTO hmrc_final_declarations 
+                (tax_year, calculation_id, estimated_tax, status)
+                VALUES (?, ?, ?, 'calculated')
+            """, (tax_year, calculation_id, estimated_tax))
+            conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'calculation_id': calculation_id,
+                'estimated_tax': estimated_tax,
+                'message': 'Tax calculation completed successfully'
+            }
+        })
+    except Exception as e:
+        logger.error(f'Error calculating final declaration: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/final-declaration/submit', methods=['POST'])
+def submit_final_declaration():
+    """
+    Submit final declaration to HMRC.
+    
+    Request body:
+    {
+        "tax_year": "2024/2025",
+        "calculation_id": "...",
+        "confirmed": true
+    }
+    
+    Returns:
+        Submission result with receipt
+    """
+    try:
+        data = request.get_json()
+        
+        tax_year = data.get('tax_year')
+        calculation_id = data.get('calculation_id')
+        confirmed = data.get('confirmed', False)
+        
+        if not tax_year or not calculation_id:
+            return jsonify({'success': False, 'error': 'tax_year and calculation_id are required'}), 400
+        
+        if not confirmed:
+            return jsonify({'success': False, 'error': 'You must confirm the declaration is correct'}), 400
+        
+        try:
+            tax_year = validate_tax_year(tax_year)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT status FROM hmrc_final_declarations
+                WHERE tax_year = ? AND calculation_id = ?
+            """, (tax_year, calculation_id))
+            
+            existing = cursor.fetchone()
+            if existing and existing['status'] == 'submitted':
+                return jsonify({
+                    'success': False,
+                    'error': 'Final declaration already submitted for this tax year'
+                }), 409
+        
+        query = "SELECT nino FROM hmrc_credentials WHERE is_active = 1 LIMIT 1"
+        creds = execute_query(query, fetch_one=True)
+        
+        if not creds or not creds.get('nino'):
+            return jsonify({'success': False, 'error': 'NINO not found in credentials'}), 400
+        
+        nino = creds['nino']
+        
+        client = HMRCClient()
+        result = client.submit_final_declaration(nino, tax_year, calculation_id)
+        
+        if not result.get('success'):
+            return jsonify(result)
+        
+        receipt_id = result.get('data', {}).get('id') or result.get('data', {}).get('receiptId')
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE hmrc_final_declarations
+                SET status = 'submitted',
+                    hmrc_receipt_id = ?,
+                    submitted_at = ?
+                WHERE tax_year = ? AND calculation_id = ?
+            """, (receipt_id, datetime.now().isoformat(), tax_year, calculation_id))
+            conn.commit()
+        
+        return jsonify({
+            'success': True,
+            'data': {
+                'receipt_id': receipt_id,
+                'message': 'Final declaration submitted successfully',
+                'submitted_at': datetime.now().isoformat()
+            }
+        })
+    except Exception as e:
+        logger.error(f'Error submitting final declaration: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500

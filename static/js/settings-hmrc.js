@@ -25,6 +25,11 @@ document.addEventListener('DOMContentLoaded', function() {
         showNotification(message, 'danger');
         window.history.replaceState({}, document.title, window.location.pathname);
     }
+    
+    // Load final declaration status when tab is shown
+    $('a[data-toggle="pill"][href="#finalDeclaration"]').on('shown.bs.tab', function() {
+        loadFinalDeclarationStatus();
+    });
 });
 
 function setupEventListeners() {
@@ -34,6 +39,15 @@ function setupEventListeners() {
     document.getElementById('refreshObligationsBtn').addEventListener('click', refreshObligations);
     document.getElementById('saveConfigBtn').addEventListener('click', saveConfiguration);
     document.getElementById('modalSaveBtn').addEventListener('click', saveModalConfig);
+    
+    // Final declaration event listeners
+    document.getElementById('finalDeclTaxYear').addEventListener('change', loadFinalDeclarationStatus);
+    document.getElementById('calculateTaxBtn').addEventListener('click', calculateTaxLiability);
+    document.getElementById('submitFinalDeclBtn').addEventListener('click', showFinalDeclConfirmation);
+    document.getElementById('confirmCheckbox').addEventListener('change', function() {
+        document.getElementById('confirmSubmitBtn').disabled = !this.checked;
+    });
+    document.getElementById('confirmSubmitBtn').addEventListener('click', submitFinalDeclaration);
 }
 
 async function loadConnectionStatus() {
@@ -150,7 +164,8 @@ async function testConnection() {
         if (data.success || responseData.success) {
             showNotification('Connection test successful!', 'success');
         } else {
-            showNotification('Connection test failed: ' + (data.error || 'Unknown error'), 'warning');
+            const validationErrors = data.validation_errors || responseData.validation_errors;
+            showNotification('Connection test failed: ' + (data.error || 'Unknown error'), 'warning', validationErrors);
         }
     } catch (error) {
         console.error('Error testing connection:', error);
@@ -182,7 +197,8 @@ async function refreshObligations() {
             showNotification('Obligations refreshed successfully', 'success');
             loadObligations();
         } else {
-            showNotification('Failed to refresh obligations: ' + (data.error || 'Unknown error'), 'danger');
+            const validationErrors = data.validation_errors || responseData.validation_errors;
+            showNotification('Failed to refresh obligations: ' + (data.error || 'Unknown error'), 'danger', validationErrors);
         }
     } catch (error) {
         console.error('Error refreshing obligations:', error);
@@ -375,13 +391,27 @@ function formatDate(dateStr) {
     return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
 }
 
-function showNotification(message, type = 'info') {
+function showNotification(message, type = 'info', validationErrors = null) {
     // Create notification element
     const notification = document.createElement('div');
     notification.className = `alert alert-${type} alert-dismissible fade show position-fixed`;
-    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px;';
+    notification.style.cssText = 'top: 20px; right: 20px; z-index: 9999; min-width: 300px; max-width: 500px;';
+    
+    let content = message;
+    
+    // If validation errors are provided, format them as a list
+    if (validationErrors && Array.isArray(validationErrors) && validationErrors.length > 0) {
+        content += '<hr class="my-2"><strong>Validation Errors:</strong><ul class="mb-0 mt-1">';
+        validationErrors.forEach(err => {
+            const field = err.field || 'unknown';
+            const msg = err.message || 'Validation error';
+            content += `<li><strong>${field}:</strong> ${msg}</li>`;
+        });
+        content += '</ul>';
+    }
+    
     notification.innerHTML = `
-        ${message}
+        ${content}
         <button type="button" class="close" data-dismiss="alert">
             <span>&times;</span>
         </button>
@@ -389,8 +419,181 @@ function showNotification(message, type = 'info') {
     
     document.body.appendChild(notification);
     
-    // Auto-dismiss after 5 seconds
+    // Auto-dismiss after 10 seconds for validation errors, 5 seconds for others
+    const dismissTime = validationErrors ? 10000 : 5000;
     setTimeout(() => {
         notification.remove();
-    }, 5000);
+    }, dismissTime);
+}
+
+function getCSRFHeaders() {
+    return {
+        'Content-Type': 'application/json'
+    };
+}
+
+// ============================================================================
+// FINAL DECLARATION FUNCTIONS
+// ============================================================================
+
+async function loadFinalDeclarationStatus() {
+    const taxYear = document.getElementById('finalDeclTaxYear').value;
+    
+    try {
+        const response = await fetch(`/api/hmrc/final-declaration/status?tax_year=${taxYear}`);
+        const data = await response.json();
+        
+        if (data.success) {
+            updateFinalDeclarationUI(data.data);
+        } else {
+            showNotification('Failed to load final declaration status: ' + data.error, 'danger');
+        }
+    } catch (error) {
+        console.error('Error loading final declaration status:', error);
+        showNotification('Failed to load final declaration status', 'danger');
+    }
+}
+
+function updateFinalDeclarationUI(status) {
+    const quarters = ['Q1', 'Q2', 'Q3', 'Q4'];
+    
+    // Update quarterly checklist
+    quarters.forEach(quarter => {
+        const statusBadge = document.getElementById(`${quarter.toLowerCase()}Status`);
+        const listItem = statusBadge.closest('.list-group-item');
+        const icon = listItem.querySelector('i');
+        
+        if (status.quarters_submitted.includes(quarter)) {
+            statusBadge.className = 'badge badge-success';
+            statusBadge.textContent = 'Submitted';
+            icon.className = 'fas fa-check-circle text-success';
+        } else {
+            statusBadge.className = 'badge badge-secondary';
+            statusBadge.textContent = 'Not Submitted';
+            icon.className = 'fas fa-circle text-muted';
+        }
+    });
+    
+    // Enable/disable calculate button
+    const calculateBtn = document.getElementById('calculateTaxBtn');
+    if (status.all_submitted && status.declaration_status === 'not_started') {
+        calculateBtn.disabled = false;
+        calculateBtn.nextElementSibling.textContent = 'Ready to calculate';
+    } else if (status.declaration_status === 'calculated' || status.declaration_status === 'submitted') {
+        calculateBtn.disabled = true;
+        calculateBtn.nextElementSibling.textContent = 'Already calculated';
+    } else {
+        calculateBtn.disabled = true;
+        calculateBtn.nextElementSibling.textContent = 'All 4 quarters must be submitted first';
+    }
+    
+    // Show tax calculation if available
+    const taxCalcSection = document.getElementById('taxCalculationSection');
+    const submitBtn = document.getElementById('submitFinalDeclBtn');
+    
+    if (status.declaration && status.declaration.calculation_id) {
+        taxCalcSection.style.display = 'block';
+        document.getElementById('estimatedTax').textContent = '£' + (status.declaration.estimated_tax || 0).toFixed(2);
+        document.getElementById('calculationId').textContent = status.declaration.calculation_id;
+        
+        if (status.declaration_status === 'calculated') {
+            submitBtn.disabled = false;
+            submitBtn.nextElementSibling.textContent = 'Ready to submit';
+        } else {
+            submitBtn.disabled = true;
+            submitBtn.nextElementSibling.textContent = 'Already submitted';
+        }
+    } else {
+        taxCalcSection.style.display = 'none';
+        submitBtn.disabled = true;
+        submitBtn.nextElementSibling.textContent = 'Tax must be calculated first';
+    }
+    
+    // Show declaration status if submitted
+    const declStatusSection = document.getElementById('declarationStatusSection');
+    if (status.declaration_status === 'submitted' && status.declaration) {
+        declStatusSection.style.display = 'block';
+        document.getElementById('receiptId').textContent = status.declaration.hmrc_receipt_id || 'N/A';
+        document.getElementById('submittedAt').textContent = formatDate(status.declaration.submitted_at);
+    } else {
+        declStatusSection.style.display = 'none';
+    }
+}
+
+async function calculateTaxLiability() {
+    const taxYear = document.getElementById('finalDeclTaxYear').value;
+    const calculateBtn = document.getElementById('calculateTaxBtn');
+    const originalText = calculateBtn.innerHTML;
+    
+    calculateBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Calculating...';
+    calculateBtn.disabled = true;
+    
+    try {
+        const response = await fetch(`/api/hmrc/final-declaration/calculate?tax_year=${taxYear}`, {
+            method: 'POST',
+            headers: getCSRFHeaders()
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            showNotification('Tax calculation completed successfully!', 'success');
+            loadFinalDeclarationStatus();
+        } else {
+            showNotification('Failed to calculate tax: ' + data.error, 'danger');
+            calculateBtn.innerHTML = originalText;
+            calculateBtn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error calculating tax:', error);
+        showNotification('Failed to calculate tax liability', 'danger');
+        calculateBtn.innerHTML = originalText;
+        calculateBtn.disabled = false;
+    }
+}
+
+function showFinalDeclConfirmation() {
+    // Reset checkbox
+    document.getElementById('confirmCheckbox').checked = false;
+    document.getElementById('confirmSubmitBtn').disabled = true;
+    
+    // Show modal
+    $('#finalDeclConfirmModal').modal('show');
+}
+
+async function submitFinalDeclaration() {
+    const taxYear = document.getElementById('finalDeclTaxYear').value;
+    const calculationId = document.getElementById('calculationId').textContent;
+    const confirmBtn = document.getElementById('confirmSubmitBtn');
+    const originalText = confirmBtn.innerHTML;
+    
+    confirmBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+    confirmBtn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/hmrc/final-declaration/submit', {
+            method: 'POST',
+            headers: getCSRFHeaders(),
+            body: JSON.stringify({
+                tax_year: taxYear,
+                calculation_id: calculationId,
+                confirmed: true
+            })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            $('#finalDeclConfirmModal').modal('hide');
+            showNotification('Final declaration submitted successfully!', 'success');
+            loadFinalDeclarationStatus();
+        } else {
+            showNotification('Failed to submit final declaration: ' + data.error, 'danger');
+            confirmBtn.innerHTML = originalText;
+            confirmBtn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error submitting final declaration:', error);
+        showNotification('Failed to submit final declaration', 'danger');
+        confirmBtn.innerHTML = originalText;
+        confirmBtn.disabled = false;
+    }
 }

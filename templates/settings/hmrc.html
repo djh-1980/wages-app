@@ -167,6 +167,11 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" data-toggle="pill" href="#finalDeclaration">
+                        <i class="fas fa-file-signature"></i> Final Declaration
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" data-toggle="pill" href="#help">
                         <i class="fas fa-question-circle"></i> Help & Documentation
                     </a>
@@ -198,6 +203,92 @@
                                 <div class="text-center text-muted py-5">
                                     <i class="fas fa-inbox fa-3x mb-3"></i>
                                     <p>No submissions yet</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Final Declaration Tab -->
+                <div class="tab-pane fade" id="finalDeclaration">
+                    <div class="card settings-card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-file-signature"></i> Final Declaration (Crystallisation)
+                            </h5>
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle"></i> What is Final Declaration?</h6>
+                                <p class="mb-0">After submitting all 4 quarterly updates, you must submit a final declaration to HMRC confirming that all information is complete and correct. This is a mandatory MTD requirement.</p>
+                            </div>
+                            
+                            <!-- Tax Year Selector -->
+                            <div class="form-group">
+                                <label for="finalDeclTaxYear"><strong>Select Tax Year:</strong></label>
+                                <select class="form-control" id="finalDeclTaxYear" style="max-width: 300px;">
+                                    <option value="2024/2025">2024/2025</option>
+                                    <option value="2025/2026">2025/2026</option>
+                                    <option value="2026/2027">2026/2027</option>
+                                </select>
+                            </div>
+                            
+                            <hr>
+                            
+                            <!-- Quarterly Submissions Checklist -->
+                            <h6><i class="fas fa-tasks"></i> Quarterly Submissions Status</h6>
+                            <div id="quarterlyChecklist" class="mb-4">
+                                <div class="list-group">
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span><i class="fas fa-circle text-muted"></i> Q1 (Apr 6 - Jul 5)</span>
+                                        <span class="badge badge-secondary" id="q1Status">Not Submitted</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span><i class="fas fa-circle text-muted"></i> Q2 (Jul 6 - Oct 5)</span>
+                                        <span class="badge badge-secondary" id="q2Status">Not Submitted</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span><i class="fas fa-circle text-muted"></i> Q3 (Oct 6 - Jan 5)</span>
+                                        <span class="badge badge-secondary" id="q3Status">Not Submitted</span>
+                                    </div>
+                                    <div class="list-group-item d-flex justify-content-between align-items-center">
+                                        <span><i class="fas fa-circle text-muted"></i> Q4 (Jan 6 - Apr 5)</span>
+                                        <span class="badge badge-secondary" id="q4Status">Not Submitted</span>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Tax Calculation Section -->
+                            <div id="taxCalculationSection" class="mb-4" style="display: none;">
+                                <h6><i class="fas fa-calculator"></i> Tax Calculation</h6>
+                                <div class="alert alert-success">
+                                    <p><strong>Estimated Tax Liability:</strong> <span id="estimatedTax">£0.00</span></p>
+                                    <p class="mb-0"><strong>Calculation ID:</strong> <code id="calculationId"></code></p>
+                                </div>
+                            </div>
+                            
+                            <!-- Action Buttons -->
+                            <div class="row">
+                                <div class="col-md-6 mb-3">
+                                    <button id="calculateTaxBtn" class="btn btn-primary btn-lg w-100" disabled>
+                                        <i class="fas fa-calculator"></i> Calculate Tax Liability
+                                    </button>
+                                    <small class="form-text text-muted">All 4 quarters must be submitted first</small>
+                                </div>
+                                <div class="col-md-6 mb-3">
+                                    <button id="submitFinalDeclBtn" class="btn btn-success btn-lg w-100" disabled>
+                                        <i class="fas fa-file-signature"></i> Submit Final Declaration
+                                    </button>
+                                    <small class="form-text text-muted">Tax must be calculated first</small>
+                                </div>
+                            </div>
+                            
+                            <!-- Declaration Status -->
+                            <div id="declarationStatusSection" style="display: none;">
+                                <hr>
+                                <div class="alert alert-success">
+                                    <h6><i class="fas fa-check-circle"></i> Final Declaration Submitted</h6>
+                                    <p><strong>Receipt ID:</strong> <code id="receiptId"></code></p>
+                                    <p class="mb-0"><strong>Submitted:</strong> <span id="submittedAt"></span></p>
                                 </div>
                             </div>
                         </div>
@@ -282,6 +373,49 @@ HMRC_ENVIRONMENT=sandbox  # or 'production'
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
                 <button type="button" class="btn btn-primary" id="modalSaveBtn">Save & Continue</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Final Declaration Confirmation Modal -->
+<div class="modal fade" id="finalDeclConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> Confirm Final Declaration
+                </h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-circle"></i> Point of No Return</h6>
+                    <p class="mb-0">This action cannot be undone. Once submitted, you cannot make changes to this tax year.</p>
+                </div>
+                
+                <p><strong>By submitting this declaration you confirm that:</strong></p>
+                <ul>
+                    <li>All information provided is correct and complete to the best of your knowledge</li>
+                    <li>All 4 quarterly updates have been submitted accurately</li>
+                    <li>You understand this is a legal declaration to HMRC</li>
+                    <li>You accept the calculated tax liability</li>
+                </ul>
+                
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="confirmCheckbox">
+                    <label class="form-check-label" for="confirmCheckbox">
+                        <strong>I confirm this declaration is correct and complete</strong>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmSubmitBtn" disabled>
+                    <i class="fas fa-file-signature"></i> Submit Final Declaration
+                </button>
             </div>
         </div>
     </div>

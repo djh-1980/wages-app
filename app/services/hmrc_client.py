@@ -139,6 +139,28 @@ class HMRCClient:
                 }
             else:
                 error_data = response.json() if response.content else {}
+                
+                # Parse 422 validation errors with field-level details
+                if response.status_code == 422 and 'errors' in error_data:
+                    validation_errors = []
+                    for err in error_data.get('errors', []):
+                        field_path = err.get('path', 'unknown')
+                        message = err.get('message', 'Validation error')
+                        code = err.get('code', '')
+                        validation_errors.append({
+                            'field': field_path,
+                            'message': message,
+                            'code': code
+                        })
+                    
+                    return {
+                        'success': False,
+                        'error': error_data.get('message', 'Validation failed'),
+                        'status_code': response.status_code,
+                        'validation_errors': validation_errors,
+                        'details': error_data
+                    }
+                
                 return {
                     'success': False,
                     'error': error_data.get('message', f'HTTP {response.status_code}'),
@@ -339,3 +361,59 @@ class HMRCClient:
         """
         endpoint = f"/individuals/business/self-employment/{nino}/{business_id}/annual/{tax_year}"
         return self._make_request('PUT', endpoint, data=annual_data)
+    
+    def get_tax_calculation(self, nino, tax_year):
+        """
+        Get the latest tax calculation for a tax year.
+        This retrieves the calculation after crystallisation has been triggered.
+        
+        Args:
+            nino: National Insurance Number
+            tax_year: Tax year in YYYY/YYYY format (e.g., '2024/2025')
+            
+        Returns:
+            dict: Tax calculation data including calculationId and tax liability
+        """
+        formatted_tax_year = tax_year.replace('/', '-')
+        endpoint = f"/individuals/calculations/{nino}/self-assessment"
+        params = {'taxYear': formatted_tax_year}
+        return self._make_request('GET', endpoint, params=params)
+    
+    def trigger_crystallisation(self, nino, tax_year):
+        """
+        Trigger crystallisation (intent to finalise) for a tax year.
+        This requests HMRC to calculate the final tax liability.
+        Must be called after all 4 quarterly updates are submitted.
+        
+        Args:
+            nino: National Insurance Number
+            tax_year: Tax year in YYYY/YYYY format (e.g., '2024/2025')
+            
+        Returns:
+            dict: Response with calculationId
+        """
+        formatted_tax_year = tax_year.replace('/', '-')
+        endpoint = f"/individuals/calculations/crystallisation/{nino}/{formatted_tax_year}"
+        data = {'taxYear': formatted_tax_year}
+        return self._make_request('POST', endpoint, data=data)
+    
+    def submit_final_declaration(self, nino, tax_year, calculation_id):
+        """
+        Submit the final declaration for a tax year.
+        This is the point of no return - confirms all information is complete and correct.
+        
+        Args:
+            nino: National Insurance Number
+            tax_year: Tax year in YYYY/YYYY format (e.g., '2024/2025')
+            calculation_id: The calculation ID from trigger_crystallisation
+            
+        Returns:
+            dict: Response with receipt/confirmation
+        """
+        formatted_tax_year = tax_year.replace('/', '-')
+        endpoint = f"/individuals/declarations/{nino}/{formatted_tax_year}"
+        data = {
+            'calculationId': calculation_id,
+            'finalised': True
+        }
+        return self._make_request('POST', endpoint, data=data)
