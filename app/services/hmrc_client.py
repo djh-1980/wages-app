@@ -77,7 +77,7 @@ class HMRCClient:
         except:
             return '127.0.0.1'
     
-    def _make_request(self, method, endpoint, data=None, params=None):
+    def _make_request(self, method, endpoint, data=None, params=None, test_scenario=None):
         """
         Make authenticated request to HMRC API with fraud prevention headers.
         
@@ -86,6 +86,7 @@ class HMRCClient:
             endpoint: API endpoint path
             data: Request body data
             params: Query parameters
+            test_scenario: Optional Gov-Test-Scenario header value for sandbox testing
             
         Returns:
             dict: Response data or error
@@ -111,6 +112,9 @@ class HMRCClient:
             'Content-Type': 'application/json',
             **self._get_fraud_prevention_headers()
         }
+        
+        if test_scenario:
+            headers['Gov-Test-Scenario'] = test_scenario
         
         url = f"{self.base_url}{endpoint}"
         
@@ -198,6 +202,20 @@ class HMRCClient:
                 'details': result.get('details', {})
             }
     
+    def get_business_details(self, nino):
+        """
+        Get list of businesses for a NINO using Business Details API.
+        This is the recommended endpoint for MTD ITSA.
+        
+        Args:
+            nino: National Insurance Number
+            
+        Returns:
+            dict: List of businesses with their IDs
+        """
+        endpoint = f"/individuals/business/details/{nino}/list"
+        return self._make_request('GET', endpoint)
+    
     def get_business_list(self, nino):
         """
         Get list of self-employment businesses for a NINO.
@@ -214,7 +232,7 @@ class HMRCClient:
         endpoint = f"/individuals/income-received/self-employment/{nino}"
         return self._make_request('GET', endpoint)
     
-    def get_obligations(self, nino, from_date=None, to_date=None, status=None):
+    def get_obligations(self, nino, from_date=None, to_date=None, status=None, test_scenario=None):
         """
         Get obligations for a business.
         
@@ -223,6 +241,7 @@ class HMRCClient:
             from_date: Optional from date (YYYY-MM-DD)
             to_date: Optional to date (YYYY-MM-DD)
             status: Optional status filter (O=Open, F=Fulfilled)
+            test_scenario: Optional Gov-Test-Scenario header for sandbox testing
             
         Returns:
             dict: Obligations data
@@ -236,7 +255,7 @@ class HMRCClient:
             params['status'] = status
         
         endpoint = f"/individuals/business/self-employment/{nino}/obligations"
-        return self._make_request('GET', endpoint, params=params)
+        return self._make_request('GET', endpoint, params=params, test_scenario=test_scenario)
     
     def get_period_summary(self, nino, business_id, period_id):
         """
@@ -257,6 +276,7 @@ class HMRCClient:
         """
         Create a test self-employment business for sandbox testing.
         Uses Self Assessment Test Support API.
+        Requires OAuth Bearer token from authenticated session.
         
         Args:
             nino: National Insurance Number
@@ -264,40 +284,18 @@ class HMRCClient:
         Returns:
             dict: Business creation response with business ID
         """
-        # Test Support API doesn't require authentication for sandbox
-        url = f"{self.base_url}/test-support/self-assessment/ni/{nino}/self-employments"
-        
+        # Correct payload format as per HMRC API documentation
         test_business_data = {
-            "tradingName": "Test Self Employment",
-            "businessDescription": "Test Business",
-            "businessAddressLineOne": "Test Address",
-            "businessAddressPostcode": "TE5 7ST",
-            "businessStartDate": "2020-01-01",
-            "accountingType": "CASH",
-            "commencementDate": "2020-01-01"
+            "annualAccountingRegime": "STANDARD",
+            "tradingName": "Test Business",
+            "businessAddressLineOne": "1 Test Street",
+            "businessAddressLineTwo": "Test Town",
+            "businessPostcode": "TE1 1ST"
         }
         
-        try:
-            response = requests.post(url, json=test_business_data, timeout=30)
-            if response.status_code in [200, 201]:
-                return {
-                    'success': True,
-                    'data': response.json() if response.content else {},
-                    'status_code': response.status_code
-                }
-            else:
-                error_data = response.json() if response.content else {}
-                return {
-                    'success': False,
-                    'error': error_data.get('message', f'HTTP {response.status_code}'),
-                    'status_code': response.status_code,
-                    'details': error_data
-                }
-        except Exception as e:
-            return {
-                'success': False,
-                'error': str(e)
-            }
+        # Use _make_request for consistency - it handles OAuth headers and fraud prevention
+        endpoint = f"/test-support/self-assessment/ni/{nino}/self-employments"
+        return self._make_request('POST', endpoint, data=test_business_data)
     
     def create_period(self, nino, business_id, period_data):
         """
@@ -417,3 +415,54 @@ class HMRCClient:
             'finalised': True
         }
         return self._make_request('POST', endpoint, data=data)
+    
+    def get_mock_obligations(self):
+        """
+        Return realistic mock obligations data for sandbox testing.
+        Used as fallback when sandbox test data is not available.
+        Matches HMRC API response format with nested obligationDetails.
+        
+        Returns:
+            dict: Mock obligations data with 4 quarterly periods
+        """
+        return {
+            'success': True,
+            'data': {
+                'obligations': [
+                    {
+                        'typeOfBusiness': 'self-employment',
+                        'businessId': 'XAIS12345678901',
+                        'obligationDetails': [
+                            {
+                                'periodKey': 'Q1',
+                                'inboundCorrespondenceFromDate': '2024-04-06',
+                                'inboundCorrespondenceToDate': '2024-07-05',
+                                'inboundCorrespondenceDueDate': '2024-08-05',
+                                'status': 'Open'
+                            },
+                            {
+                                'periodKey': 'Q2',
+                                'inboundCorrespondenceFromDate': '2024-07-06',
+                                'inboundCorrespondenceToDate': '2024-10-05',
+                                'inboundCorrespondenceDueDate': '2024-11-05',
+                                'status': 'Open'
+                            },
+                            {
+                                'periodKey': 'Q3',
+                                'inboundCorrespondenceFromDate': '2024-10-06',
+                                'inboundCorrespondenceToDate': '2025-01-05',
+                                'inboundCorrespondenceDueDate': '2025-02-05',
+                                'status': 'Open'
+                            },
+                            {
+                                'periodKey': 'Q4',
+                                'inboundCorrespondenceFromDate': '2025-01-06',
+                                'inboundCorrespondenceToDate': '2025-04-05',
+                                'inboundCorrespondenceDueDate': '2025-05-05',
+                                'status': 'Open'
+                            }
+                        ]
+                    }
+                ]
+            }
+        }

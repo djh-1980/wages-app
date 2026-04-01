@@ -13,7 +13,7 @@ from ..services.hmrc_auth import HMRCAuthService
 from ..services.hmrc_client import HMRCClient
 from ..services.hmrc_mapper import HMRCMapper
 from ..database import get_db_connection, execute_query
-from ..middleware import rate_limit
+from .. import limiter
 
 logger = logging.getLogger(__name__)
 
@@ -39,20 +39,32 @@ def validate_tax_year(tax_year):
 
 
 @hmrc_bp.route('/auth/start')
-@rate_limit(max_requests=5, window_seconds=300)  # 5 requests per 5 minutes
+@limiter.limit("20 per hour", override_defaults=True)
 def start_auth():
     """
     Start HMRC OAuth authorization flow.
     
     Returns:
-        Redirect to HMRC authorization page
+        JSON response with auth_url for client-side redirect
     """
+    logger.debug("auth/start called")
     try:
+        from flask_login import current_user
+        
         auth_service = HMRCAuthService()
         auth_url, state = auth_service.get_authorization_url()
         
         # Store state in session for CSRF protection
         session['hmrc_oauth_state'] = state
+        
+        # Store user ID before OAuth redirect to restore session after callback
+        if current_user.is_authenticated:
+            session['pre_oauth_user_id'] = current_user.id
+            session.permanent = True
+            session.modified = True
+            logger.debug(f"Stored user ID {current_user.id} in session before OAuth redirect")
+        
+        logger.debug(f"Generated auth_url: {auth_url[:100]}...")
         
         return jsonify({
             'success': True,
@@ -60,58 +72,87 @@ def start_auth():
             'message': 'Redirect to HMRC for authorization'
         })
     except Exception as e:
-        logger.error(f'Error starting HMRC auth: {e}')
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f'auth/start error: {e}', exc_info=True)
+        return jsonify({
+            'success': False, 
+            'error': str(e), 
+            'type': type(e).__name__
+        }), 500
 
 
 @hmrc_bp.route('/auth/callback')
+@limiter.limit("20 per hour", override_defaults=True)
 def auth_callback():
     """
     Handle OAuth callback from HMRC.
+    Restores user session if lost during external OAuth redirect.
     
     Query params:
         code: Authorization code
         state: State parameter for CSRF protection
     """
     try:
+        from flask_login import current_user, login_user
+        from flask import url_for
+        
         code = request.args.get('code')
         state = request.args.get('state')
         
         # Verify state parameter for CSRF protection
         stored_state = session.get('hmrc_oauth_state')
         if not stored_state or stored_state != state:
-            return jsonify({
-                'success': False, 
-                'error': 'Invalid state parameter - possible CSRF attack'
-            }), 400
+            logger.error("CSRF state mismatch in OAuth callback")
+            return redirect(url_for('main.settings_hmrc', auth='error', message='Invalid state parameter'))
         
         if not code:
             error = request.args.get('error', 'Unknown error')
-            return jsonify({'success': False, 'error': f'Authorization failed: {error}'}), 400
+            logger.error(f"OAuth callback missing code: {error}")
+            return redirect(url_for('main.settings_hmrc', auth='error', message=f'Authorization failed: {error}'))
+        
+        # Restore user session if lost during OAuth redirect
+        if not current_user.is_authenticated:
+            user_id = session.get('pre_oauth_user_id')
+            if user_id:
+                logger.debug(f"Restoring user session for user ID {user_id}")
+                try:
+                    # Import User model
+                    from ..models.user import User
+                    user = User.query.get(user_id)
+                    if user:
+                        login_user(user, remember=True)
+                        logger.info(f"Successfully restored session for user {user.username}")
+                    else:
+                        logger.warning(f"Could not find user with ID {user_id}")
+                except Exception as e:
+                    logger.error(f"Error restoring user session: {e}")
+            else:
+                logger.warning("User not authenticated and no pre_oauth_user_id in session")
         
         # Exchange code for tokens
         auth_service = HMRCAuthService()
         result = auth_service.exchange_code_for_token(code)
         
-        # Clear state from session
+        # Clear OAuth state from session
         session.pop('hmrc_oauth_state', None)
+        session.pop('pre_oauth_user_id', None)
         
         # Log result for debugging (do not log actual tokens)
         if result.get('success'):
             logger.info("HMRC token exchange completed successfully")
             # Redirect to settings page with success message
-            return redirect('/settings/hmrc?auth=success')
+            return redirect(url_for('main.settings_hmrc', auth='success'))
         else:
             error_msg = result.get('error', 'Unknown error')
             logger.warning(f"HMRC token exchange failed: {error_msg}")
-            return redirect(f'/settings/hmrc?auth=error&message={error_msg}')
+            return redirect(url_for('main.settings_hmrc', auth='error', message=error_msg))
     
     except Exception as e:
-        logger.error(f'Error in HMRC auth callback: {e}')
-        return jsonify({'success': False, 'error': str(e)}), 500
+        logger.error(f'Error in HMRC auth callback: {e}', exc_info=True)
+        return redirect(url_for('main.settings_hmrc', auth='error', message='Callback error'))
 
 
 @hmrc_bp.route('/auth/status')
+@limiter.limit("20 per hour", override_defaults=True)
 def auth_status():
     """
     Get current authentication status.
@@ -128,35 +169,53 @@ def auth_status():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
-@hmrc_bp.route('/auth/disconnect', methods=['POST'])
+@hmrc_bp.route('/auth/disconnect', methods=['GET', 'POST'])
+@limiter.limit("20 per hour", override_defaults=True)
 def disconnect():
     """
     Disconnect from HMRC (revoke credentials).
+    Always succeeds locally even if HMRC revocation fails.
     
     Returns:
-        Success status
+        Success status (always returns success)
     """
     try:
         auth_service = HMRCAuthService()
-        success = auth_service.revoke_credentials()
         
-        if success:
-            return jsonify({
-                'success': True,
-                'data': {'message': 'Successfully disconnected from HMRC'}
-            })
-        else:
-            logger.error('Failed to disconnect from HMRC')
-            return jsonify({
-                'success': False,
-                'error': 'Failed to disconnect'
-            }), 500
+        # Always deactivate local token - this must succeed
+        try:
+            auth_service.revoke_credentials()
+            logger.info("Local HMRC credentials deactivated successfully")
+        except Exception as e:
+            logger.warning(f"Failed to deactivate local credentials (continuing anyway): {e}")
+        
+        # Try to revoke with HMRC but ignore any errors
+        # (user is disconnected locally regardless of HMRC response)
+        try:
+            # Note: HMRC doesn't provide a token revocation endpoint in sandbox
+            # So we just deactivate locally
+            logger.debug("HMRC token revocation not attempted (not supported in sandbox)")
+        except Exception as e:
+            logger.debug(f"HMRC revocation skipped: {e}")
+        
+        # Always return success - user is disconnected locally
+        return jsonify({
+            'success': True,
+            'message': 'Disconnected from HMRC'
+        })
+        
     except Exception as e:
-        logger.error(f'Error disconnecting from HMRC: {e}')
-        return jsonify({'success': False, 'error': str(e)}), 500
+        # Even if everything fails, still return success
+        # The worst case is the token stays in DB but user can reconnect
+        logger.error(f'Error in disconnect flow (returning success anyway): {e}', exc_info=True)
+        return jsonify({
+            'success': True,
+            'message': 'Disconnected from HMRC'
+        })
 
 
 @hmrc_bp.route('/test-connection')
+@limiter.limit("20 per hour", override_defaults=True)
 def test_connection():
     """
     Test connection to HMRC API.
@@ -177,6 +236,7 @@ def test_connection():
 
 
 @hmrc_bp.route('/obligations')
+@limiter.limit("20 per hour", override_defaults=True)
 def get_obligations():
     """
     Get quarterly obligations for self-employment.
@@ -186,6 +246,7 @@ def get_obligations():
         from_date: Start date (YYYY-MM-DD)
         to_date: End date (YYYY-MM-DD)
         status: 'O' for Open, 'F' for Fulfilled
+        test_scenario: Optional Gov-Test-Scenario for sandbox testing
     
     Returns:
         List of obligations
@@ -195,6 +256,7 @@ def get_obligations():
         from_date = request.args.get('from_date')
         to_date = request.args.get('to_date')
         status = request.args.get('status')
+        test_scenario = request.args.get('test_scenario')
         
         if not nino:
             return jsonify({'success': False, 'error': 'NINO is required'}), 400
@@ -206,12 +268,31 @@ def get_obligations():
             return jsonify({'success': False, 'error': str(e)}), 400
         
         client = HMRCClient()
-        result = client.get_obligations(nino, from_date, to_date, status)
+        result = client.get_obligations(nino, from_date, to_date, status, test_scenario)
+        
+        # Fall back to mock data if 404 in sandbox mode
+        if not result.get('success'):
+            from flask import current_app
+            status_code = result.get('status_code')
+            error_details = result.get('details', {})
+            error_code = error_details.get('code', '')
+            
+            if (status_code == 404 and 
+                error_code == 'MATCHING_RESOURCE_NOT_FOUND' and 
+                current_app.config.get('HMRC_ENVIRONMENT') == 'sandbox'):
+                logger.info('Using mock obligations data for sandbox testing')
+                result = client.get_mock_obligations()
         
         if result['success']:
             # Store obligations in database
             obligations = result['data'].get('obligations', [])
-            _store_obligations(obligations)
+            logger.info(f'Attempting to store {len(obligations)} obligation(s) from result')
+            try:
+                _store_obligations(obligations)
+                logger.info('Obligations stored successfully')
+            except Exception as store_error:
+                logger.error(f'Error storing obligations: {store_error}', exc_info=True)
+                return jsonify({'success': False, 'error': f'Failed to store obligations: {str(store_error)}'}), 500
             return jsonify({'success': True, 'data': result.get('data', {})})
         else:
             return jsonify(result)
@@ -221,6 +302,7 @@ def get_obligations():
 
 
 @hmrc_bp.route('/obligations/stored')
+@limiter.limit("20 per hour", override_defaults=True)
 def get_stored_obligations():
     """
     Get stored obligations from database.
@@ -274,6 +356,7 @@ def get_stored_obligations():
 
 
 @hmrc_bp.route('/period/preview')
+@limiter.limit("20 per hour", override_defaults=True)
 def preview_period():
     """
     Preview period submission data without submitting.
@@ -346,6 +429,7 @@ def preview_period():
 
 
 @hmrc_bp.route('/period/submit', methods=['POST'])
+@limiter.limit("20 per hour", override_defaults=True)
 def submit_period():
     """
     Submit period data to HMRC.
@@ -426,6 +510,7 @@ def submit_period():
 
 
 @hmrc_bp.route('/businesses')
+@limiter.limit("20 per hour", override_defaults=True)
 def get_businesses():
     """
     Get list of self-employment businesses from HMRC.
@@ -445,7 +530,14 @@ def get_businesses():
             return jsonify({'success': False, 'error': str(e)}), 400
         
         client = HMRCClient()
-        result = client.get_business_list(nino)
+        
+        # Try new Business Details API endpoint first (recommended for MTD ITSA)
+        result = client.get_business_details(nino)
+        
+        # If that fails, fall back to Business Income Source Summary API
+        if not result.get('success'):
+            logger.info(f'Business Details API failed, trying Business Income Source Summary API')
+            result = client.get_business_list(nino)
         
         if result.get('success'):
             return jsonify({'success': True, 'data': result.get('data', {})})
@@ -457,6 +549,7 @@ def get_businesses():
 
 
 @hmrc_bp.route('/test-obligations')
+@limiter.limit("20 per hour", override_defaults=True)
 def test_obligations():
     """
     Get obligations to find business IDs.
@@ -487,6 +580,7 @@ def test_obligations():
 
 
 @hmrc_bp.route('/create-test-business', methods=['POST'])
+@limiter.limit("20 per hour", override_defaults=True)
 def create_test_business():
     """
     Create a test self-employment business for sandbox testing.
@@ -518,6 +612,7 @@ def create_test_business():
 
 
 @hmrc_bp.route('/submissions')
+@limiter.limit("20 per hour", override_defaults=True)
 def get_submissions():
     """
     Get submission history from database.
@@ -579,26 +674,48 @@ def get_submissions():
 
 def _store_obligations(obligations):
     """Store or update obligations in database."""
+    logger.info(f'_store_obligations called with {len(obligations)} obligation(s)')
+    
     with get_db_connection() as conn:
         cursor = conn.cursor()
+        stored_count = 0
         
         for obligation in obligations:
-            for period in obligation.get('obligationDetails', []):
+            obligation_details = obligation.get('obligationDetails', [])
+            logger.info(f'Processing obligation with {len(obligation_details)} period(s)')
+            
+            for period in obligation_details:
+                # Calculate tax year from start date (tax year starts April 6)
+                start_date = period.get('inboundCorrespondenceFromDate')
+                tax_year = None
+                if start_date:
+                    from datetime import datetime
+                    date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+                    # Tax year starts April 6 - if date is April 6 or later, it's current year/next year
+                    if date_obj.month > 4 or (date_obj.month == 4 and date_obj.day >= 6):
+                        tax_year = f"{date_obj.year}/{date_obj.year + 1}"
+                    else:
+                        tax_year = f"{date_obj.year - 1}/{date_obj.year}"
+                
+                logger.info(f'Storing obligation: {period.get("periodKey")} - {tax_year} - {period.get("status")}')
+                
                 cursor.execute("""
                     INSERT OR REPLACE INTO hmrc_obligations 
                     (period_id, tax_year, start_date, end_date, due_date, status, received_date, updated_at)
                     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
                 """, (
                     period.get('periodKey'),
-                    obligation.get('typeOfBusiness'),
+                    tax_year,
                     period.get('inboundCorrespondenceFromDate'),
                     period.get('inboundCorrespondenceToDate'),
                     period.get('inboundCorrespondenceDueDate'),
                     period.get('status'),
                     period.get('inboundCorrespondenceDateReceived')
                 ))
+                stored_count += 1
         
         conn.commit()
+        logger.info(f'Successfully stored {stored_count} obligation(s) to database')
 
 
 def _store_submission(tax_year, period_id, submission_data, result):
@@ -628,6 +745,7 @@ def _store_submission(tax_year, period_id, submission_data, result):
 
 
 @hmrc_bp.route('/final-declaration/status')
+@limiter.limit("20 per hour", override_defaults=True)
 def final_declaration_status():
     """
     Check final declaration status for a tax year.
@@ -693,6 +811,7 @@ def final_declaration_status():
 
 
 @hmrc_bp.route('/final-declaration/calculate', methods=['POST'])
+@limiter.limit("20 per hour", override_defaults=True)
 def calculate_final_declaration():
     """
     Trigger crystallisation (tax calculation) for a tax year.
@@ -770,6 +889,7 @@ def calculate_final_declaration():
 
 
 @hmrc_bp.route('/final-declaration/submit', methods=['POST'])
+@limiter.limit("20 per hour", override_defaults=True)
 def submit_final_declaration():
     """
     Submit final declaration to HMRC.

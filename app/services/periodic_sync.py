@@ -340,6 +340,7 @@ class PeriodicSyncService:
                 # Look for recent runsheets (last 7 days, includes today's)
                 self.logger.info(f"Looking for recent runsheets (last 7 days)")
                 
+                runsheet_result = None
                 try:
                     if dry_run:
                         self.logger.info("[DRY RUN] Would download runsheets")
@@ -368,7 +369,7 @@ class PeriodicSyncService:
                 except Exception as e:
                     sync_summary['errors'].append(f"Runsheet download failed: {str(e)}")
                     self.logger.error(f"Runsheet download error: {e}")
-                    if hasattr(runsheet_result, 'stderr') and runsheet_result.stderr:
+                    if runsheet_result and hasattr(runsheet_result, 'stderr') and runsheet_result.stderr:
                         self.logger.error(f"Download stderr: {runsheet_result.stderr}")
                     self.last_error = str(e)
                     self._handle_retry('runsheet_download')

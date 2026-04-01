@@ -110,11 +110,19 @@ function updateConnectionUI(status) {
 
 async function connectToHMRC() {
     try {
-        const response = await fetch('/api/hmrc/auth/start');
-        const responseData = await response.json();
-        const data = responseData.success ? responseData.data : responseData;
+        const response = await fetch('/api/hmrc/auth/start', {
+            credentials: 'same-origin',
+            headers: getCSRFHeaders()
+        });
         
-        if ((data.success || responseData.success) && data.auth_url) {
+        if (!response.ok) {
+            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+        }
+        
+        const data = await response.json();
+        console.log('Auth start response:', data);
+        
+        if (data.success && data.auth_url) {
             // Redirect to HMRC authorization page
             window.location.href = data.auth_url;
         } else {
@@ -122,7 +130,7 @@ async function connectToHMRC() {
         }
     } catch (error) {
         console.error('Error starting authorization:', error);
-        showNotification('Failed to connect to HMRC', 'danger');
+        showNotification('Failed to connect to HMRC: ' + error.message, 'danger');
     }
 }
 
@@ -134,6 +142,7 @@ async function disconnectFromHMRC() {
     try {
         const response = await fetch('/api/hmrc/auth/disconnect', {
             method: 'POST',
+            credentials: 'same-origin',
             headers: getCSRFHeaders()
         });
         const data = await response.json();
@@ -189,7 +198,10 @@ async function refreshObligations() {
     refreshBtn.disabled = true;
     
     try {
-        const response = await fetch(`/api/hmrc/obligations?nino=${hmrcConfig.nino}`);
+        // Include date range for current tax year (April 6 2024 to April 5 2025)
+        const fromDate = '2024-04-06';
+        const toDate = '2025-04-05';
+        const response = await fetch(`/api/hmrc/obligations?nino=${hmrcConfig.nino}&from_date=${fromDate}&to_date=${toDate}`);
         const responseData = await response.json();
         const data = responseData.success ? responseData.data : responseData;
         
@@ -213,12 +225,12 @@ async function loadObligations() {
     try {
         const response = await fetch('/api/hmrc/obligations/stored');
         const responseData = await response.json();
-        const data = responseData.success ? responseData.data : responseData;
         
         const obligationsList = document.getElementById('obligationsList');
         
-        if (data.success && data.obligations.length > 0) {
-            obligationsList.innerHTML = data.obligations.map(obligation => `
+        // API returns: {success: true, data: {obligations: [...], count: N}}
+        if (responseData.success && responseData.data && responseData.data.obligations && responseData.data.obligations.length > 0) {
+            obligationsList.innerHTML = responseData.data.obligations.map(obligation => `
                 <div class="card obligation-card ${obligation.status.toLowerCase()}">
                     <div class="card-body">
                         <div class="row">
@@ -531,6 +543,7 @@ async function calculateTaxLiability() {
     try {
         const response = await fetch(`/api/hmrc/final-declaration/calculate?tax_year=${taxYear}`, {
             method: 'POST',
+            credentials: 'same-origin',
             headers: getCSRFHeaders()
         });
         const data = await response.json();
@@ -572,7 +585,11 @@ async function submitFinalDeclaration() {
     try {
         const response = await fetch('/api/hmrc/final-declaration/submit', {
             method: 'POST',
-            headers: getCSRFHeaders(),
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                ...getCSRFHeaders()
+            },
             body: JSON.stringify({
                 tax_year: taxYear,
                 calculation_id: calculationId,

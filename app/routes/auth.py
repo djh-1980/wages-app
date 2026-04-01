@@ -32,7 +32,7 @@ def validate_password_strength(password):
 
 
 @auth_bp.route('/login', methods=['GET', 'POST'])
-@limiter.limit("5 per 5 minutes")
+@limiter.limit("20 per 5 minutes")
 def login():
     """Login page and handler."""
     if current_user.is_authenticated:

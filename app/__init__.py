@@ -4,7 +4,7 @@ Flask application factory and configuration.
 
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 
 import pytz
 from flask import Flask, flash, redirect, url_for
@@ -44,6 +44,14 @@ def create_app(config_name=None):
     
     # Initialize configuration
     config_class.init_app(app)
+    
+    # Configure session for OAuth compatibility
+    # SameSite='Lax' is critical - allows session cookie to be sent when redirecting
+    # back from external OAuth providers (HMRC sandbox)
+    app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
+    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Critical for OAuth redirects
+    app.config['SESSION_COOKIE_SECURE'] = False  # False for localhost http (True for production https)
+    app.config['SESSION_COOKIE_HTTPONLY'] = True  # Security: prevent JavaScript access
     
     # Initialize CSRF Protection
     csrf = CSRFProtect(app)
