@@ -22,6 +22,16 @@ HOME_POSTCODE = "M44HX"
 DEPOT_POSTCODE = "WA5 7TN"
 
 
+def has_google_maps_api_key():
+    """
+    Check if Google Maps API key is configured and not empty.
+    Returns True if key is available, False otherwise.
+    """
+    from ..config import Config
+    api_key = Config.GOOGLE_MAPS_API_KEY
+    return api_key and api_key.strip() != ''
+
+
 def geocode_postcode(postcode):
     """
     Convert UK postcode to lat/lon coordinates using Nominatim (free).
@@ -158,9 +168,80 @@ def optimize_waypoint_order(coordinates, optimization_mode='distance'):
     
     return order
 
+def calculate_route_local(coordinates, optimization_mode='distance'):
+    """
+    Calculate route using local Haversine distance algorithm (no API key required).
+    Uses sweep algorithm + 2-opt optimization for good results without external API.
+    Returns route with estimated distance and duration.
+    """
+    try:
+        if len(coordinates) < 3:
+            return {'success': False, 'error': 'Not enough waypoints for optimization'}
+        
+        def haversine_distance(coord1, coord2):
+            """Calculate distance between two coordinates in km"""
+            lat1, lon1 = coord1[1], coord1[0]
+            lat2, lon2 = coord2[1], coord2[0]
+            
+            R = 6371  # Earth's radius in km
+            
+            lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+            dlat = lat2 - lat1
+            dlon = lon2 - lon1
+            
+            a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+            c = 2 * math.asin(math.sqrt(a))
+            
+            return R * c
+        
+        # Get optimized order using existing algorithm
+        optimized_indices = optimize_waypoint_order(coordinates, optimization_mode)
+        optimized_coords = [coordinates[i] for i in optimized_indices]
+        
+        # Calculate distances and estimated times for each leg
+        legs = []
+        total_distance_km = 0
+        
+        for i in range(len(optimized_coords) - 1):
+            dist_km = haversine_distance(optimized_coords[i], optimized_coords[i + 1])
+            total_distance_km += dist_km
+            
+            # Estimate driving time: assume average 30 mph in urban areas
+            # 1 km = 0.621371 miles, at 30 mph = 2 minutes per mile
+            dist_miles = dist_km * 0.621371
+            duration_minutes = dist_miles * 2  # 2 minutes per mile at 30 mph
+            
+            legs.append({
+                'distance_meters': int(dist_km * 1000),
+                'duration_seconds': int(duration_minutes * 60),
+                'distance_miles': round(dist_miles, 2),
+                'duration_minutes': round(duration_minutes, 1)
+            })
+        
+        total_distance_miles = total_distance_km * 0.621371
+        total_duration_minutes = total_distance_miles * 2  # 2 minutes per mile
+        
+        return {
+            'success': True,
+            'total_distance_meters': int(total_distance_km * 1000),
+            'total_duration_seconds': int(total_duration_minutes * 60),
+            'total_distance_miles': round(total_distance_miles, 2),
+            'total_duration_minutes': round(total_duration_minutes, 1),
+            'legs': legs,
+            'optimized_coordinates': optimized_coords,
+            'optimization_method': 'local',
+            'waypoint_order': optimized_indices[1:-1] if len(optimized_indices) > 2 else []  # Exclude start/end
+        }
+        
+    except Exception as e:
+        log_settings_action('ROUTE_PLANNING', f'Local route calculation failed: {str(e)}', 'ERROR')
+        return {'success': False, 'error': str(e)}
+
+
 def calculate_route_simple(coordinates, optimization_mode='distance'):
     """
-    Calculate route through multiple waypoints using Google Directions API with waypoint optimization.
+    Calculate route through multiple waypoints.
+    Uses Google Directions API if key is configured, otherwise falls back to local algorithm.
     Route order: Home → Depot → Optimized Jobs → Home
     Only job waypoints are optimized, home and depot stay fixed.
     Returns route with distance and duration.
@@ -170,6 +251,14 @@ def calculate_route_simple(coordinates, optimization_mode='distance'):
         
         if len(coordinates) < 4:  # Need at least Home + Depot + 1 job + Home return
             return {'success': False, 'error': 'Not enough waypoints for optimization'}
+        
+        # Check if Google Maps API key is available
+        if not has_google_maps_api_key():
+            log_settings_action('ROUTE_PLANNING', 'Google Maps API key not configured, using local optimization')
+            result = calculate_route_local(coordinates, optimization_mode)
+            if result.get('success'):
+                result['optimization_method'] = 'local'
+            return result
         
         # Structure: [Home, Depot, Job1, Job2, ..., JobN, Home]
         home_start = coordinates[0]
@@ -239,14 +328,24 @@ def calculate_route_simple(coordinates, optimization_mode='distance'):
                 'total_duration_minutes': round(total_duration_seconds / 60, 1),
                 'legs': legs,
                 'optimized_coordinates': optimized_coords,
-                'waypoint_order': waypoint_order
+                'waypoint_order': waypoint_order,
+                'optimization_method': 'google'
             }
         
-        return {'success': False, 'error': f"Google API error: {data.get('status', 'Unknown')}"}
+        # If Google API fails, fall back to local optimization
+        log_settings_action('ROUTE_PLANNING', f'Google API returned status {data.get("status")}, falling back to local optimization', 'WARNING')
+        result = calculate_route_local(coordinates, optimization_mode)
+        if result.get('success'):
+            result['optimization_method'] = 'local'
+        return result
         
     except Exception as e:
-        log_settings_action('ROUTE_PLANNING', f'Route calculation failed: {str(e)}', 'ERROR')
-        return {'success': False, 'error': str(e)}
+        log_settings_action('ROUTE_PLANNING', f'Google route calculation failed: {str(e)}, falling back to local optimization', 'WARNING')
+        # Fall back to local optimization on any error
+        result = calculate_route_local(coordinates, optimization_mode)
+        if result.get('success'):
+            result['optimization_method'] = 'local'
+        return result
 
 
 @route_planning_bp.route('/optimize', methods=['POST'])
@@ -631,7 +730,11 @@ def optimize_route_for_date():
         total_distance_miles = route_result['total_distance_miles'] + already_traveled_miles
         total_duration_minutes = route_result['total_duration_minutes'] + already_traveled_minutes
         
-        log_settings_action('ROUTE_PLANNING', f'Optimized route for {date}: {len(job_waypoints)} jobs, {total_distance_miles} miles (includes {already_traveled_miles} already traveled)')
+        # Determine optimization method message
+        optimization_method = route_result.get('optimization_method', 'unknown')
+        optimization_message = 'Route optimised using Google Maps' if optimization_method == 'google' else 'Route optimised using basic algorithm'
+        
+        log_settings_action('ROUTE_PLANNING', f'Optimized route for {date}: {len(job_waypoints)} jobs, {total_distance_miles} miles (includes {already_traveled_miles} already traveled) using {optimization_method} method')
         
         return jsonify({
             'success': True,
@@ -642,7 +745,9 @@ def optimize_route_for_date():
             'skipped_jobs': len(skipped_jobs),
             'route': optimized_route,
             'already_traveled_miles': already_traveled_miles,
-            'already_traveled_minutes': already_traveled_minutes
+            'already_traveled_minutes': already_traveled_minutes,
+            'optimization_method': optimization_method,
+            'optimization_message': optimization_message
         })
         
     except Exception as e:
