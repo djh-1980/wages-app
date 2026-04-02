@@ -430,12 +430,17 @@ async function loadRunSheetsList(page = 1) {
                     </div>
                 `;
                 
+                // Reverse for display (newest first) but keep track of chronological index
+                const displayRunsheets = [...weekRunsheets].reverse();
+                
                 // Add each day in the week
-                weekRunsheets.forEach((rs, index) => {
-                    const running = calculateRunningTotal(weekRunsheets, index);
+                displayRunsheets.forEach((rs) => {
+                    // Find chronological index (0 = Sunday, 1 = Monday, etc.)
+                    const chronologicalIndex = weekRunsheets.findIndex(r => r.date === rs.date);
+                    const running = calculateRunningTotal(weekRunsheets, chronologicalIndex);
                     
                     // Debug logging
-                    console.log(`Date: ${rs.date}, Miles: ${rs.mileage}, Fuel: ${rs.fuel_cost}, Running Miles: ${running.runningMiles}, Running Fuel: ${running.runningFuel}`);
+                    console.log(`Date: ${rs.date}, Chrono Index: ${chronologicalIndex}, Miles: ${rs.mileage}, Fuel: ${rs.fuel_cost}, Running Miles: ${running.runningMiles}, Running Fuel: ${running.runningFuel}`);
                     
                     // Desktop row
                     desktopHtml += generateDesktopRow(rs, statusData, running);
