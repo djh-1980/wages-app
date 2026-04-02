@@ -1,4 +1,0 @@
-# Authentication Dependencies
-Flask-Login==0.6.3
-Flask-Bcrypt==1.0.1
-email-validator==2.1.0

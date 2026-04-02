@@ -26,16 +26,11 @@
     
     <!-- Unified Styles -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/unified-styles.css') }}"?v={{ range(1000, 9999) | random }}>
-    
-    <!-- Mobile Enhancements -->
     <link rel="stylesheet" href="{{ url_for('static', filename='css/mobile-enhancements.css') }}"?v={{ range(1000, 9999) | random }}>
     
     {% block extra_css %}{% endblock %}
 </head>
 <body>
-    <!-- Mobile Menu Overlay -->
-    <div class="mobile-menu-overlay" id="mobileMenuOverlay"></div>
-    
     <!-- Top Navigation -->
     <nav class="navbar navbar-expand-lg top-navbar">
         <div class="container-fluid">
@@ -210,9 +205,6 @@
     
     <!-- Base JavaScript -->
     <script src="{{ url_for('static', filename='js/base.js') }}?v={{ range(1000, 9999) | random }}"></script>
-    
-    <!-- Mobile Menu JavaScript -->
-    <script src="{{ url_for('static', filename='js/mobile-menu.js') }}?v={{ range(1000, 9999) | random }}"></script>
     
     {% block extra_js %}{% endblock %}
 </body>

@@ -1,6 +1,7 @@
 # TVS Wages Application Dependencies
 # Install with: pip install -r requirements.txt
 # All versions pinned for security and reproducibility
+# Merged from requirements.txt and requirements_auth.txt
 
 # Web Framework (Updated for CVE-2026-27205)
 Flask==3.1.3

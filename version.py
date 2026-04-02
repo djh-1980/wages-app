@@ -7,12 +7,37 @@ from datetime import datetime
 import os
 
 # Version Information
-APP_VERSION = "2.7.0"
-BUILD_DATE = "2026.03.10"
-RELEASE_DATE = datetime(2026, 3, 10)
+APP_VERSION = "3.0.0"
+BUILD_DATE = "2026.04.02"
+RELEASE_DATE = datetime(2026, 4, 2)
 
 # Changelog - Add new entries at the top
 CHANGELOG = [
+    {
+        "version": "3.0.0",
+        "date": "April 2, 2026",
+        "type": "major",  # major, minor, patch
+        "changes": [
+            "🔄 MAJOR: Rolled back custom mobile drawer to Bootstrap default navbar",
+            "🧹 REMOVED: Custom slide-in drawer overlay system (mobile-menu.js)",
+            "🧹 REMOVED: 900+ lines of custom mobile navbar CSS",
+            "✅ KEPT: Bottom navigation bar for quick mobile access",
+            "✅ KEPT: All col-12 responsive grid fixes across pages",
+            "📱 SIMPLIFIED: Bootstrap now handles all navbar behavior natively",
+            "🎯 IMPROVED: More reliable mobile menu with standard Bootstrap collapse",
+            "⚡ OPTIMIZED: Reduced CSS from 900+ lines to 57 lines (mobile-enhancements.css)",
+            "🔧 FIXED: Merged requirements.txt and requirements_auth.txt into single file",
+            "📦 CLEANED: Removed duplicate authentication dependencies",
+            "💷 HMRC Making Tax Digital (MTD) integration fully implemented",
+            "🔐 OAuth 2.0 authentication with HMRC API",
+            "📊 Quarterly obligation tracking (Q1-Q4 deadlines)",
+            "📤 Submit income & expenses directly to HMRC",
+            "📋 Submission history with receipt tracking",
+            "🧪 Sandbox & production environment support",
+            "🛡️ Automatic fraud prevention headers",
+            "🔄 Token auto-refresh & secure credential storage"
+        ]
+    },
     {
         "version": "2.7.0",
         "date": "March 10, 2026",
