@@ -15,7 +15,8 @@ async function optimizeRoute(date) {
         const response = await fetch('/api/route-planning/optimize', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify({
                 date: date,
@@ -646,7 +647,8 @@ async function saveRouteOrder() {
         const response = await fetch('/api/route-planning/save-order', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify({
                 date: currentRouteDate,
