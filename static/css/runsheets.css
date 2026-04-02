@@ -34,3 +34,74 @@ table tbody tr.week-odd td {
     transform: scale(1.05);
     transition: all 0.2s ease;
 }
+
+/* Week separator row styling */
+.week-separator-row {
+    background-color: #f0f4f8 !important;
+}
+
+.week-separator {
+    background-color: #f0f4f8 !important;
+    padding: 8px 16px !important;
+    border-top: 2px solid #d0dae5;
+    border-bottom: 1px solid #d0dae5;
+    border-left: 4px solid #0d6efd !important; /* Primary blue accent */
+}
+
+.week-separator i {
+    color: #4a5568;
+}
+
+.week-separator .badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    font-weight: 600;
+}
+
+.month-total-badges {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+.badge-month {
+    font-size: 10px;
+    padding: 2px 6px;
+    font-weight: 500;
+}
+
+/* Mobile week separator */
+.week-separator-mobile {
+    background-color: #f0f4f8;
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid #d0dae5;
+    border-left: 4px solid #0d6efd; /* Primary blue accent */
+}
+
+.week-separator-mobile i {
+    color: #4a5568;
+}
+
+.week-separator-mobile .badge {
+    font-size: 11px;
+    padding: 3px 8px;
+    font-weight: 600;
+}
+
+/* Responsive badge stacking */
+@media (max-width: 576px) {
+    .week-separator .d-flex.flex-wrap {
+        flex-direction: column;
+        align-items: flex-start !important;
+    }
+    
+    .week-separator .gap-2 {
+        gap: 0.5rem !important;
+    }
+    
+    .month-total-pill {
+        margin-top: 0.5rem;
+        width: 100%;
+    }
+}

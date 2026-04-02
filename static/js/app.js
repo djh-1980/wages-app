@@ -1770,7 +1770,8 @@ async function saveClientGroup() {
         const response = await fetch('/api/settings/groups', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify(currentSettings)
         });
@@ -1870,7 +1871,8 @@ async function saveJobTypeGroup() {
         const response = await fetch('/api/settings/groups', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify(currentSettings)
         });
@@ -1902,7 +1904,8 @@ async function deleteClientGroup(groupName) {
             const response = await fetch('/api/settings/groups', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
                 },
                 body: JSON.stringify(currentSettings)
             });
@@ -1925,7 +1928,8 @@ async function deleteJobTypeGroup(groupName) {
             const response = await fetch('/api/settings/groups', {
                 method: 'POST',
                 headers: {
-                    'Content-Type': 'application/json'
+                    'Content-Type': 'application/json',
+                    'X-CSRFToken': getCSRFToken()
                 },
                 body: JSON.stringify(currentSettings)
             });
@@ -1968,6 +1972,9 @@ async function uploadPayslips() {
     try {
         const response = await fetch('/api/upload_payslips', {
             method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            },
             body: formData
         });
         
@@ -2007,7 +2014,10 @@ async function processPayslips() {
     
     try {
         const response = await fetch('/api/process_payslips', {
-            method: 'POST'
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': getCSRFToken()
+            }
         });
         
         const result = await response.json();
@@ -2070,7 +2080,8 @@ async function clearDatabase() {
         const response = await fetch('/api/clear_database', {
             method: 'POST',
             headers: {
-                'Content-Type': 'application/json'
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCSRFToken()
             },
             body: JSON.stringify({ delete_pdfs: deletePDFs })
         });

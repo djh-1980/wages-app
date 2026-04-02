@@ -21,6 +21,117 @@ function calculateSimpleWeek(dateStr) {
     return Math.floor(weekStart.getTime() / (7 * 24 * 60 * 60 * 1000));
 }
 
+// Get week start date (Sunday) for a given date
+function getWeekStart(dateStr) {
+    const dateParts = dateStr.split('/');
+    const dateObj = new Date(dateParts[2], dateParts[1] - 1, dateParts[0]);
+    const dayOfWeek = dateObj.getDay(); // 0 = Sunday
+    const weekStart = new Date(dateObj);
+    weekStart.setDate(dateObj.getDate() - dayOfWeek);
+    return weekStart;
+}
+
+// Get week end date (Saturday) for a given date
+function getWeekEnd(weekStart) {
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    return weekEnd;
+}
+
+// Format date as DD MMM (e.g., "29 Mar")
+function formatDateShort(date) {
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const day = date.getDate();
+    const month = months[date.getMonth()];
+    return `${day} ${month}`;
+}
+
+// Format date range for week separator
+function formatWeekRange(weekStart, weekEnd) {
+    const year = weekEnd.getFullYear();
+    return `${formatDateShort(weekStart)} - ${formatDateShort(weekEnd)} ${year}`;
+}
+
+// Group runsheets by week
+function groupRunsheetsByWeek(runsheets) {
+    const weeks = {};
+    
+    runsheets.forEach(rs => {
+        const weekStart = getWeekStart(rs.date);
+        const weekKey = weekStart.toISOString().split('T')[0]; // Use ISO date as key
+        
+        if (!weeks[weekKey]) {
+            weeks[weekKey] = {
+                weekStart: weekStart,
+                weekEnd: getWeekEnd(weekStart),
+                runsheets: []
+            };
+        }
+        
+        weeks[weekKey].runsheets.push(rs);
+    });
+    
+    // Sort runsheets within each week by date (ascending - Sunday to Saturday)
+    Object.keys(weeks).forEach(weekKey => {
+        weeks[weekKey].runsheets.sort((a, b) => {
+            const dateA = parseUKDate(a.date);
+            const dateB = parseUKDate(b.date);
+            return dateA - dateB; // Ascending order for correct running total calculation
+        });
+    });
+    
+    return weeks;
+}
+
+// Parse UK date format (DD/MM/YYYY) to Date object
+function parseUKDate(dateStr) {
+    const parts = dateStr.split('/');
+    return new Date(parts[2], parts[1] - 1, parts[0]);
+}
+
+// Calculate week totals for visible days
+function calculateWeekTotals(runsheets) {
+    let totalMiles = 0;
+    let totalFuel = 0;
+    let totalJobs = 0;
+    
+    runsheets.forEach(rs => {
+        if (rs.mileage !== null && rs.mileage !== undefined) {
+            totalMiles += parseFloat(rs.mileage) || 0;
+        }
+        if (rs.fuel_cost !== null && rs.fuel_cost !== undefined) {
+            totalFuel += parseFloat(rs.fuel_cost) || 0;
+        }
+        totalJobs += rs.job_count || 0;
+    });
+    
+    return { totalMiles, totalFuel, totalJobs };
+}
+
+// Calculate running total up to current day in week
+function calculateRunningTotal(runsheets, currentIndex) {
+    let runningMiles = 0;
+    let runningFuel = 0;
+    
+    for (let i = 0; i <= currentIndex; i++) {
+        const rs = runsheets[i];
+        if (rs.mileage !== null && rs.mileage !== undefined && rs.mileage !== '') {
+            const miles = parseFloat(rs.mileage);
+            if (!isNaN(miles)) {
+                runningMiles += miles;
+            }
+        }
+        if (rs.fuel_cost !== null && rs.fuel_cost !== undefined && rs.fuel_cost !== '') {
+            const fuel = parseFloat(rs.fuel_cost);
+            if (!isNaN(fuel)) {
+                runningFuel += fuel;
+            }
+        }
+    }
+    
+    return { runningMiles, runningFuel };
+}
+
 // Note: This file is now used on the dedicated runsheets page
 // Data loading is triggered from the page template
 
@@ -243,150 +354,103 @@ async function loadRunSheetsList(page = 1) {
         const mobileCards = document.getElementById('runsheetsCardsList');
         
         if (data.runsheets && data.runsheets.length > 0) {
-            // Desktop table content
-            tbody.innerHTML = data.runsheets.map(rs => {
-                const activities = rs.activities ? rs.activities.split(',').slice(0, 3).join(', ') : 'N/A';
+            // Group runsheets by week
+            const weekGroups = groupRunsheetsByWeek(data.runsheets);
+            const weekKeys = Object.keys(weekGroups).sort((a, b) => new Date(b) - new Date(a)); // Sort descending
+            
+            let desktopHtml = '';
+            let mobileHtml = '';
+            
+            // Track cumulative month totals
+            let cumulativeMonthMiles = 0;
+            let cumulativeMonthFuel = 0;
+            let cumulativeMonthJobs = 0;
+            
+            // Process each week
+            weekKeys.forEach(weekKey => {
+                const weekData = weekGroups[weekKey];
+                const weekRunsheets = weekData.runsheets;
+                const weekTotals = calculateWeekTotals(weekRunsheets);
+                const weekRange = formatWeekRange(weekData.weekStart, weekData.weekEnd);
                 
-                // Use company week number if available from backend, otherwise calculate simple week
-                const weekNumber = rs.company_week || calculateSimpleWeek(rs.date);
-                const isEvenWeek = weekNumber % 2 === 0;
-                const weekClass = isEvenWeek ? 'week-even' : 'week-odd';
+                // Add week totals to cumulative month totals
+                cumulativeMonthMiles += weekTotals.totalMiles;
+                cumulativeMonthFuel += weekTotals.totalFuel;
+                cumulativeMonthJobs += weekTotals.totalJobs;
                 
-                // Get completion status for this date
-                const status = statusData[rs.date];
-                let statusBadge = '';
-                
-                if (status) {
-                    switch (status.status) {
-                        case 'completed':
-                            statusBadge = '<span class="badge bg-success px-3 py-2" title="All jobs completed with mileage"><i class="bi bi-check-circle me-1"></i>Complete</span>';
-                            break;
-                        case 'in_progress':
-                            statusBadge = '<span class="badge bg-warning px-3 py-2" title="Some jobs completed or in progress"><i class="bi bi-clock me-1"></i>In Progress</span>';
-                            break;
-                        case 'not_started':
-                            statusBadge = '<span class="badge bg-danger px-3 py-2" title="No jobs completed yet"><i class="bi bi-circle me-1"></i>Not Started</span>';
-                            break;
-                    }
-                }
-                
-                // Format daily pay
-                let payDisplay = '';
-                if (rs.daily_pay && rs.daily_pay > 0) {
-                    payDisplay = `<strong class="text-success">${CurrencyFormatter.format(rs.daily_pay)}</strong>`;
-                    if (rs.jobs_with_pay && rs.jobs_with_pay < rs.job_count) {
-                        payDisplay += `<br><small class="text-muted">${rs.jobs_with_pay}/${rs.job_count} jobs</small>`;
-                    }
-                } else {
-                    payDisplay = '<span class="text-muted">No pay data</span>';
-                }
-
-                // Format mileage and fuel cost
-                let mileageDisplay = '';
-                if (rs.mileage !== null && rs.mileage !== undefined) {
-                    mileageDisplay = `<strong class="text-primary">${rs.mileage} miles</strong>`;
-                    if (rs.fuel_cost !== null && rs.fuel_cost !== undefined) {
-                        mileageDisplay += `<br><small class="text-muted">${CurrencyFormatter.format(rs.fuel_cost)} fuel</small>`;
-                    }
-                } else {
-                    mileageDisplay = '<span class="text-muted">Not recorded</span>';
-                }
-
-                return `
-                    <tr class="${weekClass}">
-                        <td><strong>${rs.date}</strong></td>
-                        <td class="text-center">
-                            <span class="badge bg-primary">${rs.job_count} jobs</span>
-                        </td>
-                        <td><small>${activities}</small></td>
-                        <td class="text-end">${payDisplay}</td>
-                        <td class="text-end">${mileageDisplay}</td>
-                        <td class="text-center">
-                            ${statusBadge || '<span class="badge bg-secondary">Unknown</span>'}
-                        </td>
-                        <td class="text-end">
-                            <button class="btn btn-sm btn-outline-primary" onclick="viewRunSheetJobs('${rs.date}')">
-                                <i class="bi bi-eye"></i> View
-                            </button>
+                // Week separator row for desktop
+                const showMonthTotal = weekKeys.length > 1;
+                desktopHtml += `
+                    <tr class="week-separator-row">
+                        <td colspan="8" class="week-separator">
+                            <div class="d-flex justify-content-between align-items-center flex-wrap">
+                                <div class="d-flex align-items-center flex-wrap gap-2">
+                                    <i class="bi bi-calendar-week me-2" style="font-size: 0.95rem;"></i>
+                                    <span style="font-size: 13px; font-weight: normal;">Week: ${weekRange}</span>
+                                    <span class="badge bg-primary ms-2">${Math.round(weekTotals.totalMiles)} mi</span>
+                                    <span class="badge bg-warning text-dark">${CurrencyFormatter.format(weekTotals.totalFuel)}</span>
+                                    <span class="badge bg-success">${weekTotals.totalJobs} jobs</span>
+                                </div>
+                                ${showMonthTotal ? `
+                                <div class="month-total-badges">
+                                    <small class="text-muted me-1" style="font-size: 11px;">Month:</small>
+                                    <span class="badge bg-primary badge-month">${Math.round(cumulativeMonthMiles)} mi</span>
+                                    <span class="badge bg-warning text-dark badge-month">${CurrencyFormatter.format(cumulativeMonthFuel)}</span>
+                                    <span class="badge bg-success badge-month">${cumulativeMonthJobs} jobs</span>
+                                </div>
+                                ` : ''}
+                            </div>
                         </td>
                     </tr>
                 `;
-            }).join('');
-            
-            // Mobile cards content
-            if (mobileCards) {
-                mobileCards.innerHTML = data.runsheets.map(rs => {
-                const activities = rs.activities ? rs.activities.split(',').slice(0, 2).join(', ') : 'N/A';
                 
-                // Use company week number for shading
-                const weekNumber = rs.company_week || calculateSimpleWeek(rs.date);
-                const isEvenWeek = weekNumber % 2 === 0;
-                const weekClass = isEvenWeek ? 'week-even' : 'week-odd';
-                
-                // Get completion status for this date
-                const status = statusData[rs.date];
-                let statusBadge = '';
-                
-                if (status) {
-                    switch (status.status) {
-                        case 'completed':
-                            statusBadge = '<span class="badge bg-success" title="All jobs completed with mileage"><i class="bi bi-check-circle me-1"></i>Complete</span>';
-                            break;
-                        case 'in_progress':
-                            statusBadge = '<span class="badge bg-warning" title="Some jobs completed or in progress"><i class="bi bi-clock me-1"></i>In Progress</span>';
-                            break;
-                        case 'not_started':
-                            statusBadge = '<span class="badge bg-danger" title="No jobs completed yet"><i class="bi bi-circle me-1"></i>Not Started</span>';
-                            break;
-                    }
-                }
-                
-                // Format daily pay for mobile
-                let payDisplay = '';
-                if (rs.daily_pay && rs.daily_pay > 0) {
-                    payDisplay = `<div class="text-success fw-bold mb-1">${CurrencyFormatter.format(rs.daily_pay)}</div>`;
-                }
-
-                // Format mileage for mobile
-                let mileageDisplayMobile = '';
-                if (rs.mileage !== null && rs.mileage !== undefined) {
-                    mileageDisplayMobile = `<div class="text-primary fw-bold mb-1">${rs.mileage} miles`;
-                    if (rs.fuel_cost !== null && rs.fuel_cost !== undefined) {
-                        mileageDisplayMobile += ` • ${CurrencyFormatter.format(rs.fuel_cost)} fuel`;
-                    }
-                    mileageDisplayMobile += `</div>`;
-                }
-                
-                return `
-                    <div class="card mb-3 shadow-sm ${weekClass}" style="border-radius: 12px;">
-                        <div class="card-body p-3">
-                            <div class="d-flex justify-content-between align-items-start mb-2">
-                                <div>
-                                    <h6 class="mb-1 fw-bold" style="font-size: 1.1rem;">${rs.date}</h6>
-                                    <span class="badge bg-primary">${rs.job_count} jobs</span>
-                                </div>
-                                <div>
-                                    ${statusBadge || '<span class="badge bg-secondary">Unknown</span>'}
-                                </div>
+                // Week separator for mobile
+                const showMonthTotalMobile = weekKeys.length > 1;
+                mobileHtml += `
+                    <div class="week-separator-mobile mb-3">
+                        <div class="d-flex align-items-center mb-2">
+                            <i class="bi bi-calendar-week me-2" style="font-size: 0.95rem;"></i>
+                            <span style="font-size: 13px; font-weight: normal;">Week: ${weekRange}</span>
+                        </div>
+                        <div class="d-flex flex-column gap-2">
+                            <div class="d-flex flex-wrap gap-2">
+                                <span class="badge bg-primary">${Math.round(weekTotals.totalMiles)} mi</span>
+                                <span class="badge bg-warning text-dark">${CurrencyFormatter.format(weekTotals.totalFuel)}</span>
+                                <span class="badge bg-success">${weekTotals.totalJobs} jobs</span>
                             </div>
-                            ${payDisplay}
-                            ${mileageDisplayMobile}
-                            <p class="mb-3 small text-muted" style="font-size: 0.85rem;">${activities}</p>
-                            <div class="d-grid">
-                                <button class="btn btn-primary py-2" onclick="viewRunSheetJobs('${rs.date}')" style="font-size: 1rem;">
-                                    <i class="bi bi-eye me-2"></i>View Jobs
-                                </button>
+                            ${showMonthTotalMobile ? `
+                            <div class="mt-1 d-flex align-items-center flex-wrap gap-1">
+                                <small class="text-muted" style="font-size: 11px;">Month:</small>
+                                <span class="badge bg-primary badge-month">${Math.round(cumulativeMonthMiles)} mi</span>
+                                <span class="badge bg-warning text-dark badge-month">${CurrencyFormatter.format(cumulativeMonthFuel)}</span>
+                                <span class="badge bg-success badge-month">${cumulativeMonthJobs} jobs</span>
                             </div>
+                            ` : ''}
                         </div>
                     </div>
                 `;
-                }).join('');
-            }
+                
+                // Add each day in the week
+                weekRunsheets.forEach((rs, index) => {
+                    const running = calculateRunningTotal(weekRunsheets, index);
+                    
+                    // Debug logging
+                    console.log(`Date: ${rs.date}, Miles: ${rs.mileage}, Fuel: ${rs.fuel_cost}, Running Miles: ${running.runningMiles}, Running Fuel: ${running.runningFuel}`);
+                    
+                    // Desktop row
+                    desktopHtml += generateDesktopRow(rs, statusData, running);
+                    
+                    // Mobile card
+                    mobileHtml += generateMobileCard(rs, statusData, running);
+                });
+            });
             
-            // Update pagination
-            updateRSPagination(data.page, data.total_pages);
+            tbody.innerHTML = desktopHtml;
+            if (mobileCards) {
+                mobileCards.innerHTML = mobileHtml;
+            }
         } else {
-            tbody.innerHTML = '<tr><td colspan="7" class="text-center">No run sheets found</td></tr>';
+            tbody.innerHTML = '<tr><td colspan="8" class="text-center">No run sheets found</td></tr>';
             if (mobileCards) {
                 mobileCards.innerHTML = '<div class="text-center p-4"><p class="text-muted">No run sheets found</p></div>';
             }
@@ -395,12 +459,161 @@ async function loadRunSheetsList(page = 1) {
     } catch (error) {
         console.error('Error loading run sheets list:', error);
         document.getElementById('runsheetsList').innerHTML = 
-            '<tr><td colspan="7" class="text-center text-danger">Error loading data</td></tr>';
+            '<tr><td colspan="8" class="text-center text-danger">Error loading data</td></tr>';
         const mobileCardsError = document.getElementById('runsheetsCardsList');
         if (mobileCardsError) {
             mobileCardsError.innerHTML = '<div class="text-center p-4"><p class="text-danger">Error loading data</p></div>';
         }
     }
+}
+
+// Generate desktop table row
+function generateDesktopRow(rs, statusData, running) {
+    const activities = rs.activities ? rs.activities.split(',').slice(0, 3).join(', ') : 'N/A';
+                
+    // Use company week number if available from backend, otherwise calculate simple week
+    const weekNumber = rs.company_week || calculateSimpleWeek(rs.date);
+    const isEvenWeek = weekNumber % 2 === 0;
+    const weekClass = isEvenWeek ? 'week-even' : 'week-odd';
+                
+                // Get completion status for this date
+                const status = statusData[rs.date];
+                let statusBadge = '';
+                
+    if (status) {
+        switch (status.status) {
+            case 'completed':
+                statusBadge = '<span class="badge bg-success px-3 py-2" title="All jobs completed with mileage"><i class="bi bi-check-circle me-1"></i>Complete</span>';
+                break;
+            case 'in_progress':
+                statusBadge = '<span class="badge bg-warning px-3 py-2" title="Some jobs completed or in progress"><i class="bi bi-clock me-1"></i>In Progress</span>';
+                break;
+            case 'not_started':
+                statusBadge = '<span class="badge bg-danger px-3 py-2" title="No jobs completed yet"><i class="bi bi-circle me-1"></i>Not Started</span>';
+                break;
+        }
+    }
+                
+    // Format daily pay
+    let payDisplay = '';
+    if (rs.daily_pay && rs.daily_pay > 0) {
+        payDisplay = `<strong class="text-success">${CurrencyFormatter.format(rs.daily_pay)}</strong>`;
+        if (rs.jobs_with_pay && rs.jobs_with_pay < rs.job_count) {
+            payDisplay += `<br><small class="text-muted">${rs.jobs_with_pay}/${rs.job_count} jobs</small>`;
+        }
+    } else {
+        payDisplay = '<span class="text-muted">No pay data</span>';
+    }
+
+    // Format mileage and fuel cost
+    let mileageDisplay = '';
+    if (rs.mileage !== null && rs.mileage !== undefined) {
+        mileageDisplay = `<strong class="text-primary">${rs.mileage} miles</strong>`;
+        if (rs.fuel_cost !== null && rs.fuel_cost !== undefined) {
+            mileageDisplay += `<br><small class="text-muted">${CurrencyFormatter.format(rs.fuel_cost)} fuel</small>`;
+        }
+    } else {
+        mileageDisplay = '<span class="text-muted">Not recorded</span>';
+    }
+    
+    // Format running total
+    let runningDisplay = '';
+    if (rs.mileage !== null && rs.mileage !== undefined) {
+        runningDisplay = `<span style="font-size: 11px;"><i class="bi bi-arrow-up-right text-muted me-1" style="font-size: 10px;"></i><span class="text-primary fw-semibold">${Math.round(running.runningMiles)} mi</span> <span class="text-muted">•</span> <span class="text-warning fw-semibold">${CurrencyFormatter.format(running.runningFuel)}</span></span>`;
+    } else {
+        runningDisplay = '<span style="font-size: 11px;" class="text-muted">—</span>';
+    }
+
+    return `
+        <tr class="${weekClass}">
+            <td><strong>${rs.date}</strong></td>
+            <td class="text-center">
+                <span class="badge bg-primary">${rs.job_count} jobs</span>
+            </td>
+            <td><small>${activities}</small></td>
+            <td class="text-end">${payDisplay}</td>
+            <td class="text-end">${mileageDisplay}</td>
+            <td class="text-end">${runningDisplay}</td>
+            <td class="text-center">
+                ${statusBadge || '<span class="badge bg-secondary">Unknown</span>'}
+            </td>
+            <td class="text-end">
+                <button class="btn btn-sm btn-outline-primary" onclick="viewRunSheetJobs('${rs.date}')">
+                    <i class="bi bi-eye"></i> View
+                </button>
+            </td>
+        </tr>
+    `;
+}
+
+// Generate mobile card
+function generateMobileCard(rs, statusData, running) {
+    const activities = rs.activities ? rs.activities.split(',').slice(0, 2).join(', ') : 'N/A';
+                
+    // Use company week number for shading
+    const weekNumber = rs.company_week || calculateSimpleWeek(rs.date);
+    const isEvenWeek = weekNumber % 2 === 0;
+    const weekClass = isEvenWeek ? 'week-even' : 'week-odd';
+                
+                // Get completion status for this date
+                const status = statusData[rs.date];
+                let statusBadge = '';
+                
+    if (status) {
+        switch (status.status) {
+            case 'completed':
+                statusBadge = '<span class="badge bg-success" title="All jobs completed with mileage"><i class="bi bi-check-circle me-1"></i>Complete</span>';
+                break;
+            case 'in_progress':
+                statusBadge = '<span class="badge bg-warning" title="Some jobs completed or in progress"><i class="bi bi-clock me-1"></i>In Progress</span>';
+                break;
+            case 'not_started':
+                statusBadge = '<span class="badge bg-danger" title="No jobs completed yet"><i class="bi bi-circle me-1"></i>Not Started</span>';
+                break;
+        }
+    }
+                
+    // Format daily pay for mobile
+    let payDisplay = '';
+    if (rs.daily_pay && rs.daily_pay > 0) {
+        payDisplay = `<div class="text-success fw-bold mb-1">${CurrencyFormatter.format(rs.daily_pay)}</div>`;
+    }
+
+    // Format mileage for mobile
+    let mileageDisplayMobile = '';
+    if (rs.mileage !== null && rs.mileage !== undefined) {
+        mileageDisplayMobile = `<div class="text-primary fw-bold mb-1">${rs.mileage} miles`;
+        if (rs.fuel_cost !== null && rs.fuel_cost !== undefined) {
+            mileageDisplayMobile += ` • ${CurrencyFormatter.format(rs.fuel_cost)} fuel`;
+        }
+        mileageDisplayMobile += `</div>`;
+        // Add running total below mileage
+        mileageDisplayMobile += `<div class="small text-muted">Week so far: ${Math.round(running.runningMiles)} mi • ${CurrencyFormatter.format(running.runningFuel)}</div>`;
+    }
+                
+    return `
+        <div class="card mb-3 shadow-sm ${weekClass}" style="border-radius: 12px;">
+            <div class="card-body p-3">
+                <div class="d-flex justify-content-between align-items-start mb-2">
+                    <div>
+                        <h6 class="mb-1 fw-bold" style="font-size: 1.1rem;">${rs.date}</h6>
+                        <span class="badge bg-primary">${rs.job_count} jobs</span>
+                    </div>
+                    <div>
+                        ${statusBadge || '<span class="badge bg-secondary">Unknown</span>'}
+                    </div>
+                </div>
+                ${payDisplay}
+                ${mileageDisplayMobile}
+                <p class="mb-3 small text-muted" style="font-size: 0.85rem;">${activities}</p>
+                <div class="d-grid">
+                    <button class="btn btn-primary py-2" onclick="viewRunSheetJobs('${rs.date}')" style="font-size: 1rem;">
+                        <i class="bi bi-eye me-2"></i>View Jobs
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
 }
 
 // Update pagination
