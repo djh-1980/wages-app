@@ -56,3 +56,51 @@
         overflow-x: hidden;
     }
 }
+
+/* Mobile Week Separator - 4 Row Layout */
+.week-separator-mobile {
+    background-color: #f0f4f8;
+    padding: 8px 10px;
+    border-radius: 8px;
+    border: 1px solid #d0dae5;
+    border-left: 4px solid #0d6efd;
+}
+
+.week-mobile-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: nowrap;
+    gap: 4px;
+    margin-bottom: 3px;
+}
+
+.week-mobile-row:last-child {
+    margin-bottom: 0;
+}
+
+/* Row 1: Week header */
+.week-mobile-row:first-child {
+    font-size: 12px;
+    font-weight: 500;
+    color: #6c757d;
+}
+
+.week-mobile-row:first-child i {
+    color: #4a5568;
+    font-size: 12px;
+}
+
+/* Row 2 & 4: Badge rows */
+.week-mobile-row .badge {
+    font-size: 11px;
+    padding: 2px 8px;
+    font-weight: 600;
+    white-space: nowrap;
+}
+
+/* Row 3: Month label */
+.week-mobile-row .text-muted {
+    font-size: 11px;
+    font-weight: 500;
+    color: #6c757d;
+}

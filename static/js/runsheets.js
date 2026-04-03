@@ -361,11 +361,6 @@ async function loadRunSheetsList(page = 1) {
             let desktopHtml = '';
             let mobileHtml = '';
             
-            // Track cumulative month totals
-            let cumulativeMonthMiles = 0;
-            let cumulativeMonthFuel = 0;
-            let cumulativeMonthJobs = 0;
-            
             // Process each week
             weekKeys.forEach(weekKey => {
                 const weekData = weekGroups[weekKey];
@@ -373,59 +368,32 @@ async function loadRunSheetsList(page = 1) {
                 const weekTotals = calculateWeekTotals(weekRunsheets);
                 const weekRange = formatWeekRange(weekData.weekStart, weekData.weekEnd);
                 
-                // Add week totals to cumulative month totals
-                cumulativeMonthMiles += weekTotals.totalMiles;
-                cumulativeMonthFuel += weekTotals.totalFuel;
-                cumulativeMonthJobs += weekTotals.totalJobs;
-                
                 // Week separator row for desktop
-                const showMonthTotal = weekKeys.length > 1;
                 desktopHtml += `
                     <tr class="week-separator-row">
                         <td colspan="8" class="week-separator">
-                            <div class="d-flex justify-content-between align-items-center flex-wrap">
-                                <div class="d-flex align-items-center flex-wrap gap-2">
-                                    <i class="bi bi-calendar-week me-2" style="font-size: 0.95rem;"></i>
-                                    <span style="font-size: 13px; font-weight: normal;">Week: ${weekRange}</span>
-                                    <span class="badge bg-primary ms-2">${Math.round(weekTotals.totalMiles)} mi</span>
-                                    <span class="badge bg-warning text-dark">${CurrencyFormatter.format(weekTotals.totalFuel)}</span>
-                                    <span class="badge bg-success">${weekTotals.totalJobs} jobs</span>
-                                </div>
-                                ${showMonthTotal ? `
-                                <div class="month-total-badges">
-                                    <small class="text-muted me-1" style="font-size: 11px;">Month:</small>
-                                    <span class="badge bg-primary badge-month">${Math.round(cumulativeMonthMiles)} mi</span>
-                                    <span class="badge bg-warning text-dark badge-month">${CurrencyFormatter.format(cumulativeMonthFuel)}</span>
-                                    <span class="badge bg-success badge-month">${cumulativeMonthJobs} jobs</span>
-                                </div>
-                                ` : ''}
+                            <div class="d-flex align-items-center flex-wrap gap-2">
+                                <i class="bi bi-calendar-week me-2" style="font-size: 0.95rem;"></i>
+                                <span style="font-size: 13px; font-weight: normal;">Week: ${weekRange}</span>
+                                <span class="badge bg-primary ms-2">${Math.round(weekTotals.totalMiles)} mi</span>
+                                <span class="badge bg-warning text-dark">${CurrencyFormatter.format(weekTotals.totalFuel)}</span>
+                                <span class="badge bg-success">${weekTotals.totalJobs} jobs</span>
                             </div>
                         </td>
                     </tr>
                 `;
                 
                 // Week separator for mobile
-                const showMonthTotalMobile = weekKeys.length > 1;
                 mobileHtml += `
-                    <div class="week-separator-mobile mb-3">
-                        <div class="d-flex align-items-center mb-2">
-                            <i class="bi bi-calendar-week me-2" style="font-size: 0.95rem;"></i>
-                            <span style="font-size: 13px; font-weight: normal;">Week: ${weekRange}</span>
+                    <div class="week-separator-mobile mb-2">
+                        <div class="week-mobile-row">
+                            <i class="bi bi-calendar-week me-1"></i>
+                            <span>Week: ${weekRange}</span>
                         </div>
-                        <div class="d-flex flex-column gap-2">
-                            <div class="d-flex flex-wrap gap-2">
-                                <span class="badge bg-primary">${Math.round(weekTotals.totalMiles)} mi</span>
-                                <span class="badge bg-warning text-dark">${CurrencyFormatter.format(weekTotals.totalFuel)}</span>
-                                <span class="badge bg-success">${weekTotals.totalJobs} jobs</span>
-                            </div>
-                            ${showMonthTotalMobile ? `
-                            <div class="mt-1 d-flex align-items-center flex-wrap gap-1">
-                                <small class="text-muted" style="font-size: 11px;">Month:</small>
-                                <span class="badge bg-primary badge-month">${Math.round(cumulativeMonthMiles)} mi</span>
-                                <span class="badge bg-warning text-dark badge-month">${CurrencyFormatter.format(cumulativeMonthFuel)}</span>
-                                <span class="badge bg-success badge-month">${cumulativeMonthJobs} jobs</span>
-                            </div>
-                            ` : ''}
+                        <div class="week-mobile-row">
+                            <span class="badge bg-primary">${Math.round(weekTotals.totalMiles)} mi</span>
+                            <span class="badge bg-warning text-dark">${CurrencyFormatter.format(weekTotals.totalFuel)}</span>
+                            <span class="badge bg-success">${weekTotals.totalJobs} jobs</span>
                         </div>
                     </div>
                 `;
@@ -454,11 +422,15 @@ async function loadRunSheetsList(page = 1) {
             if (mobileCards) {
                 mobileCards.innerHTML = mobileHtml;
             }
+            
+            // Update pagination
+            updateRSPagination(data.page, data.total_pages);
         } else {
             tbody.innerHTML = '<tr><td colspan="8" class="text-center">No run sheets found</td></tr>';
             if (mobileCards) {
                 mobileCards.innerHTML = '<div class="text-center p-4"><p class="text-muted">No run sheets found</p></div>';
             }
+            updateRSPagination(1, 1);
         }
         
     } catch (error) {
@@ -592,8 +564,8 @@ function generateMobileCard(rs, statusData, running) {
             mileageDisplayMobile += ` • ${CurrencyFormatter.format(rs.fuel_cost)} fuel`;
         }
         mileageDisplayMobile += `</div>`;
-        // Add running total below mileage
-        mileageDisplayMobile += `<div class="small text-muted">Week so far: ${Math.round(running.runningMiles)} mi • ${CurrencyFormatter.format(running.runningFuel)}</div>`;
+        // Add running total below mileage with colored text
+        mileageDisplayMobile += `<div style="font-size: 11px;"><span class="text-muted">Week so far: </span><span class="text-primary fw-semibold">${Math.round(running.runningMiles)} mi</span><span class="text-muted"> • </span><span class="text-warning fw-semibold">${CurrencyFormatter.format(running.runningFuel)}</span></div>`;
     }
                 
     return `
