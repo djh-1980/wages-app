@@ -1354,7 +1354,7 @@ def api_download_backup(filename):
         
         # Convert to absolute path for send_file
         absolute_path = backup_path.resolve()
-        print(f"Sending file from absolute path: {absolute_path}")
+        logger.debug(f"Sending file from absolute path: {absolute_path}")
         
         return send_file(
             str(absolute_path),
@@ -1728,7 +1728,7 @@ def api_generate_custom_report():
                                 'period_end': period_end
                             })
                     except Exception as e:
-                        print(f"Error processing week {week_num}: {e}")
+                        logger.error(f"Error processing week {week_num}: {e}", exc_info=True)
                         continue
                 
                 report_data = {

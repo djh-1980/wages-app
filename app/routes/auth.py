@@ -49,7 +49,8 @@ def login():
         
         user = User.get_by_username(username)
         
-        if user is None or not user.check_password(password):
+        if not user or not user.check_password(password):
+            logger.warning(f"Failed login attempt for username: {username}")
             flash('Invalid username or password', 'error')
             return render_template('auth/login.html')
         
@@ -61,11 +62,13 @@ def login():
         session.clear()
         session.permanent = True
         result = login_user(user, remember=remember)
-        print(f"[DEBUG] login_user result: {result}")
-        print(f"[DEBUG] current_user after login: {current_user}")
-        print(f"[DEBUG] current_user.is_authenticated: {current_user.is_authenticated}")
-        print(f"[DEBUG] Session: {dict(session)}")
+        logger.debug(f"login_user result: {result}")
+        logger.debug(f"current_user after login: {current_user}")
+        logger.debug(f"current_user.is_authenticated: {current_user.is_authenticated}")
+        logger.debug(f"Session: {dict(session)}")
         user.update_last_login()
+        
+        logger.info(f"User login successful: {username}")
         
         next_page = request.args.get('next')
         if next_page and next_page.startswith('/'):
@@ -80,7 +83,9 @@ def login():
 @login_required
 def logout():
     """Logout handler."""
+    username = current_user.username
     logout_user()
+    logger.info(f"User logout: {username}")
     flash('You have been logged out successfully', 'success')
     return redirect(url_for('auth.login'))
 

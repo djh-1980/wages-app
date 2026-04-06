@@ -16,8 +16,9 @@ from flask_limiter.util import get_remote_address
 from .database import init_database
 from .config import get_config, Config
 from .utils.logging_utils import LoggerManager
+from .logging_config import setup_logging
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('app')
 
 # Initialize Flask-Limiter
 limiter = Limiter(
@@ -89,17 +90,17 @@ def create_app(config_name=None):
     os.environ['TZ'] = 'Europe/London'
     app.config['TIMEZONE'] = pytz.timezone('Europe/London')
     
-    # Initialize logging system
-    LoggerManager.initialize(
+    # Initialize central logging configuration
+    environment = os.environ.get('FLASK_ENV', 'production')
+    setup_logging(
         log_dir=config_class.LOG_DIR,
-        log_level=config_class.LOG_LEVEL
+        log_level=config_class.LOG_LEVEL,
+        environment=environment
     )
     
-    # Configure root logger
-    logging.basicConfig(
-        level=app.config.get('LOG_LEVEL', 'INFO'),
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    # Log application startup
+    version = config_class.VERSION if hasattr(config_class, 'VERSION') else '2.1.0'
+    logger.info(f"TVS TCMS v{version} starting up (environment: {environment})")
     
     # Initialize database
     init_database()
@@ -107,11 +108,14 @@ def create_app(config_name=None):
     # Run database migrations
     from .services.migration_runner import run_migrations
     logger.info("Running database migrations...")
-    migration_success = run_migrations()
+    migration_success, migration_count = run_migrations()
     if not migration_success:
         logger.error("Database migrations failed - application may not function correctly")
     else:
-        logger.info("Database migrations completed successfully")
+        if migration_count > 0:
+            logger.info(f"Database migrations completed successfully - {migration_count} migration(s) applied")
+        else:
+            logger.info("Database migrations up to date - no new migrations to apply")
     
     # Start auto-sync by default
     from app.services.periodic_sync import periodic_sync_service

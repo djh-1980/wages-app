@@ -8,7 +8,7 @@ import logging
 from pathlib import Path
 from ..database import get_db_connection
 
-logger = logging.getLogger(__name__)
+logger = logging.getLogger('migration')
 
 
 class MigrationRunner:

@@ -298,7 +298,7 @@ def api_edit_job(job_id):
                         job_data, manager_email, user_email
                     )
             except Exception as email_error:
-                print(f"Email sending failed: {email_error}")
+                logger.error(f"Email sending failed: {email_error}", exc_info=True)
         
         if success:
             return jsonify({

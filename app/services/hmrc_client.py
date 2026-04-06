@@ -3,6 +3,7 @@ HMRC API Client for Making Tax Digital (MTD) Self-Employment Income & Expenses A
 Handles all API calls with fraud prevention headers and error handling.
 """
 
+import logging
 import platform
 import socket
 from datetime import datetime
@@ -11,6 +12,8 @@ import requests
 
 from .hmrc_auth import HMRCAuthService
 from ..config import Config
+
+logger = logging.getLogger('hmrc')
 
 
 class HMRCClient:
@@ -118,6 +121,10 @@ class HMRCClient:
         
         url = f"{self.base_url}{endpoint}"
         
+        # Log API call (never log sensitive data like tokens or NINOs)
+        safe_endpoint = endpoint.replace(r'/[A-Z]{2}\d{6}[A-D]', '/[NINO]')  # Mask NINOs
+        logger.info(f"HMRC API call: {method} {safe_endpoint} (environment: {self.environment})")
+        
         try:
             if method == 'GET':
                 response = requests.get(url, headers=headers, params=params, timeout=30)
@@ -126,16 +133,22 @@ class HMRCClient:
             elif method == 'PUT':
                 response = requests.put(url, headers=headers, json=data, timeout=30)
             else:
+                logger.error(f"Unsupported HTTP method: {method}")
                 return {'success': False, 'error': f'Unsupported method: {method}'}
+            
+            # Log response status
+            logger.info(f"HMRC API response: {method} {safe_endpoint} - {response.status_code}")
             
             # Handle different response codes
             if response.status_code == 200 or response.status_code == 201:
+                logger.debug(f"HMRC API success: {method} {safe_endpoint}")
                 return {
                     'success': True,
                     'data': response.json() if response.content else {},
                     'status_code': response.status_code
                 }
             elif response.status_code == 204:
+                logger.debug(f"HMRC API success (no content): {method} {safe_endpoint}")
                 return {
                     'success': True,
                     'data': {},
@@ -143,6 +156,8 @@ class HMRCClient:
                 }
             else:
                 error_data = response.json() if response.content else {}
+                error_msg = error_data.get('message', f'HTTP {response.status_code}')
+                logger.warning(f"HMRC API error: {method} {safe_endpoint} - {response.status_code}: {error_msg}")
                 
                 # Parse 422 validation errors with field-level details
                 if response.status_code == 422 and 'errors' in error_data:
@@ -157,6 +172,7 @@ class HMRCClient:
                             'code': code
                         })
                     
+                    logger.error(f"HMRC validation errors: {len(validation_errors)} field(s)")
                     return {
                         'success': False,
                         'error': error_data.get('message', 'Validation failed'),
@@ -173,6 +189,7 @@ class HMRCClient:
                 }
         
         except requests.exceptions.RequestException as e:
+            logger.error(f"HMRC API request exception: {method} {safe_endpoint} - {str(e)}")
             return {
                 'success': False,
                 'error': str(e)

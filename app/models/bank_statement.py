@@ -2,11 +2,16 @@
 Bank Statement Parser
 Parses RBS CSV files and categorizes transactions for expense import
 """
+Bank statement parser for CSV imports.
+"""
 
 import csv
+import logging
 import re
 from datetime import datetime
 from typing import List, Dict, Optional
+
+logger = logging.getLogger(__name__)
 
 from .recurring_template import RecurringTemplateModel
 
@@ -123,7 +128,7 @@ class BankStatementParser:
                         })
             except Exception as e:
                 # Skip malformed rows
-                print(f"Error parsing row: {e}")
+                logger.warning(f"Error parsing row: {e}")
                 continue
         
         return transactions
