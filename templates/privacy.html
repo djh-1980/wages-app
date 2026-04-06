@@ -1,0 +1,78 @@
+{% extends "base.html" %}
+
+{% block title %}Privacy Policy - TVS Wages{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12 col-lg-10 offset-lg-1">
+            <div class="card">
+                <div class="card-body p-4">
+                    <h1 class="mb-4">Privacy Policy</h1>
+                    
+                    <p class="text-muted">Last updated: {{ current_date }}</p>
+                    
+                    <h2 class="h4 mt-4 mb-3">Overview</h2>
+                    <p>TVS Wages is a personal business management application for a single-user self-employed business. This application is self-hosted and operated by the business owner for their own use.</p>
+                    
+                    <h2 class="h4 mt-4 mb-3">Data Controller</h2>
+                    <p>Daniel Hanson<br>
+                    Email: <a href="mailto:daniel@daniel-hanson.co.uk">daniel@daniel-hanson.co.uk</a></p>
+                    
+                    <h2 class="h4 mt-4 mb-3">Data Storage</h2>
+                    <p>All data is stored on a self-hosted server located in the United Kingdom. The application stores:</p>
+                    <ul>
+                        <li>Business income records (payslips)</li>
+                        <li>Business expense records</li>
+                        <li>Run sheet job data</li>
+                        <li>Mileage and vehicle information</li>
+                        <li>HMRC MTD authentication credentials</li>
+                    </ul>
+                    
+                    <h2 class="h4 mt-4 mb-3">Data Sharing</h2>
+                    <p>Your data is <strong>not shared with any third parties</strong> except:</p>
+                    <ul>
+                        <li><strong>HMRC (HM Revenue & Customs)</strong> - Business income and expense data is submitted to HMRC via the Making Tax Digital (MTD) API for Self Assessment tax obligations. This is done with your explicit authorization through OAuth authentication.</li>
+                    </ul>
+                    
+                    <h2 class="h4 mt-4 mb-3">Data Security</h2>
+                    <p>The application implements the following security measures:</p>
+                    <ul>
+                        <li>Password-protected user authentication</li>
+                        <li>Encrypted HMRC OAuth tokens</li>
+                        <li>HTTPS encryption for all web traffic</li>
+                        <li>Regular database backups</li>
+                        <li>Self-hosted infrastructure under direct control</li>
+                    </ul>
+                    
+                    <h2 class="h4 mt-4 mb-3">HMRC Integration</h2>
+                    <p>When you connect to HMRC Making Tax Digital:</p>
+                    <ul>
+                        <li>You authorize the application to submit quarterly updates on your behalf</li>
+                        <li>OAuth access tokens are stored securely in the database</li>
+                        <li>You can disconnect from HMRC at any time through the Settings page</li>
+                        <li>HMRC fraud prevention headers are sent as required by HMRC API specifications</li>
+                    </ul>
+                    
+                    <h2 class="h4 mt-4 mb-3">Your Rights</h2>
+                    <p>As this is a personal single-user application:</p>
+                    <ul>
+                        <li>You have full access to all your data</li>
+                        <li>You can export your data at any time (CSV, PDF)</li>
+                        <li>You can delete your data through the application interface</li>
+                        <li>You can disconnect from HMRC services at any time</li>
+                    </ul>
+                    
+                    <h2 class="h4 mt-4 mb-3">Contact</h2>
+                    <p>For any privacy-related questions or concerns, please contact:<br>
+                    <a href="mailto:daniel@daniel-hanson.co.uk">daniel@daniel-hanson.co.uk</a></p>
+                    
+                    <div class="mt-4 pt-3 border-top">
+                        <a href="{{ url_for('main.index') }}" class="btn btn-secondary">Back to Dashboard</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

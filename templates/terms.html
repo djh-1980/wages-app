@@ -1,0 +1,93 @@
+{% extends "base.html" %}
+
+{% block title %}Terms and Conditions - TVS Wages{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <div class="row">
+        <div class="col-12 col-lg-10 offset-lg-1">
+            <div class="card">
+                <div class="card-body p-4">
+                    <h1 class="mb-4">Terms and Conditions</h1>
+                    
+                    <p class="text-muted">Last updated: {{ current_date }}</p>
+                    
+                    <h2 class="h4 mt-4 mb-3">Application Purpose</h2>
+                    <p>TVS Wages is a personal business management application designed for single-user self-employed business use. The software is self-hosted and operated by the business owner for their own business administration and HMRC Making Tax Digital compliance.</p>
+                    
+                    <h2 class="h4 mt-4 mb-3">Personal Use Software</h2>
+                    <p>This application is:</p>
+                    <ul>
+                        <li>Designed for personal use by a single self-employed individual</li>
+                        <li>Self-hosted on private infrastructure</li>
+                        <li>Not a commercial software-as-a-service product</li>
+                        <li>Not intended for multi-user or commercial deployment</li>
+                    </ul>
+                    
+                    <h2 class="h4 mt-4 mb-3">No Warranties</h2>
+                    <p>This software is provided "as is" without warranty of any kind, either express or implied, including but not limited to:</p>
+                    <ul>
+                        <li>Fitness for a particular purpose</li>
+                        <li>Accuracy of calculations or data processing</li>
+                        <li>Uninterrupted or error-free operation</li>
+                        <li>Compatibility with HMRC systems or requirements</li>
+                    </ul>
+                    
+                    <h2 class="h4 mt-4 mb-3">User Responsibility</h2>
+                    <p>As the user and operator of this application, you are responsible for:</p>
+                    <ul>
+                        <li><strong>Data Accuracy</strong> - Ensuring all income, expenses, and business data entered is accurate and complete</li>
+                        <li><strong>HMRC Submissions</strong> - Verifying all quarterly updates and final declarations before submission to HMRC</li>
+                        <li><strong>Tax Compliance</strong> - Meeting all HMRC deadlines and Self Assessment obligations</li>
+                        <li><strong>Record Keeping</strong> - Maintaining adequate business records as required by HMRC</li>
+                        <li><strong>Data Backups</strong> - Ensuring regular backups of your business data</li>
+                        <li><strong>System Security</strong> - Protecting your login credentials and server access</li>
+                    </ul>
+                    
+                    <h2 class="h4 mt-4 mb-3">HMRC Integration</h2>
+                    <p>When using the HMRC Making Tax Digital integration:</p>
+                    <ul>
+                        <li>You authorize the application to submit data to HMRC on your behalf</li>
+                        <li>You remain fully responsible for the accuracy of all submissions</li>
+                        <li>You should review all data before authorizing submission</li>
+                        <li>The application follows HMRC API specifications but cannot guarantee acceptance of submissions</li>
+                        <li>You are responsible for resolving any issues with HMRC directly</li>
+                    </ul>
+                    
+                    <h2 class="h4 mt-4 mb-3">Limitation of Liability</h2>
+                    <p>The application developer shall not be liable for:</p>
+                    <ul>
+                        <li>Any errors or omissions in data processing</li>
+                        <li>Any penalties, fines, or interest charged by HMRC</li>
+                        <li>Any loss of data or business interruption</li>
+                        <li>Any consequential or incidental damages</li>
+                    </ul>
+                    
+                    <h2 class="h4 mt-4 mb-3">Professional Advice</h2>
+                    <p>This application is a business management tool and does not provide:</p>
+                    <ul>
+                        <li>Tax advice or guidance</li>
+                        <li>Accounting or bookkeeping services</li>
+                        <li>Legal or financial advice</li>
+                    </ul>
+                    <p>You should consult with a qualified accountant or tax professional for advice specific to your circumstances.</p>
+                    
+                    <h2 class="h4 mt-4 mb-3">Data Retention</h2>
+                    <p>You are responsible for retaining business records in accordance with HMRC requirements (typically 5 years after the 31 January submission deadline of the relevant tax year).</p>
+                    
+                    <h2 class="h4 mt-4 mb-3">Changes to Terms</h2>
+                    <p>These terms may be updated from time to time. Continued use of the application constitutes acceptance of any changes.</p>
+                    
+                    <h2 class="h4 mt-4 mb-3">Contact</h2>
+                    <p>For questions about these terms, please contact:<br>
+                    <a href="mailto:daniel@daniel-hanson.co.uk">daniel@daniel-hanson.co.uk</a></p>
+                    
+                    <div class="mt-4 pt-3 border-top">
+                        <a href="{{ url_for('main.index') }}" class="btn btn-secondary">Back to Dashboard</a>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

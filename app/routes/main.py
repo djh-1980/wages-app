@@ -109,3 +109,19 @@ def settings_about():
 def settings_hmrc():
     """HMRC Making Tax Digital settings page."""
     return render_template('settings/hmrc.html')
+
+
+@main_bp.route('/privacy')
+def privacy():
+    """Privacy policy page - accessible without login for HMRC registration."""
+    from datetime import datetime
+    current_date = datetime.now().strftime('%d %B %Y')
+    return render_template('privacy.html', current_date=current_date)
+
+
+@main_bp.route('/terms')
+def terms():
+    """Terms and conditions page - accessible without login for HMRC registration."""
+    from datetime import datetime
+    current_date = datetime.now().strftime('%d %B %Y')
+    return render_template('terms.html', current_date=current_date)
