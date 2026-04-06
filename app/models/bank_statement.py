@@ -1,8 +1,6 @@
 """
-Bank Statement Parser
-Parses RBS CSV files and categorizes transactions for expense import
-"""
 Bank statement parser for CSV imports.
+Parses RBS CSV files and categorizes transactions for expense import.
 """
 
 import csv

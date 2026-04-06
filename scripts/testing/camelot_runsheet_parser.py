@@ -12,6 +12,47 @@ import re
 from pathlib import Path
 from typing import List, Dict
 import sys
+import pdfplumber
+
+
+def find_driver_pages(pdf_path: str, driver_name: str = 'Daniel Hanson') -> List[int]:
+    """
+    Pre-scan PDF to find pages containing the driver's name.
+    This dramatically speeds up processing of large multi-driver PDFs.
+    
+    Args:
+        pdf_path: Path to PDF file
+        driver_name: Driver name to search for
+        
+    Returns:
+        List of page numbers (1-indexed for Camelot) containing the driver
+    """
+    driver_pages = []
+    name_parts = driver_name.upper().split()
+    
+    print(f"  Pre-scanning PDF for '{driver_name}' pages...")
+    
+    try:
+        with pdfplumber.open(pdf_path) as pdf:
+            total_pages = len(pdf.pages)
+            for i, page in enumerate(pdf.pages):
+                text = (page.extract_text() or '').upper()
+                
+                # Check if all parts of driver name are present
+                if all(part in text for part in name_parts):
+                    driver_pages.append(i + 1)  # Camelot uses 1-based page numbers
+                    print(f"    ✓ Found '{driver_name}' on page {i + 1}/{total_pages}")
+        
+        if driver_pages:
+            print(f"  Pre-scan complete: {len(driver_pages)} page(s) to process (out of {total_pages} total)")
+        else:
+            print(f"  ⚠️  Pre-scan found no pages for '{driver_name}' (will try all pages as fallback)")
+    
+    except Exception as e:
+        print(f"  ⚠️  Pre-scan failed: {e} (will try all pages as fallback)")
+        return []
+    
+    return driver_pages
 
 
 class CamelotRunsheetParser:
@@ -23,6 +64,20 @@ class CamelotRunsheetParser:
     def parse_pdf(self, pdf_path: str) -> List[Dict]:
         """Parse a runsheet PDF and extract job data."""
         print(f"Parsing: {Path(pdf_path).name}")
+        
+        # Pre-filter: Find pages containing driver name (PERFORMANCE OPTIMIZATION)
+        # For large multi-driver PDFs (57+ pages), this reduces processing from
+        # minutes to seconds by only scanning relevant pages
+        driver_pages = find_driver_pages(pdf_path, self.driver_name)
+        
+        # Determine which pages to process
+        if driver_pages:
+            pages_param = ','.join(map(str, driver_pages))
+            print(f"  Processing {len(driver_pages)} filtered page(s): {pages_param}")
+        else:
+            # Fallback: process all pages if pre-scan failed or found nothing
+            pages_param = 'all'
+            print(f"  Processing all pages (no pre-filter applied)")
         
         # Extract runsheet date from page header (not from tables)
         import PyPDF2
@@ -40,12 +95,13 @@ class CamelotRunsheetParser:
         except:
             pass
         
-        # Extract all tables from PDF
-        tables = camelot.read_pdf(pdf_path, pages='all', flavor='lattice')
+        # Extract tables from PDF (only from filtered pages)
+        tables = camelot.read_pdf(pdf_path, pages=pages_param, flavor='lattice')
         
         if len(tables) == 0:
-            # Try stream mode if lattice fails
-            tables = camelot.read_pdf(pdf_path, pages='all', flavor='stream')
+            # Try stream mode if lattice fails (use same page filtering)
+            print(f"  Lattice mode found no tables, trying stream mode...")
+            tables = camelot.read_pdf(pdf_path, pages=pages_param, flavor='stream')
         
         print(f"  Found {len(tables)} tables")
         
