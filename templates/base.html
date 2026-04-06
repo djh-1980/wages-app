@@ -161,6 +161,17 @@
         </div>
     </div>
 
+    <!-- Footer -->
+    <footer class="text-center text-muted py-3 mt-auto" style="background-color: #f8f9fa; border-top: 1px solid #dee2e6;">
+        <div class="container">
+            <small>
+                TVS TCMS v{{ config.VERSION if config.VERSION else '2.1.0' }} | 
+                <a href="/privacy" class="text-muted text-decoration-none">Privacy Policy</a> | 
+                <a href="/terms" class="text-muted text-decoration-none">Terms & Conditions</a>
+            </small>
+        </div>
+    </footer>
+
     <!-- Bottom Navigation Bar (Mobile Only) -->
     <nav class="bottom-nav d-md-none">
         <a href="/runsheets" class="bottom-nav-item {% if request.path == '/runsheets' or request.path == '/' %}active{% endif %}">
