@@ -113,9 +113,15 @@ class HMRCMapper:
             hmrc_box = expense.get('hmrc_box', 'Other expenses')
             
             # Map to HMRC API field names
-            if 'Vehicle costs' in hmrc_box:
-                # Vehicle costs go to "other" in HMRC API
-                expense_data['other']['amount'] += amount
+            if 'Cost of goods bought' in hmrc_box or 'Materials' in hmrc_box:
+                expense_data['costOfGoodsBought']['amount'] += amount
+            elif 'CIS payments' in hmrc_box:
+                expense_data['cisPaymentsToSubcontractors']['amount'] += amount
+            elif 'Maintenance costs' in hmrc_box:
+                expense_data['maintenanceCosts']['amount'] += amount
+            elif 'Motor expenses' in hmrc_box or 'Vehicle costs' in hmrc_box or 'Fuel' in hmrc_box:
+                # Motor expenses include van finance, insurance, breakdown, fuel, vehicle costs
+                expense_data['travelCosts']['amount'] += amount
             elif 'Travel costs' in hmrc_box:
                 expense_data['travelCosts']['amount'] += amount
             elif 'Premises costs' in hmrc_box:

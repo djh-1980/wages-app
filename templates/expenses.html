@@ -159,6 +159,7 @@
                                         <tr>
                                             <th>Date</th>
                                             <th>Category</th>
+                                            <th>HMRC Box</th>
                                             <th>Description</th>
                                             <th class="text-end">Amount</th>
                                             <th>Receipt</th>
@@ -281,7 +282,7 @@
                     
                     <div class="mb-3">
                         <label for="expenseDate" class="form-label">Date *</label>
-                        <input type="text" class="form-control" id="expenseDate" placeholder="DD/MM/YYYY" required>
+                        <input type="date" class="form-control" id="expenseDate" required>
                     </div>
                     
                     <div class="mb-3">
@@ -293,7 +294,7 @@
                     
                     <div class="mb-3">
                         <label for="expenseAmount" class="form-label">Amount (£) *</label>
-                        <input type="number" class="form-control" id="expenseAmount" step="0.01" min="0" required>
+                        <input type="number" class="form-control" id="expenseAmount" step="0.01" min="0" inputmode="decimal" required>
                     </div>
                     
                     <div class="mb-3">

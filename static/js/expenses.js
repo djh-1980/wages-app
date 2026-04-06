@@ -11,8 +11,12 @@ document.addEventListener('DOMContentLoaded', function() {
     loadTaxYears();
     loadExpenses();
     
-    // Set today's date as default
-    document.getElementById('expenseDate').value = formatDateForDisplay(new Date());
+    // Set today's date as default (YYYY-MM-DD for date input)
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('expenseDate').value = `${yyyy}-${mm}-${dd}`;
     
     // Load recurring templates when tab is shown
     document.getElementById('recurring-tab').addEventListener('shown.bs.tab', function() {
@@ -190,7 +194,7 @@ function displayExpenses() {
     if (expenses.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="text-center text-muted py-4">
+                <td colspan="8" class="text-center text-muted py-4">
                     <i class="bi bi-inbox" style="font-size: 3rem;"></i>
                     <p class="mt-2">No expenses found</p>
                     <button class="btn btn-primary btn-sm" onclick="showAddExpenseModal()">
@@ -209,6 +213,7 @@ function displayExpenses() {
                 <span class="badge bg-secondary">${expense.category_name}</span>
                 ${expense.is_recurring ? '<i class="bi bi-arrow-repeat text-warning ms-1" title="Recurring"></i>' : ''}
             </td>
+            <td><small class="badge bg-info">${expense.hmrc_box || 'Other'}</small></td>
             <td>${expense.description || '-'}</td>
             <td class="text-end"><strong>${CurrencyFormatter.format(expense.amount)}</strong></td>
             <td class="text-center">
@@ -264,7 +269,12 @@ function showAddExpenseModal() {
     document.getElementById('expenseModalTitle').textContent = 'Add Expense';
     document.getElementById('expenseForm').reset();
     document.getElementById('expenseId').value = '';
-    document.getElementById('expenseDate').value = formatDateForDisplay(new Date());
+    // Set today's date in YYYY-MM-DD format for date input
+    const today = new Date();
+    const yyyy = today.getFullYear();
+    const mm = String(today.getMonth() + 1).padStart(2, '0');
+    const dd = String(today.getDate()).padStart(2, '0');
+    document.getElementById('expenseDate').value = `${yyyy}-${mm}-${dd}`;
     document.getElementById('recurringOptions').style.display = 'none';
     document.getElementById('receiptFile').value = '';
     document.getElementById('currentReceipt').style.display = 'none';
@@ -297,7 +307,9 @@ async function editExpense(expenseId) {
             const expense = data.expense;
             document.getElementById('expenseModalTitle').textContent = 'Edit Expense';
             document.getElementById('expenseId').value = expense.id;
-            document.getElementById('expenseDate').value = expense.date;
+            // Convert date from DD/MM/YYYY to YYYY-MM-DD for date input
+            const [day, month, year] = expense.date.split('/');
+            document.getElementById('expenseDate').value = `${year}-${month}-${day}`;
             document.getElementById('expenseCategory').value = expense.category_id;
             document.getElementById('expenseAmount').value = expense.amount;
             document.getElementById('expenseDescription').value = expense.description || '';
@@ -331,7 +343,7 @@ async function editExpense(expenseId) {
  */
 async function saveExpense() {
     const expenseId = document.getElementById('expenseId').value;
-    const date = document.getElementById('expenseDate').value;
+    const dateInput = document.getElementById('expenseDate').value;
     const categoryId = document.getElementById('expenseCategory').value;
     const amount = document.getElementById('expenseAmount').value;
     const description = document.getElementById('expenseDescription').value;
@@ -339,10 +351,14 @@ async function saveExpense() {
     const recurringFrequency = document.getElementById('recurringFrequency').value;
     const receiptFile = document.getElementById('receiptFile').files[0];
     
-    if (!date || !categoryId || !amount) {
+    if (!dateInput || !categoryId || !amount) {
         showExpenseNotification('Please fill in all required fields', 'error');
         return;
     }
+    
+    // Convert date from YYYY-MM-DD to DD/MM/YYYY for backend
+    const [year, month, day] = dateInput.split('-');
+    const date = `${day}/${month}/${year}`;
     
     let receiptPath = null;
     
