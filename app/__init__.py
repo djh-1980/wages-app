@@ -104,6 +104,15 @@ def create_app(config_name=None):
     # Initialize database
     init_database()
     
+    # Run database migrations
+    from .services.migration_runner import run_migrations
+    logger.info("Running database migrations...")
+    migration_success = run_migrations()
+    if not migration_success:
+        logger.error("Database migrations failed - application may not function correctly")
+    else:
+        logger.info("Database migrations completed successfully")
+    
     # Start auto-sync by default
     from app.services.periodic_sync import periodic_sync_service
     if app.config.get('AUTO_SYNC_ENABLED', True):
