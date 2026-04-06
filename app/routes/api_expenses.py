@@ -4,6 +4,7 @@ Expense API routes blueprint for HMRC MTD compliance.
 
 import logging
 import os
+from datetime import datetime
 from pathlib import Path
 
 from flask import Blueprint, request, jsonify, send_file
@@ -29,7 +30,7 @@ def api_get_categories():
     """Get all expense categories."""
     try:
         categories = ExpenseModel.get_categories()
-        return jsonify({'success': True, 'data': categories})
+        return jsonify({'success': True, 'data': {'categories': categories}})
     except Exception as e:
         logger.error(f'Error getting expense categories: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -96,7 +97,7 @@ def api_get_expense(expense_id):
         if not expense:
             return jsonify({'success': False, 'error': 'Expense not found'}), 404
         
-        return jsonify({'success': True, 'data': expense})
+        return jsonify({'success': True, 'data': {'expense': expense}})
     except Exception as e:
         logger.error(f'Error getting expense {expense_id}: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
@@ -213,7 +214,7 @@ def api_get_tax_years():
         if current_tax_year not in tax_years:
             tax_years.insert(0, current_tax_year)
         
-        return jsonify({'success': True, 'data': tax_years})
+        return jsonify({'success': True, 'data': {'tax_years': tax_years}})
     except Exception as e:
         logger.error(f'Error getting tax years: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
