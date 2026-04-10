@@ -111,6 +111,17 @@ def settings_hmrc():
     return render_template('settings/hmrc.html')
 
 
+@main_bp.route('/mtd/sandbox')
+def mtd_sandbox():
+    """
+    HMRC Sandbox Testing Dashboard.
+    
+    WARNING: SANDBOX TESTING ONLY
+    Remove this route before production deployment.
+    """
+    return render_template('mtd_sandbox.html')
+
+
 @main_bp.route('/privacy')
 def privacy():
     """Privacy policy page - accessible without login for HMRC registration."""

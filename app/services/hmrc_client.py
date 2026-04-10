@@ -107,7 +107,11 @@ class HMRCClient:
         if '/individuals/income-received/' in endpoint:
             api_version = '3.0'  # Business Income Source Summary API
         elif '/individuals/business/details/' in endpoint:
-            api_version = '3.0'  # Business Details API
+            api_version = '2.0'  # Business Details API v2.0
+        elif '/obligations/' in endpoint or '/individuals/business/self-employment/' in endpoint and '/obligations' in endpoint:
+            api_version = '3.0'  # Obligations API v3.0
+        elif '/individuals/calculations/' in endpoint or '/individuals/declarations/' in endpoint:
+            api_version = '8.0'  # Individual Calculations API v8.0
         
         headers = {
             'Authorization': f'Bearer {access_token}',
@@ -221,7 +225,7 @@ class HMRCClient:
     
     def get_business_details(self, nino):
         """
-        Get list of businesses for a NINO using Business Details API.
+        Get list of businesses for a NINO using Business Details API v2.0.
         This is the recommended endpoint for MTD ITSA.
         
         Args:
@@ -232,6 +236,42 @@ class HMRCClient:
         """
         endpoint = f"/individuals/business/details/{nino}/list"
         return self._make_request('GET', endpoint)
+    
+    def get_business_detail(self, nino, business_id):
+        """
+        Get single business details by ID using Business Details API v2.0.
+        
+        Args:
+            nino: National Insurance Number
+            business_id: Business ID from HMRC
+            
+        Returns:
+            dict: Business details
+        """
+        endpoint = f"/individuals/business/details/{nino}/{business_id}"
+        return self._make_request('GET', endpoint)
+    
+    def create_amend_quarterly_period_type(self, nino, business_id, period_type):
+        """
+        Create or amend quarterly period type for a business.
+        
+        Args:
+            nino: National Insurance Number
+            business_id: Business ID from HMRC
+            period_type: 'standard' or 'calendar'
+            
+        Returns:
+            dict: Response from HMRC
+        """
+        if period_type not in ['standard', 'calendar']:
+            return {
+                'success': False,
+                'error': 'period_type must be "standard" or "calendar"'
+            }
+        
+        endpoint = f"/individuals/business/details/{nino}/{business_id}/quarterly-period-type"
+        data = {'quarterlyPeriodType': period_type}
+        return self._make_request('PUT', endpoint, data=data)
     
     def get_business_list(self, nino):
         """
@@ -251,7 +291,7 @@ class HMRCClient:
     
     def get_obligations(self, nino, from_date=None, to_date=None, status=None, test_scenario=None):
         """
-        Get obligations for a business.
+        Get income & expenses obligations for a business using Obligations API v3.0.
         
         Args:
             nino: National Insurance Number
@@ -274,6 +314,30 @@ class HMRCClient:
         endpoint = f"/individuals/business/self-employment/{nino}/obligations"
         return self._make_request('GET', endpoint, params=params, test_scenario=test_scenario)
     
+    def get_final_declaration_obligations(self, nino, from_date=None, to_date=None, status=None):
+        """
+        Get final declaration (crystallisation) obligations using Obligations API v3.0.
+        
+        Args:
+            nino: National Insurance Number
+            from_date: Optional from date (YYYY-MM-DD)
+            to_date: Optional to date (YYYY-MM-DD)
+            status: Optional status filter (O=Open, F=Fulfilled)
+            
+        Returns:
+            dict: Final declaration obligations
+        """
+        params = {}
+        if from_date:
+            params['from'] = from_date
+        if to_date:
+            params['to'] = to_date
+        if status:
+            params['status'] = status
+        
+        endpoint = f"/obligations/details/{nino}/crystallisation"
+        return self._make_request('GET', endpoint, params=params)
+    
     def get_period_summary(self, nino, business_id, period_id):
         """
         Get summary for a specific period.
@@ -288,6 +352,22 @@ class HMRCClient:
         """
         endpoint = f"/individuals/business/self-employment/{nino}/{business_id}/period/{period_id}"
         return self._make_request('GET', endpoint)
+    
+    def list_periods(self, nino, business_id, tax_year):
+        """
+        List all periods for a business and tax year.
+        
+        Args:
+            nino: National Insurance Number
+            business_id: Business ID from HMRC
+            tax_year: Tax year (e.g., '2024-25')
+            
+        Returns:
+            dict: List of periods
+        """
+        endpoint = f"/individuals/business/self-employment/{nino}/{business_id}/period"
+        params = {'taxYear': tax_year}
+        return self._make_request('GET', endpoint, params=params)
     
     def create_test_business(self, nino):
         """
@@ -348,7 +428,7 @@ class HMRCClient:
     
     def get_annual_summary(self, nino, business_id, tax_year):
         """
-        Get annual summary for a tax year.
+        Get annual summary (allowances & adjustments) for a tax year.
         
         Args:
             nino: National Insurance Number
@@ -356,7 +436,7 @@ class HMRCClient:
             tax_year: Tax year (e.g., '2024-25')
             
         Returns:
-            dict: Annual summary data
+            dict: Annual summary data with allowances and adjustments
         """
         endpoint = f"/individuals/business/self-employment/{nino}/{business_id}/annual/{tax_year}"
         return self._make_request('GET', endpoint)
@@ -377,10 +457,42 @@ class HMRCClient:
         endpoint = f"/individuals/business/self-employment/{nino}/{business_id}/annual/{tax_year}"
         return self._make_request('PUT', endpoint, data=annual_data)
     
+    def list_calculations(self, nino, tax_year):
+        """
+        List all tax calculations for a tax year using Individual Calculations API v8.0.
+        
+        Args:
+            nino: National Insurance Number
+            tax_year: Tax year in YYYY/YYYY format (e.g., '2024/2025')
+            
+        Returns:
+            dict: List of calculations with IDs and metadata
+        """
+        formatted_tax_year = tax_year.replace('/', '-')
+        endpoint = f"/individuals/calculations/{nino}/self-assessment"
+        params = {'taxYear': formatted_tax_year}
+        return self._make_request('GET', endpoint, params=params)
+    
+    def retrieve_calculation(self, nino, calculation_id):
+        """
+        Retrieve a specific tax calculation by ID using Individual Calculations API v8.0.
+        Returns full tax breakdown including income, expenses, allowances, and tax liability.
+        
+        Args:
+            nino: National Insurance Number
+            calculation_id: Calculation ID from HMRC
+            
+        Returns:
+            dict: Complete tax calculation with breakdown
+        """
+        endpoint = f"/individuals/calculations/{nino}/self-assessment/{calculation_id}"
+        return self._make_request('GET', endpoint)
+    
     def get_tax_calculation(self, nino, tax_year):
         """
-        Get the latest tax calculation for a tax year.
+        Get the latest tax calculation for a tax year (legacy method).
         This retrieves the calculation after crystallisation has been triggered.
+        Use list_calculations() and retrieve_calculation() for more control.
         
         Args:
             nino: National Insurance Number
@@ -389,46 +501,61 @@ class HMRCClient:
         Returns:
             dict: Tax calculation data including calculationId and tax liability
         """
-        formatted_tax_year = tax_year.replace('/', '-')
-        endpoint = f"/individuals/calculations/{nino}/self-assessment"
-        params = {'taxYear': formatted_tax_year}
-        return self._make_request('GET', endpoint, params=params)
+        return self.list_calculations(nino, tax_year)
     
-    def trigger_crystallisation(self, nino, tax_year):
+    def trigger_crystallisation(self, nino, tax_year, calculation_type='intent-to-finalise'):
         """
-        Trigger crystallisation (intent to finalise) for a tax year.
-        This requests HMRC to calculate the final tax liability.
-        Must be called after all 4 quarterly updates are submitted.
+        Trigger tax calculation for a tax year using Individual Calculations API v8.0.
         
         Args:
             nino: National Insurance Number
             tax_year: Tax year in YYYY/YYYY format (e.g., '2024/2025')
+            calculation_type: Type of calculation - 'intent-to-finalise', 'intent-to-amend', or 'in-year'
             
         Returns:
             dict: Response with calculationId
         """
+        valid_types = ['intent-to-finalise', 'intent-to-amend', 'in-year']
+        if calculation_type not in valid_types:
+            return {
+                'success': False,
+                'error': f'calculation_type must be one of: {", ".join(valid_types)}'
+            }
+        
         formatted_tax_year = tax_year.replace('/', '-')
         endpoint = f"/individuals/calculations/crystallisation/{nino}/{formatted_tax_year}"
-        data = {'taxYear': formatted_tax_year}
+        data = {
+            'taxYear': formatted_tax_year,
+            'calculationType': calculation_type
+        }
         return self._make_request('POST', endpoint, data=data)
     
-    def submit_final_declaration(self, nino, tax_year, calculation_id):
+    def submit_final_declaration(self, nino, tax_year, calculation_id, declaration_type='final-declaration'):
         """
-        Submit the final declaration for a tax year.
+        Submit the final declaration for a tax year using Individual Calculations API v8.0.
         This is the point of no return - confirms all information is complete and correct.
         
         Args:
             nino: National Insurance Number
             tax_year: Tax year in YYYY/YYYY format (e.g., '2024/2025')
             calculation_id: The calculation ID from trigger_crystallisation
+            declaration_type: 'final-declaration' or 'confirm-amendment'
             
         Returns:
             dict: Response with receipt/confirmation
         """
+        valid_types = ['final-declaration', 'confirm-amendment']
+        if declaration_type not in valid_types:
+            return {
+                'success': False,
+                'error': f'declaration_type must be one of: {", ".join(valid_types)}'
+            }
+        
         formatted_tax_year = tax_year.replace('/', '-')
         endpoint = f"/individuals/declarations/{nino}/{formatted_tax_year}"
         data = {
             'calculationId': calculation_id,
+            'declarationType': declaration_type,
             'finalised': True
         }
         return self._make_request('POST', endpoint, data=data)

@@ -155,6 +155,7 @@ def create_app(config_name=None):
     from .routes.api_job_notes import job_notes_bp
     from .routes.api_route_planning import route_planning_bp
     from .routes.api_hmrc import hmrc_bp
+    from .routes.api_hmrc_sandbox import sandbox_bp  # WARNING: SANDBOX ONLY - Remove before production
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -183,6 +184,7 @@ def create_app(config_name=None):
     app.register_blueprint(job_notes_bp)
     app.register_blueprint(route_planning_bp)
     app.register_blueprint(hmrc_bp)
+    app.register_blueprint(sandbox_bp)  # WARNING: SANDBOX ONLY - Remove before production
     
     # Protect all routes with authentication
     from .auth_protection import protect_all_routes

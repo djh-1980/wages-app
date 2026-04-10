@@ -673,7 +673,7 @@ def get_submissions():
 
 
 def _store_obligations(obligations):
-    """Store or update obligations in database."""
+    """Store or update I&E obligations in database."""
     logger.info(f'_store_obligations called with {len(obligations)} obligation(s)')
     
     with get_db_connection() as conn:
@@ -718,6 +718,61 @@ def _store_obligations(obligations):
         logger.info(f'Successfully stored {stored_count} obligation(s) to database')
 
 
+def _store_final_declaration_obligations(obligations):
+    """Store or update final declaration (crystallisation) obligations in database."""
+    logger.info(f'_store_final_declaration_obligations called with {len(obligations)} obligation(s)')
+    
+    with get_db_connection() as conn:
+        cursor = conn.cursor()
+        stored_count = 0
+        
+        for obligation in obligations:
+            obligation_details = obligation.get('obligationDetails', [])
+            logger.info(f'Processing final declaration obligation with {len(obligation_details)} period(s)')
+            
+            for period in obligation_details:
+                # Calculate tax year from start date
+                start_date = period.get('inboundCorrespondenceFromDate')
+                tax_year = None
+                if start_date:
+                    from datetime import datetime
+                    date_obj = datetime.strptime(start_date, '%Y-%m-%d')
+                    if date_obj.month > 4 or (date_obj.month == 4 and date_obj.day >= 6):
+                        tax_year = f"{date_obj.year}/{date_obj.year + 1}"
+                    else:
+                        tax_year = f"{date_obj.year - 1}/{date_obj.year}"
+                
+                logger.info(f'Storing final declaration obligation: crystallisation - {tax_year} - {period.get("status")}')
+                
+                # Store with period_id='crystallisation' to distinguish from quarterly obligations
+                cursor.execute("""
+                    INSERT OR REPLACE INTO hmrc_obligations 
+                    (period_id, tax_year, start_date, end_date, due_date, status, received_date, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
+                """, (
+                    'crystallisation',
+                    tax_year,
+                    period.get('inboundCorrespondenceFromDate'),
+                    period.get('inboundCorrespondenceToDate'),
+                    period.get('inboundCorrespondenceDueDate'),
+                    period.get('status'),
+                    period.get('inboundCorrespondenceDateReceived')
+                ))
+                stored_count += 1
+        
+        conn.commit()
+        logger.info(f'Successfully stored {stored_count} final declaration obligation(s) to database')
+
+
+def _update_business_period_type(business_id, period_type):
+    """Update quarterly period type for a business in local database."""
+    # This is a placeholder - implement if you have a businesses table
+    # For now, just log the update
+    logger.info(f'Business {business_id} quarterly period type set to: {period_type}')
+    # TODO: Implement database update when businesses table is created
+    pass
+
+
 def _store_submission(tax_year, period_id, submission_data, result):
     """Store submission record in database."""
     status = 'submitted' if result.get('success') else 'failed'
@@ -742,6 +797,324 @@ def _store_submission(tax_year, period_id, submission_data, result):
             error_message
         ))
         conn.commit()
+
+
+@hmrc_bp.route('/obligations/final-declaration')
+@limiter.limit("20 per hour", override_defaults=True)
+def get_final_declaration_obligations():
+    """
+    Get final declaration (crystallisation) obligations.
+    
+    Query params:
+        nino: National Insurance Number
+        from_date: Start date (YYYY-MM-DD)
+        to_date: End date (YYYY-MM-DD)
+        status: 'O' for Open, 'F' for Fulfilled
+    
+    Returns:
+        Final declaration obligations
+    """
+    try:
+        nino = request.args.get('nino')
+        from_date = request.args.get('from_date')
+        to_date = request.args.get('to_date')
+        status = request.args.get('status')
+        
+        if not nino:
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.get_final_declaration_obligations(nino, from_date, to_date, status)
+        
+        if result.get('success'):
+            # Store obligations with type='crystallisation'
+            obligations = result.get('data', {}).get('obligations', [])
+            if obligations:
+                try:
+                    _store_final_declaration_obligations(obligations)
+                except Exception as store_error:
+                    logger.error(f'Error storing final declaration obligations: {store_error}')
+            
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error getting final declaration obligations: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/business/<business_id>')
+@limiter.limit("20 per hour", override_defaults=True)
+def get_business_detail(business_id):
+    """
+    Get single business details by ID.
+    
+    Query params:
+        nino: National Insurance Number
+    
+    Returns:
+        Business details
+    """
+    try:
+        nino = request.args.get('nino')
+        if not nino:
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.get_business_detail(nino, business_id)
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error getting business detail: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/business/<business_id>/quarterly-period-type', methods=['PUT'])
+@limiter.limit("20 per hour", override_defaults=True)
+def create_amend_quarterly_period_type(business_id):
+    """
+    Create or amend quarterly period type for a business.
+    
+    Request body:
+    {
+        "nino": "AA123456A",
+        "period_type": "standard" or "calendar"
+    }
+    
+    Returns:
+        Success status
+    """
+    try:
+        data = request.get_json()
+        nino = data.get('nino')
+        period_type = data.get('period_type')
+        
+        if not nino or not period_type:
+            return jsonify({'success': False, 'error': 'nino and period_type are required'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.create_amend_quarterly_period_type(nino, business_id, period_type)
+        
+        if result.get('success'):
+            # Update local database if you're tracking businesses
+            try:
+                _update_business_period_type(business_id, period_type)
+            except Exception as db_error:
+                logger.warning(f'Could not update local business record: {db_error}')
+            
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error creating/amending quarterly period type: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/calculations/list')
+@limiter.limit("20 per hour", override_defaults=True)
+def list_calculations():
+    """
+    List all tax calculations for a tax year.
+    
+    Query params:
+        nino: National Insurance Number
+        tax_year: Tax year (e.g., '2024/2025')
+    
+    Returns:
+        List of calculations
+    """
+    try:
+        nino = request.args.get('nino')
+        tax_year = request.args.get('tax_year')
+        
+        if not nino or not tax_year:
+            return jsonify({'success': False, 'error': 'nino and tax_year are required'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+            tax_year = validate_tax_year(tax_year)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.list_calculations(nino, tax_year)
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error listing calculations: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/calculations/<calculation_id>')
+@limiter.limit("20 per hour", override_defaults=True)
+def retrieve_calculation(calculation_id):
+    """
+    Retrieve a specific tax calculation by ID.
+    
+    Query params:
+        nino: National Insurance Number
+    
+    Returns:
+        Complete tax calculation with breakdown
+    """
+    try:
+        nino = request.args.get('nino')
+        
+        if not nino:
+            return jsonify({'success': False, 'error': 'nino is required'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.retrieve_calculation(nino, calculation_id)
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error retrieving calculation: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/self-employment/periods')
+@limiter.limit("20 per hour", override_defaults=True)
+def list_periods():
+    """
+    List all periods for a business and tax year.
+    
+    Query params:
+        nino: National Insurance Number
+        business_id: Business ID
+        tax_year: Tax year (e.g., '2024-25')
+    
+    Returns:
+        List of periods
+    """
+    try:
+        nino = request.args.get('nino')
+        business_id = request.args.get('business_id')
+        tax_year = request.args.get('tax_year')
+        
+        if not nino or not business_id or not tax_year:
+            return jsonify({'success': False, 'error': 'nino, business_id, and tax_year are required'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.list_periods(nino, business_id, tax_year)
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error listing periods: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/self-employment/annual-summary', methods=['GET', 'POST'])
+@limiter.limit("20 per hour", override_defaults=True)
+def annual_summary():
+    """
+    Get or update annual summary (allowances & adjustments).
+    
+    GET - Retrieve annual summary
+    Query params:
+        nino: National Insurance Number
+        business_id: Business ID
+        tax_year: Tax year (e.g., '2024-25')
+    
+    POST - Update annual summary
+    Request body:
+    {
+        "nino": "AA123456A",
+        "business_id": "XAIS12345678901",
+        "tax_year": "2024-25",
+        "annual_data": {
+            "allowances": {...},
+            "adjustments": {...}
+        }
+    }
+    
+    Returns:
+        Annual summary data or update confirmation
+    """
+    try:
+        if request.method == 'GET':
+            nino = request.args.get('nino')
+            business_id = request.args.get('business_id')
+            tax_year = request.args.get('tax_year')
+            
+            if not nino or not business_id or not tax_year:
+                return jsonify({'success': False, 'error': 'nino, business_id, and tax_year are required'}), 400
+            
+            try:
+                nino = validate_nino(nino)
+            except ValueError as e:
+                return jsonify({'success': False, 'error': str(e)}), 400
+            
+            client = HMRCClient()
+            result = client.get_annual_summary(nino, business_id, tax_year)
+            
+            if result.get('success'):
+                return jsonify({'success': True, 'data': result.get('data', {})})
+            else:
+                return jsonify(result)
+        
+        else:  # POST
+            data = request.get_json()
+            nino = data.get('nino')
+            business_id = data.get('business_id')
+            tax_year = data.get('tax_year')
+            annual_data = data.get('annual_data')
+            
+            if not nino or not business_id or not tax_year or not annual_data:
+                return jsonify({'success': False, 'error': 'nino, business_id, tax_year, and annual_data are required'}), 400
+            
+            try:
+                nino = validate_nino(nino)
+            except ValueError as e:
+                return jsonify({'success': False, 'error': str(e)}), 400
+            
+            client = HMRCClient()
+            result = client.update_annual_summary(nino, business_id, tax_year, annual_data)
+            
+            if result.get('success'):
+                return jsonify({'success': True, 'data': result.get('data', {})})
+            else:
+                return jsonify(result)
+    
+    except Exception as e:
+        logger.error(f'Error with annual summary: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @hmrc_bp.route('/final-declaration/status')
@@ -818,12 +1191,14 @@ def calculate_final_declaration():
     
     Query params:
         tax_year: Tax year (e.g., '2024/2025')
+        calculation_type: Optional - 'intent-to-finalise' (default), 'intent-to-amend', or 'in-year'
     
     Returns:
         Calculation ID and estimated tax
     """
     try:
         tax_year = request.args.get('tax_year')
+        calculation_type = request.args.get('calculation_type', 'intent-to-finalise')
         
         if not tax_year:
             return jsonify({'success': False, 'error': 'tax_year is required'}), 400
@@ -833,21 +1208,23 @@ def calculate_final_declaration():
         except ValueError as e:
             return jsonify({'success': False, 'error': str(e)}), 400
         
-        with get_db_connection() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT COUNT(*) as count
-                FROM hmrc_submissions
-                WHERE tax_year = ? AND period_id IN ('Q1', 'Q2', 'Q3', 'Q4')
-                AND status = 'submitted'
-            """, (tax_year,))
-            
-            result = cursor.fetchone()
-            if result['count'] < 4:
-                return jsonify({
-                    'success': False,
-                    'error': f'All 4 quarters must be submitted before calculating. Only {result["count"]} submitted.'
-                }), 400
+        # Only require all 4 quarters for intent-to-finalise
+        if calculation_type == 'intent-to-finalise':
+            with get_db_connection() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT COUNT(*) as count
+                    FROM hmrc_submissions
+                    WHERE tax_year = ? AND period_id IN ('Q1', 'Q2', 'Q3', 'Q4')
+                    AND status = 'submitted'
+                """, (tax_year,))
+                
+                result = cursor.fetchone()
+                if result['count'] < 4:
+                    return jsonify({
+                        'success': False,
+                        'error': f'All 4 quarters must be submitted before calculating. Only {result["count"]} submitted.'
+                    }), 400
         
         query = "SELECT nino FROM hmrc_credentials WHERE is_active = 1 LIMIT 1"
         creds = execute_query(query, fetch_one=True)
@@ -858,7 +1235,7 @@ def calculate_final_declaration():
         nino = creds['nino']
         
         client = HMRCClient()
-        result = client.trigger_crystallisation(nino, tax_year)
+        result = client.trigger_crystallisation(nino, tax_year, calculation_type)
         
         if not result.get('success'):
             return jsonify(result)
@@ -880,6 +1257,7 @@ def calculate_final_declaration():
             'data': {
                 'calculation_id': calculation_id,
                 'estimated_tax': estimated_tax,
+                'calculation_type': calculation_type,
                 'message': 'Tax calculation completed successfully'
             }
         })
@@ -898,7 +1276,8 @@ def submit_final_declaration():
     {
         "tax_year": "2024/2025",
         "calculation_id": "...",
-        "confirmed": true
+        "confirmed": true,
+        "declaration_type": "final-declaration" (optional, default) or "confirm-amendment"
     }
     
     Returns:
@@ -910,6 +1289,7 @@ def submit_final_declaration():
         tax_year = data.get('tax_year')
         calculation_id = data.get('calculation_id')
         confirmed = data.get('confirmed', False)
+        declaration_type = data.get('declaration_type', 'final-declaration')
         
         if not tax_year or not calculation_id:
             return jsonify({'success': False, 'error': 'tax_year and calculation_id are required'}), 400
@@ -930,7 +1310,7 @@ def submit_final_declaration():
             """, (tax_year, calculation_id))
             
             existing = cursor.fetchone()
-            if existing and existing['status'] == 'submitted':
+            if existing and existing['status'] == 'submitted' and declaration_type == 'final-declaration':
                 return jsonify({
                     'success': False,
                     'error': 'Final declaration already submitted for this tax year'
@@ -945,7 +1325,7 @@ def submit_final_declaration():
         nino = creds['nino']
         
         client = HMRCClient()
-        result = client.submit_final_declaration(nino, tax_year, calculation_id)
+        result = client.submit_final_declaration(nino, tax_year, calculation_id, declaration_type)
         
         if not result.get('success'):
             return jsonify(result)
@@ -967,6 +1347,7 @@ def submit_final_declaration():
             'success': True,
             'data': {
                 'receipt_id': receipt_id,
+                'declaration_type': declaration_type,
                 'message': 'Final declaration submitted successfully',
                 'submitted_at': datetime.now().isoformat()
             }

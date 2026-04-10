@@ -1,0 +1,288 @@
+{% extends "base.html" %}
+
+{% block title %}HMRC Sandbox Testing{% endblock %}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- SANDBOX WARNING BANNER -->
+    <div class="alert alert-danger border-danger mb-4" role="alert">
+        <div class="d-flex align-items-center">
+            <i class="bi bi-exclamation-triangle-fill fs-3 me-3"></i>
+            <div>
+                <h5 class="alert-heading mb-1">⚠️ SANDBOX TESTING ONLY</h5>
+                <p class="mb-0">
+                    This page is for development and testing purposes only.
+                    <strong>Remove this entire feature before production deployment.</strong>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-12">
+            <div class="card table-card">
+                <div class="card-body">
+                    <h2 class="mb-4">
+                        <i class="bi bi-bug-fill text-warning"></i>
+                        HMRC Sandbox Test User Management
+                    </h2>
+
+                    <!-- Active Test User Section -->
+                    <div class="card mb-4" id="activeUserCard" style="display: none;">
+                        <div class="card-header bg-success text-white">
+                            <h5 class="mb-0">
+                                <i class="bi bi-check-circle-fill"></i>
+                                Active Test User
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">User ID</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="userId" readonly>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard('userId')">
+                                                <i class="bi bi-clipboard"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">NINO</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="nino" readonly>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard('nino')">
+                                                <i class="bi bi-clipboard"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">SA UTR</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="saUtr" readonly>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard('saUtr')">
+                                                <i class="bi bi-clipboard"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Business ID</label>
+                                        <div class="input-group">
+                                            <input type="text" class="form-control" id="businessId" readonly>
+                                            <button class="btn btn-outline-secondary" type="button" onclick="copyToClipboard('businessId')">
+                                                <i class="bi bi-clipboard"></i> Copy
+                                            </button>
+                                        </div>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Trading Name</label>
+                                        <input type="text" class="form-control" id="tradingName" readonly>
+                                    </div>
+
+                                    <div class="mb-3">
+                                        <label class="form-label fw-bold">Accounting Type</label>
+                                        <input type="text" class="form-control" id="accountingType" readonly>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="alert alert-info mt-3">
+                                <i class="bi bi-info-circle-fill"></i>
+                                <strong>Created:</strong> <span id="createdAt"></span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- No Active User Message -->
+                    <div class="alert alert-warning" id="noUserAlert">
+                        <i class="bi bi-info-circle-fill"></i>
+                        No active test user found. Create a new test user to get started.
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="row mb-4">
+                        <div class="col-12">
+                            <h5 class="mb-3">Actions</h5>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-primary" onclick="createTestUser()">
+                                    <i class="bi bi-plus-circle"></i> Create New Test User
+                                </button>
+                                <button type="button" class="btn btn-success" id="createBusinessBtn" onclick="createTestBusiness()" disabled>
+                                    <i class="bi bi-download"></i> Fetch Business ID
+                                </button>
+                                <button type="button" class="btn btn-info" onclick="loadActiveUser()">
+                                    <i class="bi bi-arrow-clockwise"></i> Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Instructions -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-book"></i>
+                                Testing Instructions
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <ol>
+                                <li class="mb-2">
+                                    <strong>Create Test User:</strong> Click "Create New Test User" to generate a test individual with NINO and SA UTR.
+                                </li>
+                                <li class="mb-2">
+                                    <strong>Authenticate:</strong> After creating the user, you'll receive credentials. Use the OAuth flow to authenticate:
+                                    <ul>
+                                        <li>Go to HMRC MTD page and click "Connect to HMRC"</li>
+                                        <li>Use the provided User ID and Password to log in</li>
+                                    </ul>
+                                </li>
+                                <li class="mb-2">
+                                    <strong>Fetch Business:</strong> Once authenticated, click "Fetch Business ID" to retrieve the auto-provisioned business (HMRC creates it automatically).
+                                </li>
+                                <li class="mb-2">
+                                    <strong>Test APIs:</strong> Use the copied NINO and Business ID to test MTD ITSA APIs.
+                                </li>
+                            </ol>
+
+                            <div class="alert alert-warning mt-3">
+                                <i class="bi bi-exclamation-triangle"></i>
+                                <strong>Note:</strong> Test users are stateful in the sandbox environment. Each test user persists until you create a new one.
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Test User History -->
+                    <div class="card mt-4">
+                        <div class="card-header">
+                            <h5 class="mb-0">
+                                <i class="bi bi-clock-history"></i>
+                                Test User History
+                            </h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="table-responsive">
+                                <table class="table table-striped" id="historyTable">
+                                    <thead>
+                                        <tr>
+                                            <th>User ID</th>
+                                            <th>NINO</th>
+                                            <th>Business ID</th>
+                                            <th>Trading Name</th>
+                                            <th>Status</th>
+                                            <th>Created</th>
+                                            <th>Actions</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="historyTableBody">
+                                        <tr>
+                                            <td colspan="7" class="text-center text-muted">Loading...</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Loading Modal -->
+<div class="modal fade" id="loadingModal" data-bs-backdrop="static" data-bs-keyboard="false" tabindex="-1">
+    <div class="modal-dialog modal-dialog-centered">
+        <div class="modal-content">
+            <div class="modal-body text-center py-4">
+                <div class="spinner-border text-primary mb-3" role="status">
+                    <span class="visually-hidden">Loading...</span>
+                </div>
+                <h5 id="loadingMessage">Creating test user...</h5>
+                <p class="text-muted mb-0">This may take a few seconds</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Credentials Modal -->
+<div class="modal fade" id="credentialsModal" tabindex="-1">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header bg-success text-white">
+                <h5 class="modal-title">
+                    <i class="bi bi-check-circle-fill"></i>
+                    Test User Created Successfully
+                </h5>
+                <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-warning">
+                    <i class="bi bi-exclamation-triangle"></i>
+                    <strong>Important:</strong> Save these credentials! You'll need them to authenticate.
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">User ID</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="modalUserId" readonly>
+                        <button class="btn btn-outline-secondary" onclick="copyToClipboard('modalUserId')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">Password</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="modalPassword" readonly>
+                        <button class="btn btn-outline-secondary" onclick="copyToClipboard('modalPassword')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">NINO</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="modalNino" readonly>
+                        <button class="btn btn-outline-secondary" onclick="copyToClipboard('modalNino')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="mb-3">
+                    <label class="form-label fw-bold">SA UTR</label>
+                    <div class="input-group">
+                        <input type="text" class="form-control" id="modalSaUtr" readonly>
+                        <button class="btn btn-outline-secondary" onclick="copyToClipboard('modalSaUtr')">
+                            <i class="bi bi-clipboard"></i>
+                        </button>
+                    </div>
+                </div>
+
+                <div class="alert alert-info">
+                    <strong>Next Steps:</strong>
+                    <ol class="mb-0 mt-2">
+                        <li>Go to the HMRC MTD page</li>
+                        <li>Click "Connect to HMRC"</li>
+                        <li>Use the User ID and Password above to authenticate</li>
+                        <li>Return here and click "Fetch Business ID"</li>
+                    </ol>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-primary" data-bs-dismiss="modal">Got It</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script src="{{ url_for('static', filename='js/mtd-sandbox.js') }}"></script>
+{% endblock %}
