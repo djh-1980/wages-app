@@ -250,3 +250,177 @@ def delete_test_user(user_id):
     except Exception as e:
         logger.error(f'Error deleting test user: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@sandbox_bp.route('/generate-test-expenses', methods=['POST'])
+@csrf.exempt
+def generate_test_expenses():
+    """
+    Generate test expenses for MTD sandbox testing.
+    
+    Creates sample expenses across all 4 quarters of tax year 2024/2025
+    for testing quarterly submissions.
+    
+    WARNING: SANDBOX ONLY - Remove before production
+    
+    Returns:
+        Success status with count of generated expenses
+    """
+    try:
+        from ..database import get_db_connection
+        
+        # Test expenses data for 2024/2025 tax year
+        # Category IDs: 1=Vehicle Costs (hmrc_box='Vehicle costs'), 6=Admin Costs (hmrc_box='Admin costs')
+        test_expenses = [
+            # Q1 (06 Apr 2024 - 05 Jul 2024)
+            ('15/04/2024', 1, 'TEST - Test fuel expense Q1', 250.00, '2024/2025'),  # Vehicle Costs → travelCosts
+            ('01/05/2024', 6, 'TEST - Test office supplies Q1', 45.00, '2024/2025'),  # Admin Costs → adminCosts
+            ('20/06/2024', 1, 'TEST - Test van repair Q1', 180.00, '2024/2025'),  # Vehicle Costs → travelCosts
+            
+            # Q2 (06 Jul 2024 - 05 Oct 2024)
+            ('10/07/2024', 1, 'TEST - Test fuel expense Q2', 220.00, '2024/2025'),  # Vehicle Costs → travelCosts
+            ('01/08/2024', 6, 'TEST - Test software subscription Q2', 60.00, '2024/2025'),  # Admin Costs → adminCosts
+            ('15/09/2024', 1, 'TEST - Test parking Q2', 95.00, '2024/2025'),  # Vehicle Costs → travelCosts
+            
+            # Q3 (06 Oct 2024 - 05 Jan 2025)
+            ('12/10/2024', 1, 'TEST - Test fuel expense Q3', 310.00, '2024/2025'),  # Vehicle Costs → travelCosts
+            ('05/11/2024', 6, 'TEST - Test equipment Q3', 120.00, '2024/2025'),  # Admin Costs → adminCosts
+            ('20/12/2024', 1, 'TEST - Test toll charges Q3', 75.00, '2024/2025'),  # Vehicle Costs → travelCosts
+            
+            # Q4 (06 Jan 2025 - 05 Apr 2025)
+            ('15/01/2025', 1, 'TEST - Test fuel expense Q4', 290.00, '2024/2025'),  # Vehicle Costs → travelCosts
+            ('10/02/2025', 6, 'TEST - Test stationery Q4', 85.00, '2024/2025'),  # Admin Costs → adminCosts
+            ('20/03/2025', 1, 'TEST - Test van service Q4', 150.00, '2024/2025'),  # Vehicle Costs → travelCosts
+        ]
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Check if test expenses already exist
+            cursor.execute("""
+                SELECT COUNT(*) as count FROM expenses 
+                WHERE description LIKE 'TEST - %'
+            """)
+            existing_count = cursor.fetchone()['count']
+            
+            if existing_count > 0:
+                return jsonify({
+                    'success': False,
+                    'error': f'{existing_count} test expenses already exist. Delete them first before generating new ones.'
+                }), 400
+            
+            # Insert test expenses
+            for date, category_id, description, amount, tax_year in test_expenses:
+                cursor.execute("""
+                    INSERT INTO expenses (date, category_id, description, amount, tax_year)
+                    VALUES (?, ?, ?, ?, ?)
+                """, (date, category_id, description, amount, tax_year))
+            
+            conn.commit()
+            logger.info(f'Generated {len(test_expenses)} test expenses for sandbox testing')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully generated {len(test_expenses)} test expenses',
+            'count': len(test_expenses)
+        })
+    
+    except Exception as e:
+        logger.error(f'Error generating test expenses: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@sandbox_bp.route('/delete-test-expenses', methods=['POST'])
+@csrf.exempt
+def delete_test_expenses():
+    """
+    Delete all test expenses (those with description starting with "TEST - ").
+    
+    WARNING: SANDBOX ONLY - Remove before production
+    
+    Returns:
+        Success status with count of deleted expenses
+    """
+    try:
+        from ..database import get_db_connection
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Count test expenses before deletion
+            cursor.execute("""
+                SELECT COUNT(*) as count FROM expenses 
+                WHERE description LIKE 'TEST - %'
+            """)
+            count = cursor.fetchone()['count']
+            
+            if count == 0:
+                return jsonify({
+                    'success': False,
+                    'error': 'No test expenses found to delete'
+                }), 400
+            
+            # Delete test expenses
+            cursor.execute("""
+                DELETE FROM expenses 
+                WHERE description LIKE 'TEST - %'
+            """)
+            
+            conn.commit()
+            logger.info(f'Deleted {count} test expenses from sandbox')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully deleted {count} test expenses',
+            'count': count
+        })
+    
+    except Exception as e:
+        logger.error(f'Error deleting test expenses: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@sandbox_bp.route('/debug-token')
+def debug_token():
+    """
+    Get current HMRC access token for debugging API calls.
+    
+    WARNING: SANDBOX ONLY - This exposes the access token for curl testing.
+    Never use this in production!
+    
+    Returns:
+        JSON with access token and expiry info
+    """
+    try:
+        auth_service = HMRCAuthService()
+        
+        # Get stored credentials (includes access token, expiry, etc.)
+        credentials = auth_service.get_stored_credentials()
+        
+        if not credentials:
+            return jsonify({
+                'success': False,
+                'error': 'No valid credentials available. Please authenticate with HMRC first.'
+            }), 401
+        
+        # Get a valid access token (will refresh if needed)
+        access_token = auth_service.get_valid_access_token()
+        
+        if not access_token:
+            return jsonify({
+                'success': False,
+                'error': 'Could not get valid access token. Token may have expired.'
+            }), 401
+        
+        return jsonify({
+            'success': True,
+            'access_token': access_token,
+            'expires_at': credentials['expires_at'],
+            'environment': credentials['environment'],
+            'scope': credentials['scope'],
+            'warning': 'SANDBOX ONLY - Never expose tokens in production!'
+        })
+    
+    except Exception as e:
+        logger.error(f'Error getting debug token: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500

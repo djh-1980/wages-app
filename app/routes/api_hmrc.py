@@ -364,6 +364,8 @@ def preview_period():
     Query params:
         tax_year: Tax year (e.g., '2024/2025')
         period_id: Period ID (Q1, Q2, Q3, Q4)
+        from_date: Optional start date (YYYY-MM-DD)
+        to_date: Optional end date (YYYY-MM-DD)
     
     Returns:
         Formatted submission data
@@ -372,6 +374,8 @@ def preview_period():
     try:
         tax_year = request.args.get('tax_year')
         period_id = request.args.get('period_id')
+        from_date = request.args.get('from_date')
+        to_date = request.args.get('to_date')
         
         if not tax_year or not period_id:
             return jsonify({'success': False, 'error': 'tax_year and period_id are required'}), 400
@@ -382,10 +386,15 @@ def preview_period():
         except ValueError as e:
             return jsonify({'success': False, 'error': str(e)}), 400
         
-        logger.info(f"Building submission for {tax_year} {period_id}")
+        logger.info(f"Building submission preview for {tax_year} {period_id} (from: {from_date}, to: {to_date})")
         
         try:
-            submission_data = HMRCMapper.build_period_submission(tax_year, period_id)
+            submission_data = HMRCMapper.build_period_submission(
+                tax_year, 
+                period_id,
+                from_date=from_date,
+                to_date=to_date
+            )
             logger.debug(f"Submission data built successfully: {type(submission_data)}")
         except Exception as mapper_error:
             logger.error(f"Mapper error: {mapper_error}")
@@ -439,7 +448,9 @@ def submit_period():
         "nino": "AA123456A",
         "business_id": "XAIS12345678901",
         "tax_year": "2024/2025",
-        "period_id": "Q1"
+        "period_id": "Q1",
+        "from_date": "2024-04-06" (optional),
+        "to_date": "2024-07-05" (optional)
     }
     
     Returns:
@@ -478,8 +489,15 @@ def submit_period():
                     'hmrc_receipt_id': existing['hmrc_receipt_id']
                 }), 409
         
-        # Build submission data
-        submission_data = HMRCMapper.build_period_submission(data['tax_year'], data['period_id'])
+        # Build submission data with optional date override
+        from_date = data.get('from_date')
+        to_date = data.get('to_date')
+        submission_data = HMRCMapper.build_period_submission(
+            data['tax_year'], 
+            data['period_id'],
+            from_date=from_date,
+            to_date=to_date
+        )
         
         if not submission_data:
             return jsonify({'success': False, 'error': 'Failed to build submission data'}), 400
@@ -495,9 +513,30 @@ def submit_period():
         
         # Submit to HMRC
         client = HMRCClient()
-        result = client.create_period(data['nino'], data['business_id'], submission_data)
+        result = client.create_period(data['nino'], data['business_id'], data['tax_year'], submission_data)
         
-        # Store submission record
+        # Check if this is a duplicate submission (already submitted successfully)
+        if not result.get('success') and 'error' in result:
+            error_msg = result.get('error', '')
+            # HMRC returns RULE_DUPLICATE_SUBMISSION if period already submitted
+            if 'RULE_DUPLICATE_SUBMISSION' in error_msg or 'duplicate' in error_msg.lower():
+                # Treat as success - period was already submitted
+                logger.info(f'Period {data["period_id"]} for {data["tax_year"]} already submitted to HMRC')
+                
+                # Store/update submission record as submitted
+                _store_submission(data['tax_year'], data['period_id'], submission_data, {
+                    'success': True,
+                    'message': 'Already submitted',
+                    'data': {}
+                })
+                
+                return jsonify({
+                    'success': True,
+                    'message': 'This period has already been submitted to HMRC.',
+                    'already_submitted': True
+                })
+        
+        # Store submission record for new submissions
         _store_submission(data['tax_year'], data['period_id'], submission_data, result)
         
         if result.get('success'):

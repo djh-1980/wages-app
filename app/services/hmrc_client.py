@@ -3,6 +3,7 @@ HMRC API Client for Making Tax Digital (MTD) Self-Employment Income & Expenses A
 Handles all API calls with fraud prevention headers and error handling.
 """
 
+import json
 import logging
 import platform
 import socket
@@ -120,6 +121,11 @@ class HMRCClient:
             **self._get_fraud_prevention_headers()
         }
         
+        # For sandbox environment, use STATEFUL test scenario by default
+        if self.environment == 'sandbox':
+            headers['Gov-Test-Scenario'] = 'STATEFUL'
+        
+        # Allow override of test scenario if explicitly provided
         if test_scenario:
             headers['Gov-Test-Scenario'] = test_scenario
         
@@ -129,10 +135,19 @@ class HMRCClient:
         safe_endpoint = endpoint.replace(r'/[A-Z]{2}\d{6}[A-D]', '/[NINO]')  # Mask NINOs
         logger.info(f"HMRC API call: {method} {safe_endpoint} (environment: {self.environment})")
         
+        # Log request headers (mask Authorization token for security)
+        safe_headers = dict(headers)
+        if 'Authorization' in safe_headers:
+            safe_headers['Authorization'] = 'Bearer [REDACTED]'
+        logger.info(f'Request headers: {safe_headers}')
+        
         try:
             if method == 'GET':
                 response = requests.get(url, headers=headers, params=params, timeout=30)
             elif method == 'POST':
+                # Log the request payload for debugging
+                if data:
+                    logger.info(f'Period submission payload: {json.dumps(data, indent=2)}')
                 response = requests.post(url, headers=headers, json=data, timeout=30)
             elif method == 'PUT':
                 response = requests.put(url, headers=headers, json=data, timeout=30)
@@ -394,20 +409,25 @@ class HMRCClient:
         endpoint = f"/test-support/self-assessment/ni/{nino}/self-employments"
         return self._make_request('POST', endpoint, data=test_business_data)
     
-    def create_period(self, nino, business_id, period_data):
+    def create_period(self, nino, business_id, tax_year, period_data):
         """
-        Create a new period with income and expenses.
+        Submit period data to HMRC.
+        
+        Self Employment Business API v5.0 POST /period endpoint.
+        Tax year is NOT in the URL - it's derived from the periodDates in the payload.
         
         Args:
             nino: National Insurance Number
             business_id: Business ID from HMRC
-            period_data: Period data including from/to dates and financials
+            tax_year: Tax year (not used in URL, kept for compatibility)
+            period_data: Period data including dates and financials
             
         Returns:
-            dict: Creation response
+            dict: Submission response
         """
-        # Self Employment Business API v5.0 endpoint format
-        endpoint = f"/individuals/business/self-employment/{business_id}/period"
+        # Self Employment Business API v5.0 period endpoint
+        # Tax year is NOT in the URL path
+        endpoint = f"/individuals/business/self-employment/{nino}/{business_id}/period"
         return self._make_request('POST', endpoint, data=period_data)
     
     def update_period(self, nino, business_id, period_id, period_data):

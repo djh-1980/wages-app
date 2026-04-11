@@ -344,3 +344,73 @@ function getAlertClass(type) {
     };
     return typeMap[type] || 'info';
 }
+
+/**
+ * Generate test expenses for MTD sandbox testing
+ */
+async function generateTestExpenses() {
+    if (!confirm('This will generate 12 test expenses (3 per quarter) for tax year 2024/2025.\n\nAll expenses will be prefixed with "TEST -" for easy identification.\n\nContinue?')) {
+        return;
+    }
+    
+    try {
+        document.getElementById('loadingMessage').textContent = 'Generating test expenses...';
+        loadingModal.show();
+        
+        const response = await fetch('/api/hmrc/sandbox/generate-test-expenses', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+        
+        const result = await response.json();
+        loadingModal.hide();
+        
+        if (result.success) {
+            showNotification(`Successfully generated ${result.count} test expenses!`, 'success');
+        } else {
+            showNotification(result.error || 'Failed to generate test expenses', 'error');
+        }
+    } catch (error) {
+        loadingModal.hide();
+        console.error('Error generating test expenses:', error);
+        showNotification('Error generating test expenses', 'error');
+    }
+}
+
+/**
+ * Delete all test expenses
+ */
+async function deleteTestExpenses() {
+    if (!confirm('This will permanently delete ALL test expenses (those with description starting with "TEST -").\n\nThis action cannot be undone.\n\nContinue?')) {
+        return;
+    }
+    
+    try {
+        document.getElementById('loadingMessage').textContent = 'Deleting test expenses...';
+        loadingModal.show();
+        
+        const response = await fetch('/api/hmrc/sandbox/delete-test-expenses', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+        
+        const result = await response.json();
+        loadingModal.hide();
+        
+        if (result.success) {
+            showNotification(`Successfully deleted ${result.count} test expenses!`, 'success');
+        } else {
+            showNotification(result.error || 'Failed to delete test expenses', 'error');
+        }
+    } catch (error) {
+        loadingModal.hide();
+        console.error('Error deleting test expenses:', error);
+        showNotification('Error deleting test expenses', 'error');
+    }
+}

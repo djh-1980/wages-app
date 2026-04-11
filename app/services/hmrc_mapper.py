@@ -3,10 +3,13 @@ HMRC Data Mapping Service for MTD Self-Employment.
 Maps expense data to HMRC API format and validates submissions.
 """
 
+import logging
 from datetime import datetime
 
 from ..models.expense import ExpenseModel
 from ..database import execute_query
+
+logger = logging.getLogger(__name__)
 
 
 class HMRCMapper:
@@ -89,64 +92,73 @@ class HMRCMapper:
         Returns:
             dict: HMRC-formatted expense data
         """
-        # Initialize expense categories
+        # Initialize expense categories - Pre-TY 2023-24 format (flat decimal values)
+        # HMRC Self Employment Business API v5.0 for TY 2024-25 uses this format
         expense_data = {
-            'costOfGoodsBought': {'amount': 0, 'disallowableAmount': 0},
-            'cisPaymentsToSubcontractors': {'amount': 0, 'disallowableAmount': 0},
-            'staffCosts': {'amount': 0, 'disallowableAmount': 0},
-            'travelCosts': {'amount': 0, 'disallowableAmount': 0},
-            'premisesRunningCosts': {'amount': 0, 'disallowableAmount': 0},
-            'maintenanceCosts': {'amount': 0, 'disallowableAmount': 0},
-            'adminCosts': {'amount': 0, 'disallowableAmount': 0},
-            'advertisingCosts': {'amount': 0, 'disallowableAmount': 0},
-            'interest': {'amount': 0, 'disallowableAmount': 0},
-            'financialCharges': {'amount': 0, 'disallowableAmount': 0},
-            'badDebt': {'amount': 0, 'disallowableAmount': 0},
-            'professionalFees': {'amount': 0, 'disallowableAmount': 0},
-            'depreciation': {'amount': 0, 'disallowableAmount': 0},
-            'other': {'amount': 0, 'disallowableAmount': 0}
+            'costOfGoodsBought': 0,
+            'cisPaymentsToSubcontractors': 0,
+            'staffCosts': 0,
+            'travelCosts': 0,
+            'premisesRunningCosts': 0,
+            'maintenanceCosts': 0,
+            'adminCosts': 0,
+            'advertisingCosts': 0,
+            'interest': 0,
+            'financialCharges': 0,
+            'badDebt': 0,
+            'professionalFees': 0,
+            'depreciation': 0,
+            'other': 0
         }
         
         # Map each expense to HMRC category
         for expense in expenses:
             amount = float(expense['amount'])
             hmrc_box = expense.get('hmrc_box', 'Other expenses')
+            hmrc_box_lower = hmrc_box.lower()  # Case-insensitive matching
             
-            # Map to HMRC API field names
-            if 'Cost of goods bought' in hmrc_box or 'Materials' in hmrc_box:
-                expense_data['costOfGoodsBought']['amount'] += amount
-            elif 'CIS payments' in hmrc_box:
-                expense_data['cisPaymentsToSubcontractors']['amount'] += amount
-            elif 'Maintenance costs' in hmrc_box:
-                expense_data['maintenanceCosts']['amount'] += amount
-            elif 'Motor expenses' in hmrc_box or 'Vehicle costs' in hmrc_box or 'Fuel' in hmrc_box:
-                # Motor expenses include van finance, insurance, breakdown, fuel, vehicle costs
-                expense_data['travelCosts']['amount'] += amount
-            elif 'Travel costs' in hmrc_box:
-                expense_data['travelCosts']['amount'] += amount
-            elif 'Premises costs' in hmrc_box:
-                expense_data['premisesRunningCosts']['amount'] += amount
-            elif 'Admin costs' in hmrc_box:
-                expense_data['adminCosts']['amount'] += amount
-            elif 'Advertising' in hmrc_box:
-                expense_data['advertisingCosts']['amount'] += amount
-            elif 'Interest' in hmrc_box:
-                expense_data['interest']['amount'] += amount
-            elif 'Financial charges' in hmrc_box:
-                expense_data['financialCharges']['amount'] += amount
-            elif 'Professional fees' in hmrc_box:
-                expense_data['professionalFees']['amount'] += amount
-            elif 'Depreciation' in hmrc_box:
-                expense_data['depreciation']['amount'] += amount
+            # Debug logging to see actual category values
+            logger.debug(f'Mapping expense: amount={amount}, hmrc_box="{hmrc_box}", category="{expense.get("category_name", "Unknown")}"')
+            
+            # Map to HMRC API pre-TY 2023-24 field names (flat decimal values)
+            # IMPORTANT: Check 'admin' BEFORE 'advertis' to prevent mismatches
+            if 'cost of goods' in hmrc_box_lower or 'materials' in hmrc_box_lower:
+                expense_data['costOfGoodsBought'] += amount
+            elif 'cis' in hmrc_box_lower and 'payment' in hmrc_box_lower:
+                expense_data['cisPaymentsToSubcontractors'] += amount
+            elif 'staff' in hmrc_box_lower or 'wages' in hmrc_box_lower:
+                expense_data['staffCosts'] += amount
+            elif 'motor' in hmrc_box_lower or 'vehicle' in hmrc_box_lower or 'fuel' in hmrc_box_lower or 'travel' in hmrc_box_lower:
+                # Motor/vehicle/travel expenses → travelCosts
+                expense_data['travelCosts'] += amount
+            elif 'premises' in hmrc_box_lower:
+                expense_data['premisesRunningCosts'] += amount
+            elif 'maintenance' in hmrc_box_lower:
+                expense_data['maintenanceCosts'] += amount
+            elif 'admin' in hmrc_box_lower:
+                # Check admin BEFORE advertising to prevent "Admin" matching "Advertising"
+                expense_data['adminCosts'] += amount
+            elif 'advertis' in hmrc_box_lower:
+                expense_data['advertisingCosts'] += amount
+            elif 'interest' in hmrc_box_lower:
+                expense_data['interest'] += amount
+            elif 'financial' in hmrc_box_lower:
+                expense_data['financialCharges'] += amount
+            elif 'bad debt' in hmrc_box_lower or 'irrecoverable' in hmrc_box_lower:
+                expense_data['badDebt'] += amount
+            elif 'professional' in hmrc_box_lower or 'fees' in hmrc_box_lower:
+                expense_data['professionalFees'] += amount
+            elif 'depreciation' in hmrc_box_lower:
+                expense_data['depreciation'] += amount
             else:
-                expense_data['other']['amount'] += amount
+                expense_data['other'] += amount
         
         # Round all amounts to 2 decimal places
         for category in expense_data:
-            expense_data[category]['amount'] = round(expense_data[category]['amount'], 2)
+            expense_data[category] = round(expense_data[category], 2)
         
-        # Remove categories with zero amounts
-        expense_data = {k: v for k, v in expense_data.items() if v['amount'] > 0}
+        # Only include expense fields with non-zero amounts
+        expense_data = {k: v for k, v in expense_data.items() if v > 0}
         
         return expense_data
     
@@ -179,26 +191,36 @@ class HMRCMapper:
         return round(float(result['total_income'] or 0), 2)
     
     @staticmethod
-    def build_period_submission(tax_year, period_id):
+    def build_period_submission(tax_year, period_id, from_date=None, to_date=None):
         """
         Build complete period submission data for HMRC.
         
         Args:
             tax_year: Tax year string (e.g., '2024/2025')
             period_id: Period ID (Q1, Q2, Q3, Q4)
+            from_date: Optional start date (YYYY-MM-DD) - if provided, overrides calculated period
+            to_date: Optional end date (YYYY-MM-DD) - if provided, overrides calculated period
             
         Returns:
             dict: Complete submission data
         """
-        periods = HMRCMapper.calculate_quarterly_periods(tax_year)
-        period_info = next((p for p in periods if p['period_id'] == period_id), None)
-        
-        if not period_info:
-            return None
+        # Use provided dates if available, otherwise calculate from tax_year and period_id
+        if from_date and to_date:
+            start_date = from_date
+            end_date = to_date
+        else:
+            periods = HMRCMapper.calculate_quarterly_periods(tax_year)
+            period_info = next((p for p in periods if p['period_id'] == period_id), None)
+            
+            if not period_info:
+                return None
+            
+            start_date = period_info['start_date']
+            end_date = period_info['end_date']
         
         # Get expenses for this period
-        start_date_display = datetime.strptime(period_info['start_date'], '%Y-%m-%d').strftime('%d/%m/%Y')
-        end_date_display = datetime.strptime(period_info['end_date'], '%Y-%m-%d').strftime('%d/%m/%Y')
+        start_date_display = datetime.strptime(start_date, '%Y-%m-%d').strftime('%d/%m/%Y')
+        end_date_display = datetime.strptime(end_date, '%Y-%m-%d').strftime('%d/%m/%Y')
         
         expenses = ExpenseModel.get_expenses(
             start_date=start_date_display,
@@ -207,24 +229,26 @@ class HMRCMapper:
         
         # Get income for this period
         total_income = HMRCMapper.get_income_for_period(
-            period_info['start_date'],
-            period_info['end_date']
+            start_date,
+            end_date
         )
         
         # Map expenses to HMRC format
         expense_data = HMRCMapper.map_expenses_to_hmrc_format(expenses)
         
-        # Build submission
+        # Build submission - HMRC Self Employment Business API v5.0 format
+        # TY 2024-25: nested structure with periodDates/periodIncome/periodExpenses
+        # TY 2025-26+: flat structure with fromDate/toDate/income/expenses
         submission = {
-            'periodFromDate': period_info['start_date'],
-            'periodToDate': period_info['end_date'],
-            'from': period_info['start_date'],
-            'to': period_info['end_date'],
-            'incomes': {
+            'periodDates': {
+                'periodStartDate': start_date,
+                'periodEndDate': end_date
+            },
+            'periodIncome': {
                 'turnover': total_income,
                 'other': 0
             },
-            'expenses': expense_data
+            'periodExpenses': expense_data
         }
         
         return submission
@@ -242,35 +266,37 @@ class HMRCMapper:
         """
         errors = []
         
-        # Check required fields
-        if 'from' not in submission_data or 'to' not in submission_data:
-            errors.append('Missing period dates (from/to)')
+        # Check required fields - HMRC Self Employment Business API v5.0
+        # TY 2024-25: nested structure
+        if 'periodDates' not in submission_data:
+            errors.append('Missing periodDates object')
+        elif 'periodStartDate' not in submission_data['periodDates'] or 'periodEndDate' not in submission_data['periodDates']:
+            errors.append('Missing period dates in periodDates object')
         
         # Check income
-        if 'incomes' not in submission_data:
-            errors.append('Missing income data')
-        elif 'turnover' not in submission_data['incomes']:
-            errors.append('Missing turnover in income')
+        if 'periodIncome' not in submission_data:
+            errors.append('Missing periodIncome object')
+        elif 'turnover' not in submission_data['periodIncome']:
+            errors.append('Missing turnover in periodIncome')
         
         # Check expenses
-        if 'expenses' not in submission_data:
-            errors.append('Missing expense data')
-        elif not submission_data['expenses']:
-            errors.append('No expenses provided')
+        if 'periodExpenses' not in submission_data:
+            errors.append('Missing periodExpenses object')
+        elif not submission_data['periodExpenses']:
+            errors.append('No expenses provided in periodExpenses')
         
         # Validate amounts are positive
-        if 'incomes' in submission_data and 'turnover' in submission_data['incomes']:
-            turnover = submission_data['incomes']['turnover']
-            # Handle both dict format and simple number format
-            amount = turnover.get('amount', turnover) if isinstance(turnover, dict) else turnover
-            if amount < 0:
+        if 'periodIncome' in submission_data and 'turnover' in submission_data['periodIncome']:
+            turnover = submission_data['periodIncome']['turnover']
+            if turnover < 0:
                 errors.append('Turnover amount cannot be negative')
         
-        if 'expenses' in submission_data:
-            for category, data in submission_data['expenses'].items():
-                # Handle both dict format and simple number format
-                amount = data.get('amount', data) if isinstance(data, dict) else data
-                if amount < 0:
+        if 'periodExpenses' in submission_data:
+            for category, amount in submission_data['periodExpenses'].items():
+                # Pre-TY 2023-24 format uses flat decimal values
+                if not isinstance(amount, (int, float)):
+                    errors.append(f'Expense {category} must be a number, not {type(amount).__name__}')
+                elif amount < 0:
                     errors.append(f'Expense amount for {category} cannot be negative')
         
         return {

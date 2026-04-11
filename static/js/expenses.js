@@ -9,6 +9,15 @@ let expenses = [];
 document.addEventListener('DOMContentLoaded', function() {
     loadCategories();
     loadTaxYears();
+    
+    // Check for MTD submission mode
+    const urlParams = new URLSearchParams(window.location.search);
+    const mode = urlParams.get('mode');
+    
+    if (mode === 'mtd_submission') {
+        setupMTDSubmissionMode(urlParams);
+    }
+    
     loadExpenses();
     
     // Set today's date as default (YYYY-MM-DD for date input)
@@ -1172,6 +1181,68 @@ async function downloadGmailReceipts() {
 let hmrcSubmissionData = null;
 
 /**
+ * Setup MTD submission mode from URL parameters
+ */
+function setupMTDSubmissionMode(urlParams) {
+    const fromDate = urlParams.get('from_date');
+    const toDate = urlParams.get('to_date');
+    const taxYear = urlParams.get('tax_year');
+    const periodId = urlParams.get('period_id');
+    
+    if (!fromDate || !toDate || !taxYear || !periodId) {
+        console.error('Missing required MTD submission parameters');
+        return;
+    }
+    
+    // Set date range filters
+    const filterFromDate = document.getElementById('filterFromDate');
+    const filterToDate = document.getElementById('filterToDate');
+    const filterTaxYear = document.getElementById('filterTaxYear');
+    
+    if (filterFromDate) filterFromDate.value = fromDate;
+    if (filterToDate) filterToDate.value = toDate;
+    if (filterTaxYear) filterTaxYear.value = taxYear;
+    
+    // Lock the fields (make readonly)
+    if (filterFromDate) filterFromDate.readOnly = true;
+    if (filterToDate) filterToDate.readOnly = true;
+    if (filterTaxYear) filterTaxYear.disabled = true;
+    
+    // Format dates for display
+    const formatDisplayDate = (dateStr) => {
+        const date = new Date(dateStr);
+        return date.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+    };
+    
+    // Show blue banner at the top
+    const pageHeader = document.querySelector('.page-header');
+    if (pageHeader) {
+        const banner = document.createElement('div');
+        banner.className = 'alert alert-info mb-3';
+        banner.innerHTML = `
+            <i class="bi bi-info-circle"></i>
+            <strong>Submitting ${periodId} (${formatDisplayDate(fromDate)} - ${formatDisplayDate(toDate)}) to HMRC MTD.</strong>
+            Figures are taken from your digital records for this period.
+        `;
+        pageHeader.after(banner);
+    }
+    
+    // Update submit button label
+    const submitBtn = document.getElementById('hmrcSubmitBtn');
+    if (submitBtn) {
+        submitBtn.innerHTML = `<i class="bi bi-send-fill"></i> Submit ${periodId} to HMRC MTD`;
+    }
+    
+    // Store MTD submission context
+    window.mtdSubmissionContext = {
+        fromDate,
+        toDate,
+        taxYear,
+        periodId
+    };
+}
+
+/**
  * Check HMRC connection status and show/hide submit button
  */
 async function checkHMRCConnection() {
@@ -1226,13 +1297,34 @@ function showHMRCSubmitModal() {
  * Preview HMRC submission
  */
 async function previewHMRCSubmission() {
-    const taxYear = document.getElementById('hmrcTaxYear').value;
-    const quarter = document.getElementById('hmrcQuarter').value;
+    // Check if we're in MTD submission mode
+    const mtdContext = window.mtdSubmissionContext;
+    let taxYear, quarter, fromDate, toDate;
+    
+    if (mtdContext) {
+        // Use context from MTD submission mode
+        taxYear = mtdContext.taxYear;
+        quarter = mtdContext.periodId;
+        fromDate = mtdContext.fromDate;
+        toDate = mtdContext.toDate;
+    } else {
+        // Use values from modal
+        taxYear = document.getElementById('hmrcTaxYear').value;
+        quarter = document.getElementById('hmrcQuarter').value;
+    }
     
     try {
         showExpenseNotification('Loading submission preview...', 'info');
         
-        const response = await fetch(`/api/hmrc/period/preview?tax_year=${taxYear}&period_id=${quarter}`);
+        // Build URL with optional date parameters
+        let url = `/api/hmrc/period/preview?tax_year=${taxYear}&period_id=${quarter}`;
+        if (fromDate && toDate) {
+            url += `&from_date=${fromDate}&to_date=${toDate}`;
+        }
+        
+        console.log('Preview request:', { tax_year: taxYear, period_id: quarter, from_date: fromDate, to_date: toDate });
+        
+        const response = await fetch(url);
         const responseData = await response.json();
         const data = responseData.success ? responseData.data : responseData;
         
@@ -1261,24 +1353,24 @@ function displayHMRCPreview(submissionData, validation) {
     let html = '<div class="card mb-3">';
     html += '<div class="card-header"><strong>Period Information</strong></div>';
     html += '<div class="card-body">';
-    html += `<p><strong>From:</strong> ${submissionData.periodFromDate}</p>`;
-    html += `<p><strong>To:</strong> ${submissionData.periodToDate}</p>`;
+    html += `<p><strong>From:</strong> ${submissionData.periodDates?.periodStartDate || 'N/A'}</p>`;
+    html += `<p><strong>To:</strong> ${submissionData.periodDates?.periodEndDate || 'N/A'}</p>`;
     html += '</div></div>';
     
     // Income
-    if (submissionData.incomes) {
+    if (submissionData.periodIncome) {
         html += '<div class="card mb-3">';
         html += '<div class="card-header"><strong>Income</strong></div>';
         html += '<div class="card-body">';
-        const turnover = parseFloat(submissionData.incomes.turnover) || 0;
-        const otherIncome = parseFloat(submissionData.incomes.other) || 0;
+        const turnover = parseFloat(submissionData.periodIncome.turnover) || 0;
+        const otherIncome = parseFloat(submissionData.periodIncome.other) || 0;
         html += `<p><strong>Turnover:</strong> £${turnover.toFixed(2)}</p>`;
         html += `<p><strong>Other:</strong> £${otherIncome.toFixed(2)}</p>`;
         html += '</div></div>';
     }
     
     // Expenses
-    if (submissionData.expenses) {
+    if (submissionData.periodExpenses) {
         html += '<div class="card mb-3">';
         html += '<div class="card-header"><strong>Expenses</strong></div>';
         html += '<div class="card-body">';
@@ -1302,8 +1394,8 @@ function displayHMRCPreview(submissionData, validation) {
         };
         
         for (const [key, label] of Object.entries(expenseFields)) {
-            if (submissionData.expenses[key]) {
-                const amount = parseFloat(submissionData.expenses[key].amount || submissionData.expenses[key]) || 0;
+            if (submissionData.periodExpenses[key]) {
+                const amount = parseFloat(submissionData.periodExpenses[key].amount || submissionData.periodExpenses[key]) || 0;
                 if (amount > 0) {
                     html += `<p><strong>${label}:</strong> £${amount.toFixed(2)}</p>`;
                 }
@@ -1346,8 +1438,21 @@ async function confirmHMRCSubmission() {
         return;
     }
     
-    const taxYear = document.getElementById('hmrcTaxYear').value;
-    const quarter = document.getElementById('hmrcQuarter').value;
+    // Check if we're in MTD submission mode
+    const mtdContext = window.mtdSubmissionContext;
+    let taxYear, quarter, fromDate, toDate;
+    
+    if (mtdContext) {
+        // Use context from MTD submission mode
+        taxYear = mtdContext.taxYear;
+        quarter = mtdContext.periodId;
+        fromDate = mtdContext.fromDate;
+        toDate = mtdContext.toDate;
+    } else {
+        // Use values from modal
+        taxYear = document.getElementById('hmrcTaxYear').value;
+        quarter = document.getElementById('hmrcQuarter').value;
+    }
     
     // Get NINO and Business ID from localStorage
     const nino = localStorage.getItem('hmrc_nino');
@@ -1361,18 +1466,43 @@ async function confirmHMRCSubmission() {
     try {
         showExpenseNotification('Submitting to HMRC...', 'info');
         
+        const requestBody = {
+            nino: nino,
+            business_id: businessId,
+            tax_year: taxYear,
+            period_id: quarter
+        };
+        
+        // Include from_date and to_date if available
+        if (fromDate && toDate) {
+            requestBody.from_date = fromDate;
+            requestBody.to_date = toDate;
+        }
+        
+        // Log the exact dates being sent to API
+        console.log('HMRC Submission Request:', {
+            from_date: requestBody.from_date || 'Not provided (will be calculated)',
+            to_date: requestBody.to_date || 'Not provided (will be calculated)',
+            tax_year: requestBody.tax_year,
+            period_id: requestBody.period_id
+        });
+        
         const response = await fetch('/api/hmrc/period/submit', {
             method: 'POST',
             headers: getJSONHeaders(),
-            body: JSON.stringify({
-                nino: nino,
-                business_id: businessId,
-                tax_year: taxYear,
-                period_id: quarter
-            })
+            body: JSON.stringify(requestBody)
         });
         
         const data = await response.json();
+        
+        // If in MTD submission mode and successful, redirect back to MTD page
+        if (mtdContext && data.success) {
+            showExpenseNotification('Submission successful! Redirecting to HMRC MTD page...', 'success');
+            setTimeout(() => {
+                window.location.href = '/settings/hmrc?submission_success=true';
+            }, 2000);
+            return;
+        }
         
         // Show result
         displayHMRCResult(data);

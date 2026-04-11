@@ -231,7 +231,11 @@ async function loadObligations() {
         // API returns: {success: true, data: {obligations: [...], count: N}}
         if (responseData.success && responseData.data && responseData.data.obligations && responseData.data.obligations.length > 0) {
             obligationsList.innerHTML = responseData.data.obligations.map(obligation => `
-                <div class="card obligation-card ${obligation.status.toLowerCase()}">
+                <div class="card obligation-card ${obligation.status.toLowerCase()}" 
+                     data-period-id="${obligation.period_id}"
+                     data-start-date="${obligation.start_date}"
+                     data-end-date="${obligation.end_date}"
+                     data-tax-year="${obligation.tax_year || ''}">
                     <div class="card-body">
                         <div class="row">
                             <div class="col-md-8">
@@ -392,9 +396,61 @@ function saveModalConfig() {
 }
 
 function submitPeriod(periodId) {
-    // This will be implemented in the expenses page
-    // For now, redirect to expenses page
-    window.location.href = `/expenses?submit_period=${periodId}`;
+    // Find the obligation data for this period
+    const obligationsList = document.getElementById('obligationsList');
+    const obligationCard = obligationsList.querySelector(`[data-period-id="${periodId}"]`);
+    
+    if (!obligationCard) {
+        showNotification('Could not find obligation details', 'error');
+        return;
+    }
+    
+    // Get dates from data attributes (already in YYYY-MM-DD format)
+    const startDate = obligationCard.dataset.startDate;
+    const endDate = obligationCard.dataset.endDate;
+    let taxYear = obligationCard.dataset.taxYear;
+    
+    // If tax year not stored, derive from start date
+    if (!taxYear) {
+        const startDateObj = new Date(startDate);
+        const taxYearStart = startDateObj.getMonth() >= 3 ? startDateObj.getFullYear() : startDateObj.getFullYear() - 1;
+        taxYear = `${taxYearStart}/${taxYearStart + 1}`;
+    }
+    
+    console.log('Submitting period:', {
+        period_id: periodId,
+        from_date: startDate,
+        to_date: endDate,
+        tax_year: taxYear
+    });
+    
+    // Navigate to expenses page with all required parameters
+    const params = new URLSearchParams({
+        from_date: startDate,
+        to_date: endDate,
+        tax_year: taxYear,
+        period_id: periodId,
+        mode: 'mtd_submission'
+    });
+    
+    window.location.href = `/expenses?${params.toString()}`;
+}
+
+function parseDateString(dateStr) {
+    // Parse "06 Apr 2024" format to YYYY-MM-DD
+    const months = {
+        'Jan': '01', 'Feb': '02', 'Mar': '03', 'Apr': '04',
+        'May': '05', 'Jun': '06', 'Jul': '07', 'Aug': '08',
+        'Sep': '09', 'Oct': '10', 'Nov': '11', 'Dec': '12'
+    };
+    const parts = dateStr.trim().split(/\s+/);
+    if (parts.length === 3) {
+        const day = parts[0].padStart(2, '0');
+        const month = months[parts[1]];
+        const year = parts[2];
+        return `${year}-${month}-${day}`;
+    }
+    return dateStr;
 }
 
 function formatDate(dateStr) {
