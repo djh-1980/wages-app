@@ -139,53 +139,71 @@ class HMRCAuthService:
                 'error': str(e)
             }
     
-    def _store_tokens(self, token_data):
+    def _store_tokens(self, token_data, nino=None):
         """
         Store or update tokens in database with encryption.
-        
+
         Args:
             token_data: Token response from HMRC
+            nino: Optional NINO to associate with these credentials
         """
         expires_in = token_data.get('expires_in', 14400)  # Default 4 hours
         expires_at = datetime.now() + timedelta(seconds=expires_in)
-        
+
         # Encrypt tokens before storage
         encryption = get_encryption()
         encrypted_access_token = encryption.encrypt(token_data.get('access_token'))
         encrypted_refresh_token = encryption.encrypt(token_data.get('refresh_token'))
-        
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
-            
+
             # Deactivate all existing credentials
             cursor.execute(
                 "UPDATE hmrc_credentials SET is_active = 0"
             )
-            
+
             # Insert new credentials (encrypted)
             cursor.execute("""
-                INSERT INTO hmrc_credentials 
-                (access_token, refresh_token, expires_at, scope, environment, is_active)
-                VALUES (?, ?, ?, ?, ?, 1)
+                INSERT INTO hmrc_credentials
+                (access_token, refresh_token, expires_at, scope, environment, is_active, nino)
+                VALUES (?, ?, ?, ?, ?, 1, ?)
             """, (
                 encrypted_access_token,
                 encrypted_refresh_token,
                 expires_at.isoformat(),
                 token_data.get('scope', 'read:self-assessment write:self-assessment'),
-                self.environment
+                self.environment,
+                nino
             ))
-            
+
             conn.commit()
     
+    def update_credential_nino(self, nino):
+        """
+        Set the NINO on the active credential.
+        Called after we discover which test user the token belongs to.
+
+        Args:
+            nino: National Insurance Number to associate
+        """
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE hmrc_credentials SET nino = ? WHERE is_active = 1 AND environment = ?",
+                (nino, self.environment)
+            )
+            conn.commit()
+
     def get_stored_credentials(self):
         """
         Get active stored credentials from database and decrypt tokens.
-        
+
         Returns:
             dict: Decrypted credentials or None if not found
         """
         query = """
-            SELECT access_token, refresh_token, expires_at, scope, environment
+            SELECT access_token, refresh_token, expires_at, scope, environment, nino
             FROM hmrc_credentials
             WHERE is_active = 1 AND environment = ?
             ORDER BY created_at DESC

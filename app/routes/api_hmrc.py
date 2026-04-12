@@ -528,7 +528,7 @@ def submit_period():
                     'success': True,
                     'message': 'Already submitted',
                     'data': {}
-                })
+                }, nino=data['nino'])
                 
                 return jsonify({
                     'success': True,
@@ -537,7 +537,7 @@ def submit_period():
                 })
         
         # Store submission record for new submissions
-        _store_submission(data['tax_year'], data['period_id'], submission_data, result)
+        _store_submission(data['tax_year'], data['period_id'], submission_data, result, nino=data['nino'])
         
         if result.get('success'):
             return jsonify({'success': True, 'data': result.get('data', {})})
@@ -812,19 +812,37 @@ def _update_business_period_type(business_id, period_type):
     pass
 
 
-def _store_submission(tax_year, period_id, submission_data, result):
+def _get_sandbox_nino():
+    """Get NINO from the active sandbox test user, if one exists."""
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT nino, business_id FROM sandbox_test_users
+                WHERE is_active = 1
+                ORDER BY created_at DESC LIMIT 1
+            """)
+            row = cursor.fetchone()
+            if row:
+                return dict(row)
+    except Exception as e:
+        logger.warning(f'Could not look up sandbox test user: {e}')
+    return None
+
+
+def _store_submission(tax_year, period_id, submission_data, result, nino=None):
     """Store submission record in database."""
     status = 'submitted' if result.get('success') else 'failed'
     receipt_id = result.get('data', {}).get('id') if result.get('success') else None
     error_message = result.get('error') if not result.get('success') else None
-    
+
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
-            INSERT INTO hmrc_submissions 
-            (tax_year, period_id, submission_date, status, hmrc_receipt_id, 
-             submission_data, response_data, error_message)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            INSERT INTO hmrc_submissions
+            (tax_year, period_id, submission_date, status, hmrc_receipt_id,
+             submission_data, response_data, error_message, nino)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             tax_year,
             period_id,
@@ -833,7 +851,8 @@ def _store_submission(tax_year, period_id, submission_data, result):
             receipt_id,
             json.dumps(submission_data),
             json.dumps(result.get('data', {})),
-            error_message
+            error_message,
+            nino
         ))
         conn.commit()
 
@@ -1230,12 +1249,12 @@ def final_declaration_status():
 def calculate_final_declaration():
     """
     Trigger crystallisation (tax calculation) for a tax year.
-    
+
     Query params:
         tax_year: Tax year (e.g., '2024/2025')
-        nino: National Insurance Number
+        nino: National Insurance Number (optional in sandbox — auto-resolved from active test user)
         calculation_type: Optional - 'intent-to-finalise' (default), 'intent-to-amend', or 'in-year'
-    
+
     Returns:
         Calculation ID and estimated tax
     """
@@ -1243,18 +1262,48 @@ def calculate_final_declaration():
         tax_year = request.args.get('tax_year')
         nino = request.args.get('nino')
         calculation_type = request.args.get('calculation_type', 'intent-to-finalise')
-        
+
         if not tax_year:
             return jsonify({'success': False, 'error': 'tax_year is required'}), 400
-        
-        if not nino:
-            return jsonify({'success': False, 'error': 'NINO is required'}), 400
-        
+
         try:
             tax_year = validate_tax_year(tax_year)
         except ValueError as e:
             return jsonify({'success': False, 'error': str(e)}), 400
-        
+
+        # Resolve NINO: use sandbox test user if available, validate against provided NINO
+        from flask import current_app
+        sandbox_user = None
+        if current_app.config.get('HMRC_ENVIRONMENT') == 'sandbox':
+            sandbox_user = _get_sandbox_nino()
+
+        if not nino and sandbox_user:
+            nino = sandbox_user['nino']
+            logger.info(f'Auto-resolved NINO from active sandbox test user: {nino}')
+        elif not nino:
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
+
+        # Warn if caller NINO doesn't match sandbox test user
+        if sandbox_user and nino.upper() != sandbox_user['nino'].upper():
+            logger.warning(
+                f'NINO mismatch: caller passed {nino} but active sandbox test user is {sandbox_user["nino"]}'
+            )
+            return jsonify({
+                'success': False,
+                'error': f'NINO mismatch: you provided {nino} but the active sandbox test user is {sandbox_user["nino"]}. '
+                         f'The OAuth token was issued for the sandbox test user. Use NINO {sandbox_user["nino"]} or re-authenticate.'
+            }), 400
+
+        # Validate NINO format
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': f'Invalid NINO: {str(e)}'}), 400
+
+        # Tag the active OAuth credential with this NINO
+        auth_service = HMRCAuthService()
+        auth_service.update_credential_nino(nino)
+
         # Only require all 4 quarters for intent-to-finalise
         if calculation_type == 'intent-to-finalise':
             with get_db_connection() as conn:
@@ -1265,44 +1314,39 @@ def calculate_final_declaration():
                     WHERE tax_year = ? AND period_id IN ('Q1', 'Q2', 'Q3', 'Q4')
                     AND status = 'submitted'
                 """, (tax_year,))
-                
+
                 result = cursor.fetchone()
                 if result['count'] < 4:
                     return jsonify({
                         'success': False,
                         'error': f'All 4 quarters must be submitted before calculating. Only {result["count"]} submitted.'
                     }), 400
-        
-        # Validate NINO format
-        try:
-            nino = validate_nino(nino)
-        except ValueError as e:
-            return jsonify({'success': False, 'error': f'Invalid NINO: {str(e)}'}), 400
-        
+
         client = HMRCClient()
         result = client.trigger_crystallisation(nino, tax_year, calculation_type)
-        
+
         if not result.get('success'):
             return jsonify(result)
-        
+
         calculation_id = result.get('data', {}).get('calculationId') or result.get('data', {}).get('id')
         estimated_tax = result.get('data', {}).get('totalIncomeTaxAndNicsDue', 0.0)
-        
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
-                INSERT INTO hmrc_final_declarations 
-                (tax_year, calculation_id, estimated_tax, status)
-                VALUES (?, ?, ?, 'calculated')
-            """, (tax_year, calculation_id, estimated_tax))
+                INSERT INTO hmrc_final_declarations
+                (tax_year, calculation_id, estimated_tax, status, nino)
+                VALUES (?, ?, ?, 'calculated', ?)
+            """, (tax_year, calculation_id, estimated_tax, nino))
             conn.commit()
-        
+
         return jsonify({
             'success': True,
             'data': {
                 'calculation_id': calculation_id,
                 'estimated_tax': estimated_tax,
                 'calculation_type': calculation_type,
+                'nino': nino,
                 'message': 'Tax calculation completed successfully'
             }
         })
@@ -1336,32 +1380,43 @@ def submit_final_declaration():
         nino = data.get('nino')
         confirmed = data.get('confirmed', False)
         declaration_type = data.get('declaration_type', 'final-declaration')
-        
+
         if not tax_year or not calculation_id:
             return jsonify({'success': False, 'error': 'tax_year and calculation_id are required'}), 400
-        
+
         if not confirmed:
             return jsonify({'success': False, 'error': 'You must confirm the declaration is correct'}), 400
-        
+
         try:
             tax_year = validate_tax_year(tax_year)
         except ValueError as e:
             return jsonify({'success': False, 'error': str(e)}), 400
-        
+
+        # Auto-resolve NINO from sandbox test user if not provided
+        from flask import current_app
+        if not nino and current_app.config.get('HMRC_ENVIRONMENT') == 'sandbox':
+            sandbox_user = _get_sandbox_nino()
+            if sandbox_user:
+                nino = sandbox_user['nino']
+                logger.info(f'Auto-resolved NINO from active sandbox test user: {nino}')
+
+        if not nino:
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
+
         with get_db_connection() as conn:
             cursor = conn.cursor()
             cursor.execute("""
                 SELECT status FROM hmrc_final_declarations
                 WHERE tax_year = ? AND calculation_id = ?
             """, (tax_year, calculation_id))
-            
+
             existing = cursor.fetchone()
             if existing and existing['status'] == 'submitted' and declaration_type == 'final-declaration':
                 return jsonify({
                     'success': False,
                     'error': 'Final declaration already submitted for this tax year'
                 }), 409
-        
+
         # Validate NINO format
         try:
             nino = validate_nino(nino)
