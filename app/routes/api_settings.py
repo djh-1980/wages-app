@@ -409,3 +409,5 @@ def api_save_email_settings():
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
+
+

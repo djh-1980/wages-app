@@ -157,22 +157,22 @@
         <div class="col-12">
             <ul class="nav nav-pills mb-3" role="tablist">
                 <li class="nav-item">
-                    <a class="nav-link active" data-toggle="pill" href="#obligations">
+                    <a class="nav-link active" data-bs-toggle="pill" data-bs-target="#obligations" role="tab">
                         <i class="fas fa-calendar-check"></i> Quarterly Obligations
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-toggle="pill" href="#submissions">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#submissions" role="tab">
                         <i class="fas fa-paper-plane"></i> Submission History
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-toggle="pill" href="#finalDeclaration">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#finalDeclaration" role="tab">
                         <i class="fas fa-file-signature"></i> Final Declaration
                     </a>
                 </li>
                 <li class="nav-item">
-                    <a class="nav-link" data-toggle="pill" href="#help">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#help" role="tab">
                         <i class="fas fa-question-circle"></i> Help & Documentation
                     </a>
                 </li>
@@ -201,8 +201,8 @@
                             <h5 class="card-title">Submission History</h5>
                             <div id="submissionsList">
                                 <div class="text-center text-muted py-5">
-                                    <i class="fas fa-inbox fa-3x mb-3"></i>
-                                    <p>No submissions yet</p>
+                                    <i class="fas fa-spinner fa-spin fa-3x mb-3"></i>
+                                    <p>Loading submissions...</p>
                                 </div>
                             </div>
                         </div>
@@ -223,7 +223,7 @@
                             </div>
                             
                             <!-- Tax Year Selector -->
-                            <div class="form-group">
+                            <div class="form-group mb-4">
                                 <label for="finalDeclTaxYear"><strong>Select Tax Year:</strong></label>
                                 <select class="form-control" id="finalDeclTaxYear" style="max-width: 300px;">
                                     <option value="2024/2025">2024/2025</option>
@@ -232,63 +232,69 @@
                                 </select>
                             </div>
                             
-                            <hr>
-                            
-                            <!-- Quarterly Submissions Checklist -->
-                            <h6><i class="fas fa-tasks"></i> Quarterly Submissions Status</h6>
-                            <div id="quarterlyChecklist" class="mb-4">
-                                <div class="list-group">
-                                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span><i class="fas fa-circle text-muted"></i> Q1 (Apr 6 - Jul 5)</span>
-                                        <span class="badge badge-secondary" id="q1Status">Not Submitted</span>
-                                    </div>
-                                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span><i class="fas fa-circle text-muted"></i> Q2 (Jul 6 - Oct 5)</span>
-                                        <span class="badge badge-secondary" id="q2Status">Not Submitted</span>
-                                    </div>
-                                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span><i class="fas fa-circle text-muted"></i> Q3 (Oct 6 - Jan 5)</span>
-                                        <span class="badge badge-secondary" id="q3Status">Not Submitted</span>
-                                    </div>
-                                    <div class="list-group-item d-flex justify-content-between align-items-center">
-                                        <span><i class="fas fa-circle text-muted"></i> Q4 (Jan 6 - Apr 5)</span>
-                                        <span class="badge badge-secondary" id="q4Status">Not Submitted</span>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Tax Calculation Section -->
-                            <div id="taxCalculationSection" class="mb-4" style="display: none;">
-                                <h6><i class="fas fa-calculator"></i> Tax Calculation</h6>
-                                <div class="alert alert-success">
-                                    <p><strong>Estimated Tax Liability:</strong> <span id="estimatedTax">£0.00</span></p>
-                                    <p class="mb-0"><strong>Calculation ID:</strong> <code id="calculationId"></code></p>
-                                </div>
-                            </div>
-                            
-                            <!-- Action Buttons -->
-                            <div class="row">
-                                <div class="col-md-6 mb-3">
-                                    <button id="calculateTaxBtn" class="btn btn-primary btn-lg w-100" disabled>
-                                        <i class="fas fa-calculator"></i> Calculate Tax Liability
+                            <!-- Step-by-Step Flow -->
+                            <div id="finalDeclSteps">
+                                <!-- Step 1: Trigger Calculation -->
+                                <div id="step1" class="mb-4">
+                                    <h6 class="text-primary"><i class="fas fa-circle"></i> Step 1: Trigger Tax Calculation</h6>
+                                    <p>Request HMRC to calculate your tax liability for the selected tax year.</p>
+                                    <button id="triggerCalcBtn" class="btn btn-primary">
+                                        <i class="fas fa-calculator"></i> Trigger Tax Calculation
                                     </button>
-                                    <small class="form-text text-muted">All 4 quarters must be submitted first</small>
+                                    <div id="step1Loading" class="mt-3" style="display: none;">
+                                        <i class="fas fa-spinner fa-spin"></i> Requesting calculation from HMRC...
+                                    </div>
                                 </div>
-                                <div class="col-md-6 mb-3">
-                                    <button id="submitFinalDeclBtn" class="btn btn-success btn-lg w-100" disabled>
-                                        <i class="fas fa-file-signature"></i> Submit Final Declaration
+                                
+                                <!-- Step 2: View Calculation -->
+                                <div id="step2" class="mb-4" style="display: none;">
+                                    <h6 class="text-success"><i class="fas fa-check-circle"></i> Step 2: View Calculation</h6>
+                                    <div class="alert alert-success">
+                                        <p><strong>Calculation ID:</strong> <code id="calcIdDisplay"></code></p>
+                                    </div>
+                                    <button id="viewCalcBtn" class="btn btn-info">
+                                        <i class="fas fa-eye"></i> View Calculation Details
                                     </button>
-                                    <small class="form-text text-muted">Tax must be calculated first</small>
+                                    <div id="calcDetails" class="mt-3" style="display: none;">
+                                        <div class="card">
+                                            <div class="card-body">
+                                                <h6>Tax Calculation Summary</h6>
+                                                <div id="calcSummary"></div>
+                                                <div class="alert alert-warning mt-3">
+                                                    <small><strong>HMRC Disclaimer:</strong> This calculation is only based on information HMRC have received about your income and expenses to date. This may change as we receive further information about you during the tax year.</small>
+                                                </div>
+                                                <button id="proceedToStep3Btn" class="btn btn-primary mt-2">
+                                                    <i class="fas fa-arrow-right"></i> Proceed to Final Declaration
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
-                            </div>
-                            
-                            <!-- Declaration Status -->
-                            <div id="declarationStatusSection" style="display: none;">
-                                <hr>
-                                <div class="alert alert-success">
-                                    <h6><i class="fas fa-check-circle"></i> Final Declaration Submitted</h6>
-                                    <p><strong>Receipt ID:</strong> <code id="receiptId"></code></p>
-                                    <p class="mb-0"><strong>Submitted:</strong> <span id="submittedAt"></span></p>
+                                
+                                <!-- Step 3: Final Declaration -->
+                                <div id="step3" class="mb-4" style="display: none;">
+                                    <h6 class="text-warning"><i class="fas fa-exclamation-triangle"></i> Step 3: Final Declaration</h6>
+                                    <div class="alert alert-danger">
+                                        <h6><strong>HMRC Declaration Statement</strong></h6>
+                                        <p class="mb-0">I confirm that the information I have provided is correct and complete to the best of my knowledge and belief. I understand that I may have to pay financial penalties and face prosecution if I give false information.</p>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input type="checkbox" class="form-check-input" id="declarationCheckbox">
+                                        <label class="form-check-label" for="declarationCheckbox">
+                                            <strong>I have read and agree to the above declaration</strong>
+                                        </label>
+                                    </div>
+                                    <button id="submitDeclBtn" class="btn btn-danger" disabled>
+                                        <i class="fas fa-file-signature"></i> Submit Final Declaration to HMRC
+                                    </button>
+                                </div>
+                                
+                                <!-- Success Message -->
+                                <div id="stepSuccess" style="display: none;">
+                                    <div class="alert alert-success">
+                                        <h6><i class="fas fa-check-circle"></i> Final Declaration Submitted Successfully!</h6>
+                                        <p id="successMessage"></p>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -299,46 +305,89 @@
                 <div class="tab-pane fade" id="help">
                     <div class="card settings-card">
                         <div class="card-body">
-                            <h5 class="card-title">Getting Started with HMRC MTD</h5>
+                            <h5 class="card-title"><i class="fas fa-book"></i> Help & Documentation</h5>
                             
                             <div class="alert alert-info">
                                 <h6><i class="fas fa-info-circle"></i> What is Making Tax Digital?</h6>
                                 <p>Making Tax Digital (MTD) is HMRC's initiative to digitize the tax system. Self-employed individuals must submit quarterly updates of income and expenses digitally.</p>
                             </div>
                             
-                            <h6>Setup Steps:</h6>
+                            <h6><i class="fas fa-tasks"></i> MTD Process Overview</h6>
                             <ol>
-                                <li><strong>Register with HMRC:</strong> Sign up for MTD at <a href="https://www.gov.uk/guidance/sign-up-for-making-tax-digital-for-income-tax" target="_blank">gov.uk</a></li>
-                                <li><strong>Get Developer Credentials:</strong> Create an application at <a href="https://developer.service.hmrc.gov.uk" target="_blank">HMRC Developer Hub</a></li>
-                                <li><strong>Configure Environment Variables:</strong> Add your Client ID and Client Secret to the .env file</li>
-                                <li><strong>Connect:</strong> Click "Connect to HMRC" to authorize the application</li>
-                                <li><strong>Enter Details:</strong> Provide your NINO and Business ID</li>
-                                <li><strong>Submit Quarterly:</strong> Use the Expenses page to submit quarterly updates</li>
+                                <li><strong>Connect to HMRC:</strong> Authorize this application to access your MTD account</li>
+                                <li><strong>Submit Quarterly Updates:</strong> Submit income and expenses for each quarter (Q1-Q4)</li>
+                                <li><strong>Trigger Tax Calculation:</strong> After all 4 quarters, request HMRC to calculate your tax</li>
+                                <li><strong>Submit Final Declaration:</strong> Confirm all information is correct and complete</li>
+                                <li><strong>Pay Tax:</strong> Pay any tax owed by the deadline (31 January)</li>
                             </ol>
                             
-                            <h6>Environment Variables Required:</h6>
-                            <pre class="bg-light p-3 rounded">
-HMRC_CLIENT_ID=your-client-id
-HMRC_CLIENT_SECRET=your-client-secret
-HMRC_REDIRECT_URI=http://localhost:5000/api/hmrc/auth/callback
-HMRC_ENVIRONMENT=sandbox  # or 'production'
-                            </pre>
+                            <hr>
                             
-                            <h6>Quarterly Deadlines:</h6>
+                            <h6><i class="fas fa-calendar-alt"></i> Quarterly Deadlines</h6>
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Quarter</th>
+                                            <th>Period</th>
+                                            <th>Submission Deadline</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Q1</strong></td>
+                                            <td>6 April - 5 July</td>
+                                            <td>5 August</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Q2</strong></td>
+                                            <td>6 July - 5 October</td>
+                                            <td>5 November</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Q3</strong></td>
+                                            <td>6 October - 5 January</td>
+                                            <td>5 February</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Q4</strong></td>
+                                            <td>6 January - 5 April</td>
+                                            <td>5 May</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <hr>
+                            
+                            <h6><i class="fas fa-link"></i> HMRC Resources</h6>
                             <ul>
-                                <li><strong>Q1:</strong> April 6 - July 5 (Due: August 5)</li>
-                                <li><strong>Q2:</strong> July 6 - October 5 (Due: November 5)</li>
-                                <li><strong>Q3:</strong> October 6 - January 5 (Due: February 5)</li>
-                                <li><strong>Q4:</strong> January 6 - April 5 (Due: May 5)</li>
+                                <li><a href="https://www.gov.uk/guidance/sign-up-for-making-tax-digital-for-income-tax" target="_blank" rel="noopener">Sign up for MTD <i class="fas fa-external-link-alt"></i></a></li>
+                                <li><a href="https://developer.service.hmrc.gov.uk" target="_blank" rel="noopener">HMRC Developer Hub <i class="fas fa-external-link-alt"></i></a></li>
+                                <li><a href="https://www.gov.uk/government/organisations/hm-revenue-customs/contact/income-tax-enquiries-for-individuals-pensioners-and-employees" target="_blank" rel="noopener">Contact HMRC Support <i class="fas fa-external-link-alt"></i></a></li>
+                                <li><a href="https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/self-assessment-api" target="_blank" rel="noopener">MTD API Documentation <i class="fas fa-external-link-alt"></i></a></li>
                             </ul>
                             
-                            <div class="alert alert-warning">
+                            <hr>
+                            
+                            <h6><i class="fas fa-phone"></i> HMRC Contact Details</h6>
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <p><strong>Self Assessment Helpline:</strong></p>
+                                    <p class="mb-2"><i class="fas fa-phone"></i> 0300 200 3310</p>
+                                    <p class="mb-2"><i class="fas fa-clock"></i> Monday to Friday, 8am to 6pm</p>
+                                    <p class="mb-0"><small class="text-muted">Closed on weekends and bank holidays</small></p>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-warning mt-3">
                                 <h6><i class="fas fa-exclamation-triangle"></i> Important Notes</h6>
                                 <ul class="mb-0">
-                                    <li>Always test in sandbox environment first</li>
-                                    <li>Keep your credentials secure and never commit them to version control</li>
-                                    <li>Quarterly submissions are mandatory - late submissions may incur penalties</li>
-                                    <li>Review all data before submitting to HMRC</li>
+                                    <li>Always test in <strong>sandbox environment</strong> first before using production</li>
+                                    <li>Keep your HMRC credentials secure and never share them</li>
+                                    <li>Late submissions may incur penalties from HMRC</li>
+                                    <li>Review all data carefully before submitting</li>
+                                    <li>Final declarations cannot be undone once submitted</li>
                                 </ul>
                             </div>
                         </div>

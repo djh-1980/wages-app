@@ -1020,8 +1020,11 @@ def retrieve_calculation(calculation_id):
     try:
         nino = request.args.get('nino')
         
+        if not calculation_id:
+            return jsonify({'success': False, 'error': 'calculation_id is required'}), 400
+        
         if not nino:
-            return jsonify({'success': False, 'error': 'nino is required'}), 400
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
         
         try:
             nino = validate_nino(nino)
@@ -1230,6 +1233,7 @@ def calculate_final_declaration():
     
     Query params:
         tax_year: Tax year (e.g., '2024/2025')
+        nino: National Insurance Number
         calculation_type: Optional - 'intent-to-finalise' (default), 'intent-to-amend', or 'in-year'
     
     Returns:
@@ -1237,10 +1241,14 @@ def calculate_final_declaration():
     """
     try:
         tax_year = request.args.get('tax_year')
+        nino = request.args.get('nino')
         calculation_type = request.args.get('calculation_type', 'intent-to-finalise')
         
         if not tax_year:
             return jsonify({'success': False, 'error': 'tax_year is required'}), 400
+        
+        if not nino:
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
         
         try:
             tax_year = validate_tax_year(tax_year)
@@ -1265,13 +1273,11 @@ def calculate_final_declaration():
                         'error': f'All 4 quarters must be submitted before calculating. Only {result["count"]} submitted.'
                     }), 400
         
-        query = "SELECT nino FROM hmrc_credentials WHERE is_active = 1 LIMIT 1"
-        creds = execute_query(query, fetch_one=True)
-        
-        if not creds or not creds.get('nino'):
-            return jsonify({'success': False, 'error': 'NINO not found in credentials'}), 400
-        
-        nino = creds['nino']
+        # Validate NINO format
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': f'Invalid NINO: {str(e)}'}), 400
         
         client = HMRCClient()
         result = client.trigger_crystallisation(nino, tax_year, calculation_type)
@@ -1309,24 +1315,25 @@ def calculate_final_declaration():
 @limiter.limit("20 per hour", override_defaults=True)
 def submit_final_declaration():
     """
-    Submit final declaration to HMRC.
+    Submit final declaration (crystallisation) to HMRC.
     
     Request body:
     {
         "tax_year": "2024/2025",
-        "calculation_id": "...",
+        "calculation_id": "abc123",
+        "nino": "AA123456A",
         "confirmed": true,
-        "declaration_type": "final-declaration" (optional, default) or "confirm-amendment"
+        "declaration_type": "final-declaration" or "intent-to-amend"
     }
     
     Returns:
-        Submission result with receipt
+        Receipt ID and confirmation
     """
     try:
         data = request.get_json()
-        
         tax_year = data.get('tax_year')
         calculation_id = data.get('calculation_id')
+        nino = data.get('nino')
         confirmed = data.get('confirmed', False)
         declaration_type = data.get('declaration_type', 'final-declaration')
         
@@ -1355,13 +1362,11 @@ def submit_final_declaration():
                     'error': 'Final declaration already submitted for this tax year'
                 }), 409
         
-        query = "SELECT nino FROM hmrc_credentials WHERE is_active = 1 LIMIT 1"
-        creds = execute_query(query, fetch_one=True)
-        
-        if not creds or not creds.get('nino'):
-            return jsonify({'success': False, 'error': 'NINO not found in credentials'}), 400
-        
-        nino = creds['nino']
+        # Validate NINO format
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': f'Invalid NINO: {str(e)}'}), 400
         
         client = HMRCClient()
         result = client.submit_final_declaration(nino, tax_year, calculation_id, declaration_type)

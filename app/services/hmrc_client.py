@@ -542,8 +542,15 @@ class HMRCClient:
                 'error': f'calculation_type must be one of: {", ".join(valid_types)}'
             }
         
-        formatted_tax_year = tax_year.replace('/', '-')
-        endpoint = f"/individuals/calculations/crystallisation/{nino}/{formatted_tax_year}"
+        # Convert tax year from YYYY/YYYY to YYYY-YY format (e.g., '2024/2025' -> '2024-25')
+        if '/' in tax_year:
+            parts = tax_year.split('/')
+            formatted_tax_year = f"{parts[0]}-{parts[1][-2:]}"
+        else:
+            formatted_tax_year = tax_year
+        
+        # Correct endpoint: POST /individuals/calculations/{nino}/self-assessment
+        endpoint = f"/individuals/calculations/{nino}/self-assessment"
         data = {
             'taxYear': formatted_tax_year,
             'calculationType': calculation_type

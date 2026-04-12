@@ -26,10 +26,13 @@ document.addEventListener('DOMContentLoaded', function() {
         window.history.replaceState({}, document.title, window.location.pathname);
     }
     
-    // Load final declaration status when tab is shown
-    $('a[data-toggle="pill"][href="#finalDeclaration"]').on('shown.bs.tab', function() {
-        loadFinalDeclarationStatus();
+    // Load submission history when tab is shown
+    document.querySelector('a[data-bs-target="#submissions"]').addEventListener('shown.bs.tab', function() {
+        loadSubmissionHistory();
     });
+    
+    // Setup final declaration step flow
+    setupFinalDeclarationFlow();
 });
 
 function setupEventListeners() {
@@ -41,13 +44,14 @@ function setupEventListeners() {
     document.getElementById('modalSaveBtn').addEventListener('click', saveModalConfig);
     
     // Final declaration event listeners
-    document.getElementById('finalDeclTaxYear').addEventListener('change', loadFinalDeclarationStatus);
-    document.getElementById('calculateTaxBtn').addEventListener('click', calculateTaxLiability);
-    document.getElementById('submitFinalDeclBtn').addEventListener('click', showFinalDeclConfirmation);
-    document.getElementById('confirmCheckbox').addEventListener('change', function() {
-        document.getElementById('confirmSubmitBtn').disabled = !this.checked;
+    // Final declaration step-by-step flow
+    document.getElementById('triggerCalcBtn').addEventListener('click', triggerTaxCalculation);
+    document.getElementById('viewCalcBtn').addEventListener('click', viewCalculationDetails);
+    document.getElementById('proceedToStep3Btn').addEventListener('click', proceedToStep3);
+    document.getElementById('declarationCheckbox').addEventListener('change', function() {
+        document.getElementById('submitDeclBtn').disabled = !this.checked;
     });
-    document.getElementById('confirmSubmitBtn').addEventListener('click', submitFinalDeclaration);
+    document.getElementById('submitDeclBtn').addEventListener('click', submitFinalDeclaration);
 }
 
 async function loadConnectionStatus() {
@@ -357,6 +361,7 @@ function saveConfiguration() {
 }
 
 function loadStoredConfig() {
+    // Load from localStorage
     const nino = localStorage.getItem('hmrc_nino');
     const businessId = localStorage.getItem('hmrc_business_id');
     
@@ -495,9 +500,258 @@ function showNotification(message, type = 'info', validationErrors = null) {
 }
 
 function getCSRFHeaders() {
+    const csrfToken = document.querySelector('meta[name="csrf-token"]');
     return {
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken ? csrfToken.content : ''
     };
+}
+
+// ============================================================================
+// SUBMISSION HISTORY FUNCTIONS
+// ============================================================================
+
+async function loadSubmissionHistory() {
+    const container = document.getElementById('submissionsList');
+    
+    try {
+        const response = await fetch('/api/hmrc/submissions');
+        const data = await response.json();
+        
+        if (data.success && data.submissions && data.submissions.length > 0) {
+            let html = '<div class="table-responsive"><table class="table table-hover">';
+            html += '<thead><tr>';
+            html += '<th>Period</th>';
+            html += '<th>Tax Year</th>';
+            html += '<th>Submitted Date</th>';
+            html += '<th>Status</th>';
+            html += '<th>HMRC Period ID</th>';
+            html += '</tr></thead><tbody>';
+            
+            data.submissions.forEach(sub => {
+                const statusBadge = sub.status === 'submitted' 
+                    ? '<span class="badge bg-success">Submitted</span>'
+                    : '<span class="badge bg-secondary">' + sub.status + '</span>';
+                    
+                html += '<tr>';
+                html += '<td><strong>' + sub.period_id + '</strong></td>';
+                html += '<td>' + sub.tax_year + '</td>';
+                html += '<td>' + formatDateTime(sub.submitted_at) + '</td>';
+                html += '<td>' + statusBadge + '</td>';
+                html += '<td><code>' + (sub.hmrc_period_id || 'N/A') + '</code></td>';
+                html += '</tr>';
+            });
+            
+            html += '</tbody></table></div>';
+            container.innerHTML = html;
+        } else {
+            container.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-inbox fa-3x mb-3"></i><p>No submissions yet</p></div>';
+        }
+    } catch (error) {
+        console.error('Error loading submission history:', error);
+        container.innerHTML = '<div class="alert alert-danger">Failed to load submission history</div>';
+    }
+}
+
+function formatDateTime(dateStr) {
+    if (!dateStr) return 'N/A';
+    const date = new Date(dateStr);
+    return date.toLocaleString('en-GB', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+}
+
+// ============================================================================
+// FINAL DECLARATION STEP-BY-STEP FLOW
+// ============================================================================
+
+let currentCalculationId = null;
+
+function setupFinalDeclarationFlow() {
+    // Reset flow on tax year change
+    document.getElementById('finalDeclTaxYear').addEventListener('change', resetFinalDeclFlow);
+}
+
+function resetFinalDeclFlow() {
+    currentCalculationId = null;
+    document.getElementById('step1').style.display = 'block';
+    document.getElementById('step2').style.display = 'none';
+    document.getElementById('step3').style.display = 'none';
+    document.getElementById('stepSuccess').style.display = 'none';
+    document.getElementById('step1Loading').style.display = 'none';
+    document.getElementById('calcDetails').style.display = 'none';
+    document.getElementById('declarationCheckbox').checked = false;
+    document.getElementById('submitDeclBtn').disabled = true;
+}
+
+async function triggerTaxCalculation() {
+    const taxYear = document.getElementById('finalDeclTaxYear').value;
+    const nino = hmrcConfig.nino || document.getElementById('ninoInput').value;
+    
+    if (!nino) {
+        showNotification('Please enter your NINO first', 'warning');
+        return;
+    }
+    
+    const btn = document.getElementById('triggerCalcBtn');
+    const loading = document.getElementById('step1Loading');
+    
+    btn.disabled = true;
+    loading.style.display = 'block';
+    
+    try {
+        const response = await fetch(`/api/hmrc/final-declaration/calculate?tax_year=${taxYear}&nino=${nino}`, {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: getCSRFHeaders()
+        });
+        const data = await response.json();
+        
+        if (data.success && data.calculation_id) {
+            currentCalculationId = data.calculation_id;
+            document.getElementById('calcIdDisplay').textContent = currentCalculationId;
+            
+            // Move to Step 2
+            document.getElementById('step1').style.display = 'none';
+            document.getElementById('step2').style.display = 'block';
+            
+            showNotification('Tax calculation triggered successfully!', 'success');
+        } else {
+            showNotification('Failed to trigger calculation: ' + (data.error || 'Unknown error'), 'danger');
+            btn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error triggering calculation:', error);
+        showNotification('Failed to trigger calculation', 'danger');
+        btn.disabled = false;
+    } finally {
+        loading.style.display = 'none';
+    }
+}
+
+async function viewCalculationDetails() {
+    if (!currentCalculationId) {
+        showNotification('No calculation ID available', 'danger');
+        return;
+    }
+    
+    const nino = hmrcConfig.nino || document.getElementById('ninoInput').value;
+    if (!nino) {
+        showNotification('Please enter your NINO first', 'warning');
+        return;
+    }
+    
+    const btn = document.getElementById('viewCalcBtn');
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    
+    try {
+        const response = await fetch(`/api/hmrc/calculations/${currentCalculationId}?nino=${nino}`);
+        const data = await response.json();
+        
+        if (data.success && data.calculation) {
+            displayCalculationSummary(data.calculation);
+            document.getElementById('calcDetails').style.display = 'block';
+        } else {
+            showNotification('Failed to load calculation: ' + (data.error || 'Unknown error'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error loading calculation:', error);
+        showNotification('Failed to load calculation details', 'danger');
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="fas fa-eye"></i> View Calculation Details';
+    }
+}
+
+function displayCalculationSummary(calculation) {
+    const container = document.getElementById('calcSummary');
+    let html = '<table class="table table-sm">';
+    
+    // Display key figures from calculation
+    if (calculation.totalIncomeTaxAndNicsDue !== undefined) {
+        html += '<tr><th>Total Tax & NICs Due:</th><td><strong>£' + calculation.totalIncomeTaxAndNicsDue.toFixed(2) + '</strong></td></tr>';
+    }
+    if (calculation.totalIncomeReceived !== undefined) {
+        html += '<tr><th>Total Income:</th><td>£' + calculation.totalIncomeReceived.toFixed(2) + '</td></tr>';
+    }
+    if (calculation.totalAllowancesAndDeductions !== undefined) {
+        html += '<tr><th>Allowances & Deductions:</th><td>£' + calculation.totalAllowancesAndDeductions.toFixed(2) + '</td></tr>';
+    }
+    if (calculation.taxableIncome !== undefined) {
+        html += '<tr><th>Taxable Income:</th><td>£' + calculation.taxableIncome.toFixed(2) + '</td></tr>';
+    }
+    
+    html += '</table>';
+    container.innerHTML = html;
+}
+
+function proceedToStep3() {
+    document.getElementById('step2').style.display = 'none';
+    document.getElementById('step3').style.display = 'block';
+}
+
+async function submitFinalDeclaration() {
+    const taxYear = document.getElementById('finalDeclTaxYear').value;
+    const nino = hmrcConfig.nino || document.getElementById('ninoInput').value;
+    const btn = document.getElementById('submitDeclBtn');
+    const originalText = btn.innerHTML;
+    
+    if (!currentCalculationId) {
+        showNotification('No calculation ID available', 'danger');
+        return;
+    }
+    
+    if (!nino) {
+        showNotification('Please enter your NINO first', 'warning');
+        return;
+    }
+    
+    if (!document.getElementById('declarationCheckbox').checked) {
+        showNotification('Please confirm the declaration', 'warning');
+        return;
+    }
+    
+    btn.disabled = true;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+    
+    try {
+        const response = await fetch('/api/hmrc/final-declaration/submit', {
+            method: 'POST',
+            credentials: 'same-origin',
+            headers: {
+                'Content-Type': 'application/json',
+                ...getCSRFHeaders()
+            },
+            body: JSON.stringify({
+                tax_year: taxYear,
+                calculation_id: currentCalculationId,
+                nino: nino,
+                confirmed: true
+            })
+        });
+        const data = await response.json();
+        
+        if (data.success) {
+            document.getElementById('step3').style.display = 'none';
+            document.getElementById('stepSuccess').style.display = 'block';
+            document.getElementById('successMessage').innerHTML = '<strong>Receipt ID:</strong> ' + (data.receipt_id || 'N/A');
+            showNotification('Final declaration submitted successfully!', 'success');
+        } else {
+            showNotification('Failed to submit final declaration: ' + data.error, 'danger');
+            btn.innerHTML = originalText;
+            btn.disabled = false;
+        }
+    } catch (error) {
+        console.error('Error submitting final declaration:', error);
+        showNotification('Failed to submit final declaration', 'danger');
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
 }
 
 // ============================================================================
