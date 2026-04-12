@@ -551,6 +551,11 @@ class GmailRunSheetDownloader:
                 print(f"✅ Import complete: {total_imported} jobs imported")
                 print("=" * 70)
                 
+            except ImportError as e:
+                print(f"⚠️  Import failed - module import error: {e}")
+                print(f"   Working directory: {os.getcwd()}")
+                print(f"   Python path: {sys.path[:3]}")
+                print("   This is expected when run from periodic_sync - import will be handled separately")
             except Exception as e:
                 print(f"⚠️  Import failed: {e}")
                 print("   Run 'python scripts/production/import_run_sheets.py' manually")

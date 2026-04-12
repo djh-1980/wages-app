@@ -342,6 +342,7 @@ class PeriodicSyncService:
                 self.logger.info(f"Looking for recent runsheets (last 7 days)")
                 
                 runsheet_result = None
+                downloaded_file_paths = []  # Track downloaded files for import
                 try:
                     if dry_run:
                         self.logger.info("[DRY RUN] Would download runsheets")
@@ -355,12 +356,31 @@ class PeriodicSyncService:
                             timeout=120
                         )
                         if runsheet_result.returncode == 0:
-                            # Count new files downloaded
+                            # Parse output to find downloaded files and their paths
                             output_lines = runsheet_result.stdout.split('\n')
                             for line in output_lines:
-                                if 'Downloaded:' in line:
+                                # Look for "Downloaded: filename.pdf" lines
+                                if '✓ Downloaded:' in line:
                                     sync_summary['runsheets_downloaded'] += 1
+                                # Look for "Files saved to:" line to get base directory
+                                elif 'Files saved to:' in line:
+                                    import re
+                                    match = re.search(r'Files saved to: (.+)', line)
+                                    if match:
+                                        base_dir = Path(match.group(1).strip())
+                                        self.logger.info(f"Download directory: {base_dir}")
+                                # Look for organized file paths (📁 lines)
+                                elif '📁' in line:
+                                    # Extract relative path from organization output
+                                    import re
+                                    match = re.search(r'📁\s+(.+\.pdf)', line)
+                                    if match:
+                                        rel_path = match.group(1).strip()
+                                        downloaded_file_paths.append(rel_path)
+                            
                             self.logger.info(f"Downloaded {sync_summary['runsheets_downloaded']} new runsheets")
+                            if downloaded_file_paths:
+                                self.logger.info(f"Tracked {len(downloaded_file_paths)} file paths for import")
                             self.retry_count = 0  # Reset on success
                         else:
                             error_msg = f"Download failed with code {runsheet_result.returncode}"
@@ -446,26 +466,62 @@ class PeriodicSyncService:
             if should_import_runsheets:
                 self.logger.info(f"Importing runsheets (downloaded: {sync_summary['runsheets_downloaded']})")
                 try:
-                    import_result = subprocess.run(
-                        [sys.executable, 'scripts/production/import_run_sheets.py', '--recent', '365'],
-                        capture_output=True,
-                        text=True,
-                        timeout=600  # 10 minutes for large batches
-                    )
-                    if import_result.returncode == 0:
-                        output_lines = import_result.stdout.split('\n')
-                        for line in output_lines:
-                            if 'Imported' in line and 'jobs' in line:
-                                # Extract job count from output
-                                import re
-                                match = re.search(r'Imported (\d+) jobs', line)
-                                if match:
-                                    sync_summary['runsheets_imported'] = int(match.group(1))
-                        self.logger.info(f"Imported {sync_summary['runsheets_imported']} runsheet jobs")
+                    # If we have specific downloaded files, import them directly
+                    # Otherwise fall back to --recent-minutes for recently modified files
+                    if downloaded_file_paths:
+                        self.logger.info(f"Importing {len(downloaded_file_paths)} newly downloaded files directly")
+                        total_jobs = 0
+                        from pathlib import Path
+                        from app.config import Config
+                        base_dir = Path(Config.RUNSHEETS_DIR)
                         
-                        # Mark runsheet as completed for today
-                        self.runsheet_completed_today = True
-                        self.logger.info("Runsheet processing complete - will not check again until tomorrow")
+                        for rel_path in downloaded_file_paths:
+                            file_path = base_dir / rel_path
+                            if file_path.exists():
+                                self.logger.info(f"Importing: {file_path.name}")
+                                import_result = subprocess.run(
+                                    [sys.executable, 'scripts/production/import_run_sheets.py', '--file', str(file_path)],
+                                    capture_output=True,
+                                    text=True,
+                                    timeout=60
+                                )
+                                if import_result.returncode == 0:
+                                    # Extract job count from output
+                                    import re
+                                    match = re.search(r'imported (\d+) jobs', import_result.stdout)
+                                    if match:
+                                        jobs = int(match.group(1))
+                                        total_jobs += jobs
+                                        self.logger.info(f"  ✓ Imported {jobs} jobs from {file_path.name}")
+                                else:
+                                    self.logger.warning(f"  ✗ Failed to import {file_path.name}: {import_result.stderr}")
+                            else:
+                                self.logger.warning(f"  ✗ File not found: {file_path}")
+                        
+                        sync_summary['runsheets_imported'] = total_jobs
+                        self.logger.info(f"Imported {total_jobs} runsheet jobs from {len(downloaded_file_paths)} files")
+                    else:
+                        # Fallback: import files modified in last 10 minutes
+                        self.logger.info("No tracked file paths - using --recent-minutes 10 fallback")
+                        import_result = subprocess.run(
+                            [sys.executable, 'scripts/production/import_run_sheets.py', '--recent-minutes', '10'],
+                            capture_output=True,
+                            text=True,
+                            timeout=600
+                        )
+                        if import_result.returncode == 0:
+                            output_lines = import_result.stdout.split('\n')
+                            for line in output_lines:
+                                if 'Imported' in line and 'jobs' in line:
+                                    import re
+                                    match = re.search(r'Imported (\d+) jobs', line)
+                                    if match:
+                                        sync_summary['runsheets_imported'] = int(match.group(1))
+                            self.logger.info(f"Imported {sync_summary['runsheets_imported']} runsheet jobs")
+                    
+                    # Mark runsheet as completed for today
+                    self.runsheet_completed_today = True
+                    self.logger.info("Runsheet processing complete - will not check again until tomorrow")
                 except Exception as e:
                     sync_summary['errors'].append(f"Runsheet import failed: {str(e)}")
                     self.logger.error(f"Runsheet import error: {e}")
