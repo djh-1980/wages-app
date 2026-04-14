@@ -113,6 +113,12 @@ class HMRCClient:
             api_version = '3.0'  # Obligations API v3.0
         elif '/individuals/calculations/' in endpoint or '/individuals/declarations/' in endpoint:
             api_version = '8.0'  # Individual Calculations API v8.0
+        elif '/individuals/business/property/' in endpoint:
+            api_version = '6.0'  # Property Business API v6.0
+        elif '/individuals/self-assessment/adjustable-summary/' in endpoint:
+            api_version = '7.0'  # Business Source Adjustable Summary (BSAS) API v7.0
+        elif '/individuals/losses/' in endpoint:
+            api_version = '6.0'  # Individual Losses API v6.0
         
         headers = {
             'Authorization': f'Bearer {access_token}',
@@ -122,11 +128,14 @@ class HMRCClient:
         }
         
         # For sandbox environment, use STATEFUL test scenario by default
-        if self.environment == 'sandbox':
+        # BUT exclude obligations endpoints which don't support Gov-Test-Scenario
+        is_obligations_endpoint = '/obligations/' in endpoint
+        
+        if self.environment == 'sandbox' and not is_obligations_endpoint:
             headers['Gov-Test-Scenario'] = 'STATEFUL'
         
-        # Allow override of test scenario if explicitly provided
-        if test_scenario:
+        # Allow override of test scenario if explicitly provided (unless it's obligations)
+        if test_scenario and not is_obligations_endpoint:
             headers['Gov-Test-Scenario'] = test_scenario
         
         url = f"{self.base_url}{endpoint}"
@@ -589,6 +598,139 @@ class HMRCClient:
             'finalised': True
         }
         return self._make_request('POST', endpoint, data=data)
+    
+    def submit_uk_property_period(self, nino, business_id, tax_year, period_data):
+        """
+        Submit UK property period data to HMRC using Property Business API v6.0.
+        
+        Args:
+            nino: National Insurance Number
+            business_id: Property business ID from HMRC
+            tax_year: Tax year (e.g., '2024-25')
+            period_data: Period data including dates, income, and expenses
+            
+        Returns:
+            dict: Submission response
+        """
+        endpoint = f"/individuals/business/property/{nino}/uk/{business_id}/period/{tax_year}"
+        return self._make_request('POST', endpoint, data=period_data)
+    
+    def get_uk_property_obligations(self, nino):
+        """
+        Get UK property obligations using Obligations API v3.0.
+        
+        Args:
+            nino: National Insurance Number
+            
+        Returns:
+            dict: UK property obligations data
+        """
+        endpoint = f"/obligations/details/{nino}/income-and-expenditure"
+        params = {'typeOfBusiness': 'uk-property'}
+        return self._make_request('GET', endpoint, params=params)
+    
+    def trigger_bsas(self, nino, business_id, tax_year, type_of_business='self-employment'):
+        """
+        Trigger Business Source Adjustable Summary (BSAS) using BSAS API v7.0.
+        
+        Args:
+            nino: National Insurance Number
+            business_id: Business ID from HMRC
+            tax_year: Tax year (e.g., '2024/2025')
+            type_of_business: 'self-employment' or 'uk-property'
+            
+        Returns:
+            dict: Response with calculationId
+        """
+        # Convert tax year to start/end dates
+        # Tax year 2024/2025 runs from 06/04/2024 to 05/04/2025
+        if '/' in tax_year:
+            start_year = tax_year.split('/')[0]
+        else:
+            # Handle 2024-25 format
+            start_year = tax_year.split('-')[0]
+        
+        start_date = f"{start_year}-04-06"
+        end_year = str(int(start_year) + 1)
+        end_date = f"{end_year}-04-05"
+        
+        endpoint = f"/individuals/self-assessment/adjustable-summary/{nino}/trigger"
+        data = {
+            'accountingPeriod': {
+                'startDate': start_date,
+                'endDate': end_date
+            },
+            'typeOfBusiness': type_of_business,
+            'businessId': business_id
+        }
+        return self._make_request('POST', endpoint, data=data)
+    
+    def get_bsas_summary(self, nino, bsas_id, tax_year='2024-25', type_of_business='self-employment'):
+        """
+        Get Business Source Adjustable Summary by calculationId using BSAS API v7.0.
+        
+        Args:
+            nino: National Insurance Number
+            bsas_id: calculationId from trigger response
+            tax_year: Tax year (optional, not used in v7.0 endpoint)
+            type_of_business: 'self-employment' or 'uk-property', defaults to 'self-employment'
+            
+        Returns:
+            dict: BSAS summary data
+        """
+        # BSAS v7.0 endpoint includes business type in the path
+        endpoint = f"/individuals/self-assessment/adjustable-summary/{nino}/{type_of_business}/{bsas_id}"
+        
+        logger.info(f"BSAS summary request: endpoint={endpoint}, type={type_of_business}")
+        
+        return self._make_request('GET', endpoint)
+    
+    def create_loss(self, nino, tax_year, type_of_loss, business_id, loss_amount):
+        """
+        Create a brought forward loss using Individual Losses API v6.0.
+        
+        Args:
+            nino: National Insurance Number
+            tax_year: Tax year brought forward from (e.g., '2023-24')
+            type_of_loss: 'self-employment', 'uk-property-fhl', or 'uk-property-non-fhl'
+            business_id: Business ID from HMRC
+            loss_amount: Loss amount in pounds (e.g., 1000.00)
+            
+        Returns:
+            dict: Response with lossId
+        """
+        endpoint = f"/individuals/losses/{nino}/brought-forward-losses"
+        data = {
+            'taxYearBroughtForwardFrom': tax_year,
+            'typeOfLoss': type_of_loss,
+            'businessId': business_id,
+            'lossAmount': float(loss_amount)
+        }
+        return self._make_request('POST', endpoint, data=data)
+    
+    def list_losses(self, nino, tax_year=None, type_of_loss=None, business_id=None):
+        """
+        List brought forward losses using Individual Losses API v6.0.
+        
+        Args:
+            nino: National Insurance Number
+            tax_year: Optional tax year filter (e.g., '2023-24')
+            type_of_loss: Optional loss type filter
+            business_id: Optional business ID filter
+            
+        Returns:
+            dict: List of losses
+        """
+        endpoint = f"/individuals/losses/{nino}/brought-forward-losses"
+        params = {}
+        if tax_year:
+            params['taxYearBroughtForwardFrom'] = tax_year
+        if type_of_loss:
+            params['typeOfLoss'] = type_of_loss
+        if business_id:
+            params['businessId'] = business_id
+        
+        return self._make_request('GET', endpoint, params=params if params else None)
     
     def get_mock_obligations(self):
         """

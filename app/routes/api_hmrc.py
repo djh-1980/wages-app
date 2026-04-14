@@ -1558,3 +1558,318 @@ def submit_final_declaration():
     except Exception as e:
         logger.error(f'Error submitting final declaration: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/property/obligations')
+@limiter.limit("20 per hour", override_defaults=True)
+def get_property_obligations():
+    """
+    Get UK property obligations.
+    
+    Query params:
+        nino: National Insurance Number
+    
+    Returns:
+        UK property obligations
+    """
+    try:
+        nino = request.args.get('nino')
+        
+        if not nino:
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.get_uk_property_obligations(nino)
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error getting property obligations: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/property/submit', methods=['POST'])
+@limiter.limit("20 per hour", override_defaults=True)
+def submit_property_period():
+    """
+    Submit UK property period data to HMRC.
+    
+    Request body:
+    {
+        "nino": "AA123456A",
+        "tax_year": "2024-25",
+        "from_date": "2024-04-06",
+        "to_date": "2024-07-05"
+    }
+    
+    Returns:
+        Submission result
+    """
+    try:
+        data = request.get_json()
+        
+        required_fields = ['nino', 'tax_year', 'from_date', 'to_date']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+        
+        try:
+            data['nino'] = validate_nino(data['nino'])
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        # Build minimal test payload for sandbox
+        period_data = {
+            'fromDate': data['from_date'],
+            'toDate': data['to_date'],
+            'income': {
+                'premiumsOfLeaseGrant': 0,
+                'reversePremiums': 0,
+                'periodAmount': 0,
+                'taxDeducted': 0,
+                'otherIncome': 0,
+                'ukFhlRentARoom': {
+                    'amountClaimed': 0
+                }
+            },
+            'expenses': {
+                'premisesRunningCosts': 0,
+                'repairsAndMaintenance': 0,
+                'financialCosts': 0,
+                'professionalFees': 0,
+                'costOfServices': 0,
+                'other': 0,
+                'travelCosts': 0,
+                'rentARoom': {
+                    'amountClaimed': 0
+                }
+            }
+        }
+        
+        # Use a default business ID for sandbox testing
+        # In production, this should come from the request or be looked up
+        business_id = data.get('business_id', 'XAIS12345678901')
+        
+        client = HMRCClient()
+        result = client.submit_uk_property_period(
+            data['nino'],
+            business_id,
+            data['tax_year'],
+            period_data
+        )
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error submitting property period: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/bsas/trigger', methods=['POST'])
+@limiter.limit("20 per hour", override_defaults=True)
+def trigger_bsas():
+    """
+    Trigger Business Source Adjustable Summary (BSAS).
+    
+    Request body:
+    {
+        "nino": "AA123456A",
+        "business_id": "XAIS12345678901",
+        "tax_year": "2024/2025",
+        "type_of_business": "self-employment" (optional, defaults to self-employment)
+    }
+    
+    Returns:
+        BSAS trigger result with calculationId
+    """
+    try:
+        data = request.get_json()
+        
+        required_fields = ['nino', 'business_id', 'tax_year']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+        
+        try:
+            data['nino'] = validate_nino(data['nino'])
+            data['tax_year'] = validate_tax_year(data['tax_year'])
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        type_of_business = data.get('type_of_business', 'self-employment')
+        if type_of_business not in ['self-employment', 'uk-property']:
+            return jsonify({'success': False, 'error': 'type_of_business must be "self-employment" or "uk-property"'}), 400
+        
+        client = HMRCClient()
+        result = client.trigger_bsas(
+            data['nino'],
+            data['business_id'],
+            data['tax_year'],
+            type_of_business
+        )
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error triggering BSAS: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/bsas/<bsas_id>')
+@limiter.limit("20 per hour", override_defaults=True)
+def get_bsas_summary(bsas_id):
+    """
+    Get Business Source Adjustable Summary by calculationId.
+    
+    Path params:
+        bsas_id: calculationId from trigger response
+    
+    Query params:
+        nino: National Insurance Number
+        type_of_business: 'self-employment' or 'uk-property' (optional, defaults to 'self-employment')
+    
+    Returns:
+        BSAS summary data
+    """
+    try:
+        nino = request.args.get('nino')
+        type_of_business = request.args.get('type_of_business', 'self-employment')
+        
+        if not nino:
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
+        
+        if not bsas_id:
+            return jsonify({'success': False, 'error': 'bsas_id is required'}), 400
+        
+        if type_of_business not in ['self-employment', 'uk-property']:
+            return jsonify({'success': False, 'error': 'type_of_business must be "self-employment" or "uk-property"'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.get_bsas_summary(nino, bsas_id, type_of_business=type_of_business)
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error getting BSAS summary: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/losses/create', methods=['POST'])
+@limiter.limit("20 per hour", override_defaults=True)
+def create_loss():
+    """
+    Create a brought forward loss.
+    
+    Request body:
+    {
+        "nino": "AA123456A",
+        "tax_year": "2023-24",
+        "type_of_loss": "self-employment",
+        "business_id": "XBIS12345678901",
+        "loss_amount": 1000.00
+    }
+    
+    Returns:
+        Loss creation result with lossId
+    """
+    try:
+        data = request.get_json()
+        
+        required_fields = ['nino', 'tax_year', 'type_of_loss', 'business_id', 'loss_amount']
+        for field in required_fields:
+            if field not in data:
+                return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
+        
+        try:
+            data['nino'] = validate_nino(data['nino'])
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        # Validate type_of_loss
+        valid_loss_types = ['self-employment', 'uk-property-fhl', 'uk-property-non-fhl']
+        if data['type_of_loss'] not in valid_loss_types:
+            return jsonify({'success': False, 'error': f'type_of_loss must be one of: {", ".join(valid_loss_types)}'}), 400
+        
+        # Validate loss_amount is a number
+        try:
+            loss_amount = float(data['loss_amount'])
+            if loss_amount <= 0:
+                return jsonify({'success': False, 'error': 'loss_amount must be greater than 0'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'loss_amount must be a valid number'}), 400
+        
+        client = HMRCClient()
+        result = client.create_loss(
+            data['nino'],
+            data['tax_year'],
+            data['type_of_loss'],
+            data['business_id'],
+            loss_amount
+        )
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error creating loss: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/losses/list')
+@limiter.limit("20 per hour", override_defaults=True)
+def list_losses():
+    """
+    List brought forward losses.
+    
+    Query params:
+        nino: National Insurance Number (required)
+        tax_year: Tax year filter (optional, e.g., '2023-24')
+        type_of_loss: Loss type filter (optional)
+        business_id: Business ID filter (optional)
+    
+    Returns:
+        List of losses
+    """
+    try:
+        nino = request.args.get('nino')
+        tax_year = request.args.get('tax_year')
+        type_of_loss = request.args.get('type_of_loss')
+        business_id = request.args.get('business_id')
+        
+        if not nino:
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.list_losses(nino, tax_year, type_of_loss, business_id)
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error listing losses: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500

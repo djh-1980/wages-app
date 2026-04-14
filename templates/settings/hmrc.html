@@ -167,6 +167,21 @@
                     </a>
                 </li>
                 <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#property" role="tab">
+                        <i class="fas fa-home"></i> Property
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#bsas" role="tab">
+                        <i class="fas fa-calculator"></i> BSAS
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#losses" role="tab">
+                        <i class="fas fa-chart-line"></i> Losses
+                    </a>
+                </li>
+                <li class="nav-item">
                     <a class="nav-link" data-bs-toggle="pill" data-bs-target="#finalDeclaration" role="tab">
                         <i class="fas fa-file-signature"></i> Final Declaration
                     </a>
@@ -205,6 +220,227 @@
                                     <p>Loading submissions...</p>
                                 </div>
                             </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Property Tab -->
+                <div class="tab-pane fade" id="property">
+                    <div class="card settings-card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-home"></i> UK Property Business
+                            </h5>
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle"></i> Property Business API v6.0</h6>
+                                <p class="mb-0">Submit UK property income and expenses for Making Tax Digital. This covers rental income from UK properties.</p>
+                            </div>
+                            
+                            <!-- Fetch Obligations Button -->
+                            <div class="mb-4">
+                                <button id="fetchPropertyObligationsBtn" class="btn btn-primary">
+                                    <i class="fas fa-sync"></i> Fetch Property Obligations
+                                </button>
+                            </div>
+                            
+                            <!-- Obligations Display -->
+                            <div id="propertyObligationsList">
+                                <div class="text-center text-muted py-5">
+                                    <i class="fas fa-home fa-3x mb-3"></i>
+                                    <p>Click "Fetch Property Obligations" to load from HMRC</p>
+                                </div>
+                            </div>
+                            
+                            <hr class="my-4">
+                            
+                            <!-- Test Submission Section -->
+                            <h6><i class="fas fa-vial"></i> Sandbox Test Submission</h6>
+                            <p class="text-muted">Submit a test period with zero values for sandbox testing</p>
+                            
+                            <div class="row">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Tax Year</label>
+                                        <input type="text" class="form-control" id="propertyTaxYear" value="2024-25" placeholder="2024-25">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>From Date</label>
+                                        <input type="date" class="form-control" id="propertyFromDate" value="2024-04-06">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>To Date</label>
+                                        <input type="date" class="form-control" id="propertyToDate" value="2024-07-05">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>&nbsp;</label>
+                                        <button id="submitPropertyTestBtn" class="btn btn-success w-100">
+                                            <i class="fas fa-paper-plane"></i> Submit Test Period
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Test Result Display -->
+                            <div id="propertyTestResult" class="mt-3" style="display: none;"></div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- BSAS Tab -->
+                <div class="tab-pane fade" id="bsas">
+                    <div class="card settings-card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-calculator"></i> Business Source Adjustable Summary (BSAS)
+                            </h5>
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle"></i> What is BSAS?</h6>
+                                <p class="mb-0">BSAS API v7.0 allows you to retrieve a tax calculation summary for a specific accounting period. This is useful for reviewing your tax position before making adjustments or submitting your final declaration.</p>
+                            </div>
+                            
+                            <!-- Trigger BSAS Section -->
+                            <h6><i class="fas fa-play-circle"></i> Trigger BSAS Calculation</h6>
+                            <p class="text-muted">Generate a new adjustable summary for a tax year</p>
+                            
+                            <div class="row mb-4">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Tax Year</label>
+                                        <input type="text" class="form-control" id="bsasTaxYear" value="2024/2025" placeholder="2024/2025">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Business Type</label>
+                                        <select class="form-control" id="bsasBusinessType">
+                                            <option value="self-employment">Self-Employment</option>
+                                            <option value="uk-property">UK Property</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Business ID</label>
+                                        <input type="text" class="form-control" id="bsasBusinessId" placeholder="XAIS12345678901">
+                                        <small class="form-text text-muted">Optional - uses saved ID if empty</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>&nbsp;</label>
+                                        <button id="triggerBsasBtn" class="btn btn-primary w-100">
+                                            <i class="fas fa-play"></i> Trigger BSAS
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- BSAS ID Display -->
+                            <div id="bsasIdDisplay" style="display: none;" class="mb-4">
+                                <div class="alert alert-success">
+                                    <h6><i class="fas fa-check-circle"></i> BSAS Triggered Successfully</h6>
+                                    <p class="mb-2"><strong>BSAS ID:</strong> <code id="bsasIdValue"></code></p>
+                                    <button id="fetchBsasSummaryBtn" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i> Fetch Summary
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <!-- BSAS Summary Display -->
+                            <h6><i class="fas fa-file-invoice"></i> BSAS Summary</h6>
+                            <div id="bsasSummaryDisplay">
+                                <div class="text-center text-muted py-5">
+                                    <i class="fas fa-calculator fa-3x mb-3"></i>
+                                    <p>Trigger a BSAS calculation to view the summary</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Losses Tab -->
+                <div class="tab-pane fade" id="losses">
+                    <div class="card settings-card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-chart-line"></i> Individual Losses (Brought Forward)
+                            </h5>
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle"></i> What are Brought Forward Losses?</h6>
+                                <p class="mb-0">Individual Losses API v6.0 allows you to record losses from previous tax years that can be carried forward to offset against future profits. This is useful for managing tax-deductible losses from self-employment or property businesses.</p>
+                            </div>
+                            
+                            <!-- List Losses Section -->
+                            <h6><i class="fas fa-list"></i> Your Losses</h6>
+                            <p class="text-muted">View all brought forward losses on record</p>
+                            
+                            <button id="listLossesBtn" class="btn btn-primary mb-3">
+                                <i class="fas fa-sync"></i> List Losses
+                            </button>
+                            
+                            <div id="lossesListDisplay">
+                                <div class="text-center text-muted py-5">
+                                    <i class="fas fa-chart-line fa-3x mb-3"></i>
+                                    <p>Click "List Losses" to view your brought forward losses</p>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <!-- Create Loss Section -->
+                            <h6><i class="fas fa-plus-circle"></i> Create Test Loss</h6>
+                            <p class="text-muted">Record a new brought forward loss (sandbox testing)</p>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Tax Year Brought Forward From</label>
+                                        <input type="text" class="form-control" id="lossTaxYear" value="2023-24" placeholder="2023-24">
+                                        <small class="form-text text-muted">Year the loss originated</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Loss Type</label>
+                                        <select class="form-control" id="lossType">
+                                            <option value="self-employment">Self-Employment</option>
+                                            <option value="uk-property-fhl">UK Property FHL</option>
+                                            <option value="uk-property-non-fhl">UK Property Non-FHL</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Loss Amount (£)</label>
+                                        <input type="number" class="form-control" id="lossAmount" value="1000.00" step="0.01" min="0.01" placeholder="1000.00">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Business ID</label>
+                                        <input type="text" class="form-control" id="lossBusinessId" placeholder="XBIS12345678901">
+                                        <small class="form-text text-muted">Optional - uses saved ID if empty</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button id="createLossBtn" class="btn btn-success">
+                                <i class="fas fa-plus"></i> Create Loss
+                            </button>
+                            
+                            <!-- Create Loss Result -->
+                            <div id="createLossResult" class="mt-3" style="display: none;"></div>
                         </div>
                     </div>
                 </div>
