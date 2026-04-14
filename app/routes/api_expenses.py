@@ -25,6 +25,25 @@ def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
+def parse_date(date_str):
+    """Parse date string from multiple formats (handles iOS/Android/desktop variations)."""
+    if not date_str:
+        return None
+    formats = [
+        '%Y-%m-%d',      # 2026-04-15 (standard HTML date input)
+        '%d/%m/%Y',      # 15/04/2026 (UK format)
+        '%m/%d/%Y',      # 04/15/2026 (US/iOS format)
+        '%d-%m-%Y',      # 15-04-2026
+        '%Y/%m/%d',      # 2026/04/15
+    ]
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str, fmt).strftime('%Y-%m-%d')
+        except ValueError:
+            continue
+    return date_str
+
+
 @expenses_bp.route('/categories')
 def api_get_categories():
     """Get all expense categories."""
@@ -50,8 +69,11 @@ def api_add_expense():
             if field not in data:
                 return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
         
+        # Parse date to handle multiple formats from different devices
+        parsed_date = parse_date(data['date'])
+        
         expense_id = ExpenseModel.add_expense(
-            date=data['date'],
+            date=parsed_date,
             category_id=data['category_id'],
             amount=float(data['amount']),
             description=data.get('description'),
@@ -75,9 +97,13 @@ def api_get_expenses():
         category_id = request.args.get('category_id', type=int)
         tax_year = request.args.get('tax_year')
         
+        # Parse dates to handle multiple formats from different devices
+        parsed_start_date = parse_date(start_date) if start_date else None
+        parsed_end_date = parse_date(end_date) if end_date else None
+        
         expenses = ExpenseModel.get_expenses(
-            start_date=start_date,
-            end_date=end_date,
+            start_date=parsed_start_date,
+            end_date=parsed_end_date,
             category_id=category_id,
             tax_year=tax_year
         )
@@ -112,9 +138,12 @@ def api_update_expense(expense_id):
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
         
+        # Parse date if provided to handle multiple formats from different devices
+        parsed_date = parse_date(data.get('date')) if data.get('date') else None
+        
         success = ExpenseModel.update_expense(
             expense_id=expense_id,
-            date=data.get('date'),
+            date=parsed_date,
             category_id=data.get('category_id'),
             description=data.get('description'),
             amount=float(data['amount']) if 'amount' in data else None,
