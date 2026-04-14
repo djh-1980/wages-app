@@ -150,6 +150,9 @@ class HMRCClient:
                     logger.info(f'Period submission payload: {json.dumps(data, indent=2)}')
                 response = requests.post(url, headers=headers, json=data, timeout=30)
             elif method == 'PUT':
+                # Log the request payload for debugging
+                if data:
+                    logger.info(f'Annual submission payload: {json.dumps(data, indent=2)}')
                 response = requests.put(url, headers=headers, json=data, timeout=30)
             else:
                 logger.error(f"Unsupported HTTP method: {method}")

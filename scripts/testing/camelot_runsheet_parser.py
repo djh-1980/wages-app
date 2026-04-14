@@ -127,10 +127,14 @@ class CamelotRunsheetParser:
     
     def _is_my_table(self, df: pd.DataFrame) -> bool:
         """Check if table belongs to our driver."""
+        # Split driver name into parts to handle both "Daniel Hanson" and "Hanson, Daniel" formats
+        name_parts = self.driver_name.upper().split()
+        
         # Look for driver name in first few rows
         for i in range(min(5, len(df))):
-            row_text = ' '.join(str(cell) for cell in df.iloc[i])
-            if self.driver_name in row_text:
+            row_text = ' '.join(str(cell) for cell in df.iloc[i]).upper()
+            # Check if all parts of driver name are present (handles both name orders)
+            if all(part in row_text for part in name_parts):
                 return True
         return False
     

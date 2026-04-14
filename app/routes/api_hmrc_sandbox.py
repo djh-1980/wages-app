@@ -380,6 +380,63 @@ def delete_test_expenses():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@sandbox_bp.route('/clear-submissions', methods=['POST'])
+@csrf.exempt
+def clear_submissions():
+    """
+    Clear all HMRC submission records from database.
+    
+    Deletes all records from:
+    - hmrc_submissions (quarterly submissions)
+    - hmrc_final_declarations (final declarations/crystallisation)
+    
+    WARNING: SANDBOX ONLY - Remove before production
+    This is for testing purposes to allow re-submitting quarters with new test users.
+    
+    Returns:
+        Success status with count of deleted records
+    """
+    try:
+        from ..database import get_db_connection
+        
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            
+            # Count submissions before deletion
+            cursor.execute("SELECT COUNT(*) as count FROM hmrc_submissions")
+            submissions_count = cursor.fetchone()['count']
+            
+            cursor.execute("SELECT COUNT(*) as count FROM hmrc_final_declarations")
+            declarations_count = cursor.fetchone()['count']
+            
+            total_count = submissions_count + declarations_count
+            
+            if total_count == 0:
+                return jsonify({
+                    'success': False,
+                    'error': 'No submission records found to delete'
+                }), 400
+            
+            # Delete all submissions
+            cursor.execute("DELETE FROM hmrc_submissions")
+            cursor.execute("DELETE FROM hmrc_final_declarations")
+            
+            conn.commit()
+            logger.info(f'Cleared {submissions_count} submissions and {declarations_count} final declarations from sandbox')
+        
+        return jsonify({
+            'success': True,
+            'message': f'Successfully cleared {submissions_count} submissions and {declarations_count} final declarations',
+            'submissions_deleted': submissions_count,
+            'declarations_deleted': declarations_count,
+            'total_deleted': total_count
+        })
+    
+    except Exception as e:
+        logger.error(f'Error clearing submissions: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @sandbox_bp.route('/debug-token')
 def debug_token():
     """

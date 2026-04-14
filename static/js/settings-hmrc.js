@@ -604,10 +604,18 @@ async function triggerTaxCalculation() {
     loading.style.display = 'block';
     
     try {
-        const response = await fetch(`/api/hmrc/final-declaration/calculate?tax_year=${taxYear}&nino=${nino}`, {
+        const response = await fetch('/api/hmrc/final-declaration/calculate', {
             method: 'POST',
             credentials: 'same-origin',
-            headers: getCSRFHeaders()
+            headers: {
+                'Content-Type': 'application/json',
+                ...getCSRFHeaders()
+            },
+            body: JSON.stringify({
+                tax_year: taxYear,
+                nino: nino,
+                calculation_type: 'intent-to-finalise'
+            })
         });
         const data = await response.json();
         
@@ -844,6 +852,7 @@ function updateFinalDeclarationUI(status) {
 
 async function calculateTaxLiability() {
     const taxYear = document.getElementById('finalDeclTaxYear').value;
+    const nino = hmrcConfig.nino || document.getElementById('ninoInput').value;
     const calculateBtn = document.getElementById('calculateTaxBtn');
     const originalText = calculateBtn.innerHTML;
     
@@ -851,10 +860,18 @@ async function calculateTaxLiability() {
     calculateBtn.disabled = true;
     
     try {
-        const response = await fetch(`/api/hmrc/final-declaration/calculate?tax_year=${taxYear}`, {
+        const response = await fetch('/api/hmrc/final-declaration/calculate', {
             method: 'POST',
             credentials: 'same-origin',
-            headers: getCSRFHeaders()
+            headers: {
+                'Content-Type': 'application/json',
+                ...getCSRFHeaders()
+            },
+            body: JSON.stringify({
+                tax_year: taxYear,
+                nino: nino,
+                calculation_type: 'intent-to-finalise'
+            })
         });
         const data = await response.json();
         

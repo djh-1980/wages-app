@@ -122,7 +122,7 @@
                             </div>
                             
                             <h5 class="mb-3 mt-4">Test Data Actions</h5>
-                            <div class="btn-group" role="group">
+                            <div class="btn-group mb-3" role="group">
                                 <button type="button" class="btn btn-warning" onclick="generateTestExpenses()">
                                     <i class="bi bi-database-fill-add"></i> Generate Test Expenses
                                 </button>
@@ -130,9 +130,20 @@
                                     <i class="bi bi-trash"></i> Delete Test Expenses
                                 </button>
                             </div>
-                            <div class="alert alert-warning mt-3 mb-0">
+                            <div class="alert alert-warning mt-3 mb-3">
                                 <i class="bi bi-exclamation-triangle"></i>
                                 <strong>Test Data:</strong> Generate 12 sample expenses (3 per quarter) for tax year 2024/2025 to test MTD submissions. All test expenses are prefixed with "TEST -" for easy identification.
+                            </div>
+                            
+                            <h5 class="mb-3 mt-4">Submission Reset</h5>
+                            <div class="btn-group" role="group">
+                                <button type="button" class="btn btn-danger" onclick="clearSubmissions()">
+                                    <i class="bi bi-x-circle"></i> Clear All Submissions
+                                </button>
+                            </div>
+                            <div class="alert alert-danger mt-3 mb-0">
+                                <i class="bi bi-exclamation-triangle-fill"></i>
+                                <strong>Warning:</strong> This deletes all HMRC submission records (quarterly submissions and final declarations) from the database. Use this when testing with a new test user to re-submit all quarters.
                             </div>
                         </div>
                     </div>

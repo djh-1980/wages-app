@@ -472,19 +472,20 @@ def submit_period():
             return jsonify({'success': False, 'error': str(e)}), 400
         
         # Check for duplicate submission unless force=true
+        # Only block if the SAME NINO submitted this period (allows new test users to re-submit)
         force = request.args.get('force', 'false').lower() == 'true'
         if not force:
             query = """
-                SELECT id, status, hmrc_receipt_id 
+                SELECT id, status, hmrc_receipt_id, nino
                 FROM hmrc_submissions 
-                WHERE tax_year = ? AND period_id = ? AND status = 'submitted'
+                WHERE tax_year = ? AND period_id = ? AND nino = ? AND status = 'submitted'
                 LIMIT 1
             """
-            existing = execute_query(query, (data['tax_year'], data['period_id']), fetch_one=True)
+            existing = execute_query(query, (data['tax_year'], data['period_id'], data['nino']), fetch_one=True)
             if existing:
                 return jsonify({
                     'success': False,
-                    'error': 'This period has already been submitted',
+                    'error': f'This period has already been submitted for NINO {data["nino"]}',
                     'existing_submission_id': existing['id'],
                     'hmrc_receipt_id': existing['hmrc_receipt_id']
                 }), 409
@@ -1249,19 +1250,28 @@ def final_declaration_status():
 def calculate_final_declaration():
     """
     Trigger crystallisation (tax calculation) for a tax year.
+    
+    IMPORTANT: This endpoint automatically submits the required Self-Employment Annual Submission
+    before triggering the calculation. HMRC requires the annual submission to exist or returns
+    MATCHING_RESOURCE_NOT_FOUND.
 
     Query params:
         tax_year: Tax year (e.g., '2024/2025')
         nino: National Insurance Number (optional in sandbox — auto-resolved from active test user)
+        business_id: Business ID (optional in sandbox — auto-resolved from active test user)
         calculation_type: Optional - 'intent-to-finalise' (default), 'intent-to-amend', or 'in-year'
 
     Returns:
         Calculation ID and estimated tax
     """
     try:
-        tax_year = request.args.get('tax_year')
-        nino = request.args.get('nino')
-        calculation_type = request.args.get('calculation_type', 'intent-to-finalise')
+        # Use silent=True to avoid 400 errors when no JSON body is sent
+        data = request.get_json(silent=True) or {}
+        
+        # Read from JSON body first, then fall back to query params
+        tax_year = data.get('tax_year') or request.args.get('tax_year')
+        nino = data.get('nino') or request.args.get('nino')
+        calculation_type = data.get('calculation_type') or request.args.get('calculation_type', 'intent-to-finalise')
 
         if not tax_year:
             return jsonify({'success': False, 'error': 'tax_year is required'}), 400
@@ -1323,6 +1333,100 @@ def calculate_final_declaration():
                     }), 400
 
         client = HMRCClient()
+        
+        # CRITICAL: Submit annual submission before triggering calculation
+        # HMRC requires this or returns MATCHING_RESOURCE_NOT_FOUND
+        logger.info('=== ANNUAL SUBMISSION STEP ===')
+        
+        # Resolve business_id from multiple sources
+        business_id = None
+        if data:
+            business_id = data.get('business_id')
+            logger.info(f'Business ID from request body: {business_id}')
+        
+        if not business_id:
+            business_id = request.args.get('business_id')
+            logger.info(f'Business ID from query params: {business_id}')
+        
+        if not business_id:
+            # Try to get from sandbox test user
+            logger.info('Attempting to auto-resolve Business ID from sandbox test user')
+            if sandbox_user and sandbox_user.get('business_id'):
+                business_id = sandbox_user['business_id']
+                logger.info(f'✓ Auto-resolved Business ID from sandbox test user: {business_id}')
+            else:
+                logger.warning('No sandbox test user or business_id found in sandbox user')
+        
+        if not business_id:
+            logger.error('Business ID resolution failed - no business_id provided and no sandbox test user')
+            return jsonify({
+                'success': False,
+                'error': 'business_id is required for tax calculation. Provide it in the request or ensure a sandbox test user with business_id exists.'
+            }), 400
+        
+        # Convert tax year to YYYY-YY format for annual submission
+        logger.info(f'Converting tax year from {tax_year} to YYYY-YY format')
+        try:
+            formatted_tax_year = tax_year.replace('/', '-')
+            if len(formatted_tax_year.split('-')[1]) == 4:
+                parts = formatted_tax_year.split('-')
+                formatted_tax_year = f"{parts[0]}-{parts[1][-2:]}"
+            logger.info(f'Formatted tax year: {formatted_tax_year}')
+        except Exception as format_error:
+            logger.error(f'Tax year format conversion failed: {format_error}')
+            return jsonify({
+                'success': False,
+                'error': f'Invalid tax year format: {str(format_error)}'
+            }), 400
+        
+        # Submit minimal annual submission (required before calculation)
+        # HMRC SE Business API v5.0 specification
+        # Note: structuredBuildingAllowance must be omitted when empty - HMRC rejects empty arrays
+        logger.info(f'Preparing annual submission for NINO={nino}, Business ID={business_id}, Tax Year={formatted_tax_year}')
+        annual_data = {
+            'adjustments': {
+                'includedNonTaxableProfits': 0,
+                'basisAdjustment': 0,
+                'overlapReliefUsed': 0,
+                'accountingAdjustment': 0,
+                'averagingAdjustment': 0,
+                'outstandingBusinessIncome': 0,
+                'balancingChargeBPRA': 0,
+                'balancingChargeOther': 0,
+                'goodsAndServicesOwnUse': 0
+            },
+            'allowances': {
+                'annualInvestmentAllowance': 0,
+                'businessPremisesRenovationAllowance': 0,
+                'capitalAllowanceMainPool': 0,
+                'capitalAllowanceSpecialRatePool': 0,
+                'zeroEmissionsGoodsVehicleAllowance': 0,
+                'enhancedCapitalAllowance': 0,
+                'allowanceOnSales': 0,
+                'capitalAllowanceSingleAssetPool': 0
+            }
+        }
+        
+        try:
+            logger.info('Calling update_annual_summary...')
+            annual_result = client.update_annual_summary(nino, business_id, formatted_tax_year, annual_data)
+            logger.info(f'Annual submission result: success={annual_result.get("success")}, status_code={annual_result.get("status_code")}')
+            
+            if not annual_result.get('success'):
+                # Log warning but continue - annual submission might already exist
+                error_msg = annual_result.get('error', 'Unknown error')
+                logger.warning(f'Annual submission failed (may already exist): {error_msg}')
+                logger.warning(f'Full annual result: {annual_result}')
+            else:
+                logger.info('✓ Annual submission successful')
+        except Exception as annual_error:
+            # Log error but continue - don't let annual submission failure block calculation
+            logger.error(f'Annual submission exception: {annual_error}', exc_info=True)
+            logger.warning('Continuing to calculation trigger despite annual submission error')
+        
+        # Now trigger the calculation
+        logger.info('=== CALCULATION TRIGGER STEP ===')
+        logger.info(f'Calling trigger_crystallisation with NINO={nino}, Tax Year={tax_year}, Type={calculation_type}')
         result = client.trigger_crystallisation(nino, tax_year, calculation_type)
 
         if not result.get('success'):

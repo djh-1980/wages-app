@@ -2253,6 +2253,9 @@ class RunSheetImporter:
     
     def import_run_sheet(self, file_path: Path, base_path: Path = None, overwrite: bool = False) -> int:
         """Import a single run sheet file."""
+        # Ensure file_path is a Path object (handles both string and Path inputs)
+        file_path = Path(file_path)
+        
         # Check if this file has already been imported
         cursor = self.conn.cursor()
         cursor.execute("SELECT COUNT(*) FROM run_sheet_jobs WHERE source_file = ?", (file_path.name,))

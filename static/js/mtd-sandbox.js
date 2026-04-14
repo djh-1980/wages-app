@@ -414,3 +414,38 @@ async function deleteTestExpenses() {
         showNotification('Error deleting test expenses', 'error');
     }
 }
+
+/**
+ * Clear all HMRC submission records
+ */
+async function clearSubmissions() {
+    if (!confirm('⚠️ WARNING: This will permanently delete ALL HMRC submission records!\n\nThis includes:\n- All quarterly submissions\n- All final declarations\n\nUse this when testing with a new test user to re-submit all quarters.\n\nThis action cannot be undone.\n\nContinue?')) {
+        return;
+    }
+    
+    try {
+        document.getElementById('loadingMessage').textContent = 'Clearing submissions...';
+        loadingModal.show();
+        
+        const response = await fetch('/api/hmrc/sandbox/clear-submissions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+        
+        const result = await response.json();
+        loadingModal.hide();
+        
+        if (result.success) {
+            showNotification(`Successfully cleared ${result.total_deleted} submission records (${result.submissions_deleted} submissions, ${result.declarations_deleted} declarations)!`, 'success');
+        } else {
+            showNotification(result.error || 'Failed to clear submissions', 'error');
+        }
+    } catch (error) {
+        loadingModal.hide();
+        console.error('Error clearing submissions:', error);
+        showNotification('Error clearing submissions', 'error');
+    }
+}
