@@ -32,6 +32,19 @@ document.addEventListener('DOMContentLoaded', function() {
         loadRecurringTemplates();
     });
     
+    // Fix mobile camera capture: scroll to show photo preview after capture
+    const receiptFileInput = document.getElementById('receiptFile');
+    if (receiptFileInput) {
+        receiptFileInput.addEventListener('change', function() {
+            if (this.files && this.files[0]) {
+                // Scroll the input into view after photo capture
+                setTimeout(() => {
+                    this.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                }, 300);
+            }
+        });
+    }
+    
     // Reset bank import modal when closed
     const bankImportModal = document.getElementById('bankImportModal');
     if (bankImportModal) {

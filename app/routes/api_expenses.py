@@ -70,7 +70,20 @@ def api_add_expense():
                 return jsonify({'success': False, 'error': f'Missing required field: {field}'}), 400
         
         # Parse date to handle multiple formats from different devices
-        parsed_date = parse_date(data['date'])
+        raw_date = data['date']
+        parsed_date = parse_date(raw_date)
+        
+        # Log for debugging mobile date issues
+        logger.info(f'Received date: {raw_date}, parsed: {parsed_date}')
+        
+        # Fallback to today's date if parsing fails
+        if not parsed_date or parsed_date == raw_date:
+            # If parse_date returned the original string unchanged, try to validate it
+            try:
+                datetime.strptime(parsed_date, '%Y-%m-%d')
+            except (ValueError, TypeError):
+                logger.warning(f'Date parsing failed for {raw_date}, using today\'s date')
+                parsed_date = datetime.now().strftime('%Y-%m-%d')
         
         expense_id = ExpenseModel.add_expense(
             date=parsed_date,
@@ -294,6 +307,13 @@ def api_upload_receipt():
         # Parse date to get tax year and month
         try:
             date_str = parse_date(date)
+            logger.info(f'Receipt upload - Received date: {date}, parsed: {date_str}')
+            
+            # Fallback to today's date if parsing fails
+            if not date_str:
+                logger.warning(f'Date parsing failed for {date}, using today\'s date')
+                date_str = datetime.now().strftime('%Y-%m-%d')
+            
             expense_date = datetime.strptime(date_str, '%Y-%m-%d')
             # Tax year format: 2024-25 (not 2024-2025)
             if expense_date.month > 4 or (expense_date.month == 4 and expense_date.day >= 6):
