@@ -293,7 +293,8 @@ def api_upload_receipt():
         
         # Parse date to get tax year and month
         try:
-            expense_date = datetime.strptime(date, '%d/%m/%Y')
+            date_str = parse_date(date)
+            expense_date = datetime.strptime(date_str, '%Y-%m-%d')
             # Tax year format: 2024-25 (not 2024-2025)
             if expense_date.month > 4 or (expense_date.month == 4 and expense_date.day >= 6):
                 tax_year = f"{expense_date.year}-{str(expense_date.year + 1)[-2:]}"
