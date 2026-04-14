@@ -22,6 +22,8 @@ def protect_all_routes(app):
             'auth.login',
             'auth.logout',
             'static',
+            'main.privacy',
+            'main.terms',
         ]
         
         # Public URL prefixes
@@ -29,6 +31,8 @@ def protect_all_routes(app):
             '/static/',
             '/login',
             '/logout',
+            '/privacy',
+            '/terms',
         ]
         
         # Check if current endpoint is public
