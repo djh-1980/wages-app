@@ -19,8 +19,8 @@ import sys
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from app.config import Config
 
-# Add testing directory to path for Camelot parser
-sys.path.insert(0, str(Path(__file__).parent.parent / 'testing'))
+# Add production directory to path for Camelot parser
+sys.path.insert(0, str(Path(__file__).parent))
 try:
     from camelot_runsheet_parser import CamelotRunsheetParser
     CAMELOT_AVAILABLE = True
