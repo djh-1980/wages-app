@@ -150,3 +150,10 @@
 - No !important unless absolutely necessary and commented why
 - CSS goes in unified-styles.css or page-specific CSS files
 - JavaScript UI code follows existing patterns in base.js
+
+### Templates
+- No inline styles - use CSS classes for all styling
+- Use d-none class instead of style="display:none"
+- Use Bootstrap utility classes (d-*, mt-*, mb-*, etc.) instead of inline styles
+- Define custom CSS classes in <style> block or separate CSS files
+- Keep templates clean and maintainable

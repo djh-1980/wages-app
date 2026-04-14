@@ -1096,3 +1096,79 @@ body {
         overflow: visible !important;
     }
 }
+
+/* ============================================================================
+   UTILITY CLASSES - Replacements for inline styles
+   ============================================================================ */
+
+/* Width utilities for form selects */
+.w-auto {
+    width: auto !important;
+}
+
+/* Chart container heights */
+.chart-height-300 {
+    height: 300px;
+}
+
+.chart-height-350 {
+    height: 350px;
+}
+
+.chart-height-400 {
+    height: 400px;
+}
+
+/* Progress bar heights */
+.progress-height-30 {
+    height: 30px;
+}
+
+/* Table header styling */
+.table-header-bg {
+    background-color: #f8f9fa;
+    border-bottom: 2px solid #dee2e6;
+}
+
+/* Table body background */
+.table-body-bg {
+    background: white;
+}
+
+/* Column width utilities for tables */
+.col-width-8 { width: 8%; }
+.col-width-9 { width: 9%; }
+.col-width-10 { width: 10%; }
+.col-width-11 { width: 11%; }
+.col-width-12 { width: 12%; }
+.col-width-13 { width: 13%; }
+.col-width-15 { width: 15%; }
+.col-width-18 { width: 18%; }
+.col-width-20 { width: 20%; }
+.col-width-22 { width: 22%; }
+.col-width-25 { width: 25%; }
+.col-width-28 { width: 28%; }
+.col-width-30 { width: 30%; }
+
+/* Video/scanner specific */
+.scanner-video {
+    width: 100%;
+    max-height: 400px;
+    background: #000;
+    border-radius: 8px;
+}
+
+.scanner-overlay {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    width: 80%;
+    height: 2px;
+    background: red;
+    box-shadow: 0 0 10px red;
+}
+
+.barcode-container {
+    position: relative;
+}

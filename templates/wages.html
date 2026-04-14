@@ -126,7 +126,7 @@
                             <div class="col-lg-8">
                                 <div class="d-flex justify-content-between align-items-center mb-3">
                                     <h5 class="section-title mb-0">Weekly Earnings Trend</h5>
-                                    <select class="form-select form-select-sm" id="trendYearFilter" style="width: auto;" onchange="updateWeeklyTrend()">
+                                    <select class="form-select form-select-sm w-auto" id="trendYearFilter" onchange="updateWeeklyTrend()">
                                         <!-- Years will be populated here -->
                                     </select>
                                 </div>
@@ -174,7 +174,7 @@
                                 <button class="btn btn-sm btn-outline-secondary" id="sortOrderBtn" onclick="togglePayslipSort()">
                                     <i class="bi bi-sort-down"></i> Newest First
                                 </button>
-                                <select class="form-select form-select-sm" id="taxYearFilter" style="width: auto;" onchange="loadPayslips(this.value)">
+                                <select class="form-select form-select-sm w-auto" id="taxYearFilter" onchange="loadPayslips(this.value)">
                                     <!-- Years populated by JavaScript -->
                                 </select>
                             </div>
@@ -213,7 +213,7 @@
                             <p class="mt-2 text-muted">Loading comprehensive analytics...</p>
                         </div>
                         
-                        <div id="analyticsContent" style="display: none;">
+                        <div id="analyticsContent" class="d-none">
                             <!-- Forecasting & Goals Section -->
                             <div class="row mb-4">
                                 <div class="col-12">
@@ -225,8 +225,8 @@
                                             <div class="row" id="forecastCards">
                                                 <!-- Populated by JavaScript -->
                                             </div>
-                                            <div class="progress mt-3" style="height: 30px;">
-                                                <div id="yearProgressBar" class="progress-bar bg-success" role="progressbar" style="width: 0%">
+                                            <div class="progress mt-3 progress-height-30">
+                                                <div id="yearProgressBar" class="progress-bar bg-success" role="progressbar">
                                                     <span id="yearProgressText"></span>
                                                 </div>
                                             </div>

@@ -1873,3 +1873,102 @@ def list_losses():
     except Exception as e:
         logger.error(f'Error listing losses: {e}')
         return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/export')
+@limiter.limit("10 per hour", override_defaults=True)
+def export_data():
+    """
+    Export all HMRC MTD data for the current user as JSON.
+    
+    Returns:
+        JSON file download with all submissions, obligations, and declarations
+    """
+    try:
+        from flask import make_response
+        import json
+        from datetime import datetime
+        
+        # Get all HMRC data from database
+        export_data = {
+            'export_date': datetime.now().isoformat(),
+            'export_version': '1.0',
+            'software': 'TVS Wages MTD',
+            'submissions': [],
+            'obligations': [],
+            'final_declarations': [],
+            'losses': []
+        }
+        
+        # Fetch submissions from database
+        try:
+            conn = get_db_connection()
+            cursor = conn.cursor()
+            
+            # Get submissions
+            cursor.execute('''
+                SELECT submission_date, tax_year, period_id, submission_type, 
+                       response_data, created_at
+                FROM hmrc_submissions
+                ORDER BY submission_date DESC
+            ''')
+            submissions = cursor.fetchall()
+            for sub in submissions:
+                export_data['submissions'].append({
+                    'submission_date': sub[0],
+                    'tax_year': sub[1],
+                    'period_id': sub[2],
+                    'submission_type': sub[3],
+                    'response_data': json.loads(sub[4]) if sub[4] else None,
+                    'created_at': sub[5]
+                })
+            
+            # Get obligations
+            cursor.execute('''
+                SELECT tax_year, obligation_type, data, fetched_at
+                FROM hmrc_obligations
+                ORDER BY fetched_at DESC
+            ''')
+            obligations = cursor.fetchall()
+            for obl in obligations:
+                export_data['obligations'].append({
+                    'tax_year': obl[0],
+                    'obligation_type': obl[1],
+                    'data': json.loads(obl[2]) if obl[2] else None,
+                    'fetched_at': obl[3]
+                })
+            
+            # Get final declarations
+            cursor.execute('''
+                SELECT tax_year, calculation_id, declaration_data, submitted_at
+                FROM hmrc_final_declarations
+                ORDER BY submitted_at DESC
+            ''')
+            declarations = cursor.fetchall()
+            for decl in declarations:
+                export_data['final_declarations'].append({
+                    'tax_year': decl[0],
+                    'calculation_id': decl[1],
+                    'declaration_data': json.loads(decl[2]) if decl[2] else None,
+                    'submitted_at': decl[3]
+                })
+            
+            conn.close()
+            
+        except Exception as db_error:
+            logger.warning(f'Database query error during export: {db_error}')
+            # Continue with empty data if database query fails
+        
+        # Create JSON response
+        json_data = json.dumps(export_data, indent=2, default=str)
+        
+        # Create downloadable response
+        response = make_response(json_data)
+        response.headers['Content-Type'] = 'application/json'
+        response.headers['Content-Disposition'] = f'attachment; filename=hmrc-mtd-data-{datetime.now().strftime("%Y-%m-%d")}.json'
+        
+        return response
+        
+    except Exception as e:
+        logger.error(f'Error exporting data: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500

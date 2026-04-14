@@ -69,6 +69,16 @@
     .submission-card.failed {
         border-left-color: #dc3545;
     }
+    
+    .tax-year-select {
+        max-width: 300px;
+    }
+    
+    .mtd-footer {
+        margin-top: 3rem;
+        padding-top: 1rem;
+        border-top: 1px solid #dee2e6;
+    }
 </style>
 {% endblock %}
 
@@ -98,24 +108,29 @@
     
     <!-- Action Buttons -->
     <div class="row mb-4">
-        <div class="col-md-3 mb-3">
+        <div class="col-12 mb-3">
             <button id="connectBtn" class="btn btn-primary btn-lg w-100">
                 <i class="fas fa-link"></i> Connect to HMRC
             </button>
         </div>
-        <div class="col-md-3 mb-3">
-            <button id="disconnectBtn" class="btn btn-danger btn-lg w-100" style="display: none;">
+        <div class="col-12 col-sm-6 col-md-3 mb-3 d-none">
+            <button id="disconnectBtn" class="btn btn-danger btn-lg w-100">
                 <i class="fas fa-unlink"></i> Disconnect
             </button>
         </div>
-        <div class="col-md-3 mb-3">
-            <button id="testConnectionBtn" class="btn btn-info btn-lg w-100" style="display: none;">
+        <div class="col-12 col-sm-6 col-md-3 mb-3 d-none">
+            <button id="testConnectionBtn" class="btn btn-info btn-lg w-100">
                 <i class="fas fa-vial"></i> Test Connection
             </button>
         </div>
-        <div class="col-md-3 mb-3">
-            <button id="refreshObligationsBtn" class="btn btn-secondary btn-lg w-100" style="display: none;">
+        <div class="col-12 col-sm-6 col-md-3 mb-3 d-none">
+            <button id="refreshObligationsBtn" class="btn btn-secondary btn-lg w-100">
                 <i class="fas fa-sync"></i> Refresh Obligations
+            </button>
+        </div>
+        <div class="col-12 col-sm-6 col-md-3 mb-3 d-none">
+            <button id="exportDataBtn" class="btn btn-outline-secondary btn-lg w-100">
+                <i class="fas fa-download"></i> Export Data
             </button>
         </div>
     </div>
@@ -155,7 +170,7 @@
     <!-- Tabs for Obligations and Submissions -->
     <div class="row">
         <div class="col-12">
-            <ul class="nav nav-pills mb-3" role="tablist">
+            <ul class="nav nav-pills mb-3 flex-nowrap overflow-auto" role="tablist">
                 <li class="nav-item">
                     <a class="nav-link active" data-bs-toggle="pill" data-bs-target="#obligations" role="tab">
                         <i class="fas fa-calendar-check"></i> Quarterly Obligations
@@ -199,6 +214,12 @@
                     <div class="card settings-card">
                         <div class="card-body">
                             <h5 class="card-title">Quarterly Obligations</h5>
+                            
+                            <div class="alert alert-info">
+                                <strong><i class="fas fa-lock"></i> Digital Records Lock</strong>
+                                <p class="mb-0 mt-2">Once submitted, your quarterly update has been sent to HMRC. To amend this data, you must resubmit the period with corrected figures.</p>
+                            </div>
+                            
                             <div id="obligationsList">
                                 <div class="text-center text-muted py-5">
                                     <i class="fas fa-calendar-times fa-3x mb-3"></i>
@@ -288,7 +309,7 @@
                             </div>
                             
                             <!-- Test Result Display -->
-                            <div id="propertyTestResult" class="mt-3" style="display: none;"></div>
+                            <div id="propertyTestResult" class="mt-3 d-none"></div>
                         </div>
                     </div>
                 </div>
@@ -344,7 +365,7 @@
                             </div>
                             
                             <!-- BSAS ID Display -->
-                            <div id="bsasIdDisplay" style="display: none;" class="mb-4">
+                            <div id="bsasIdDisplay" class="mb-4 d-none">
                                 <div class="alert alert-success">
                                     <h6><i class="fas fa-check-circle"></i> BSAS Triggered Successfully</h6>
                                     <p class="mb-2"><strong>BSAS ID:</strong> <code id="bsasIdValue"></code></p>
@@ -440,7 +461,7 @@
                             </button>
                             
                             <!-- Create Loss Result -->
-                            <div id="createLossResult" class="mt-3" style="display: none;"></div>
+                            <div id="createLossResult" class="mt-3 d-none"></div>
                         </div>
                     </div>
                 </div>
@@ -461,7 +482,7 @@
                             <!-- Tax Year Selector -->
                             <div class="form-group mb-4">
                                 <label for="finalDeclTaxYear"><strong>Select Tax Year:</strong></label>
-                                <select class="form-control" id="finalDeclTaxYear" style="max-width: 300px;">
+                                <select class="form-control tax-year-select" id="finalDeclTaxYear">
                                     <option value="2024/2025">2024/2025</option>
                                     <option value="2025/2026">2025/2026</option>
                                     <option value="2026/2027">2026/2027</option>
@@ -477,13 +498,13 @@
                                     <button id="triggerCalcBtn" class="btn btn-primary">
                                         <i class="fas fa-calculator"></i> Trigger Tax Calculation
                                     </button>
-                                    <div id="step1Loading" class="mt-3" style="display: none;">
+                                    <div id="step1Loading" class="mt-3 d-none">
                                         <i class="fas fa-spinner fa-spin"></i> Requesting calculation from HMRC...
                                     </div>
                                 </div>
                                 
                                 <!-- Step 2: View Calculation -->
-                                <div id="step2" class="mb-4" style="display: none;">
+                                <div id="step2" class="mb-4 d-none">
                                     <h6 class="text-success"><i class="fas fa-check-circle"></i> Step 2: View Calculation</h6>
                                     <div class="alert alert-success">
                                         <p><strong>Calculation ID:</strong> <code id="calcIdDisplay"></code></p>
@@ -491,13 +512,14 @@
                                     <button id="viewCalcBtn" class="btn btn-info">
                                         <i class="fas fa-eye"></i> View Calculation Details
                                     </button>
-                                    <div id="calcDetails" class="mt-3" style="display: none;">
+                                    <div id="calcDetails" class="mt-3 d-none">
                                         <div class="card">
                                             <div class="card-body">
                                                 <h6>Tax Calculation Summary</h6>
                                                 <div id="calcSummary"></div>
                                                 <div class="alert alert-warning mt-3">
-                                                    <small><strong>HMRC Disclaimer:</strong> This calculation is only based on information HMRC have received about your income and expenses to date. This may change as we receive further information about you during the tax year.</small>
+                                                    <strong><i class="fas fa-exclamation-triangle"></i> MANDATORY HMRC DISCLAIMER</strong>
+                                                    <p class="mb-0 mt-2" id="hmrcCalculationDisclaimer">This calculation is only based on information HMRC have received about your income and expenses to <span id="calculationDate"></span>. This may change as we receive further information about you during the tax year.</p>
                                                 </div>
                                                 <button id="proceedToStep3Btn" class="btn btn-primary mt-2">
                                                     <i class="fas fa-arrow-right"></i> Proceed to Final Declaration
@@ -508,7 +530,7 @@
                                 </div>
                                 
                                 <!-- Step 3: Final Declaration -->
-                                <div id="step3" class="mb-4" style="display: none;">
+                                <div id="step3" class="mb-4 d-none">
                                     <h6 class="text-warning"><i class="fas fa-exclamation-triangle"></i> Step 3: Final Declaration</h6>
                                     <div class="alert alert-danger">
                                         <h6><strong>HMRC Declaration Statement</strong></h6>
@@ -526,7 +548,7 @@
                                 </div>
                                 
                                 <!-- Success Message -->
-                                <div id="stepSuccess" style="display: none;">
+                                <div id="stepSuccess" class="d-none">
                                     <div class="alert alert-success">
                                         <h6><i class="fas fa-check-circle"></i> Final Declaration Submitted Successfully!</h6>
                                         <p id="successMessage"></p>
@@ -632,6 +654,24 @@
             </div>
         </div>
     </div>
+    
+    <!-- MTD Software Notice Footer -->
+    <div class="row mtd-footer">
+        <div class="col-12">
+            <div class="card bg-light">
+                <div class="card-body text-center py-2">
+                    <small class="text-muted">
+                        <i class="fas fa-check-circle text-success"></i> 
+                        <strong>TVS Wages is MTD-compatible software.</strong> 
+                        For HMRC support visit 
+                        <a href="https://www.gov.uk/guidance/find-software-thats-compatible-with-making-tax-digital-for-income-tax" target="_blank" rel="noopener noreferrer">
+                            www.gov.uk/guidance/find-software-thats-compatible-with-making-tax-digital-for-income-tax
+                        </a>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 <!-- NINO/Business ID Modal -->
@@ -705,6 +745,7 @@
         </div>
     </div>
 </div>
+
 {% endblock %}
 
 {% block extra_js %}

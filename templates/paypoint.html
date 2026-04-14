@@ -76,17 +76,17 @@
                     <div class="paypoint-table-container">
                         <div class="table-responsive">
                             <table class="table table-hover mb-0 paypoint-table paypoint-table-compact" id="devicesTable">
-                            <thead class="paypoint-table-header" style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                            <thead class="paypoint-table-header table-header-bg">
                                 <tr>
-                                    <th style="width: 12%;">Paypoint Type</th>
-                                    <th style="width: 18%;">Serial/TID</th>
-                                    <th style="width: 18%;">Trace/Stock</th>
-                                    <th style="width: 12%;">Status</th>
-                                    <th style="width: 28%;">Notes</th>
-                                    <th style="width: 12%;">Actions</th>
+                                    <th class="col-width-12">Paypoint Type</th>
+                                    <th class="col-width-18">Serial/TID</th>
+                                    <th class="col-width-18">Trace/Stock</th>
+                                    <th class="col-width-12">Status</th>
+                                    <th class="col-width-28">Notes</th>
+                                    <th class="col-width-12">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="devicesTableBody" style="background: white;">
+                            <tbody id="devicesTableBody" class="table-body-bg">
                                 <tr>
                                     <td colspan="5" class="text-center">
                                         <div class="spinner-border text-primary" role="status">
@@ -117,19 +117,19 @@
                     <div class="paypoint-table-container">
                         <div class="table-responsive">
                             <table class="table table-hover mb-0 paypoint-table paypoint-table-compact" id="returnsTable">
-                            <thead class="paypoint-table-header" style="background-color: #f8f9fa; border-bottom: 2px solid #dee2e6;">
+                            <thead class="paypoint-table-header table-header-bg">
                                 <tr>
-                                    <th style="width: 10%;">Return Date</th>
-                                    <th style="width: 9%;">Job Number</th>
-                                    <th style="width: 11%;">Paypoint Type</th>
-                                    <th style="width: 13%;">Return Serial/TID</th>
-                                    <th style="width: 13%;">Return Trace</th>
-                                    <th style="width: 22%;">Location</th>
-                                    <th style="width: 11%;">Reason</th>
-                                    <th style="width: 11%;">Actions</th>
+                                    <th class="col-width-10">Return Date</th>
+                                    <th class="col-width-9">Job Number</th>
+                                    <th class="col-width-11">Paypoint Type</th>
+                                    <th class="col-width-13">Return Serial/TID</th>
+                                    <th class="col-width-13">Return Trace</th>
+                                    <th class="col-width-22">Location</th>
+                                    <th class="col-width-11">Reason</th>
+                                    <th class="col-width-11">Actions</th>
                                 </tr>
                             </thead>
-                            <tbody id="returnsTableBody" style="background: white;">
+                            <tbody id="returnsTableBody" class="table-body-bg">
                                 <tr>
                                     <td colspan="7" class="text-center">
                                         <div class="spinner-border text-primary" role="status">
@@ -282,14 +282,14 @@
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <div class="modal-body">
-                <div id="barcodeScannerContainer" style="position: relative;">
-                    <video id="barcodeVideo" style="width: 100%; max-height: 400px; background: #000; border-radius: 8px;"></video>
-                    <div id="scannerOverlay" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 80%; height: 2px; background: red; box-shadow: 0 0 10px red;"></div>
+                <div id="barcodeScannerContainer" class="barcode-container">
+                    <video id="barcodeVideo" class="scanner-video"></video>
+                    <div id="scannerOverlay" class="scanner-overlay"></div>
                 </div>
                 <div id="scannerStatus" class="mt-3 text-center">
                     <p class="text-muted">Position barcode in front of camera</p>
                 </div>
-                <div id="scannerResult" class="mt-3" style="display: none;">
+                <div id="scannerResult" class="mt-3 d-none">
                     <div class="alert alert-success">
                         <strong>Scanned:</strong> <span id="scannedValue"></span>
                     </div>

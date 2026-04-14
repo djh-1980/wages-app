@@ -55,6 +55,9 @@ function setupEventListeners() {
     document.getElementById('listLossesBtn').addEventListener('click', listLosses);
     document.getElementById('createLossBtn').addEventListener('click', createLoss);
     
+    // Export data event listener
+    document.getElementById('exportDataBtn').addEventListener('click', exportMyData);
+    
     // Final declaration event listeners
     // Final declaration step-by-step flow
     document.getElementById('triggerCalcBtn').addEventListener('click', triggerTaxCalculation);
@@ -675,6 +678,19 @@ async function viewCalculationDetails() {
         
         if (data.success && data.calculation) {
             displayCalculationSummary(data.calculation);
+            
+            // Set the calculation date in the HMRC disclaimer
+            const calcDateElement = document.getElementById('calculationDate');
+            if (calcDateElement) {
+                const calcDate = data.calculation.calculationTimestamp || data.calculation.timestamp || new Date().toISOString();
+                const formattedDate = new Date(calcDate).toLocaleDateString('en-GB', { 
+                    day: 'numeric', 
+                    month: 'long', 
+                    year: 'numeric' 
+                });
+                calcDateElement.textContent = formattedDate;
+            }
+            
             document.getElementById('calcDetails').style.display = 'block';
         } else {
             showNotification('Failed to load calculation: ' + (data.error || 'Unknown error'), 'danger');
@@ -1506,6 +1522,44 @@ async function createLoss() {
             </div>
         `;
         document.getElementById('createLossResult').style.display = 'block';
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+// ============================================================================
+// DATA EXPORT FUNCTION
+// ============================================================================
+
+async function exportMyData() {
+    const btn = document.getElementById('exportDataBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Exporting...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch('/api/hmrc/export');
+        
+        if (!response.ok) {
+            throw new Error('Export failed');
+        }
+        
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.style.display = 'none';
+        a.href = url;
+        a.download = `hmrc-mtd-data-${new Date().toISOString().split('T')[0]}.json`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        showNotification('Data exported successfully', 'success');
+    } catch (error) {
+        console.error('Error exporting data:', error);
+        showNotification('Failed to export data', 'danger');
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
