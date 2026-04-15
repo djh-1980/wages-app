@@ -520,8 +520,8 @@ class GmailRunSheetDownloader:
             for pdf_path in downloaded_files:
                 organized_path = self.organize_pdf(pdf_path)
                 organized_files.append(organized_path)
-                if organized_path != pdf_path:
-                    print(f"  📁 {organized_path.relative_to(self.download_dir)}")
+                # Always print path for periodic_sync.py to track, even if file wasn't moved
+                print(f"  📁 {organized_path.relative_to(self.download_dir)}")
             
             print()
             print("=" * 70)

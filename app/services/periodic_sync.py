@@ -468,7 +468,11 @@ class PeriodicSyncService:
                 unprocessed = self._get_unprocessed_runsheets()
                 if unprocessed:
                     should_import_runsheets = True
-                    self.logger.info(f"Found {len(unprocessed)} unprocessed runsheet(s) on disk (not in local DB)")
+                    # Add unprocessed files to downloaded_file_paths for import
+                    from pathlib import Path
+                    from app.config import Config
+                    downloaded_file_paths = [str(f.relative_to(Path(Config.RUNSHEETS_DIR))) for f in unprocessed]
+                    self.logger.info(f"Found {len(unprocessed)} unprocessed runsheet(s) on disk, will import directly")
                 else:
                     self.logger.debug("No new downloads and no unprocessed files on disk")
             
@@ -486,6 +490,10 @@ class PeriodicSyncService:
                         
                         for rel_path in downloaded_file_paths:
                             file_path = base_dir / rel_path
+                            # Try as absolute path if relative path doesn't exist
+                            if not file_path.exists():
+                                file_path = Path(rel_path)
+                            
                             if file_path.exists():
                                 self.logger.info(f"📄 Importing: {file_path.name} (full path: {file_path})")
                                 import_result = subprocess.run(
@@ -495,15 +503,17 @@ class PeriodicSyncService:
                                     timeout=60
                                 )
                                 if import_result.returncode == 0:
-                                    # Extract job count from output
+                                    # Extract job count from output - match multiple patterns
                                     import re
-                                    match = re.search(r'imported (\d+) jobs', import_result.stdout)
+                                    match = re.search(r'[Ii]mported (\d+) jobs|✓ Imported (\d+)|imported (\d+)', import_result.stdout)
                                     if match:
-                                        jobs = int(match.group(1))
+                                        # Get the first non-None group
+                                        jobs = int(next(g for g in match.groups() if g is not None))
                                         total_jobs += jobs
                                         self.logger.info(f"  ✓ Imported {jobs} jobs from {file_path.name}")
                                     else:
                                         self.logger.info(f"  ✓ Import completed for {file_path.name} (job count not found in output)")
+                                        self.logger.debug(f"Output to parse: {import_result.stdout[:200]}")
                                     # Log full output for debugging
                                     if import_result.stdout:
                                         self.logger.debug(f"Import stdout: {import_result.stdout[:500]}")
