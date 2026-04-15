@@ -33,6 +33,11 @@ class PeriodicSyncService:
         self.sync_interval_minutes = 15  # Sync every 15 minutes
         self.real_time_processing = False  # Disable file monitoring, use simple sync
         
+        # Expected path configuration:
+        # - Dev: /Volumes/pdfs/runsheets (shared mount)
+        # - Prod LXC: /pdfs/runsheets (configured in .env RUNSHEETS_DIR)
+        # This is loaded from Config.RUNSHEETS_DIR which reads from .env
+        
         # Track what's been processed today/this week to avoid re-checking
         self.last_runsheet_date_processed = None
         self.last_payslip_week_processed = None
@@ -378,9 +383,13 @@ class PeriodicSyncService:
                                         rel_path = match.group(1).strip()
                                         downloaded_file_paths.append(rel_path)
                             
-                            self.logger.info(f"Downloaded {sync_summary['runsheets_downloaded']} new runsheets")
+                            self.logger.info(f"📥 Downloaded {sync_summary['runsheets_downloaded']} new runsheets")
                             if downloaded_file_paths:
-                                self.logger.info(f"Tracked {len(downloaded_file_paths)} file paths for import")
+                                self.logger.info(f"📋 Tracked {len(downloaded_file_paths)} file paths for import:")
+                                for path in downloaded_file_paths:
+                                    self.logger.info(f"   - {path}")
+                            else:
+                                self.logger.warning("⚠️  No file paths tracked from download output")
                             self.retry_count = 0  # Reset on success
                         else:
                             error_msg = f"Download failed with code {runsheet_result.returncode}"
@@ -478,7 +487,7 @@ class PeriodicSyncService:
                         for rel_path in downloaded_file_paths:
                             file_path = base_dir / rel_path
                             if file_path.exists():
-                                self.logger.info(f"Importing: {file_path.name}")
+                                self.logger.info(f"📄 Importing: {file_path.name} (full path: {file_path})")
                                 import_result = subprocess.run(
                                     [sys.executable, 'scripts/production/import_run_sheets.py', '--file', str(file_path)],
                                     capture_output=True,
@@ -493,13 +502,25 @@ class PeriodicSyncService:
                                         jobs = int(match.group(1))
                                         total_jobs += jobs
                                         self.logger.info(f"  ✓ Imported {jobs} jobs from {file_path.name}")
+                                    else:
+                                        self.logger.info(f"  ✓ Import completed for {file_path.name} (job count not found in output)")
+                                    # Log full output for debugging
+                                    if import_result.stdout:
+                                        self.logger.debug(f"Import stdout: {import_result.stdout[:500]}")
                                 else:
-                                    self.logger.warning(f"  ✗ Failed to import {file_path.name}: {import_result.stderr}")
+                                    error_msg = import_result.stderr or 'Unknown error'
+                                    self.logger.error(f"  ✗ Failed to import {file_path.name}: {error_msg}")
+                                    if import_result.stdout:
+                                        self.logger.error(f"Import stdout: {import_result.stdout[:500]}")
+                                    sync_summary['errors'].append(f"Import failed for {file_path.name}: {error_msg}")
                             else:
-                                self.logger.warning(f"  ✗ File not found: {file_path}")
+                                self.logger.error(f"  ✗ File not found: {file_path}")
+                                sync_summary['errors'].append(f"Downloaded file not found: {file_path}")
                         
                         sync_summary['runsheets_imported'] = total_jobs
-                        self.logger.info(f"Imported {total_jobs} runsheet jobs from {len(downloaded_file_paths)} files")
+                        self.logger.info(f"✅ Import Summary: {total_jobs} jobs imported from {len(downloaded_file_paths)} files")
+                        if total_jobs == 0:
+                            self.logger.warning("⚠️  No jobs were imported - check parser compatibility")
                     else:
                         # Fallback: import files modified in last 10 minutes
                         self.logger.info("No tracked file paths - using --recent-minutes 10 fallback")

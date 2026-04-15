@@ -92,11 +92,14 @@ class FileUploadManager {
             
             <div class="upload-progress mt-3" id="uploadProgress" style="display: none;">
                 <div class="d-flex justify-content-between align-items-center mb-2">
-                    <span>Uploading files...</span>
+                    <span id="progressStage">Uploading files...</span>
                     <span id="progressText">0%</span>
                 </div>
                 <div class="progress">
-                    <div class="progress-bar" id="progressBar" style="width: 0%"></div>
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" id="progressBar" style="width: 0%"></div>
+                </div>
+                <div class="text-center mt-2">
+                    <small class="text-muted" id="progressDetail"></small>
                 </div>
             </div>
             
@@ -261,59 +264,142 @@ class FileUploadManager {
             formData.append('auto_process', autoProcess ? 'true' : 'false');
             formData.append('overwrite', overwrite ? 'true' : 'false');
             
-            const response = await fetch('/api/upload/files', {
-                method: 'POST',
-                headers: getCSRFHeaders(),
-                body: formData
+            // Stage 1: Uploading (0-40%)
+            this.updateProgressStage('Uploading PDF...', 0, 40, 1000);
+            
+            const xhr = new XMLHttpRequest();
+            const uploadPromise = new Promise((resolve, reject) => {
+                xhr.upload.addEventListener('progress', (e) => {
+                    if (e.lengthComputable) {
+                        const uploadPercent = (e.loaded / e.total) * 40; // 0-40%
+                        this.updateProgress(uploadPercent, 'Uploading PDF...');
+                    }
+                });
+                
+                xhr.addEventListener('load', () => {
+                    if (xhr.status >= 200 && xhr.status < 300) {
+                        resolve(JSON.parse(xhr.responseText));
+                    } else {
+                        reject(new Error(`Server error (${xhr.status}): ${xhr.responseText}`));
+                    }
+                });
+                
+                xhr.addEventListener('error', () => {
+                    reject(new Error('Network error during upload'));
+                });
+                
+                xhr.open('POST', '/api/upload/files');
+                // Add CSRF headers
+                const csrfHeaders = getCSRFHeaders();
+                for (const [key, value] of Object.entries(csrfHeaders)) {
+                    xhr.setRequestHeader(key, value);
+                }
+                xhr.send(formData);
             });
             
-            if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(`Server error (${response.status}): ${errorText}`);
-            }
+            const result = await uploadPromise;
             
-            const result = await response.json();
+            // Stage 2: Processing (40-80%)
+            this.updateProgressStage('Extracting jobs...', 40, 80, 2000);
+            
+            // Stage 3: Complete (80-100%)
+            this.updateProgressStage('Import complete!', 80, 100, 500);
             
             if (result.success) {
-                this.showResults(result);
-                this.clearQueue();
+                const jobCount = result.uploaded_files?.length || 0;
+                this.updateProgress(100, `Import complete - ${jobCount} files processed`);
+                setTimeout(() => {
+                    this.showResults(result);
+                    this.clearQueue();
+                }, 500);
             } else {
-                this.showError(result.error || 'Upload failed');
+                this.showProgressError(result.error || 'Upload failed');
             }
             
         } catch (error) {
             console.error('Upload error:', error);
-            this.showError(`Upload failed: ${error.message}`);
+            this.showProgressError(`Upload failed: ${error.message}`);
         } finally {
             this.isUploading = false;
-            this.hideProgress();
+            setTimeout(() => this.hideProgress(), 2000);
         }
     }
     
     showProgress() {
-        document.getElementById('uploadProgress').style.display = 'block';
-        // Simulate progress for now - in a real implementation, you'd track actual progress
-        let progress = 0;
-        const interval = setInterval(() => {
-            progress += Math.random() * 20;
-            if (progress >= 100) {
-                progress = 100;
-                clearInterval(interval);
-            }
-            this.updateProgress(progress);
-        }, 200);
+        const progressContainer = document.getElementById('uploadProgress');
+        progressContainer.style.display = 'block';
+        this.updateProgress(0, 'Preparing upload...');
     }
     
-    updateProgress(percent) {
+    updateProgress(percent, stage = '') {
         const progressBar = document.getElementById('progressBar');
         const progressText = document.getElementById('progressText');
+        const progressStage = document.getElementById('progressStage');
+        const progressDetail = document.getElementById('progressDetail');
         
         progressBar.style.width = `${percent}%`;
         progressText.textContent = `${Math.round(percent)}%`;
+        
+        if (stage) {
+            progressStage.textContent = stage;
+        }
+        
+        // Update detail based on stage
+        if (percent < 40) {
+            progressDetail.textContent = 'Uploading file to server...';
+        } else if (percent < 80) {
+            progressDetail.textContent = 'Parsing PDF and extracting job data...';
+        } else if (percent < 100) {
+            progressDetail.textContent = 'Finalizing import...';
+        } else {
+            progressDetail.textContent = 'Complete!';
+        }
+    }
+    
+    updateProgressStage(stage, startPercent, endPercent, duration) {
+        const steps = 20;
+        const stepDuration = duration / steps;
+        const percentPerStep = (endPercent - startPercent) / steps;
+        
+        let currentStep = 0;
+        const interval = setInterval(() => {
+            currentStep++;
+            const currentPercent = startPercent + (percentPerStep * currentStep);
+            this.updateProgress(currentPercent, stage);
+            
+            if (currentStep >= steps) {
+                clearInterval(interval);
+            }
+        }, stepDuration);
+    }
+    
+    showProgressError(message) {
+        const progressBar = document.getElementById('progressBar');
+        const progressStage = document.getElementById('progressStage');
+        const progressDetail = document.getElementById('progressDetail');
+        
+        progressBar.classList.remove('progress-bar-striped', 'progress-bar-animated');
+        progressBar.classList.add('bg-danger');
+        progressBar.style.width = '100%';
+        
+        progressStage.textContent = 'Error';
+        progressDetail.innerHTML = `<span class="text-danger">${message}</span>`;
+        
+        setTimeout(() => {
+            this.showError(message);
+        }, 1500);
     }
     
     hideProgress() {
-        document.getElementById('uploadProgress').style.display = 'none';
+        const progressContainer = document.getElementById('uploadProgress');
+        const progressBar = document.getElementById('progressBar');
+        
+        progressContainer.style.display = 'none';
+        
+        // Reset progress bar
+        progressBar.style.width = '0%';
+        progressBar.classList.remove('bg-danger');
+        progressBar.classList.add('progress-bar-striped', 'progress-bar-animated');
     }
     
     showResults(result) {
@@ -433,6 +519,7 @@ class FileUploadManager {
         this.uploadQueue = [];
         this.updateQueueDisplay();
         this.hideUploadOptions();
+        this.hideProgress();
         document.getElementById('fileInput').value = '';
     }
     

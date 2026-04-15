@@ -14,11 +14,11 @@ class SettingsModel:
     @staticmethod
     def get_groupings():
         """Get client and job type groupings."""
-        query = "SELECT value FROM settings WHERE key = 'groupings'"
+        query = "SELECT setting_value FROM settings WHERE setting_key = 'groupings'"
         row = execute_query(query, fetch_one=True)
         
         if row:
-            return json.loads(row['value'])
+            return json.loads(row['setting_value'])
         else:
             return {'client_groups': {}, 'job_type_groups': {}}
     
@@ -26,7 +26,7 @@ class SettingsModel:
     def save_groupings(groupings_data):
         """Save client and job type groupings."""
         query = """
-            INSERT OR REPLACE INTO settings (key, value)
+            INSERT OR REPLACE INTO settings (setting_key, setting_value)
             VALUES ('groupings', ?)
         """
         execute_query(query, (json.dumps(groupings_data),))
@@ -35,15 +35,15 @@ class SettingsModel:
     @staticmethod
     def get_setting(key):
         """Get a specific setting value."""
-        query = "SELECT value FROM settings WHERE key = ?"
+        query = "SELECT setting_value FROM settings WHERE setting_key = ?"
         row = execute_query(query, (key,), fetch_one=True)
-        return row['value'] if row else None
+        return row['setting_value'] if row else None
     
     @staticmethod
     def set_setting(key, value):
         """Set a specific setting value."""
         query = """
-            INSERT OR REPLACE INTO settings (key, value)
+            INSERT OR REPLACE INTO settings (setting_key, setting_value)
             VALUES (?, ?)
         """
         execute_query(query, (key, value))
