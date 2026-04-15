@@ -22,8 +22,8 @@ logger = logging.getLogger(__name__)
 
 upload_bp = Blueprint('upload_api', __name__, url_prefix='/api/upload')
 
-ALLOWED_EXTENSIONS = {'pdf'}
-ALLOWED_MIMES = {'application/pdf', 'text/csv', 'text/plain'}
+ALLOWED_EXTENSIONS = {'.pdf'}
+ALLOWED_MIMES = {'application/pdf', 'application/octet-stream', 'text/csv', 'text/plain'}
 
 def allowed_file(filename):
     """Check if file extension is allowed."""
@@ -39,14 +39,21 @@ def validate_upload_file(file):
     if size > 50 * 1024 * 1024:
         raise ValueError("File exceeds 50MB limit")
 
-    # Verify actual MIME type, not just extension
+    # Verify actual MIME type or file extension
     mime = magic.from_buffer(file.read(2048), mime=True)
     file.seek(0)
-    if mime not in ALLOWED_MIMES:
-        raise ValueError(f"File type not allowed: {mime}")
+    
+    # Get file extension
+    filename = secure_filename(file.filename) if file.filename else ''
+    file_ext = os.path.splitext(filename)[1].lower()
+    
+    # Allow if MIME type is in allowed list OR file extension is .pdf
+    is_valid = (mime in ALLOWED_MIMES) or (file_ext in ALLOWED_EXTENSIONS)
+    
+    if not is_valid:
+        raise ValueError(f"File type not allowed: {mime} (extension: {file_ext})")
 
     # Secure filename with fallback
-    filename = secure_filename(file.filename)
     if not filename:
         filename = f"upload_{datetime.now().strftime('%Y%m%d_%H%M%S')}.bin"
     return filename
