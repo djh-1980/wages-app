@@ -44,7 +44,11 @@ class ExpenseModel:
                    receipt_file=None, is_recurring=False, recurring_frequency=None):
         """Add a new expense."""
         # Calculate tax year (April 6 - April 5)
-        expense_date = datetime.strptime(date, '%d/%m/%Y')
+        # Handle both YYYY-MM-DD (from parse_date) and DD/MM/YYYY formats
+        try:
+            expense_date = datetime.strptime(date, '%Y-%m-%d')
+        except ValueError:
+            expense_date = datetime.strptime(date, '%d/%m/%Y')
         if expense_date.month >= 4 and expense_date.day >= 6:
             tax_year = f"{expense_date.year}/{expense_date.year + 1}"
         else:
@@ -140,8 +144,11 @@ class ExpenseModel:
                 updates.append("date = ?")
                 params.append(date)
                 
-                # Recalculate tax year
-                expense_date = datetime.strptime(date, '%d/%m/%Y')
+                # Recalculate tax year - handle both date formats
+                try:
+                    expense_date = datetime.strptime(date, '%Y-%m-%d')
+                except ValueError:
+                    expense_date = datetime.strptime(date, '%d/%m/%Y')
                 if expense_date.month >= 4 and expense_date.day >= 6:
                     tax_year = f"{expense_date.year}/{expense_date.year + 1}"
                 else:
