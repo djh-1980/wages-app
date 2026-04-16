@@ -305,6 +305,13 @@ function showAddExpenseModal() {
     showUpload();
     capturedPhotoBlob = null;
     
+    // Hide and clear photo confirmation
+    const photoConfirmation = document.getElementById('photoConfirmation');
+    if (photoConfirmation) {
+        photoConfirmation.style.display = 'none';
+        photoConfirmation.innerHTML = '';
+    }
+    
     // Show modal using Bootstrap
     const modalElement = document.getElementById('expenseModal');
     const modal = new bootstrap.Modal(modalElement);
@@ -496,6 +503,13 @@ function showUpload() {
     document.getElementById('uploadBtn').classList.add('active');
     document.getElementById('cameraBtn').classList.remove('active');
     stopCamera();
+    
+    // Hide and clear photo confirmation
+    const photoConfirmation = document.getElementById('photoConfirmation');
+    if (photoConfirmation) {
+        photoConfirmation.style.display = 'none';
+        photoConfirmation.innerHTML = '';
+    }
 }
 
 /**
@@ -555,6 +569,14 @@ function capturePhoto() {
         
         // Stop camera stream
         stopCamera();
+        
+        // Fix iOS scroll issue - scroll captured photo into view
+        setTimeout(() => {
+            document.getElementById('capturedPhoto').scrollIntoView({
+                behavior: 'smooth',
+                block: 'center'
+            });
+        }, 100);
     }, 'image/jpeg', 0.9);
 }
 
@@ -578,6 +600,13 @@ function usePhoto() {
         document.getElementById('cameraBtn').classList.remove('active');
         
         showExpenseNotification('Photo ready to upload!', 'success');
+        
+        // Show confirmation below buttons
+        const photoConfirmation = document.getElementById('photoConfirmation');
+        if (photoConfirmation) {
+            photoConfirmation.innerHTML = '📷 Photo attached and ready to save';
+            photoConfirmation.style.display = 'block';
+        }
     }
 }
 
@@ -586,6 +615,14 @@ function usePhoto() {
  */
 function retakePhoto() {
     capturedPhotoBlob = null;
+    
+    // Hide and clear photo confirmation
+    const photoConfirmation = document.getElementById('photoConfirmation');
+    if (photoConfirmation) {
+        photoConfirmation.style.display = 'none';
+        photoConfirmation.innerHTML = '';
+    }
+    
     showCamera();
 }
 
