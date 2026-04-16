@@ -547,37 +547,39 @@ function capturePhoto() {
     const canvas = document.getElementById('photoCanvas');
     const preview = document.getElementById('photoPreview');
     
-    // Set canvas size to match video
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
+    // Set canvas size to match video (with fallback for iOS)
+    canvas.width = video.videoWidth || 1280;
+    canvas.height = video.videoHeight || 720;
     
     // Draw video frame to canvas
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
     
-    // Convert canvas to blob
-    canvas.toBlob((blob) => {
-        capturedPhotoBlob = blob;
-        
-        // Show preview
-        const url = URL.createObjectURL(blob);
-        preview.src = url;
-        
-        // Hide camera, show preview
-        document.getElementById('cameraSection').style.display = 'none';
-        document.getElementById('capturedPhoto').style.display = 'block';
-        
-        // Stop camera stream
-        stopCamera();
-        
-        // Fix iOS scroll issue - scroll captured photo into view
-        setTimeout(() => {
-            document.getElementById('capturedPhoto').scrollIntoView({
-                behavior: 'smooth',
-                block: 'center'
-            });
-        }, 100);
-    }, 'image/jpeg', 0.9);
+    // Use toDataURL as primary method (works reliably on iOS Safari)
+    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
+    preview.src = dataURL;
+    
+    // Convert dataURL to blob for file upload
+    fetch(dataURL)
+        .then(r => r.blob())
+        .then(blob => {
+            capturedPhotoBlob = blob;
+        });
+    
+    // Show preview immediately
+    document.getElementById('cameraSection').style.display = 'none';
+    document.getElementById('capturedPhoto').style.display = 'block';
+    
+    // Stop camera stream
+    stopCamera();
+    
+    // Fix iOS scroll issue - scroll captured photo into view
+    setTimeout(() => {
+        document.getElementById('capturedPhoto').scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+    }, 100);
 }
 
 /**
