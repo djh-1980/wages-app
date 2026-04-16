@@ -177,8 +177,8 @@ class RecurringTemplateModel:
             # Check date proximity to expected date
             if template['next_expected_date']:
                 try:
-                    expected = datetime.strptime(template['next_expected_date'], '%d/%m/%Y')
-                    actual = datetime.strptime(date, '%d/%m/%Y')
+                    expected = datetime.strptime(template['next_expected_date'], '%Y-%m-%d')
+                    actual = datetime.strptime(date, '%Y-%m-%d')
                     days_diff = abs((actual - expected).days)
                     
                     if days_diff <= 3:
@@ -207,7 +207,7 @@ class RecurringTemplateModel:
         
         # Calculate next expected date based on matched date
         try:
-            matched = datetime.strptime(matched_date, '%d/%m/%Y')
+            matched = datetime.strptime(matched_date, '%Y-%m-%d')
             next_date = RecurringTemplateModel._calculate_next_date_from(
                 matched, template['frequency']
             )
@@ -238,7 +238,7 @@ class RecurringTemplateModel:
         for template in templates:
             if template['next_expected_date']:
                 try:
-                    expected = datetime.strptime(template['next_expected_date'], '%d/%m/%Y')
+                    expected = datetime.strptime(template['next_expected_date'], '%Y-%m-%d')
                     if today <= expected <= week_ahead:
                         due_templates.append(template)
                 except:
@@ -280,7 +280,7 @@ class RecurringTemplateModel:
         else:
             next_date = from_date + timedelta(days=30)  # Default to monthly
         
-        return next_date.strftime('%d/%m/%Y')
+        return next_date.strftime('%Y-%m-%d')
     
     @staticmethod
     def get_statistics():

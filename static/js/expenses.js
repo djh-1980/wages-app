@@ -208,6 +208,19 @@ async function loadExpenses() {
 }
 
 /**
+ * Format date for display (YYYY-MM-DD to DD/MM/YYYY)
+ */
+function formatDisplayDate(dateStr) {
+    if (!dateStr) return '-';
+    // Handle both YYYY-MM-DD and DD/MM/YYYY
+    if (dateStr.includes('-') && dateStr.indexOf('-') === 4) {
+        const [y, m, d] = dateStr.split('-');
+        return `${d}/${m}/${y}`;
+    }
+    return dateStr;
+}
+
+/**
  * Display expenses in table
  */
 function displayExpenses() {
@@ -230,7 +243,7 @@ function displayExpenses() {
     
     tbody.innerHTML = expenses.map(expense => `
         <tr>
-            <td>${expense.date}</td>
+            <td>${formatDisplayDate(expense.date)}</td>
             <td>
                 <span class="badge bg-secondary">${expense.category_name}</span>
                 ${expense.is_recurring ? '<i class="bi bi-arrow-repeat text-warning ms-1" title="Recurring"></i>' : ''}
@@ -267,7 +280,8 @@ function updateSummary() {
     // Calculate this month's total
     const monthTotal = expenses
         .filter(e => {
-            const [day, month, year] = e.date.split('/');
+            const parts = e.date.includes('-') ? e.date.split('-').reverse() : e.date.split('/');
+            const [day, month, year] = parts;
             return parseInt(month) - 1 === currentMonth && parseInt(year) === currentYear;
         })
         .reduce((sum, e) => sum + e.amount, 0);
@@ -409,9 +423,13 @@ async function saveExpense() {
         amount: parseFloat(amount),
         description: description,
         is_recurring: isRecurring,
-        recurring_frequency: isRecurring ? recurringFrequency : null,
-        receipt_file: receiptPath
+        recurring_frequency: isRecurring ? recurringFrequency : null
     };
+    
+    // Only include receipt_file if a new file was uploaded
+    if (receiptPath) {
+        expenseData.receipt_file = receiptPath;
+    }
     
     try {
         let response;

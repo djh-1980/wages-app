@@ -81,8 +81,8 @@ class BankStatementParser:
                 if not date_obj:
                     continue  # Skip if can't parse date
                 
-                # Format as DD/MM/YYYY for our system
-                formatted_date = date_obj.strftime('%d/%m/%Y')
+                # Format as YYYY-MM-DD for our system (standardized format)
+                formatted_date = date_obj.strftime('%Y-%m-%d')
                 
                 # Parse value (negative = expense, positive = income)
                 value = float(row['Value'].strip())

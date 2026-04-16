@@ -63,13 +63,13 @@ class HMRCMapper:
         Determine which quarterly period a date falls into.
         
         Args:
-            date_str: Date string (DD/MM/YYYY)
+            date_str: Date string (YYYY-MM-DD)
             tax_year: Tax year string (e.g., '2024/2025')
             
         Returns:
             str: Period ID (Q1, Q2, Q3, Q4) or None
         """
-        date = datetime.strptime(date_str, '%d/%m/%Y')
+        date = datetime.strptime(date_str, '%Y-%m-%d')
         periods = HMRCMapper.calculate_quarterly_periods(tax_year)
         
         for period in periods:

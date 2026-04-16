@@ -83,22 +83,14 @@ class ExpenseModel:
         params = []
         
         if start_date:
-            # Convert DD/MM/YYYY to YYYY-MM-DD for proper date comparison
-            query += """ AND date(substr(e.date, 7, 4) || '-' || 
-                              substr(e.date, 4, 2) || '-' || 
-                              substr(e.date, 1, 2)) >= date(substr(?, 7, 4) || '-' || 
-                              substr(?, 4, 2) || '-' || 
-                              substr(?, 1, 2))"""
-            params.extend([start_date, start_date, start_date])
+            # Direct comparison since dates are stored as YYYY-MM-DD
+            query += " AND e.date >= ?"
+            params.append(start_date)
         
         if end_date:
-            # Convert DD/MM/YYYY to YYYY-MM-DD for proper date comparison
-            query += """ AND date(substr(e.date, 7, 4) || '-' || 
-                              substr(e.date, 4, 2) || '-' || 
-                              substr(e.date, 1, 2)) <= date(substr(?, 7, 4) || '-' || 
-                              substr(?, 4, 2) || '-' || 
-                              substr(?, 1, 2))"""
-            params.extend([end_date, end_date, end_date])
+            # Direct comparison since dates are stored as YYYY-MM-DD
+            query += " AND e.date <= ?"
+            params.append(end_date)
         
         if category_id:
             query += " AND e.category_id = ?"
@@ -267,17 +259,6 @@ class ExpenseModel:
         """
         rows = execute_query(query, fetch_all=True)
         return [row[0] for row in rows]
-    
-    @staticmethod
-    def get_categories():
-        """Get all expense categories."""
-        query = """
-            SELECT id, name, hmrc_box, hmrc_box_number, description
-            FROM expense_categories
-            ORDER BY name
-        """
-        rows = execute_query(query, fetch_all=True)
-        return [dict(row) for row in rows]
     
     @staticmethod
     def get_category_by_name(name):
