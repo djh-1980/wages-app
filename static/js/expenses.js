@@ -392,7 +392,9 @@ async function saveExpense() {
     const description = document.getElementById('expenseDescription').value;
     const isRecurring = document.getElementById('isRecurring').checked;
     const recurringFrequency = document.getElementById('recurringFrequency').value;
-    const receiptFile = document.getElementById('receiptFile').files[0];
+    const receiptFile = document.getElementById('receiptFile').files[0] || 
+        (capturedPhotoBlob ? new File([capturedPhotoBlob], 'receipt-photo.jpg', 
+         {type: 'image/jpeg'}) : null);
     
     if (!dateInput || !categoryId || !amount) {
         showExpenseNotification('Please fill in all required fields', 'error');
@@ -464,6 +466,9 @@ async function saveExpense() {
             // Clear form
             document.getElementById('expenseForm').reset();
             document.getElementById('receiptFile').value = '';
+            
+            // Reset camera photo data
+            capturedPhotoBlob = null;
             
             loadExpenses();
         } else {
@@ -565,39 +570,30 @@ function capturePhoto() {
     const canvas = document.getElementById('photoCanvas');
     const preview = document.getElementById('photoPreview');
     
-    // Set canvas size to match video (with fallback for iOS)
-    canvas.width = video.videoWidth || 1280;
-    canvas.height = video.videoHeight || 720;
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
     
-    // Draw video frame to canvas
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
     
-    // Use toDataURL as primary method (works reliably on iOS Safari)
-    const dataURL = canvas.toDataURL('image/jpeg', 0.9);
-    preview.src = dataURL;
-    
-    // Convert dataURL to blob for file upload
-    fetch(dataURL)
-        .then(r => r.blob())
-        .then(blob => {
-            capturedPhotoBlob = blob;
-        });
-    
-    // Show preview immediately
-    document.getElementById('cameraSection').style.display = 'none';
-    document.getElementById('capturedPhoto').style.display = 'block';
-    
-    // Stop camera stream
-    stopCamera();
-    
-    // Fix iOS scroll issue - scroll captured photo into view
-    setTimeout(() => {
-        document.getElementById('capturedPhoto').scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-        });
-    }, 100);
+    canvas.toBlob((blob) => {
+        capturedPhotoBlob = blob;
+        
+        const url = URL.createObjectURL(blob);
+        preview.src = url;
+        
+        document.getElementById('cameraSection').style.display = 'none';
+        document.getElementById('capturedPhoto').style.display = 'block';
+        
+        // Scroll into view on mobile
+        setTimeout(() => {
+            document.getElementById('capturedPhoto').scrollIntoView(
+                {behavior: 'smooth', block: 'center'}
+            );
+        }, 100);
+        
+        stopCamera();
+    }, 'image/jpeg', 0.9);
 }
 
 /**
@@ -605,15 +601,12 @@ function capturePhoto() {
  */
 function usePhoto() {
     if (capturedPhotoBlob) {
-        // Create a File object from the blob
-        const file = new File([capturedPhotoBlob], 'receipt-photo.jpg', { type: 'image/jpeg' });
-        
-        // Create a DataTransfer to set the file input
+        const file = new File([capturedPhotoBlob], 'receipt-photo.jpg', 
+                              { type: 'image/jpeg' });
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
         document.getElementById('receiptFile').files = dataTransfer.files;
         
-        // Hide preview, show upload section
         document.getElementById('capturedPhoto').style.display = 'none';
         document.getElementById('uploadSection').style.display = 'block';
         document.getElementById('uploadBtn').classList.add('active');
@@ -621,7 +614,6 @@ function usePhoto() {
         
         showExpenseNotification('Photo ready to upload!', 'success');
         
-        // Show confirmation below buttons
         const photoConfirmation = document.getElementById('photoConfirmation');
         if (photoConfirmation) {
             photoConfirmation.innerHTML = '📷 Photo attached and ready to save';
