@@ -55,7 +55,8 @@ def setup_logging(log_dir='logs', log_level='INFO', environment='production'):
     _setup_app_logger(log_dir, formatter, numeric_level)
     _setup_migration_logger(log_dir, formatter, numeric_level)
     _setup_hmrc_logger(log_dir, formatter, numeric_level)
-    
+    _setup_periodic_sync_logger(log_dir, formatter, numeric_level)
+
     logging.info(f"Logging configured: level={log_level}, environment={environment}")
 
 
@@ -102,6 +103,26 @@ def _setup_hmrc_logger(log_dir, formatter, level):
     )
     handler.setFormatter(formatter)
     hmrc_logger.addHandler(handler)
+
+
+def _setup_periodic_sync_logger(log_dir, formatter, level):
+    """Configure periodic sync logger with rotation."""
+    sync_logger = logging.getLogger('periodic_sync')
+    sync_logger.setLevel(level)
+    sync_logger.propagate = True  # Errors also flow to error.log
+
+    # Remove any existing handlers (e.g. plain FileHandler added by PeriodicSyncService
+    # before this function ran) to avoid duplicate log lines.
+    for existing in list(sync_logger.handlers):
+        sync_logger.removeHandler(existing)
+
+    handler = logging.handlers.RotatingFileHandler(
+        f'{log_dir}/periodic_sync.log',
+        maxBytes=10 * 1024 * 1024,  # 10MB
+        backupCount=5,
+    )
+    handler.setFormatter(formatter)
+    sync_logger.addHandler(handler)
 
 
 def get_logger(name):

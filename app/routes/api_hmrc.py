@@ -12,6 +12,7 @@ from flask import Blueprint, jsonify, request, redirect, session
 from ..services.hmrc_auth import HMRCAuthService
 from ..services.hmrc_client import HMRCClient
 from ..services.hmrc_mapper import HMRCMapper
+from ..services.hmrc_fraud_headers import record_browser_context
 from ..database import get_db_connection, execute_query
 from .. import limiter
 
@@ -36,6 +37,25 @@ def validate_tax_year(tax_year):
     if int(end) != int(start) + 1:
         raise ValueError("Tax year years must be consecutive")
     return tax_year
+
+
+@hmrc_bp.route('/fraud-headers/record', methods=['POST'])
+@limiter.limit("120 per hour", override_defaults=True)
+def fraud_headers_record():
+    """
+    Capture browser-supplied fraud-prevention context for HMRC API calls.
+
+    Called by static/js/hmrc-fraud-headers.js on page load of any HMRC-related
+    screen. The captured values are stored in the Flask session and replayed
+    on every HMRC API call made during that session.
+    """
+    try:
+        data = request.get_json(silent=True) or {}
+        record_browser_context(data)
+        return jsonify({'success': True})
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error recording HMRC fraud headers context: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 
 @hmrc_bp.route('/auth/start')
@@ -529,7 +549,7 @@ def submit_period():
                     'success': True,
                     'message': 'Already submitted',
                     'data': {}
-                }, nino=data['nino'])
+                }, nino=data['nino'], from_date=from_date, to_date=to_date)
                 
                 return jsonify({
                     'success': True,
@@ -538,7 +558,8 @@ def submit_period():
                 })
         
         # Store submission record for new submissions
-        _store_submission(data['tax_year'], data['period_id'], submission_data, result, nino=data['nino'])
+        _store_submission(data['tax_year'], data['period_id'], submission_data, result,
+                          nino=data['nino'], from_date=from_date, to_date=to_date)
         
         if result.get('success'):
             return jsonify({'success': True, 'data': result.get('data', {})})
@@ -831,19 +852,33 @@ def _get_sandbox_nino():
     return None
 
 
-def _store_submission(tax_year, period_id, submission_data, result, nino=None):
-    """Store submission record in database."""
+def _store_submission(tax_year, period_id, submission_data, result, nino=None,
+                      from_date=None, to_date=None):
+    """Store submission record in database.
+
+    If the submission succeeded and from_date/to_date were supplied (or can
+    be inferred from submission_data), the record is locked via
+    hmrc_lock.lock_submission so that covered expenses cannot be silently
+    edited afterwards (MTD digital-records compliance).
+    """
     status = 'submitted' if result.get('success') else 'failed'
     receipt_id = result.get('data', {}).get('id') if result.get('success') else None
     error_message = result.get('error') if not result.get('success') else None
+
+    # Infer period dates from submission payload if not supplied explicitly
+    if not from_date:
+        from_date = (submission_data or {}).get('fromDate') or (submission_data or {}).get('from')
+    if not to_date:
+        to_date = (submission_data or {}).get('toDate') or (submission_data or {}).get('to')
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
         cursor.execute("""
             INSERT INTO hmrc_submissions
             (tax_year, period_id, submission_date, status, hmrc_receipt_id,
-             submission_data, response_data, error_message, nino)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+             submission_data, response_data, error_message, nino,
+             period_start_date, period_end_date)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             tax_year,
             period_id,
@@ -853,9 +888,20 @@ def _store_submission(tax_year, period_id, submission_data, result, nino=None):
             json.dumps(submission_data),
             json.dumps(result.get('data', {})),
             error_message,
-            nino
+            nino,
+            from_date,
+            to_date,
         ))
+        submission_row_id = cursor.lastrowid
         conn.commit()
+
+    # Lock the digital records for the covered period on a successful submission.
+    if status == 'submitted' and from_date and to_date:
+        try:
+            from ..services.hmrc_lock import lock_submission
+            lock_submission(submission_row_id, from_date, to_date)
+        except Exception as e:  # noqa: BLE001
+            logger.error(f'Could not lock submission {submission_row_id}: {e}')
 
 
 @hmrc_bp.route('/obligations/final-declaration')

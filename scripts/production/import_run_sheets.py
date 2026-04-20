@@ -2610,8 +2610,10 @@ def main():
                 print(f"\n✓ Successfully imported {imported} jobs from {file_path.name}")
                 sys.exit(0)
             else:
+                # Exit code 2 = ran OK but found nothing new (e.g. duplicates already
+                # in DB, or PDF is for a different driver). Distinct from 1 = real failure.
                 print(f"\n⚠️  No jobs imported from {file_path.name}")
-                sys.exit(1)
+                sys.exit(2)
                 
         elif args.unprocessed:
             # Import only files not yet processed (tracked in database)

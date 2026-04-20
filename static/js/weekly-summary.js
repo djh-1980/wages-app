@@ -548,9 +548,7 @@ window.exportWeeklySummaryPDF = function() {
     // Make POST request to export endpoint
     fetch('/api/weekly-summary/export-pdf', {
         method: 'POST',
-        headers: {
-            'Content-Type': 'application/json'
-        },
+        headers: getJSONHeaders(),
         body: JSON.stringify({
             week_start: currentWeekStart
         })

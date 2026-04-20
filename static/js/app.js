@@ -769,6 +769,23 @@ async function viewPayslip(payslipId) {
         
         modalBody.innerHTML = html;
         
+        // Add "Check Missing Jobs" button to modal footer
+        const modalFooter = modalEl.querySelector('.modal-footer');
+        if (modalFooter) {
+            // Remove old button if it exists
+            const oldBtn = modalFooter.querySelector('.check-missing-jobs-btn');
+            if (oldBtn) {
+                oldBtn.remove();
+            }
+            
+            // Add new button with current payslip ID
+            const checkBtn = document.createElement('button');
+            checkBtn.className = 'btn btn-warning check-missing-jobs-btn me-auto';
+            checkBtn.innerHTML = '<i class="bi bi-search"></i> Check Missing Jobs';
+            checkBtn.onclick = () => checkMissingJobs(payslipId);
+            modalFooter.insertBefore(checkBtn, modalFooter.firstChild);
+        }
+        
     } catch (error) {
         console.error('Error loading payslip detail:', error);
         modalBody.innerHTML = '<div class="alert alert-danger">Failed to load payslip details</div>';

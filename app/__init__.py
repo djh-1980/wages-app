@@ -46,13 +46,12 @@ def create_app(config_name=None):
     # Initialize configuration
     config_class.init_app(app)
     
-    # Configure session for OAuth compatibility
-    # SameSite='Lax' is critical - allows session cookie to be sent when redirecting
-    # back from external OAuth providers (HMRC sandbox)
+    # Session security is configured in Config/ProductionConfig:
+    # - SESSION_COOKIE_SAMESITE = 'Lax' (critical for OAuth redirects)
+    # - SESSION_COOKIE_HTTPONLY = True
+    # - SESSION_COOKIE_SECURE is True in production (FLASK_ENV=production) and False in dev
+    # Do not override those here or the production cookie will fall back to insecure.
     app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(hours=24)
-    app.config['SESSION_COOKIE_SAMESITE'] = 'Lax'  # Critical for OAuth redirects
-    app.config['SESSION_COOKIE_SECURE'] = False  # False for localhost http (True for production https)
-    app.config['SESSION_COOKIE_HTTPONLY'] = True  # Security: prevent JavaScript access
     
     # Initialize CSRF Protection
     csrf = CSRFProtect(app)
@@ -155,7 +154,6 @@ def create_app(config_name=None):
     from .routes.api_job_notes import job_notes_bp
     from .routes.api_route_planning import route_planning_bp
     from .routes.api_hmrc import hmrc_bp
-    from .routes.api_hmrc_sandbox import sandbox_bp  # WARNING: SANDBOX ONLY - Remove before production
     
     app.register_blueprint(auth_bp)
     app.register_blueprint(main_bp)
@@ -184,7 +182,15 @@ def create_app(config_name=None):
     app.register_blueprint(job_notes_bp)
     app.register_blueprint(route_planning_bp)
     app.register_blueprint(hmrc_bp)
-    app.register_blueprint(sandbox_bp)  # WARNING: SANDBOX ONLY - Remove before production
+
+    # HMRC sandbox-only helper endpoints (test users, create-test-business, etc.).
+    # Gated on HMRC_ENVIRONMENT so the routes are not exposed in production.
+    if config_class.HMRC_ENVIRONMENT != 'production':
+        from .routes.api_hmrc_sandbox import sandbox_bp
+        app.register_blueprint(sandbox_bp)
+        logger.info("HMRC sandbox blueprint registered (HMRC_ENVIRONMENT=%s)", config_class.HMRC_ENVIRONMENT)
+    else:
+        logger.info("HMRC sandbox blueprint NOT registered (production environment)")
     
     # Protect all routes with authentication
     from .auth_protection import protect_all_routes
@@ -195,5 +201,44 @@ def create_app(config_name=None):
     def ratelimit_handler(e):
         flash('Too many login attempts. Please wait 5 minutes and try again.', 'error')
         return redirect(url_for('auth.login'))
+
+    # Custom branded error pages. API requests (anything under /api/) get JSON
+    # so the frontend can surface a useful message instead of a full HTML page.
+    from flask import render_template, request as _request
+
+    def _api_json_error(code, title, message):
+        from flask import jsonify
+        return jsonify({'success': False, 'error': title, 'message': message}), code
+
+    @app.errorhandler(403)
+    def forbidden(e):
+        if _request.path.startswith('/api/'):
+            return _api_json_error(403, 'Forbidden', 'You do not have permission to perform this action.')
+        return render_template(
+            'errors/error.html',
+            code=403, title='Forbidden', accent='warning',
+            message='You are not allowed to view this page.',
+        ), 403
+
+    @app.errorhandler(404)
+    def not_found(e):
+        if _request.path.startswith('/api/'):
+            return _api_json_error(404, 'Not Found', 'The requested resource was not found.')
+        return render_template(
+            'errors/error.html',
+            code=404, title='Page not found', accent='info',
+            message='We could not find the page you requested.',
+        ), 404
+
+    @app.errorhandler(500)
+    def internal_error(e):
+        logger.error(f'500 error on {_request.path}: {e}', exc_info=True)
+        if _request.path.startswith('/api/'):
+            return _api_json_error(500, 'Server Error', 'An internal error occurred.')
+        return render_template(
+            'errors/error.html',
+            code=500, title='Server error', accent='danger',
+            message='An unexpected error has occurred. The issue has been logged.',
+        ), 500
     
     return app

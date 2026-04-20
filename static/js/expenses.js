@@ -32,18 +32,6 @@ document.addEventListener('DOMContentLoaded', function() {
         loadRecurringTemplates();
     });
     
-    // Fix mobile camera capture: scroll to show photo preview after capture
-    const receiptFileInput = document.getElementById('receiptFile');
-    if (receiptFileInput) {
-        receiptFileInput.addEventListener('change', function() {
-            if (this.files && this.files[0]) {
-                // Scroll the input into view after photo capture
-                setTimeout(() => {
-                    this.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                }, 300);
-            }
-        });
-    }
     
     // Reset bank import modal when closed
     const bankImportModal = document.getElementById('bankImportModal');
@@ -312,29 +300,15 @@ function showAddExpenseModal() {
     const dd = String(today.getDate()).padStart(2, '0');
     document.getElementById('expenseDate').value = `${yyyy}-${mm}-${dd}`;
     document.getElementById('recurringOptions').style.display = 'none';
-    document.getElementById('receiptFile').value = '';
-    document.getElementById('currentReceipt').style.display = 'none';
-    
-    // Reset camera/upload sections
-    showUpload();
-    capturedPhotoDataUrl = null;
-    
-    // Hide and clear photo confirmation
-    const photoConfirmation = document.getElementById('photoConfirmation');
-    if (photoConfirmation) {
-        photoConfirmation.style.display = 'none';
-        photoConfirmation.innerHTML = '';
-    }
-    
+    document.getElementById('currentReceipt').classList.add('d-none');
+
+    // Reset the receipt-selection state (clears both inputs + thumbnail).
+    if (typeof clearSelectedReceipt === 'function') clearSelectedReceipt();
+
     // Show modal using Bootstrap
     const modalElement = document.getElementById('expenseModal');
     const modal = new bootstrap.Modal(modalElement);
     modal.show();
-    
-    // Stop camera when modal closes
-    modalElement.addEventListener('hidden.bs.modal', function () {
-        stopCamera();
-    });
 }
 
 /**
@@ -365,7 +339,7 @@ async function editExpense(expenseId) {
             
             // Show receipt if exists
             if (expense.receipt_file) {
-                document.getElementById('currentReceipt').style.display = 'block';
+                document.getElementById('currentReceipt').classList.remove('d-none');
                 document.getElementById('receiptLink').href = `/api/expenses/receipt/${expense.receipt_file}`;
                 document.getElementById('receiptLink').textContent = expense.receipt_file.split('/').pop();
             }
@@ -392,8 +366,12 @@ async function saveExpense() {
     const description = document.getElementById('expenseDescription').value;
     const isRecurring = document.getElementById('isRecurring').checked;
     const recurringFrequency = document.getElementById('recurringFrequency').value;
-    const receiptFile = document.getElementById('receiptFile').files[0] ||
-        (capturedPhotoDataUrl ? dataUrlToFile(capturedPhotoDataUrl, 'receipt-photo.jpg') : null);
+    // Prefer the file tracked by the receipt picker (works on iOS Safari);
+    // fall back to reading the native input directly as a safety net.
+    const receiptFile = selectedReceiptFile ||
+        (document.getElementById('receiptFile').files[0]) ||
+        (document.getElementById('receiptCamera').files[0]) ||
+        null;
     
     if (!dateInput || !categoryId || !amount) {
         showExpenseNotification('Please fill in all required fields', 'error');
@@ -462,13 +440,10 @@ async function saveExpense() {
                 modal.hide();
             }
             
-            // Clear form
+            // Clear form + receipt selection state
             document.getElementById('expenseForm').reset();
-            document.getElementById('receiptFile').value = '';
-            
-            // Reset camera photo data
-            capturedPhotoDataUrl = null;
-            
+            if (typeof clearSelectedReceipt === 'function') clearSelectedReceipt();
+
             loadExpenses();
         } else {
             showExpenseNotification(data.error || 'Failed to save expense', 'error');
@@ -507,149 +482,91 @@ async function uploadReceipt(file, date, category, amount) {
  * Remove receipt
  */
 function removeReceipt() {
-    document.getElementById('receiptFile').value = '';
-    document.getElementById('currentReceipt').style.display = 'none';
+    if (typeof clearSelectedReceipt === 'function') clearSelectedReceipt();
+    document.getElementById('currentReceipt').classList.add('d-none');
 }
 
-// Camera functionality
-let cameraStream = null;
-let capturedPhotoDataUrl = null;
+// -- Receipt file/photo selection -----------------------------------------
+// Uses two native <input type="file"> elements (one with capture="environment")
+// so iOS Safari opens the camera app directly. The chosen File is held in
+// `selectedReceiptFile` and read at form-submit time, which avoids all the
+// cross-browser issues with DataTransfer + <input type=file>.
 
-function dataUrlToFile(dataUrl, filename) {
-    const arr = dataUrl.split(',');
-    const mime = arr[0].match(/:(.*?);/)[1];
-    const bstr = atob(arr[1]);
-    let n = bstr.length;
-    const u8arr = new Uint8Array(n);
-    while (n--) u8arr[n] = bstr.charCodeAt(n);
-    return new File([u8arr], filename, { type: mime });
+let selectedReceiptFile = null;
+
+function _onReceiptInputChange(event) {
+    const file = event.target.files && event.target.files[0];
+    if (!file) return;
+    setSelectedReceipt(file);
+    // Reset the OTHER input so re-taking a photo or re-picking a file both
+    // fire another `change` event even if the user picks the same file.
+    const otherId = event.target.id === 'receiptFile' ? 'receiptCamera' : 'receiptFile';
+    const other = document.getElementById(otherId);
+    if (other) other.value = '';
 }
 
-/**
- * Show upload section
- */
-function showUpload() {
-    document.getElementById('uploadSection').style.display = 'block';
-    document.getElementById('cameraSection').style.display = 'none';
-    document.getElementById('capturedPhoto').style.display = 'none';
-    document.getElementById('uploadBtn').classList.add('active');
-    document.getElementById('cameraBtn').classList.remove('active');
-    stopCamera();
-    
-    // Hide and clear photo confirmation
-    const photoConfirmation = document.getElementById('photoConfirmation');
-    if (photoConfirmation) {
-        photoConfirmation.style.display = 'none';
-        photoConfirmation.innerHTML = '';
-    }
-}
+function setSelectedReceipt(file) {
+    selectedReceiptFile = file;
 
-/**
- * Show camera section
- */
-async function showCamera() {
-    document.getElementById('uploadSection').style.display = 'none';
-    document.getElementById('cameraSection').style.display = 'block';
-    document.getElementById('capturedPhoto').style.display = 'none';
-    document.getElementById('uploadBtn').classList.remove('active');
-    document.getElementById('cameraBtn').classList.add('active');
-    
-    try {
-        const video = document.getElementById('cameraPreview');
-        cameraStream = await navigator.mediaDevices.getUserMedia({ 
-            video: { 
-                facingMode: 'environment', // Use back camera on mobile
-                width: { ideal: 1920 },
-                height: { ideal: 1080 }
-            } 
-        });
-        video.srcObject = cameraStream;
-    } catch (error) {
-        console.error('Error accessing camera:', error);
-        showExpenseNotification('Could not access camera. Please check permissions.', 'error');
-        showUpload();
-    }
-}
+    const summary = document.getElementById('receiptSummary');
+    const thumb = document.getElementById('receiptThumb');
+    const nameEl = document.getElementById('receiptSummaryName');
 
-/**
- * Capture photo from camera
- */
-function capturePhoto() {
-    const video = document.getElementById('cameraPreview');
-    const canvas = document.getElementById('photoCanvas');
-    const preview = document.getElementById('photoPreview');
+    if (summary) summary.classList.remove('d-none');
+    if (nameEl) nameEl.textContent = file.name;
 
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-
-    const ctx = canvas.getContext('2d');
-    ctx.drawImage(video, 0, 0);
-
-    capturedPhotoDataUrl = canvas.toDataURL('image/jpeg', 0.9);
-    preview.src = capturedPhotoDataUrl;
-
-    stopCamera();
-
-    document.getElementById('cameraSection').style.display = 'none';
-    document.getElementById('capturedPhoto').style.display = 'block';
-
-    setTimeout(() => {
-        document.getElementById('capturedPhoto').scrollIntoView(
-            {behavior: 'smooth', block: 'center'}
-        );
-    }, 100);
-}
-
-/**
- * Use captured photo
- */
-function usePhoto() {
-    if (capturedPhotoDataUrl) {
-        const file = dataUrlToFile(capturedPhotoDataUrl, 'receipt-photo.jpg');
-        const dataTransfer = new DataTransfer();
-        dataTransfer.items.add(file);
-        document.getElementById('receiptFile').files = dataTransfer.files;
-        
-        document.getElementById('capturedPhoto').style.display = 'none';
-        document.getElementById('uploadSection').style.display = 'block';
-        document.getElementById('uploadBtn').classList.add('active');
-        document.getElementById('cameraBtn').classList.remove('active');
-        
-        showExpenseNotification('Photo ready to upload!', 'success');
-        
-        const photoConfirmation = document.getElementById('photoConfirmation');
-        if (photoConfirmation) {
-            photoConfirmation.innerHTML = '📷 Photo attached and ready to save';
-            photoConfirmation.style.display = 'block';
+    // Image preview via FileReader -> data URL. This is more reliable than
+    // URL.createObjectURL on iOS Safari (blob: URLs from <input type=file>
+    // occasionally render blank in <img>).
+    if (thumb) {
+        const looksLikeImage =
+            (file.type && file.type.startsWith('image/')) ||
+            /\.(jpe?g|png|gif|heic|heif|webp)$/i.test(file.name || '');
+        if (looksLikeImage) {
+            const reader = new FileReader();
+            reader.onload = function (ev) {
+                thumb.src = ev.target.result;
+                thumb.classList.remove('d-none');
+            };
+            reader.onerror = function () {
+                // Reading failed - hide the thumb, filename still shows.
+                thumb.removeAttribute('src');
+                thumb.classList.add('d-none');
+            };
+            reader.readAsDataURL(file);
+        } else {
+            thumb.removeAttribute('src');
+            thumb.classList.add('d-none');
         }
     }
-}
 
-/**
- * Retake photo
- */
-function retakePhoto() {
-    capturedPhotoDataUrl = null;
-    
-    // Hide and clear photo confirmation
-    const photoConfirmation = document.getElementById('photoConfirmation');
-    if (photoConfirmation) {
-        photoConfirmation.style.display = 'none';
-        photoConfirmation.innerHTML = '';
-    }
-    
-    showCamera();
-}
-
-/**
- * Stop camera stream
- */
-function stopCamera() {
-    if (cameraStream) {
-        cameraStream.getTracks().forEach(track => track.stop());
-        cameraStream = null;
+    if (typeof showExpenseNotification === 'function') {
+        showExpenseNotification('Receipt attached. Save the expense to upload.', 'success');
     }
 }
+
+function clearSelectedReceipt() {
+    selectedReceiptFile = null;
+    const summary = document.getElementById('receiptSummary');
+    const thumb = document.getElementById('receiptThumb');
+    const fileInput = document.getElementById('receiptFile');
+    const camInput = document.getElementById('receiptCamera');
+    if (summary) summary.classList.add('d-none');
+    if (thumb) {
+        thumb.removeAttribute('src');
+        thumb.classList.add('d-none');
+    }
+    if (fileInput) fileInput.value = '';
+    if (camInput) camInput.value = '';
+}
+
+// Wire change listeners once the DOM is ready.
+document.addEventListener('DOMContentLoaded', function () {
+    const fileInput = document.getElementById('receiptFile');
+    const camInput = document.getElementById('receiptCamera');
+    if (fileInput) fileInput.addEventListener('change', _onReceiptInputChange);
+    if (camInput) camInput.addEventListener('change', _onReceiptInputChange);
+});
 
 /**
  * Delete expense

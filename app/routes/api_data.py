@@ -1560,7 +1560,7 @@ def api_generate_custom_report():
                         WHERE UPPER(status) = 'DNCO'
                         {date_filter}
                         ORDER BY date DESC
-                    """)
+                    """, date_filter_params)
                 dnco_jobs = cursor.fetchall()
                 
                 # Calculate estimated loss using historical data for each customer
@@ -1962,10 +1962,13 @@ def api_generate_custom_report_pdf():
         if not report_type:
             return jsonify({'success': False, 'error': 'Report type is required'}), 400
         
-        # Build date filter - same logic as main report
+        # Build date filter - same logic as main report.
+        # IMPORTANT: year / week / month come from request JSON. Cast and
+        # parameterise every value before it reaches SQL.
         date_filter = ""
         week_dates_filter = None
-        
+        extra_filter_params = []
+
         if year and week:
             year_int = int(year)
             week_int = int(week)
@@ -1973,20 +1976,22 @@ def api_generate_custom_report_pdf():
             days_to_monday = (7 - jan1.weekday()) % 7
             week_start = jan1 + timedelta(days=days_to_monday + (week_int - 1) * 7)
             week_end = week_start + timedelta(days=6)
-            
+
             week_dates = []
             current = week_start
             while current <= week_end:
                 week_dates.append(current.strftime('%d/%m/%Y'))
                 current += timedelta(days=1)
-            
+
             date_placeholders = ','.join(['?' for _ in week_dates])
             date_filter = f"AND date IN ({date_placeholders})"
             week_dates_filter = week_dates
         elif year and month:
-            date_filter = f"AND substr(date, 7, 4) = '{year}' AND substr(date, 4, 2) = '{int(month):02d}'"
+            date_filter = "AND substr(date, 7, 4) = ? AND substr(date, 4, 2) = ?"
+            extra_filter_params = [str(int(year)), f"{int(month):02d}"]
         elif year:
-            date_filter = f"AND substr(date, 7, 4) = '{year}'"
+            date_filter = "AND substr(date, 7, 4) = ?"
+            extra_filter_params = [str(int(year))]
         
         # Get report data
         with get_db_connection() as conn:
@@ -2008,7 +2013,7 @@ def api_generate_custom_report_pdf():
                         WHERE UPPER(status) = 'DNCO'
                         {date_filter}
                         ORDER BY date DESC
-                    """)
+                    """, extra_filter_params)
                 dnco_jobs = cursor.fetchall()
                 
                 # Calculate estimated loss

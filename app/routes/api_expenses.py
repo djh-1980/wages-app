@@ -11,6 +11,7 @@ from flask import Blueprint, request, jsonify, send_file
 from werkzeug.utils import secure_filename
 
 from ..models.expense import ExpenseModel
+from ..services.hmrc_lock import is_date_locked
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,26 @@ def api_update_expense(expense_id):
         if not data:
             return jsonify({'success': False, 'error': 'No data provided'}), 400
         
+        # MTD compliance: block edits on expenses whose date falls within a
+        # successfully-submitted (locked) HMRC period.
+        existing = ExpenseModel.get_expense_by_id(expense_id)
+        if existing and is_date_locked(existing.get('date')):
+            logger.warning(
+                f'Blocked edit of locked expense {expense_id} (date {existing.get("date")})'
+            )
+            return jsonify({
+                'success': False,
+                'error': 'This expense falls within a period already submitted to HMRC and cannot be edited. Create an amendment instead.',
+                'locked': True,
+            }), 409
+        # Also block the update if the *new* date would move it into a locked period.
+        if data.get('date') and is_date_locked(parse_date(data.get('date'))):
+            return jsonify({
+                'success': False,
+                'error': 'Cannot move an expense into a period already submitted to HMRC.',
+                'locked': True,
+            }), 409
+        
         # Parse date if provided to handle multiple formats from different devices
         parsed_date = parse_date(data.get('date')) if data.get('date') else None
         
@@ -181,6 +202,17 @@ def api_delete_expense(expense_id):
         
         if not expense:
             return jsonify({'success': False, 'error': 'Expense not found'}), 404
+        
+        # MTD compliance: block deletion of expenses in a locked HMRC period.
+        if is_date_locked(expense.get('date')):
+            logger.warning(
+                f'Blocked delete of locked expense {expense_id} (date {expense.get("date")})'
+            )
+            return jsonify({
+                'success': False,
+                'error': 'This expense falls within a period already submitted to HMRC and cannot be deleted. Create an amendment instead.',
+                'locked': True,
+            }), 409
         
         # Delete the expense from database
         success = ExpenseModel.delete_expense(expense_id)

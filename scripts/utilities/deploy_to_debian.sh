@@ -184,7 +184,7 @@ ExecStart=/opt/tvstcms/venv/bin/gunicorn \
     --access-logfile /opt/tvstcms/logs/access.log \
     --error-logfile /opt/tvstcms/logs/error.log \
     --log-level info \
-    new_web_app:app
+    "app:create_app()"
 
 Restart=always
 RestartSec=10

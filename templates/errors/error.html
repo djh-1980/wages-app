@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+
+{% block title %}{{ code }} {{ title }} - TVS TCMS{% endblock %}
+
+{% block content %}
+<div class="container py-5">
+    <div class="row justify-content-center">
+        <div class="col-12 col-md-8 col-lg-6 text-center">
+            <div class="card shadow-sm">
+                <div class="card-body p-5">
+                    <div class="display-1 fw-bold text-{{ accent }}">{{ code }}</div>
+                    <h1 class="h3 mb-3">{{ title }}</h1>
+                    <p class="text-muted mb-4">{{ message }}</p>
+
+                    {% if code == 404 %}
+                    <p class="text-muted small mb-4">
+                        The page you're looking for may have been moved, renamed, or never existed.
+                    </p>
+                    {% elif code == 403 %}
+                    <p class="text-muted small mb-4">
+                        You don't have permission to view this page. If this looks like a bug,
+                        try logging out and back in.
+                    </p>
+                    {% elif code == 500 %}
+                    <p class="text-muted small mb-4">
+                        Something went wrong on our end. The error has been logged -
+                        try again in a minute. If it keeps happening, check <code>logs/error.log</code>.
+                    </p>
+                    {% endif %}
+
+                    <div class="d-grid gap-2 d-md-flex justify-content-md-center">
+                        <a href="/" class="btn btn-primary btn-lg">
+                            <i class="bi bi-house-door me-2"></i>Back to dashboard
+                        </a>
+                        <button type="button" class="btn btn-outline-secondary btn-lg" onclick="history.back()">
+                            <i class="bi bi-arrow-left me-2"></i>Go back
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

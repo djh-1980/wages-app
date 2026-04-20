@@ -76,13 +76,9 @@ class PeriodicSyncService:
         self.auto_sync_runsheets_enabled = True
         self.auto_sync_payslips_enabled = True
         
-        # Setup logging
+        # Logger is configured centrally by app.logging_config._setup_periodic_sync_logger
+        # which attaches a RotatingFileHandler. Just grab the named logger here.
         self.logger = logging.getLogger('periodic_sync')
-        handler = logging.FileHandler('logs/periodic_sync.log')
-        formatter = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
-        handler.setFormatter(formatter)
-        self.logger.addHandler(handler)
-        self.logger.setLevel(logging.INFO)
         
         # Load configuration from settings
         self._load_config()
@@ -202,8 +198,9 @@ class PeriodicSyncService:
         if duration_minutes:
             self.pause_until = datetime.now() + timedelta(minutes=duration_minutes)
             self.logger.info(f"Sync paused for {duration_minutes} minutes until {self.pause_until.strftime('%H:%M')}")
-            # Schedule auto-resume
-            schedule.once().at(self.pause_until.strftime('%H:%M')).do(self.resume_sync).tag('auto-resume')
+            # Note: auto-resume is handled inside sync_latest() which checks
+            # `datetime.now() >= self.pause_until` on every scheduler tick (~1 min).
+            # The `schedule` library has no `once()` API, so do not try to schedule one here.
         else:
             self.pause_until = None
             self.logger.info("Sync paused indefinitely")
@@ -517,6 +514,11 @@ class PeriodicSyncService:
                                     # Log full output for debugging
                                     if import_result.stdout:
                                         self.logger.debug(f"Import stdout: {import_result.stdout[:500]}")
+                                elif import_result.returncode == 2:
+                                    # Exit code 2 = importer ran cleanly but found no new jobs
+                                    # (duplicates already in DB, or PDF is for another driver).
+                                    # Not an error - just info.
+                                    self.logger.info(f"  – No new jobs in {file_path.name} (already imported or not for this driver)")
                                 else:
                                     error_msg = import_result.stderr or 'Unknown error'
                                     self.logger.error(f"  ✗ Failed to import {file_path.name}: {error_msg}")

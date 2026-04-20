@@ -390,6 +390,34 @@
     </div>
 </div>
 
+<!-- Missing Jobs Modal -->
+<div class="modal fade" id="missingJobsModal" tabindex="-1" aria-labelledby="missingJobsModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="missingJobsModalLabel">
+                    <i class="bi bi-exclamation-triangle text-warning me-2"></i>
+                    Jobs Missing from Runsheets
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="missingJobsModalBody">
+                <div class="text-center">
+                    <div class="spinner-border text-primary" role="status">
+                        <span class="visually-hidden">Loading...</span>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-primary" id="addSelectedJobsBtn" onclick="addSelectedMissingJobs()">
+                    <i class="bi bi-plus-circle"></i> Add Selected Jobs
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Verbal Pay Confirmation Modal -->
 <div class="modal fade" id="verbalPayModal" tabindex="-1">
     <div class="modal-dialog">
@@ -453,4 +481,5 @@
 <script src="{{ url_for('static', filename='js/earnings-analytics.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/wages-init.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/verbal-pay.js') }}?v={{ range(1000, 9999) | random }}"></script>
+<script src="{{ url_for('static', filename='js/missing-jobs.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}

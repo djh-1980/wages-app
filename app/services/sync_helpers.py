@@ -21,12 +21,14 @@ def get_latest_runsheet_date() -> Optional[str]:
     try:
         conn = sqlite3.connect(DB_PATH, timeout=5.0)
         cursor = conn.cursor()
-        # Convert DD/MM/YYYY to YYYY-MM-DD for proper sorting, then convert back
+        # Convert DD/MM/YYYY to YYYY-MM-DD for proper sorting. Filter out
+        # malformed short-year rows (DD/MM/YY) which otherwise sort *above*
+        # real 4-digit-year rows due to lexicographic order ("26" > "2026").
         cursor.execute("""
-            SELECT date 
-            FROM run_sheet_jobs 
-            WHERE date IS NOT NULL AND date != ''
-            ORDER BY 
+            SELECT date
+            FROM run_sheet_jobs
+            WHERE date IS NOT NULL AND LENGTH(date) = 10
+            ORDER BY
                 substr(date, 7, 4) || '-' || substr(date, 4, 2) || '-' || substr(date, 1, 2) DESC
             LIMIT 1
         """)

@@ -1633,9 +1633,7 @@ async function saveJobNotes() {
         
         const response = await fetch(`/api/jobs/${currentJobNotesId}/notes`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ notes })
         });
         

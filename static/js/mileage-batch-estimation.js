@@ -22,9 +22,7 @@ async function startBatchEstimation() {
         // Find all days with missing mileage
         const response = await fetch('/api/route-planning/batch-estimate-mileage', {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            headers: getJSONHeaders(),
             body: JSON.stringify({ year: year })
         });
         
@@ -58,9 +56,7 @@ async function startBatchEstimation() {
                 
                 const routeResponse = await fetch('/api/route-planning/optimize', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: getJSONHeaders(),
                     body: JSON.stringify({
                         date: dateInfo.date,
                         include_depot: true
@@ -173,9 +169,7 @@ async function saveBatchEstimation() {
             // Save mileage
             const mileageResponse = await fetch('/api/runsheets/update-statuses', {
                 method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
+                headers: getJSONHeaders(),
                 body: JSON.stringify({
                     date: result.date,
                     updates: [],
@@ -190,9 +184,7 @@ async function saveBatchEstimation() {
             if (result.route_data) {
                 const routeResponse = await fetch('/api/route-planning/save-order', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json'
-                    },
+                    headers: getJSONHeaders(),
                     body: JSON.stringify({
                         date: result.date,
                         job_order: [], // Job order already set by route optimization

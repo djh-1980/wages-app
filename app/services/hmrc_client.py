@@ -5,8 +5,6 @@ Handles all API calls with fraud prevention headers and error handling.
 
 import json
 import logging
-import platform
-import socket
 from datetime import datetime
 
 import requests
@@ -29,57 +27,13 @@ class HMRCClient:
     def _get_fraud_prevention_headers(self):
         """
         Generate fraud prevention headers required by HMRC.
-        These headers are mandatory for all API calls.
-        
-        Returns:
-            dict: Fraud prevention headers
+
+        Implementation lives in `hmrc_fraud_headers.build_fraud_prevention_headers()`
+        which builds the full WEB_APP_VIA_SERVER header set from the current
+        request + session-captured browser context.
         """
-        headers = {
-            'Gov-Client-Connection-Method': 'WEB_APP_VIA_SERVER',
-            'Gov-Client-Public-IP': self._get_public_ip(),
-            'Gov-Client-Timezone': self._get_timezone(),
-            'Gov-Vendor-Version': f"TVS-Wages={self.config.VERSION}",
-            'Gov-Client-User-Agent': self._get_user_agent(),
-            'Gov-Client-Device-ID': self._get_device_id(),
-            'Gov-Client-Local-IPs': self._get_local_ips(),
-            'Gov-Client-Screens': 'width=1920&height=1080&scaling-factor=1&colour-depth=24',
-            'Gov-Client-Window-Size': 'width=1920&height=1080',
-        }
-        return headers
-    
-    def _get_public_ip(self):
-        """Get public IP address."""
-        try:
-            response = requests.get('https://api.ipify.org?format=json', timeout=5)
-            return response.json()['ip']
-        except:
-            return '127.0.0.1'
-    
-    def _get_timezone(self):
-        """Get timezone in UTC offset format."""
-        from datetime import timezone
-        offset = datetime.now(timezone.utc).astimezone().strftime('%z')
-        return f"UTC{offset[:3]}:{offset[3:]}"
-    
-    def _get_user_agent(self):
-        """Get user agent string."""
-        return f"os-family={platform.system()}&os-version={platform.release()}&device-manufacturer=Unknown&device-model=Server"
-    
-    def _get_device_id(self):
-        """Get device ID (MAC address hash)."""
-        import hashlib
-        import uuid
-        mac = uuid.getnode()
-        return hashlib.sha256(str(mac).encode()).hexdigest()
-    
-    def _get_local_ips(self):
-        """Get local IP addresses."""
-        try:
-            hostname = socket.gethostname()
-            local_ip = socket.gethostbyname(hostname)
-            return local_ip
-        except:
-            return '127.0.0.1'
+        from .hmrc_fraud_headers import build_fraud_prevention_headers
+        return build_fraud_prevention_headers()
     
     def _make_request(self, method, endpoint, data=None, params=None, test_scenario=None):
         """
