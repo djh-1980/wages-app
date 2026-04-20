@@ -317,7 +317,7 @@ function showAddExpenseModal() {
     
     // Reset camera/upload sections
     showUpload();
-    capturedPhotoBlob = null;
+    capturedPhotoDataUrl = null;
     
     // Hide and clear photo confirmation
     const photoConfirmation = document.getElementById('photoConfirmation');
@@ -392,9 +392,8 @@ async function saveExpense() {
     const description = document.getElementById('expenseDescription').value;
     const isRecurring = document.getElementById('isRecurring').checked;
     const recurringFrequency = document.getElementById('recurringFrequency').value;
-    const receiptFile = document.getElementById('receiptFile').files[0] || 
-        (capturedPhotoBlob ? new File([capturedPhotoBlob], 'receipt-photo.jpg', 
-         {type: 'image/jpeg'}) : null);
+    const receiptFile = document.getElementById('receiptFile').files[0] ||
+        (capturedPhotoDataUrl ? dataUrlToFile(capturedPhotoDataUrl, 'receipt-photo.jpg') : null);
     
     if (!dateInput || !categoryId || !amount) {
         showExpenseNotification('Please fill in all required fields', 'error');
@@ -468,7 +467,7 @@ async function saveExpense() {
             document.getElementById('receiptFile').value = '';
             
             // Reset camera photo data
-            capturedPhotoBlob = null;
+            capturedPhotoDataUrl = null;
             
             loadExpenses();
         } else {
@@ -514,7 +513,17 @@ function removeReceipt() {
 
 // Camera functionality
 let cameraStream = null;
-let capturedPhotoBlob = null;
+let capturedPhotoDataUrl = null;
+
+function dataUrlToFile(dataUrl, filename) {
+    const arr = dataUrl.split(',');
+    const mime = arr[0].match(/:(.*?);/)[1];
+    const bstr = atob(arr[1]);
+    let n = bstr.length;
+    const u8arr = new Uint8Array(n);
+    while (n--) u8arr[n] = bstr.charCodeAt(n);
+    return new File([u8arr], filename, { type: mime });
+}
 
 /**
  * Show upload section
@@ -569,40 +578,34 @@ function capturePhoto() {
     const video = document.getElementById('cameraPreview');
     const canvas = document.getElementById('photoCanvas');
     const preview = document.getElementById('photoPreview');
-    
+
     canvas.width = video.videoWidth;
     canvas.height = video.videoHeight;
-    
+
     const ctx = canvas.getContext('2d');
     ctx.drawImage(video, 0, 0);
-    
-    canvas.toBlob((blob) => {
-        capturedPhotoBlob = blob;
-        
-        const url = URL.createObjectURL(blob);
-        preview.src = url;
-        
-        document.getElementById('cameraSection').style.display = 'none';
-        document.getElementById('capturedPhoto').style.display = 'block';
-        
-        // Scroll into view on mobile
-        setTimeout(() => {
-            document.getElementById('capturedPhoto').scrollIntoView(
-                {behavior: 'smooth', block: 'center'}
-            );
-        }, 100);
-        
-        stopCamera();
-    }, 'image/jpeg', 0.9);
+
+    capturedPhotoDataUrl = canvas.toDataURL('image/jpeg', 0.9);
+    preview.src = capturedPhotoDataUrl;
+
+    stopCamera();
+
+    document.getElementById('cameraSection').style.display = 'none';
+    document.getElementById('capturedPhoto').style.display = 'block';
+
+    setTimeout(() => {
+        document.getElementById('capturedPhoto').scrollIntoView(
+            {behavior: 'smooth', block: 'center'}
+        );
+    }, 100);
 }
 
 /**
  * Use captured photo
  */
 function usePhoto() {
-    if (capturedPhotoBlob) {
-        const file = new File([capturedPhotoBlob], 'receipt-photo.jpg', 
-                              { type: 'image/jpeg' });
+    if (capturedPhotoDataUrl) {
+        const file = dataUrlToFile(capturedPhotoDataUrl, 'receipt-photo.jpg');
         const dataTransfer = new DataTransfer();
         dataTransfer.items.add(file);
         document.getElementById('receiptFile').files = dataTransfer.files;
@@ -626,7 +629,7 @@ function usePhoto() {
  * Retake photo
  */
 function retakePhoto() {
-    capturedPhotoBlob = null;
+    capturedPhotoDataUrl = null;
     
     // Hide and clear photo confirmation
     const photoConfirmation = document.getElementById('photoConfirmation');
