@@ -308,7 +308,7 @@ async function deleteConfirmation(id, weekNumber) {
 // Show bulk import modal
 function showBulkImportModal() {
     document.getElementById('bulkImportData').value = '';
-    document.getElementById('bulkImportResults').style.display = 'none';
+    document.getElementById('bulkImportResults').classList.add('d-none');
     const modal = new bootstrap.Modal(document.getElementById('bulkImportModal'));
     modal.show();
 }
@@ -349,7 +349,7 @@ async function processBulkImport() {
         
         if (result.success) {
             const resultsDiv = document.getElementById('bulkImportResults');
-            resultsDiv.style.display = 'block';
+            resultsDiv.classList.remove('d-none');
             
             let html = `<div class="alert alert-success">
                 Imported ${result.results.success_count} confirmations successfully

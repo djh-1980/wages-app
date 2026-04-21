@@ -1332,3 +1332,43 @@ body {
     padding-top: 1rem;
     border-top: 1px solid #dee2e6;
 }
+
+/* ---------------------------------------------------------------------------
+ * Verbal pay manager (extracted from <style> block in
+ * templates/verbal_pay_manager.html)
+ * ------------------------------------------------------------------------- */
+.verbal-card {
+    transition: all 0.2s;
+    border-left: 4px solid #dee2e6;
+}
+
+.verbal-card.matched {
+    border-left-color: #28a745;
+}
+
+.verbal-card.lost {
+    border-left-color: #dc3545;
+}
+
+.verbal-card.gained {
+    border-left-color: #0dcaf0;
+}
+
+.verbal-card.pending {
+    border-left-color: #ffc107;
+}
+
+.verbal-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.stat-card {
+    text-align: center;
+    padding: 1.5rem;
+}
+
+.stat-value {
+    font-size: 2rem;
+    font-weight: bold;
+    margin-bottom: 0.5rem;
+}
