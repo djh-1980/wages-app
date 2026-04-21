@@ -1186,48 +1186,61 @@ body {
 }
 
 /* ---------------------------------------------------------------------------
- * Login page helpers (extracted from templates/auth/login.html)
+ * Login page (extracted from <style> block in templates/auth/login.html)
  * ------------------------------------------------------------------------- */
-.login-page-body {
+.login-body {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 1rem;
 }
 
 .login-card {
-    max-width: 420px;
+    background: white;
+    border-radius: 15px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
+    max-width: 400px;
     width: 100%;
-    border: none;
-    border-radius: 1rem;
-    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.15);
+    padding: 2rem;
 }
 
-.login-card-header {
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: #fff;
-    border-radius: 1rem 1rem 0 0;
-    padding: 2rem;
+.login-header {
     text-align: center;
+    margin-bottom: 2rem;
 }
 
-.login-card-logo {
-    font-size: 3rem;
+.login-header h1 {
+    color: #333;
+    font-size: 1.8rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
 }
 
-.login-card-body {
-    padding: 2rem;
+.login-header p {
+    color: #666;
+    font-size: 0.9rem;
 }
 
-.login-btn-primary {
+.login-body .form-control:focus {
+    border-color: #667eea;
+    box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25);
+}
+
+.btn-login {
     background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
     border: none;
     padding: 0.75rem;
     font-weight: 600;
+    transition: transform 0.2s;
 }
 
-.login-btn-primary:hover {
-    background: linear-gradient(135deg, #5568d3 0%, #653a90 100%);
+.btn-login:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+}
+
+.login-body .alert {
+    border-radius: 10px;
+    border: none;
 }
