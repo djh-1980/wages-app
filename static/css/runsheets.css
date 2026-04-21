@@ -3,6 +3,17 @@
     height: 300px;
 }
 
+/* Taller chart container for larger breakdown charts */
+.chart-container-lg {
+    position: relative;
+    height: 350px;
+}
+
+/* Fixed-width table columns for runsheet / customer tables */
+.col-w-100 { width: 100px; }
+.col-w-120 { width: 120px; }
+.col-w-140 { width: 140px; }
+
 /* Make extra status badges clickable */
 /* Runsheets page specific styles */
 

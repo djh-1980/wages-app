@@ -180,18 +180,18 @@
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
-                                        <th style="cursor: pointer;" onclick="sortRunSheets('date')">
+                                        <th class="cursor-pointer" onclick="sortRunSheets('date')">
                                             Date <i class="bi bi-arrow-down-up"></i>
                                         </th>
-                                        <th class="text-center" style="cursor: pointer;" onclick="sortRunSheets('job_count')">
+                                        <th class="text-center cursor-pointer" onclick="sortRunSheets('job_count')">
                                             Jobs <i class="bi bi-arrow-down-up"></i>
                                         </th>
                                         <th>Activities</th>
-                                        <th class="text-end" style="width: 120px;">Daily Pay</th>
-                                        <th class="text-end" style="width: 120px;">Mileage</th>
-                                        <th class="text-end" style="width: 140px;">Week Running</th>
-                                        <th class="text-center" style="width: 140px;">Status</th>
-                                        <th class="text-end" style="width: 100px;">Actions</th>
+                                        <th class="text-end col-w-120">Daily Pay</th>
+                                        <th class="text-end col-w-120">Mileage</th>
+                                        <th class="text-end col-w-140">Week Running</th>
+                                        <th class="text-center col-w-140">Status</th>
+                                        <th class="text-end col-w-100">Actions</th>
                                     </tr>
                                 </thead>
                                 <tbody id="runsheetsList">
@@ -242,7 +242,7 @@
                                         <h5 class="section-title mb-3">
                                             <i class="bi bi-graph-up text-primary"></i> Daily Activity Trend
                                         </h5>
-                                        <div class="chart-container" style="height: 300px;">
+                                        <div class="chart-container">
                                             <canvas id="dailyTrendChart"></canvas>
                                         </div>
                                     </div>
@@ -256,7 +256,7 @@
                                         <h5 class="section-title mb-3">
                                             <i class="bi bi-pie-chart text-success"></i> Status Distribution
                                         </h5>
-                                        <div class="chart-container" style="height: 300px;">
+                                        <div class="chart-container">
                                             <canvas id="statusChart"></canvas>
                                         </div>
                                     </div>
@@ -316,16 +316,16 @@
                             <table class="table table-hover">
                                 <thead>
                                     <tr>
-                                        <th style="cursor: pointer;" onclick="sortCustomers('customer')">
+                                        <th class="cursor-pointer" onclick="sortCustomers('customer')">
                                             Customer <i class="bi bi-arrow-down-up"></i>
                                         </th>
-                                        <th class="text-center" style="cursor: pointer;" onclick="sortCustomers('job_count')">
+                                        <th class="text-center cursor-pointer" onclick="sortCustomers('job_count')">
                                             Total Jobs <i class="bi bi-arrow-down-up"></i>
                                         </th>
-                                        <th class="text-end" style="cursor: pointer;" onclick="sortCustomers('total_earnings')">
+                                        <th class="text-end cursor-pointer" onclick="sortCustomers('total_earnings')">
                                             Total Earnings <i class="bi bi-arrow-down-up"></i>
                                         </th>
-                                        <th class="text-end" style="cursor: pointer;" onclick="sortCustomers('avg_pay')">
+                                        <th class="text-end cursor-pointer" onclick="sortCustomers('avg_pay')">
                                             Avg Pay <i class="bi bi-arrow-down-up"></i>
                                         </th>
                                         <th class="text-center">Days Worked</th>
@@ -367,7 +367,7 @@
                                         <h5 class="section-title mb-3">
                                             <i class="bi bi-bar-chart text-success"></i> Activity Distribution
                                         </h5>
-                                        <div class="chart-container" style="height: 350px;">
+                                        <div class="chart-container-lg">
                                             <canvas id="activityChart"></canvas>
                                         </div>
                                     </div>
@@ -381,7 +381,7 @@
                                         <h5 class="section-title mb-3">
                                             <i class="bi bi-currency-pound text-warning"></i> Earnings by Activity
                                         </h5>
-                                        <div class="chart-container" style="height: 350px;">
+                                        <div class="chart-container-lg">
                                             <canvas id="activityEarningsChart"></canvas>
                                         </div>
                                     </div>
