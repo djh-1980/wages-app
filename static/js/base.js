@@ -183,9 +183,9 @@ async function checkNotifications() {
         if (badge && count) {
             if (data.has_new && data.count > 0) {
                 count.textContent = data.count;
-                badge.style.display = 'inline-block';
+                badge.classList.remove('d-none');
             } else {
-                badge.style.display = 'none';
+                badge.classList.add('d-none');
             }
         }
     } catch (error) {

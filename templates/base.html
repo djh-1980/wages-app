@@ -46,7 +46,7 @@
                     <li class="nav-item">
                         <a class="nav-link position-relative {% if request.path == '/runsheets' or request.path == '/' %}active{% endif %}" href="/runsheets" id="runsheets-link">
                             <i class="bi bi-calendar-check"></i> Run Sheets
-                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" id="notification-badge" style="display: none;">
+                            <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger d-none" id="notification-badge">
                                 <span id="notification-count">0</span>
                             </span>
                         </a>
@@ -145,7 +145,7 @@
                     </div>
                     <div id="globalSearchResults">
                         <div class="text-center text-muted py-4">
-                            <i class="bi bi-search" style="font-size: 3rem;"></i>
+                            <i class="bi bi-search global-search-empty-icon"></i>
                             <p class="mt-2">Enter a job number to search across all run sheets and payslips</p>
                         </div>
                     </div>
@@ -162,7 +162,7 @@
     </div>
 
     <!-- Footer -->
-    <footer class="text-center text-muted py-3 mt-auto" style="background-color: #f8f9fa; border-top: 1px solid #dee2e6;">
+    <footer class="text-center text-muted py-3 mt-auto app-footer">
         <div class="container">
             <small>
                 TVS TCMS v{{ config.VERSION if config.VERSION else '2.1.0' }} | 
