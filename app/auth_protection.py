@@ -24,8 +24,10 @@ def protect_all_routes(app):
             'static',
             'main.privacy',
             'main.terms',
+            'health.healthz',
+            'health.readyz',
         ]
-        
+
         # Public URL prefixes
         public_prefixes = [
             '/static/',
@@ -33,6 +35,8 @@ def protect_all_routes(app):
             '/logout',
             '/privacy',
             '/terms',
+            '/healthz',
+            '/readyz',
         ]
         
         # Check if current endpoint is public

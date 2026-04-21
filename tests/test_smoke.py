@@ -49,16 +49,32 @@ def test_authenticated_access(auth_client):
 
 
 def test_health_endpoint(client):
-    """Placeholder for a future /healthz endpoint.
-
-    Missing endpoints produce 404 *or* 302 (auth_protection redirects
-    unknown paths to /login before Flask can 404), so either is treated
-    as "endpoint not yet implemented".
-    """
+    """/healthz returns 200 with structured JSON."""
     response = client.get('/healthz')
-    if response.status_code in (302, 404):
-        pytest.skip('No /healthz endpoint yet')
     assert response.status_code == 200
+    data = response.get_json()
+    assert data['status'] == 'ok'
+    assert 'timestamp' in data
+
+
+def test_readyz_endpoint(client):
+    """/readyz returns per-check diagnostics (200 healthy or 503 degraded)."""
+    response = client.get('/readyz')
+    assert response.status_code in (200, 503)
+    data = response.get_json()
+    assert 'status' in data
+    assert data['status'] in ('ok', 'degraded')
+    assert 'checks' in data
+    for required in ('database', 'disk_space', 'sync_recent', 'gmail_auth'):
+        assert required in data['checks']
+        assert 'healthy' in data['checks'][required]
+
+
+def test_health_endpoints_are_public(client):
+    """Monitoring probes must be able to hit /healthz and /readyz unauthenticated."""
+    # No login performed on this client; both must return 2xx/503, never 302.
+    assert client.get('/healthz').status_code == 200
+    assert client.get('/readyz').status_code in (200, 503)
 
 
 def test_logout(auth_client):
