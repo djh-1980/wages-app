@@ -47,8 +47,8 @@ async function loadActiveUser() {
  * Display active test user details
  */
 function displayActiveUser(user) {
-    document.getElementById('noUserAlert').style.display = 'none';
-    document.getElementById('activeUserCard').style.display = 'block';
+    document.getElementById('noUserAlert').classList.add('d-none');
+    document.getElementById('activeUserCard').classList.remove('d-none');
     
     document.getElementById('userId').value = user.userId || '';
     document.getElementById('nino').value = user.nino || '';
@@ -77,8 +77,8 @@ function displayActiveUser(user) {
  * Show no user alert
  */
 function showNoUserAlert() {
-    document.getElementById('noUserAlert').style.display = 'block';
-    document.getElementById('activeUserCard').style.display = 'none';
+    document.getElementById('noUserAlert').classList.remove('d-none');
+    document.getElementById('activeUserCard').classList.add('d-none');
     document.getElementById('createBusinessBtn').disabled = true;
 }
 
