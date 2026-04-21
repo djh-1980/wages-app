@@ -4,6 +4,7 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/wages.css') }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/tax-estimator.css') }}">
 {% endblock %}
 
 {% block content %}
@@ -135,6 +136,18 @@
                                 </div>
                             </div>
                             <div class="col-lg-4">
+                                <!-- Phase 4.1: real-time tax-owed estimator.
+                                     Populated by static/js/tax-estimator.js; clicking
+                                     the card opens the breakdown modal at the bottom
+                                     of this template. -->
+                                <h5 class="section-title">Tax Estimate</h5>
+                                <div id="taxEstimatorWidget" class="mb-4">
+                                    <div class="tax-estimator-card tax-estimator-error" aria-live="polite">
+                                        <i class="bi bi-hourglass-split me-1"></i>
+                                        Loading tax estimate&hellip;
+                                    </div>
+                                </div>
+
                                 <h5 class="section-title">Current Tax Year</h5>
                                 <div class="card border-0 bg-light">
                                     <div class="card-body">
@@ -473,6 +486,29 @@
         </div>
     </div>
 
+    <!-- Tax-Estimator Detail Modal (Phase 4.1) -->
+    <div class="modal fade" id="taxEstimatorModal" tabindex="-1"
+         aria-labelledby="taxEstimatorModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg modal-dialog-scrollable modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="taxEstimatorModalLabel">
+                        <i class="bi bi-calculator me-1"></i>
+                        Tax Estimate Breakdown
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"
+                            aria-label="Close"></button>
+                </div>
+                <div class="modal-body" id="taxEstimatorModalBody">
+                    <p class="text-muted">Loading&hellip;</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
 {% endblock %}
 
 {% block extra_js %}
@@ -482,4 +518,5 @@
 <script src="{{ url_for('static', filename='js/wages-init.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/verbal-pay.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/missing-jobs.js') }}?v={{ range(1000, 9999) | random }}"></script>
+<script src="{{ url_for('static', filename='js/tax-estimator.js') }}?v={{ range(1000, 9999) | random }}"></script>
 {% endblock %}

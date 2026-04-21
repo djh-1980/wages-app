@@ -1,0 +1,86 @@
+/* ------------------------------------------------------------------ */
+/* Tax Estimator widget + pill (Phase 4.1)                             */
+/* ------------------------------------------------------------------ */
+
+.tax-estimator-card {
+    background: linear-gradient(135deg,
+        var(--bs-primary-bg-subtle, #cfe2ff) 0%,
+        var(--bs-body-bg, #fff) 60%);
+    border: 1px solid var(--bs-primary-border-subtle, #9ec5fe);
+    border-radius: 0.75rem;
+    padding: 1.25rem;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    color: var(--bs-body-color);
+}
+.tax-estimator-card:hover,
+.tax-estimator-card:focus {
+    transform: translateY(-1px);
+    box-shadow: 0 0.25rem 0.75rem rgba(0, 0, 0, 0.08);
+    outline: none;
+}
+.tax-estimator-error {
+    cursor: default;
+    background: var(--bs-warning-bg-subtle, #fff3cd);
+    border-color: var(--bs-warning-border-subtle, #ffe69c);
+}
+.tax-estimator-label {
+    font-size: 0.875rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--bs-primary, #0d6efd);
+}
+.tax-estimator-total {
+    font-size: 2.5rem;
+    font-weight: 700;
+    line-height: 1.1;
+    color: var(--bs-body-color);
+}
+.tax-estimator-progress {
+    height: 6px;
+    background: rgba(0, 0, 0, 0.06);
+    border-radius: 999px;
+    overflow: hidden;
+}
+.tax-estimator-progress .progress-bar {
+    background: var(--bs-primary, #0d6efd);
+}
+
+/* Compact pill on /runsheets */
+.tax-estimator-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    background: var(--bs-primary-bg-subtle, #cfe2ff);
+    color: var(--bs-primary, #0d6efd);
+    border: 1px solid var(--bs-primary-border-subtle, #9ec5fe);
+    text-decoration: none;
+    font-size: 0.9rem;
+    line-height: 1;
+    white-space: nowrap;
+    min-height: 38px;
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+.tax-estimator-pill:hover,
+.tax-estimator-pill:focus {
+    background: var(--bs-primary, #0d6efd);
+    color: #fff;
+    outline: none;
+}
+.tax-estimator-pill i {
+    font-size: 1rem;
+}
+.tax-estimator-pill strong {
+    font-weight: 700;
+}
+
+/* On very small screens, hide the word "Tax owed YTD" to keep the pill
+   from wrapping. The currency value still communicates the meaning. */
+@media (max-width: 480px) {
+    .tax-estimator-pill-label {
+        display: none;
+    }
+}
