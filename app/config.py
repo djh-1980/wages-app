@@ -197,6 +197,13 @@ class TestingConfig(Config):
     AUTO_SYNC_ENABLED = False
     FEATURE_INTELLIGENT_SYNC = False
 
+    # Disable CSRF and rate limiting for the test client.
+    WTF_CSRF_ENABLED = False
+    RATELIMIT_ENABLED = False
+
+    # Predictable secret key so signed cookies work across test cases.
+    SECRET_KEY = 'test-secret-key'
+
 
 # Configuration mapping
 config = {

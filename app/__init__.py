@@ -28,8 +28,16 @@ limiter = Limiter(
 )
 
 
-def create_app(config_name=None):
-    """Create and configure the Flask application."""
+def create_app(config_name=None, test_config=None):
+    """Create and configure the Flask application.
+
+    Args:
+        config_name: Name of the config class to load (development, production,
+            testing). Defaults to FLASK_ENV environment variable.
+        test_config: Optional dict of config overrides, applied on top of the
+            named config class. Used by the pytest harness to inject a
+            temp-file DATABASE_PATH, disable CSRF, etc.
+    """
     # Configure Flask to look for templates in the correct directory
     import os
     template_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'templates'))
@@ -42,9 +50,19 @@ def create_app(config_name=None):
     # Load configuration
     config_class = get_config(config_name)
     app.config.from_object(config_class)
-    
+
+    # Apply per-test overrides before init_app so paths propagate everywhere.
+    if test_config:
+        app.config.update(test_config)
+
     # Initialize configuration
     config_class.init_app(app)
+
+    # Keep the module-level DB_PATH in sync with the final resolved config so
+    # that helpers which imported `from .database import DB_PATH` at module
+    # load time cannot drift. Tests rely on this to redirect to a temp DB.
+    from . import database as _db_module
+    _db_module.DB_PATH = app.config['DATABASE_PATH']
     
     # Session security is configured in Config/ProductionConfig:
     # - SESSION_COOKIE_SAMESITE = 'Lax' (critical for OAuth redirects)
