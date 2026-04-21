@@ -1244,3 +1244,10 @@ body {
     border-radius: 10px;
     border: none;
 }
+
+/* ---------------------------------------------------------------------------
+ * Sync settings (extracted from inline styles in templates/settings/sync.html)
+ * ------------------------------------------------------------------------- */
+.sync-live-dot {
+    font-size: 0.5rem;
+}

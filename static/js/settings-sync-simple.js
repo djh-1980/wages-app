@@ -92,15 +92,15 @@ async function checkMissingRunsheets() {
             const listDiv = document.getElementById('missingDatesList');
             const container = document.getElementById('missingDatesContainer');
             
-            statusDiv.style.display = 'none';
-            contentDiv.style.display = 'block';
+            statusDiv.classList.add('d-none');
+            contentDiv.classList.remove('d-none');
             
             countSpan.textContent = result.missing_count;
             
             if (result.missing_count === 0) {
                 alertDiv.className = 'alert alert-success mb-3';
                 alertDiv.innerHTML = '<i class="bi bi-check-circle me-2"></i><strong>Last 30 days:</strong> No missing dates ✅';
-                listDiv.style.display = 'none';
+                listDiv.classList.add('d-none');
             } else {
                 alertDiv.className = 'alert alert-warning mb-3';
                 alertDiv.innerHTML = `<i class="bi bi-exclamation-triangle me-2"></i><strong>Last 30 days:</strong> ${result.missing_count} missing dates`;
@@ -111,7 +111,7 @@ async function checkMissingRunsheets() {
                         <i class="bi bi-calendar-x text-warning me-2"></i>${date}
                     </div>`
                 ).join('');
-                listDiv.style.display = 'block';
+                listDiv.classList.remove('d-none');
             }
         }
     } catch (error) {
@@ -318,8 +318,8 @@ function updateSyncSummary(log) {
     document.getElementById('syncLastTime').textContent = now.toLocaleString();
     
     // Show content, hide loading
-    summaryDiv.style.display = 'none';
-    contentDiv.style.display = 'block';
+    summaryDiv.classList.add('d-none');
+    contentDiv.classList.remove('d-none');
 }
 
 function displayErrorsInLog(errorMessages) {
@@ -381,7 +381,7 @@ async function testGmailConnection() {
             `;
             showError('Gmail connection test failed');
         }
-        resultsDiv.style.display = 'block';
+        resultsDiv.classList.remove('d-none');
     } catch (error) {
         resultsDiv.innerHTML = `
             <div class="alert alert-danger">
@@ -389,7 +389,7 @@ async function testGmailConnection() {
                 Connection test failed: ${error.message}
             </div>
         `;
-        resultsDiv.style.display = 'block';
+        resultsDiv.classList.remove('d-none');
         showError('Gmail connection test failed');
     }
 }
