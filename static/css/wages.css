@@ -3,6 +3,11 @@
     height: 400px;
 }
 
+/* Height variants used by the analytics tab / overview cards */
+.chart-h-250 { height: 250px; }
+.chart-h-300 { height: 300px; }
+.chart-h-350 { height: 350px; }
+
 .table-card {
     background: white;
 }
