@@ -173,6 +173,7 @@ def create_app(config_name=None, test_config=None):
     from .routes.api_job_notes import job_notes_bp
     from .routes.api_route_planning import route_planning_bp
     from .routes.api_hmrc import hmrc_bp
+    from .routes.api_wages_analytics import wages_analytics_bp
     from .routes.health import health_bp
 
     app.register_blueprint(auth_bp)
@@ -203,6 +204,7 @@ def create_app(config_name=None, test_config=None):
     app.register_blueprint(job_notes_bp)
     app.register_blueprint(route_planning_bp)
     app.register_blueprint(hmrc_bp)
+    app.register_blueprint(wages_analytics_bp)
     app.register_blueprint(health_bp)
 
     # HMRC sandbox-only helper endpoints (test users, create-test-business, etc.).

@@ -219,6 +219,163 @@
 
                     <!-- Analytics Tab -->
                     <div class="tab-pane fade" id="analytics" role="tabpanel">
+                        <!-- Tax year filter + overview section (current year KPIs + charts) -->
+                        <div class="d-flex flex-wrap justify-content-between align-items-center mb-3 gap-2">
+                            <h5 class="section-title mb-0">
+                                <i class="bi bi-graph-up-arrow text-primary"></i>
+                                Tax Year Overview
+                            </h5>
+                            <div class="d-flex align-items-center gap-2">
+                                <label for="analyticsTaxYearFilter" class="form-label mb-0 text-muted small">Tax Year:</label>
+                                <select class="form-select form-select-sm w-auto" id="analyticsTaxYearFilter">
+                                    <!-- Populated by wages-analytics.js -->
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- KPI cards -->
+                        <div class="row g-3 mb-4" id="analyticsKpiRow">
+                            <div class="col-12 col-md-6 col-lg-3">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-body">
+                                        <div class="text-muted small text-uppercase mb-1">
+                                            <i class="bi bi-cash-stack text-success"></i> Gross Income YTD
+                                        </div>
+                                        <div class="h4 mb-0 fw-bold" id="kpiGrossYtd">
+                                            <span class="spinner-border spinner-border-sm text-muted" role="status"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 col-lg-3">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-body">
+                                        <div class="text-muted small text-uppercase mb-1">
+                                            <i class="bi bi-receipt text-danger"></i> Allowable Expenses YTD
+                                        </div>
+                                        <div class="h4 mb-0 fw-bold" id="kpiExpensesYtd">
+                                            <span class="spinner-border spinner-border-sm text-muted" role="status"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 col-lg-3">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-body">
+                                        <div class="text-muted small text-uppercase mb-1">
+                                            <i class="bi bi-wallet2 text-primary"></i> Est. Net Profit YTD
+                                        </div>
+                                        <div class="h4 mb-0 fw-bold" id="kpiNetProfitYtd">
+                                            <span class="spinner-border spinner-border-sm text-muted" role="status"></span>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6 col-lg-3">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-body">
+                                        <div class="text-muted small text-uppercase mb-1">
+                                            <i class="bi bi-calendar-week text-info"></i> Avg Weekly Earnings
+                                        </div>
+                                        <div class="h4 mb-0 fw-bold" id="kpiAvgWeekly">
+                                            <span class="spinner-border spinner-border-sm text-muted" role="status"></span>
+                                        </div>
+                                        <small class="text-muted" id="kpiWeeksCompleted"></small>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- New charts row: weekly trend + YoY cumulative -->
+                        <div class="row g-4 mb-4">
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-body">
+                                        <h5 class="section-title mb-3">
+                                            <i class="bi bi-bar-chart text-success"></i> Weekly Earnings (Last 12 Weeks)
+                                        </h5>
+                                        <div class="chart-container position-relative" style="height: 300px;">
+                                            <div class="chart-loading text-center py-4" id="loadingWeeklyEarnings">
+                                                <div class="spinner-border text-primary" role="status"></div>
+                                            </div>
+                                            <canvas id="weeklyEarningsChart" class="d-none"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-body">
+                                        <h5 class="section-title mb-3">
+                                            <i class="bi bi-graph-up text-info"></i> Year-on-Year Cumulative Income
+                                        </h5>
+                                        <div class="chart-container position-relative" style="height: 300px;">
+                                            <div class="chart-loading text-center py-4" id="loadingYearComparison">
+                                                <div class="spinner-border text-primary" role="status"></div>
+                                            </div>
+                                            <canvas id="yoyCumulativeChart" class="d-none"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-4 mb-4">
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-body">
+                                        <h5 class="section-title mb-3">
+                                            <i class="bi bi-layers-half text-warning"></i> Income vs Expenses by Month
+                                        </h5>
+                                        <div class="chart-container position-relative" style="height: 300px;">
+                                            <div class="chart-loading text-center py-4" id="loadingMonthlyIE">
+                                                <div class="spinner-border text-primary" role="status"></div>
+                                            </div>
+                                            <canvas id="monthlyIncomeExpensesChart" class="d-none"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-body">
+                                        <h5 class="section-title mb-3">
+                                            <i class="bi bi-tags text-danger"></i> Top 5 Expense Categories
+                                        </h5>
+                                        <div class="chart-container position-relative" style="height: 300px;">
+                                            <div class="chart-loading text-center py-4" id="loadingTopExpenses">
+                                                <div class="spinner-border text-primary" role="status"></div>
+                                            </div>
+                                            <canvas id="topExpensesChart" class="d-none"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="row g-4 mb-4">
+                            <div class="col-12 col-lg-6">
+                                <div class="card border-0 shadow-sm h-100">
+                                    <div class="card-body">
+                                        <h5 class="section-title mb-3">
+                                            <i class="bi bi-calendar2-week text-primary"></i> Average Jobs per Day of Week
+                                        </h5>
+                                        <div class="chart-container position-relative" style="height: 300px;">
+                                            <div class="chart-loading text-center py-4" id="loadingJobsDow">
+                                                <div class="spinner-border text-primary" role="status"></div>
+                                            </div>
+                                            <canvas id="jobsPerDowChart" class="d-none"></canvas>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <hr class="my-4">
+                        <h5 class="section-title mb-3 text-muted">
+                            <i class="bi bi-archive"></i> Detailed Analytics (All Time)
+                        </h5>
+
                         <div id="analyticsLoadingSpinner" class="text-center py-5">
                             <div class="spinner-border text-primary" role="status">
                                 <span class="visually-hidden">Loading analytics...</span>
@@ -515,6 +672,7 @@
 <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 <script src="{{ url_for('static', filename='js/analytics.js') }}"></script>
 <script src="{{ url_for('static', filename='js/earnings-analytics.js') }}?v={{ range(1000, 9999) | random }}"></script>
+<script src="{{ url_for('static', filename='js/wages-analytics.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/wages-init.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/verbal-pay.js') }}?v={{ range(1000, 9999) | random }}"></script>
 <script src="{{ url_for('static', filename='js/missing-jobs.js') }}?v={{ range(1000, 9999) | random }}"></script>

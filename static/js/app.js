@@ -557,31 +557,56 @@ async function loadTaxYears() {
         const responseData = await response.json();
         const years = responseData.success ? responseData.data : responseData;
         
-        // Populate payslips filter (if exists)
+        // Populate payslips filter (if exists). Default to the current UK
+        // tax year (6 April - 5 April) so the table doesn't load hundreds of
+        // historical rows every time; previous years remain available via the
+        // dropdown.
         const select = document.getElementById('taxYearFilter');
         if (select) {
             select.innerHTML = ''; // Clear existing options
-            
-            // Add "All Years" option
+
+            // Format starting year "2026" as UK tax-year label "2026/27".
+            const fmtLabel = (y) => {
+                const start = parseInt(y, 10);
+                if (!Number.isFinite(start)) return String(y);
+                const end = (start + 1) % 100;
+                return `${start}/${end.toString().padStart(2, '0')}`;
+            };
+
+            // Compute the current UK tax year start (6 April cutoff).
+            const now = new Date();
+            const currentYearStart = (now.getMonth() > 2 || (now.getMonth() === 3 && now.getDate() >= 6))
+                ? now.getFullYear()
+                : now.getFullYear() - 1;
+
+            // Add year options (newest first).
+            const sorted = [...years].map(y => parseInt(y, 10))
+                .filter(Number.isFinite)
+                .sort((a, b) => b - a);
+            sorted.forEach(year => {
+                const option = document.createElement('option');
+                option.value = year;
+                option.textContent = fmtLabel(year);
+                select.appendChild(option);
+            });
+
+            // "All Years" stays available but is no longer the default.
             const allOption = document.createElement('option');
             allOption.value = '';
             allOption.textContent = 'All Years';
             select.appendChild(allOption);
-            
-            // Add year options
-            years.forEach(year => {
-                const option = document.createElement('option');
-                option.value = year;
-                option.textContent = year;
-                select.appendChild(option);
-            });
-            
-            // Default to latest year (maximum year value)
-            if (years.length > 0) {
-                const latestYear = Math.max(...years.map(y => parseInt(y)));
-                select.value = latestYear.toString();
-                // Load payslips for the latest year
-                loadPayslips(latestYear.toString());
+
+            // Default: current tax year if we have data for it, otherwise
+            // the most recent year with data.
+            let defaultYear = '';
+            if (sorted.includes(currentYearStart)) {
+                defaultYear = currentYearStart.toString();
+            } else if (sorted.length > 0) {
+                defaultYear = sorted[0].toString();
+            }
+            if (defaultYear) {
+                select.value = defaultYear;
+                loadPayslips(defaultYear);
             }
         }
         
