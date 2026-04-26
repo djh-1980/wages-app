@@ -36,10 +36,18 @@ def find_driver_pages(pdf_path: str, driver_name: str = 'Daniel Hanson') -> List
         with pdfplumber.open(pdf_path) as pdf:
             total_pages = len(pdf.pages)
             for i, page in enumerate(pdf.pages):
-                text = (page.extract_text() or '').upper()
-                
-                # Check if all parts of driver name are present
-                if all(part in text for part in name_parts):
+                text = page.extract_text() or ''
+
+                # Only consider the page header (first 2 lines). On real
+                # runsheet pages line 2 is e.g. "Daniel Hanson 27/04/2026",
+                # whereas on warehouse manifest pages line 2 is
+                # "Warehouse manifest" and the driver name only appears in
+                # body text (and on line 3 as "Driver Hanson, Daniel").
+                # Restricting to the first 2 lines excludes those pages.
+                first_lines = '\n'.join(text.split('\n')[:2]).upper()
+
+                # Check if all parts of driver name are present in the header
+                if all(part in first_lines for part in name_parts):
                     driver_pages.append(i + 1)  # Camelot uses 1-based page numbers
                     print(f"    ✓ Found '{driver_name}' on page {i + 1}/{total_pages}")
         
@@ -60,23 +68,32 @@ class CamelotRunsheetParser:
     
     def __init__(self, driver_name: str = "Daniel Hanson"):
         self.driver_name = driver_name
-        
+        # When True, every table extracted is trusted to belong to this
+        # driver (because find_driver_pages already vetted the page header).
+        # See _is_my_table() for the corresponding short-circuit.
+        self._on_driver_page = False
+
     def parse_pdf(self, pdf_path: str) -> List[Dict]:
         """Parse a runsheet PDF and extract job data."""
         print(f"Parsing: {Path(pdf_path).name}")
-        
+
         # Pre-filter: Find pages containing driver name (PERFORMANCE OPTIMIZATION)
         # For large multi-driver PDFs (57+ pages), this reduces processing from
         # minutes to seconds by only scanning relevant pages
         driver_pages = find_driver_pages(pdf_path, self.driver_name)
-        
+
         # Determine which pages to process
         if driver_pages:
             pages_param = ','.join(map(str, driver_pages))
             print(f"  Processing {len(driver_pages)} filtered page(s): {pages_param}")
+            # Pages have already been validated as driver pages by their
+            # header text - trust them and skip the table-level name match.
+            self._on_driver_page = True
         else:
-            # Fallback: process all pages if pre-scan failed or found nothing
+            # Fallback: process all pages if pre-scan failed or found nothing.
+            # In this case we can't trust pages, so leave _is_my_table to filter.
             pages_param = 'all'
+            self._on_driver_page = False
             print(f"  Processing all pages (no pre-filter applied)")
         
         # Extract runsheet date from page header (not from tables)
@@ -127,13 +144,21 @@ class CamelotRunsheetParser:
     
     def _is_my_table(self, df: pd.DataFrame) -> bool:
         """Check if table belongs to our driver."""
-        # Split driver name into parts to handle both "Daniel Hanson" and "Hanson, Daniel" formats
+        # Trust the page-level pre-filter. find_driver_pages() already
+        # confirmed the driver name appears in the page header, so any
+        # table extracted from such a page is by construction a driver
+        # table. This is essential for the per-page detail layout where
+        # the driver name only appears in the page header (lines 1-2)
+        # and not inside the Camelot-extracted table cells.
+        if getattr(self, '_on_driver_page', False):
+            return True
+
+        # Fallback: legacy code path (no page pre-filter applied).
+        # Split driver name into parts to handle both "Daniel Hanson" and
+        # "Hanson, Daniel" formats and look for it in the first few rows.
         name_parts = self.driver_name.upper().split()
-        
-        # Look for driver name in first few rows
         for i in range(min(5, len(df))):
             row_text = ' '.join(str(cell) for cell in df.iloc[i]).upper()
-            # Check if all parts of driver name are present (handles both name orders)
             if all(part in row_text for part in name_parts):
                 return True
         return False
@@ -141,7 +166,17 @@ class CamelotRunsheetParser:
     def _extract_jobs_from_table(self, df: pd.DataFrame, source_file: str, runsheet_date: str = None) -> List[Dict]:
         """Extract job data from a table DataFrame."""
         jobs = []
-        
+
+        # Per-page detail layout: every page in the per-driver section of
+        # the PDF holds a single job in a vertical "form" (Job # / Customer
+        # / Activity / Address all stacked). Detect that and extract a
+        # single job rather than treating it as a list-style manifest.
+        if self._is_detail_page_table(df):
+            detail_job = self._extract_job_from_detail_table(df, runsheet_date, source_file)
+            if detail_job:
+                jobs.append(detail_job)
+            return jobs
+
         # Find header row (contains "Job #", "Customer", etc.)
         header_row = None
         for i in range(min(10, len(df))):
@@ -176,6 +211,88 @@ class CamelotRunsheetParser:
         
         return jobs
     
+    def _is_detail_page_table(self, df: pd.DataFrame) -> bool:
+        """Detect the single-job per-page detail layout.
+
+        On these pages row 0 column 0 is the literal text 'Job # NNNNNNN'
+        (label and value combined) instead of a list-style header row.
+        """
+        if df.empty or df.shape[1] < 1:
+            return False
+        first_cell = str(df.iloc[0, 0]).strip()
+        return bool(re.match(r'Job\s*#\s*\d+', first_cell))
+
+    def _extract_job_from_detail_table(self, df: pd.DataFrame, runsheet_date: str,
+                                       source_file: str) -> Dict:
+        """Extract a single job from a per-page detail (vertical form) table.
+
+        Layout (column indices vary slightly between rows):
+            Row 0:  'Job # NNNNNNN' | _ | 'Customer' | _ | <CUSTOMER> | ... | 'Job Address'
+            Row 1:  'SLA Window'    | _ | <SLA range> | _ | Contact Name\\n<NAME> | ... | <multi-line address>
+            Row 2:  'Activity'      | _ | <ACTIVITY>  | _ | Contact Phone\\n<PHONE>
+            Row 3:  'Priority'      | _ | <PRIORITY>
+            Row 4:  'Ref 1'         | _ | <REF1>
+        """
+        # Job number is in row 0 col 0 ("Job # NNNNNNN")
+        first_cell = str(df.iloc[0, 0]).strip()
+        m = re.match(r'Job\s*#\s*(\d+)', first_cell)
+        if not m:
+            return None
+
+        job = {
+            'date': runsheet_date,
+            'source_file': source_file,
+            'driver': self.driver_name,
+            'job_number': m.group(1),
+        }
+
+        ncols = df.shape[1]
+
+        # Customer: scan row 0 for the cell immediately after a 'Customer' label
+        for j in range(ncols):
+            if str(df.iloc[0, j]).strip().upper() == 'CUSTOMER':
+                for k in range(j + 1, ncols):
+                    val = str(df.iloc[0, k]).strip()
+                    if val and val.upper() != 'NAN':
+                        job['customer'] = self._clean_customer(val)
+                        break
+                break
+
+        # Helper: read the value next to a labelled row in column 0
+        def _value_for_label(label):
+            label_u = label.upper()
+            for i in range(min(15, len(df))):
+                if str(df.iloc[i, 0]).strip().upper() == label_u:
+                    for k in range(1, ncols):
+                        val = str(df.iloc[i, k]).strip()
+                        if val and val.upper() != 'NAN':
+                            return val
+                    break
+            return None
+
+        activity = _value_for_label('Activity')
+        if activity:
+            job['activity'] = self._clean_activity(activity)
+
+        priority = _value_for_label('Priority')
+        if priority:
+            job['priority'] = priority
+
+        # Address: rightmost multi-line cell on row 1 (next to SLA Window)
+        if len(df) > 1:
+            for k in range(ncols - 1, 0, -1):
+                cell = str(df.iloc[1, k]).strip()
+                if cell and cell.upper() != 'NAN' and ('\n' in cell or len(cell) > 20):
+                    addr_text = cell.replace('\n', ', ')
+                    address, postcode = self._extract_address_and_postcode(addr_text)
+                    if address:
+                        job['job_address'] = address
+                    if postcode:
+                        job['postcode'] = postcode
+                    break
+
+        return job if self._is_valid_job(job) else None
+
     def _map_columns(self, headers: pd.Series) -> Dict[str, int]:
         """Map column names to indices."""
         col_map = {}
