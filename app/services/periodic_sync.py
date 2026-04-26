@@ -18,6 +18,7 @@ import schedule
 from .sync_helpers import (
     get_latest_runsheet_date,
     get_latest_payslip_week,
+    is_runsheet_for_tomorrow_present,
     sync_payslips_to_runsheets,
     should_send_notification,
     format_sync_email
@@ -124,22 +125,17 @@ class PeriodicSyncService:
         self.current_state = 'idle'
         self.logger.info(f"Starting periodic sync service ({self.sync_start_time} daily, then every {self.sync_interval_minutes} minutes until complete)")
         
-        # Check if tomorrow's runsheet already exists in database
-        # Note: Runsheets are for the NEXT day, so if we have tomorrow's date or later, we're done
-        tomorrow_date = (datetime.now() + timedelta(days=1)).strftime('%d/%m/%Y')
+        # Check if tomorrow's runsheet already exists in database.
+        # Runsheets are for the NEXT day, so if we have tomorrow's date or later, we're done.
         latest_runsheet = get_latest_runsheet_date()
-        if latest_runsheet:
-            # Convert DD/MM/YYYY to comparable format
-            latest_parts = latest_runsheet.split('/')
-            tomorrow_parts = tomorrow_date.split('/')
-            latest_comparable = f"{latest_parts[2]}{latest_parts[1]}{latest_parts[0]}"
-            tomorrow_comparable = f"{tomorrow_parts[2]}{tomorrow_parts[1]}{tomorrow_parts[0]}"
-            
-            if latest_comparable >= tomorrow_comparable:
-                self.runsheet_completed_today = True
-                self.logger.info(f"Latest runsheet ({latest_runsheet}) is tomorrow or later - marking as completed")
-            else:
-                self.logger.info(f"Latest runsheet ({latest_runsheet}) is before tomorrow ({tomorrow_date}) - sync needed")
+        if is_runsheet_for_tomorrow_present():
+            self.runsheet_completed_today = True
+            self.logger.info(f"Latest runsheet ({latest_runsheet}) is tomorrow or later - marking as completed")
+        elif latest_runsheet:
+            tomorrow_date = (datetime.now() + timedelta(days=1)).strftime('%d/%m/%Y')
+            self.logger.info(f"Latest runsheet ({latest_runsheet}) is before tomorrow ({tomorrow_date}) - sync needed")
+        else:
+            self.logger.info("No runsheets in DB yet - sync needed")
         
         # Schedule daily sync at configured time
         schedule.every().day.at(self.sync_start_time).do(self._start_daily_sync)
@@ -552,9 +548,18 @@ class PeriodicSyncService:
                                         sync_summary['runsheets_imported'] = int(match.group(1))
                             self.logger.info(f"Imported {sync_summary['runsheets_imported']} runsheet jobs")
                     
-                    # Mark runsheet as completed for today
-                    self.runsheet_completed_today = True
-                    self.logger.info("Runsheet processing complete - will not check again until tomorrow")
+                    # Only mark complete if tomorrow's runsheet is actually in the DB.
+                    # Holly may not have sent the email yet at 19:00; in that case we
+                    # need the 19:15/19:30/...21:00 retries to keep firing.
+                    if is_runsheet_for_tomorrow_present():
+                        self.runsheet_completed_today = True
+                        self.logger.info("Tomorrow's runsheet is in DB - marking complete, will not check again until tomorrow")
+                    else:
+                        latest = get_latest_runsheet_date()
+                        if latest:
+                            self.logger.info(f"Latest runsheet ({latest}) still before tomorrow - will retry next cycle")
+                        else:
+                            self.logger.info("No runsheets in DB yet - will retry next cycle")
                 except Exception as e:
                     sync_summary['errors'].append(f"Runsheet import failed: {str(e)}")
                     self.logger.error(f"Runsheet import error: {e}")

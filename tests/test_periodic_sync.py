@@ -276,6 +276,160 @@ class TestTomorrowShortCircuit:
 
 
 # ---------------------------------------------------------------------------
+# runsheet_completed_today: only flips when tomorrow's data is in DB
+# ---------------------------------------------------------------------------
+
+class TestRunsheetCompletedTodayGuard:
+    """Regression: sync used to mark complete even when 0 jobs imported.
+
+    If Holly hasn't sent tomorrow's runsheet by 19:00, the 21:00 retry must
+    still fire. Completion is only valid once tomorrow's date appears in the
+    ``run_sheet_jobs`` table.
+    """
+
+    def _stub_subprocess(self, monkeypatch, stdout=''):
+        def fake_run(*args, **kwargs):
+            return CompletedProcess(args=args[0], returncode=0, stdout=stdout, stderr='')
+
+        monkeypatch.setattr('subprocess.run', fake_run)
+        monkeypatch.setattr('time.sleep', lambda *_: None)
+
+    def test_no_new_jobs_does_not_mark_complete(
+        self, sync_service, freeze_now, silent_schedule, monkeypatch,
+    ):
+        """0 runsheets downloaded, 0 unprocessed on disk -> stay incomplete."""
+        freeze_now(datetime(2026, 4, 21, 19, 0))
+
+        # Latest in DB is yesterday's runsheet, so we are NOT short-circuited.
+        # Patch both the periodic_sync import and the sync_helpers source so
+        # is_runsheet_for_tomorrow_present() observes the same value.
+        from app.services import periodic_sync as ps_mod
+        from app.services import sync_helpers as sh_mod
+        monkeypatch.setattr(ps_mod, 'get_latest_runsheet_date', lambda: '20/04/2026')
+        monkeypatch.setattr(sh_mod, 'get_latest_runsheet_date', lambda: '20/04/2026')
+        monkeypatch.setattr(
+            sh_mod, 'datetime', _make_fake_datetime(datetime(2026, 4, 21, 19, 0))
+        )
+
+        # No subprocess output -> 0 downloads. No files on disk either.
+        self._stub_subprocess(monkeypatch, stdout='')
+        monkeypatch.setattr(sync_service, '_get_unprocessed_runsheets', lambda: [])
+
+        # Sanity: starts as not-complete.
+        sync_service.runsheet_completed_today = False
+
+        sync_service.sync_latest()
+
+        # Bug-fix assertion: must remain False since tomorrow isn't in DB yet.
+        assert sync_service.runsheet_completed_today is False
+
+    def test_import_runs_but_tomorrow_still_missing_does_not_mark_complete(
+        self, sync_service, freeze_now, silent_schedule, monkeypatch, tmp_path,
+    ):
+        """Import path executes (unprocessed file found) but DB still lacks tomorrow."""
+        freeze_now(datetime(2026, 4, 21, 19, 0))
+
+        from app.services import periodic_sync as ps_mod
+        from app.services import sync_helpers as sh_mod
+        # Throughout the run, latest stays at yesterday (import didn't bring tomorrow in).
+        monkeypatch.setattr(ps_mod, 'get_latest_runsheet_date', lambda: '20/04/2026')
+        monkeypatch.setattr(sh_mod, 'get_latest_runsheet_date', lambda: '20/04/2026')
+        monkeypatch.setattr(
+            sh_mod, 'datetime', _make_fake_datetime(datetime(2026, 4, 21, 19, 0))
+        )
+
+        # Force the import branch by returning one unprocessed file.
+        fake_pdf = tmp_path / 'DH_20-04-2026.pdf'
+        fake_pdf.write_bytes(b'%PDF')
+        from app import config as config_mod
+        monkeypatch.setattr(config_mod.Config, 'RUNSHEETS_DIR', str(tmp_path))
+        monkeypatch.setattr(
+            sync_service, '_get_unprocessed_runsheets', lambda: [fake_pdf]
+        )
+
+        # Subprocess returns success but no job-count match -> total_jobs = 0.
+        self._stub_subprocess(monkeypatch, stdout='no jobs imported')
+
+        sync_service.runsheet_completed_today = False
+        sync_service.sync_latest()
+
+        assert sync_service.runsheet_completed_today is False
+
+    def test_tomorrow_in_db_after_import_marks_complete(
+        self, sync_service, freeze_now, silent_schedule, monkeypatch, tmp_path,
+    ):
+        """Once tomorrow's date appears in DB, runsheet_completed_today flips True."""
+        freeze_now(datetime(2026, 4, 21, 19, 0))
+
+        # Drive a sequence: yesterday on the early short-circuit check, then
+        # tomorrow on the post-import check. We track call count to flip.
+        from app.services import periodic_sync as ps_mod
+        from app.services import sync_helpers as sh_mod
+        calls = {'n': 0}
+
+        def fake_latest():
+            calls['n'] += 1
+            # First call is in the early short-circuit, where we want to NOT
+            # short-circuit. After that, return tomorrow so the post-import
+            # helper sees it.
+            return '20/04/2026' if calls['n'] == 1 else '22/04/2026'
+
+        monkeypatch.setattr(ps_mod, 'get_latest_runsheet_date', fake_latest)
+        monkeypatch.setattr(sh_mod, 'get_latest_runsheet_date', fake_latest)
+        monkeypatch.setattr(
+            sh_mod, 'datetime', _make_fake_datetime(datetime(2026, 4, 21, 19, 0))
+        )
+
+        # Force the import branch.
+        fake_pdf = tmp_path / 'DH_22-04-2026.pdf'
+        fake_pdf.write_bytes(b'%PDF')
+        from app import config as config_mod
+        monkeypatch.setattr(config_mod.Config, 'RUNSHEETS_DIR', str(tmp_path))
+        monkeypatch.setattr(
+            sync_service, '_get_unprocessed_runsheets', lambda: [fake_pdf]
+        )
+        self._stub_subprocess(
+            monkeypatch, stdout='Imported 5 jobs from DH_22-04-2026.pdf'
+        )
+
+        sync_service.runsheet_completed_today = False
+        sync_service.sync_latest()
+
+        assert sync_service.runsheet_completed_today is True
+
+
+# ---------------------------------------------------------------------------
+# is_runsheet_for_tomorrow_present() helper
+# ---------------------------------------------------------------------------
+
+class TestIsRunsheetForTomorrowPresent:
+    def test_returns_false_when_db_empty(self, monkeypatch):
+        from app.services import sync_helpers as sh
+        monkeypatch.setattr(sh, 'get_latest_runsheet_date', lambda: None)
+        monkeypatch.setattr(
+            sh, 'datetime', _make_fake_datetime(datetime(2026, 4, 21, 19, 0))
+        )
+        assert sh.is_runsheet_for_tomorrow_present() is False
+
+    @pytest.mark.parametrize('latest', ['22/04/2026', '22-04-2026', '23/04/2026'])
+    def test_returns_true_when_tomorrow_or_later(self, monkeypatch, latest):
+        from app.services import sync_helpers as sh
+        monkeypatch.setattr(sh, 'get_latest_runsheet_date', lambda: latest)
+        monkeypatch.setattr(
+            sh, 'datetime', _make_fake_datetime(datetime(2026, 4, 21, 19, 0))
+        )
+        assert sh.is_runsheet_for_tomorrow_present() is True
+
+    def test_returns_false_when_strictly_before_tomorrow(self, monkeypatch):
+        from app.services import sync_helpers as sh
+        monkeypatch.setattr(sh, 'get_latest_runsheet_date', lambda: '20/04/2026')
+        monkeypatch.setattr(
+            sh, 'datetime', _make_fake_datetime(datetime(2026, 4, 21, 19, 0))
+        )
+        assert sh.is_runsheet_for_tomorrow_present() is False
+
+
+# ---------------------------------------------------------------------------
 # New-day / new-week tracking resets
 # ---------------------------------------------------------------------------
 

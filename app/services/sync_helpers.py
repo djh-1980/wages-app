@@ -6,6 +6,7 @@ Helper functions for syncing runsheet and payslip data.
 import logging
 import sqlite3
 import time
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from app.database import get_db_connection
@@ -43,6 +44,31 @@ def get_latest_runsheet_date() -> Optional[str]:
     finally:
         if conn:
             conn.close()
+
+
+def is_runsheet_for_tomorrow_present() -> bool:
+    """Return True if the latest runsheet in DB covers tomorrow or later.
+
+    Used to decide whether the auto-sync runsheet phase is "done" for the
+    current evening. Runsheets are emailed in the evening for the *next*
+    working day, so completion means the latest DB row is dated tomorrow
+    (or later).
+    """
+    tomorrow_date = (datetime.now() + timedelta(days=1)).strftime('%d/%m/%Y')
+    latest_runsheet = get_latest_runsheet_date()
+    if not latest_runsheet:
+        return False
+
+    # Tolerate either '/' or '-' as a date separator from upstream callers.
+    separator = '/' if '/' in latest_runsheet else '-'
+    latest_parts = latest_runsheet.split(separator)
+    tomorrow_parts = tomorrow_date.split('/')
+    if len(latest_parts) != 3 or len(tomorrow_parts) != 3:
+        return False
+
+    latest_comparable = f'{latest_parts[2]}{latest_parts[1]}{latest_parts[0]}'
+    tomorrow_comparable = f'{tomorrow_parts[2]}{tomorrow_parts[1]}{tomorrow_parts[0]}'
+    return latest_comparable >= tomorrow_comparable
 
 
 def get_latest_payslip_week() -> Optional[str]:
