@@ -24,6 +24,7 @@ def protect_all_routes(app):
             'static',
             'main.privacy',
             'main.terms',
+            'main.design_preview',
             'health.healthz',
             'health.readyz',
         ]
@@ -35,6 +36,7 @@ def protect_all_routes(app):
             '/logout',
             '/privacy',
             '/terms',
+            '/design-preview',
             '/healthz',
             '/readyz',
         ]

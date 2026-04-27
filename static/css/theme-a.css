@@ -1,0 +1,154 @@
+/* Theme A — Linear / Stripe
+   Electric purple-blue, white, sharp corners, tight spacing, Inter type.
+   Scoped to body[data-theme="a"] so the stylesheet is inert if removed. */
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+
+body[data-theme="a"] {
+    --bs-primary: #635bff;
+    --bs-primary-rgb: 99, 91, 255;
+    --bs-link-color: #635bff;
+    --bs-link-hover-color: #4f46e5;
+    --bs-body-bg: #ffffff;
+    --bs-body-color: #1a1a2e;
+    --bs-secondary-color: #6b7280;
+    --bs-border-color: #e5e7eb;
+    --bs-border-radius: 6px;
+    --bs-border-radius-sm: 4px;
+    --bs-border-radius-lg: 8px;
+    --bs-border-radius-xl: 10px;
+    --bs-card-border-radius: 8px;
+    font-family: 'Inter', system-ui, -apple-system, sans-serif;
+    font-feature-settings: 'cv02', 'cv03', 'cv04', 'cv11';
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.005em;
+}
+
+body[data-theme="a"] h1, body[data-theme="a"] h2,
+body[data-theme="a"] h3, body[data-theme="a"] h4 {
+    font-weight: 600;
+    letter-spacing: -0.02em;
+}
+
+body[data-theme="a"] .card {
+    border: 1px solid #eef0f3;
+    box-shadow: 0 1px 2px rgba(16, 24, 40, 0.05);
+    border-radius: 8px;
+}
+
+body[data-theme="a"] .card:hover {
+    box-shadow: 0 4px 12px rgba(99, 91, 255, 0.08);
+    border-color: #d6d3ff;
+    transition: all 0.15s ease;
+}
+
+body[data-theme="a"] .btn {
+    font-weight: 500;
+    border-radius: 6px;
+    padding: 0.45rem 0.95rem;
+    transition: all 0.12s ease;
+    letter-spacing: 0;
+}
+
+body[data-theme="a"] .btn-primary {
+    background: linear-gradient(180deg, #6c63ff 0%, #635bff 100%);
+    border-color: #635bff;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.2) inset, 0 1px 2px rgba(99, 91, 255, 0.4);
+}
+
+body[data-theme="a"] .btn-primary:hover {
+    background: #5249ff;
+    border-color: #5249ff;
+    transform: translateY(-1px);
+}
+
+body[data-theme="a"] .btn-outline-primary {
+    color: #635bff;
+    border-color: #d6d3ff;
+}
+
+body[data-theme="a"] .btn-outline-primary:hover {
+    background: #635bff;
+    border-color: #635bff;
+}
+
+body[data-theme="a"] .form-control,
+body[data-theme="a"] .form-select {
+    border-radius: 6px;
+    border-color: #e5e7eb;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.95rem;
+    transition: border-color 0.12s, box-shadow 0.12s;
+}
+
+body[data-theme="a"] .form-control:focus,
+body[data-theme="a"] .form-select:focus {
+    border-color: #635bff;
+    box-shadow: 0 0 0 3px rgba(99, 91, 255, 0.15);
+}
+
+body[data-theme="a"] .badge {
+    font-weight: 500;
+    padding: 0.35em 0.65em;
+    border-radius: 4px;
+    letter-spacing: 0.01em;
+}
+
+body[data-theme="a"] .table {
+    --bs-table-bg: #ffffff;
+    font-size: 0.92rem;
+}
+
+body[data-theme="a"] .table thead th {
+    background: #fafbfc;
+    border-bottom: 1px solid #e5e7eb;
+    font-weight: 600;
+    font-size: 0.78rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #6b7280;
+    padding: 0.6rem 0.75rem;
+}
+
+body[data-theme="a"] .table tbody tr:hover {
+    background: #fafbfc;
+}
+
+body[data-theme="a"] .alert {
+    border-radius: 6px;
+    border: 1px solid;
+    padding: 0.75rem 1rem;
+}
+
+body[data-theme="a"] .alert-success { background: #ecfdf5; border-color: #a7f3d0; color: #065f46; }
+body[data-theme="a"] .alert-warning { background: #fffbeb; border-color: #fde68a; color: #92400e; }
+body[data-theme="a"] .alert-danger  { background: #fef2f2; border-color: #fecaca; color: #991b1b; }
+body[data-theme="a"] .alert-info    { background: #eff6ff; border-color: #bfdbfe; color: #1e40af; }
+
+body[data-theme="a"] .nav-tabs .nav-link {
+    border: none;
+    border-bottom: 2px solid transparent;
+    color: #6b7280;
+    padding: 0.6rem 1rem;
+    font-weight: 500;
+}
+body[data-theme="a"] .nav-tabs .nav-link.active {
+    color: #635bff;
+    border-bottom-color: #635bff;
+    background: transparent;
+}
+
+body[data-theme="a"] .progress {
+    background: #f3f4f6;
+    border-radius: 999px;
+    height: 8px;
+}
+body[data-theme="a"] .progress-bar {
+    background: #635bff;
+    border-radius: 999px;
+}
+
+body[data-theme="a"] .chart-placeholder {
+    background: linear-gradient(135deg, #ede9fe 0%, #c7d2fe 100%);
+    color: #4338ca;
+}

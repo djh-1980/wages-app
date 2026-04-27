@@ -136,3 +136,11 @@ def terms():
     from datetime import datetime
     current_date = datetime.now().strftime('%d %B %Y')
     return render_template('terms.html', current_date=current_date)
+
+
+@main_bp.route('/design-preview')
+def design_preview():
+    """Throwaway design-exploration page showing 4 theme variants applied to
+    common UI elements. Public (no auth) to keep iteration fast.
+    Remove before production launch."""
+    return render_template('design_preview.html')

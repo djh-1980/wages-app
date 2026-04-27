@@ -1,0 +1,206 @@
+/* Theme D — Trades / Practical
+   Bold orange accents, navy secondary, big touch targets, no-nonsense. */
+
+body[data-theme="d"] {
+    --bs-primary: #ea580c;
+    --bs-primary-rgb: 234, 88, 12;
+    --bs-link-color: #ea580c;
+    --bs-link-hover-color: #c2410c;
+    --bs-body-bg: #ffffff;
+    --bs-body-color: #1e293b;
+    --bs-secondary-color: #64748b;
+    --bs-border-color: #cbd5e1;
+    --bs-border-radius: 4px;
+    --bs-border-radius-sm: 4px;
+    --bs-border-radius-lg: 6px;
+    font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    -webkit-font-smoothing: antialiased;
+}
+
+body[data-theme="d"] h1, body[data-theme="d"] h2,
+body[data-theme="d"] h3, body[data-theme="d"] h4 {
+    color: #1e293b;
+    font-weight: 700;
+}
+
+body[data-theme="d"] .preview-section {
+    background: #ffffff;
+    padding: 2rem 0;
+}
+body[data-theme="d"] .preview-section:nth-child(even) { background: #f8fafc; }
+body[data-theme="d"] .preview-section h2 {
+    color: #475569;
+    font-weight: 700;
+}
+
+body[data-theme="d"] .card {
+    background: #ffffff;
+    border: 1px solid #e2e8f0;
+    border-radius: 4px;
+    box-shadow: 0 2px 4px rgba(15, 23, 42, 0.06), 0 4px 12px rgba(15, 23, 42, 0.04);
+    transition: transform 0.1s ease, box-shadow 0.1s ease;
+}
+body[data-theme="d"] .card:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 8px rgba(15, 23, 42, 0.08), 0 8px 16px rgba(15, 23, 42, 0.06);
+}
+
+body[data-theme="d"] .btn {
+    font-weight: 600;
+    border-radius: 4px;
+    padding: 0.65rem 1.1rem;       /* big enough for gloves */
+    min-height: 44px;
+    text-transform: none;
+    letter-spacing: 0;
+    transition: background 0.1s ease, border-color 0.1s ease;
+}
+body[data-theme="d"] .btn-lg {
+    padding: 0.85rem 1.5rem;
+    min-height: 52px;
+    font-size: 1.05rem;
+}
+
+body[data-theme="d"] .btn-primary {
+    background: #ea580c;
+    border-color: #c2410c;
+    color: #ffffff;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.15) inset, 0 2px 0 #9a3412;
+}
+body[data-theme="d"] .btn-primary:hover {
+    background: #c2410c;
+    border-color: #9a3412;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.15) inset, 0 1px 0 #7c2d12;
+}
+
+body[data-theme="d"] .btn-secondary {
+    background: #1e293b;
+    border-color: #0f172a;
+    color: #ffffff;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.1) inset, 0 2px 0 #0f172a;
+}
+body[data-theme="d"] .btn-secondary:hover {
+    background: #0f172a;
+    border-color: #020617;
+    color: #ffffff;
+}
+
+body[data-theme="d"] .btn-danger {
+    background: #dc2626;
+    border-color: #b91c1c;
+    box-shadow: 0 1px 0 rgba(255, 255, 255, 0.15) inset, 0 2px 0 #7f1d1d;
+}
+
+body[data-theme="d"] .btn-outline-primary {
+    border: 2px solid #ea580c;
+    color: #c2410c;
+    font-weight: 700;
+}
+body[data-theme="d"] .btn-outline-primary:hover {
+    background: #ea580c;
+    color: #ffffff;
+}
+body[data-theme="d"] .btn-outline-secondary {
+    border: 2px solid #1e293b;
+    color: #1e293b;
+    font-weight: 700;
+}
+body[data-theme="d"] .btn-outline-secondary:hover {
+    background: #1e293b;
+    color: #ffffff;
+}
+
+body[data-theme="d"] .form-control,
+body[data-theme="d"] .form-select {
+    border: 2px solid #cbd5e1;
+    border-radius: 4px;
+    padding: 0.65rem 0.85rem;
+    min-height: 44px;
+    font-size: 1rem;     /* >=16px to stop iOS zoom */
+}
+body[data-theme="d"] .form-control:focus,
+body[data-theme="d"] .form-select:focus {
+    border-color: #ea580c;
+    box-shadow: 0 0 0 3px rgba(234, 88, 12, 0.2);
+}
+body[data-theme="d"] .form-label { font-weight: 600; color: #1e293b; }
+
+body[data-theme="d"] .badge {
+    font-weight: 700;
+    border-radius: 4px;
+    padding: 0.4em 0.75em;
+    text-transform: uppercase;
+    font-size: 0.72rem;
+    letter-spacing: 0.04em;
+}
+body[data-theme="d"] .badge.bg-success { background: #16a34a !important; color: #fff !important; }
+body[data-theme="d"] .badge.bg-warning { background: #f59e0b !important; color: #1e293b !important; }
+body[data-theme="d"] .badge.bg-danger  { background: #dc2626 !important; color: #fff !important; }
+body[data-theme="d"] .badge.bg-info    { background: #0284c7 !important; color: #fff !important; }
+body[data-theme="d"] .badge.bg-secondary { background: #64748b !important; color: #fff !important; }
+
+body[data-theme="d"] .table {
+    --bs-table-bg: transparent;
+    font-size: 1rem;
+}
+body[data-theme="d"] .table thead th {
+    background: #1e293b;
+    color: #f1f5f9;
+    font-weight: 700;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    border-bottom: 2px solid #ea580c;
+    padding: 0.75rem 1rem;
+}
+body[data-theme="d"] .table tbody td { padding: 0.85rem 1rem; }
+body[data-theme="d"] .table tbody tr:hover { background: #fff7ed; }
+
+body[data-theme="d"] .alert {
+    border-left: 5px solid;
+    border-radius: 4px;
+    padding: 0.9rem 1.1rem;
+    font-weight: 500;
+}
+body[data-theme="d"] .alert-success { background: #dcfce7; border-color: #16a34a; color: #14532d; }
+body[data-theme="d"] .alert-warning { background: #fef3c7; border-color: #f59e0b; color: #78350f; }
+body[data-theme="d"] .alert-danger  { background: #fee2e2; border-color: #dc2626; color: #7f1d1d; }
+body[data-theme="d"] .alert-info    { background: #e0f2fe; border-color: #0284c7; color: #0c4a6e; }
+
+body[data-theme="d"] .nav-tabs {
+    border-bottom: 2px solid #cbd5e1;
+}
+body[data-theme="d"] .nav-tabs .nav-link {
+    border: none;
+    border-bottom: 4px solid transparent;
+    color: #475569;
+    font-weight: 600;
+    padding: 0.7rem 1.2rem;
+}
+body[data-theme="d"] .nav-tabs .nav-link.active {
+    color: #ea580c;
+    background: transparent;
+    border-bottom-color: #ea580c;
+}
+
+body[data-theme="d"] .progress {
+    background: #e2e8f0;
+    border-radius: 4px;
+    height: 16px;
+    border: 1px solid #cbd5e1;
+}
+body[data-theme="d"] .progress-bar {
+    background: linear-gradient(90deg, #ea580c, #f97316);
+    font-weight: 700;
+}
+
+body[data-theme="d"] .fake-modal {
+    border: 2px solid #1e293b;
+    border-top: 6px solid #ea580c;
+    border-radius: 4px;
+}
+
+body[data-theme="d"] .chart-placeholder {
+    background: linear-gradient(135deg, #fed7aa 0%, #fb923c 100%);
+    color: #7c2d12;
+    border: 2px solid #ea580c;
+}

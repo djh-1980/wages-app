@@ -1,0 +1,480 @@
+{% extends "base.html" %}
+
+{% block title %}Design Preview - TVS TCMS{% endblock %}
+
+{% block extra_css %}
+{# Swappable theme stylesheet. href is updated by JS; initial href = empty = default Bootstrap. #}
+<link id="theme-stylesheet" rel="stylesheet" href="">
+<style>
+  /* Throwaway page-local styles. Do not promote to unified-styles.css. */
+  .theme-selector {
+      position: sticky;
+      top: 0;
+      z-index: 1020;
+      background: var(--bs-body-bg, #fff);
+      border-bottom: 1px solid var(--bs-border-color, #dee2e6);
+      padding: 0.75rem 1rem;
+  }
+  .preview-section {
+      padding: 2rem 0;
+      border-bottom: 1px dashed var(--bs-border-color, #dee2e6);
+  }
+  .preview-section h2 {
+      font-size: 0.85rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--bs-secondary-color, #6c757d);
+      margin-bottom: 1rem;
+  }
+  .preview-frame {
+      transition: max-width 0.25s ease, margin 0.25s ease;
+      max-width: 100%;
+      margin-left: auto;
+      margin-right: auto;
+  }
+  .preview-frame.mobile {
+      max-width: 375px;
+      border: 12px solid #1f2937;
+      border-radius: 28px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+      overflow: hidden;
+  }
+  .preview-frame.mobile .container-fluid {
+      padding-left: 0.75rem;
+      padding-right: 0.75rem;
+  }
+  .chart-placeholder {
+      height: 220px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 8px;
+      font-weight: 600;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+      background: linear-gradient(135deg, rgba(13, 110, 253, 0.15), rgba(13, 110, 253, 0.4));
+      color: var(--bs-primary, #0d6efd);
+  }
+  .fake-modal {
+      border: 1px solid var(--bs-border-color, #dee2e6);
+      border-radius: 0.5rem;
+      box-shadow: 0 1rem 3rem rgba(0, 0, 0, 0.175);
+      max-width: 500px;
+  }
+  .fake-modal-header {
+      padding: 1rem;
+      border-bottom: 1px solid var(--bs-border-color, #dee2e6);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+  }
+  .fake-modal-body { padding: 1rem; }
+  .fake-modal-footer {
+      padding: 1rem;
+      border-top: 1px solid var(--bs-border-color, #dee2e6);
+      display: flex;
+      justify-content: flex-end;
+      gap: 0.5rem;
+  }
+  .ref-img {
+      width: 100%;
+      aspect-ratio: 16 / 9;
+      object-fit: cover;
+      border-radius: 8px;
+      border: 1px solid var(--bs-border-color, #dee2e6);
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="theme-selector">
+    <div class="d-flex flex-wrap gap-2 align-items-center justify-content-between">
+        <div class="d-flex align-items-center gap-2">
+            <strong class="me-2"><i class="bi bi-palette me-1"></i>Theme:</strong>
+            <div class="btn-group" role="group" id="themeButtons">
+                <button type="button" class="btn btn-outline-primary active" data-theme="">Default Bootstrap</button>
+                <button type="button" class="btn btn-outline-primary" data-theme="a">A · Linear/Stripe</button>
+                <button type="button" class="btn btn-outline-primary" data-theme="b">B · Notion</button>
+                <button type="button" class="btn btn-outline-primary" data-theme="c">C · Vercel/Dark</button>
+                <button type="button" class="btn btn-outline-primary" data-theme="d">D · Trades</button>
+            </div>
+        </div>
+        <button type="button" class="btn btn-outline-secondary btn-sm" id="mobileToggle">
+            <i class="bi bi-phone me-1"></i>Toggle mobile view
+        </button>
+    </div>
+</div>
+
+<div class="preview-frame" id="previewFrame">
+<div class="container-fluid py-3">
+
+    <!-- Page header -->
+    <section class="preview-section">
+        <h2>Page header</h2>
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-2">
+            <div>
+                <h1 class="mb-1">Run Sheets</h1>
+                <p class="text-muted mb-0">Monday 27 April 2026 · 14 jobs scheduled</p>
+            </div>
+            <div class="d-flex gap-2">
+                <button class="btn btn-outline-secondary"><i class="bi bi-download me-1"></i>Export</button>
+                <button class="btn btn-primary"><i class="bi bi-plus-lg me-1"></i>New Entry</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Stat cards -->
+    <section class="preview-section">
+        <h2>Summary cards</h2>
+        <div class="row g-3">
+            <div class="col-12 col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="text-muted small">Jobs Today</div>
+                                <div class="fs-3 fw-bold">14</div>
+                            </div>
+                            <i class="bi bi-briefcase text-primary fs-3"></i>
+                        </div>
+                        <small class="text-success"><i class="bi bi-arrow-up"></i> +3 vs yesterday</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="text-muted small">Completed</div>
+                                <div class="fs-3 fw-bold">9</div>
+                            </div>
+                            <i class="bi bi-check2-circle text-success fs-3"></i>
+                        </div>
+                        <small class="text-muted">64% done</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="text-muted small">Pay this week</div>
+                                <div class="fs-3 fw-bold">£742.50</div>
+                            </div>
+                            <i class="bi bi-cash-coin text-info fs-3"></i>
+                        </div>
+                        <small class="text-muted">Avg £53/job</small>
+                    </div>
+                </div>
+            </div>
+            <div class="col-12 col-md-3">
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between align-items-start">
+                            <div>
+                                <div class="text-muted small">Open issues</div>
+                                <div class="fs-3 fw-bold">2</div>
+                            </div>
+                            <i class="bi bi-exclamation-triangle text-warning fs-3"></i>
+                        </div>
+                        <small class="text-danger">Address missing on 1 job</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Buttons -->
+    <section class="preview-section">
+        <h2>Buttons</h2>
+        <div class="d-flex flex-wrap gap-2 align-items-center">
+            <button class="btn btn-primary"><i class="bi bi-check-lg me-1"></i>Save Changes</button>
+            <button class="btn btn-secondary">Cancel</button>
+            <button class="btn btn-danger"><i class="bi bi-trash me-1"></i>Delete</button>
+            <button class="btn btn-outline-primary">Outline Primary</button>
+            <button class="btn btn-link">Link button</button>
+            <button class="btn btn-primary btn-lg"><i class="bi bi-play-circle me-1"></i>Run Sync Now</button>
+        </div>
+    </section>
+
+    <!-- Form -->
+    <section class="preview-section">
+        <h2>Form</h2>
+        <form class="row g-3" onsubmit="return false;">
+            <div class="col-12 col-md-4">
+                <label for="demo-date" class="form-label">Date</label>
+                <input type="date" class="form-control" id="demo-date" value="2026-04-27">
+            </div>
+            <div class="col-12 col-md-4">
+                <label for="demo-customer" class="form-label">Customer</label>
+                <select class="form-select" id="demo-customer">
+                    <option>Vodafone</option>
+                    <option>BT Openreach</option>
+                    <option>TalkTalk</option>
+                </select>
+            </div>
+            <div class="col-12 col-md-4">
+                <label for="demo-job" class="form-label">Job number</label>
+                <input type="text" class="form-control" id="demo-job" placeholder="e.g. 4537219">
+            </div>
+            <div class="col-12">
+                <label for="demo-notes" class="form-label">Notes</label>
+                <textarea class="form-control" id="demo-notes" rows="2" placeholder="Optional notes..."></textarea>
+            </div>
+            <div class="col-12 d-flex gap-2">
+                <button type="submit" class="btn btn-primary"><i class="bi bi-save me-1"></i>Save entry</button>
+                <button type="reset" class="btn btn-outline-secondary">Reset</button>
+            </div>
+        </form>
+    </section>
+
+    <!-- Status badges -->
+    <section class="preview-section">
+        <h2>Status badges</h2>
+        <div class="d-flex flex-wrap gap-2">
+            <span class="badge bg-secondary"><i class="bi bi-circle me-1"></i>Not Started</span>
+            <span class="badge bg-warning text-dark"><i class="bi bi-play-circle me-1"></i>In Progress</span>
+            <span class="badge bg-success"><i class="bi bi-check-circle me-1"></i>Complete</span>
+            <span class="badge bg-danger"><i class="bi bi-x-circle me-1"></i>Cancelled</span>
+            <span class="badge bg-info text-dark"><i class="bi bi-hourglass-split me-1"></i>Pending Pay</span>
+        </div>
+    </section>
+
+    <!-- Data table -->
+    <section class="preview-section">
+        <h2>Data table</h2>
+        <div class="table-responsive">
+            <table class="table table-hover align-middle">
+                <thead>
+                    <tr>
+                        <th>Job #</th>
+                        <th>Customer</th>
+                        <th>Activity</th>
+                        <th>Status</th>
+                        <th>Pay</th>
+                        <th class="text-end">Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td><code>4537219</code></td>
+                        <td>Vodafone</td>
+                        <td>Survey</td>
+                        <td><span class="badge bg-success">Complete</span></td>
+                        <td class="text-end">£45.00</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>4537220</code></td>
+                        <td>BT Openreach</td>
+                        <td>Install</td>
+                        <td><span class="badge bg-warning text-dark">In Progress</span></td>
+                        <td class="text-end">£82.50</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>4537221</code></td>
+                        <td>TalkTalk</td>
+                        <td>Repair</td>
+                        <td><span class="badge bg-secondary">Not Started</span></td>
+                        <td class="text-end">£38.75</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>4537222</code></td>
+                        <td>Vodafone</td>
+                        <td>Survey</td>
+                        <td><span class="badge bg-danger">Cancelled</span></td>
+                        <td class="text-end">£0.00</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>
+                    <tr>
+                        <td><code>4537223</code></td>
+                        <td>BT Openreach</td>
+                        <td>Install</td>
+                        <td><span class="badge bg-info text-dark">Pending Pay</span></td>
+                        <td class="text-end">£95.00</td>
+                        <td class="text-end">
+                            <button class="btn btn-sm btn-outline-primary"><i class="bi bi-pencil"></i></button>
+                            <button class="btn btn-sm btn-outline-danger"><i class="bi bi-trash"></i></button>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </section>
+
+    <!-- Modal (static) -->
+    <section class="preview-section">
+        <h2>Modal (static preview)</h2>
+        <div class="fake-modal">
+            <div class="fake-modal-header">
+                <h5 class="mb-0"><i class="bi bi-exclamation-triangle text-warning me-2"></i>Confirm Delete</h5>
+                <button class="btn-close"></button>
+            </div>
+            <div class="fake-modal-body">
+                <p class="mb-0">Are you sure you want to delete job <strong>4537219</strong>? This cannot be undone.</p>
+            </div>
+            <div class="fake-modal-footer">
+                <button class="btn btn-outline-secondary">Cancel</button>
+                <button class="btn btn-danger">Delete Job</button>
+            </div>
+        </div>
+    </section>
+
+    <!-- Progress bar -->
+    <section class="preview-section">
+        <h2>Progress</h2>
+        <div class="mb-2 d-flex justify-content-between small">
+            <span>Import progress</span>
+            <span class="text-muted">9 / 14 jobs</span>
+        </div>
+        <div class="progress" style="height: 12px;">
+            <div class="progress-bar" role="progressbar" style="width: 64%;" aria-valuenow="64" aria-valuemin="0" aria-valuemax="100"></div>
+        </div>
+    </section>
+
+    <!-- Alerts -->
+    <section class="preview-section">
+        <h2>Alerts</h2>
+        <div class="alert alert-success"><i class="bi bi-check-circle me-2"></i><strong>Sync complete.</strong> 14 jobs imported for tomorrow.</div>
+        <div class="alert alert-warning"><i class="bi bi-exclamation-triangle me-2"></i><strong>Address missing.</strong> Job 4537221 has no postcode.</div>
+        <div class="alert alert-danger"><i class="bi bi-x-octagon me-2"></i><strong>Gmail authentication failed.</strong> Reconnect in Settings.</div>
+        <div class="alert alert-info mb-0"><i class="bi bi-info-circle me-2"></i>Next auto-sync at 19:15.</div>
+    </section>
+
+    <!-- Expense card -->
+    <section class="preview-section">
+        <h2>Expense summary card</h2>
+        <div class="card" style="max-width: 480px;">
+            <div class="card-body">
+                <div class="d-flex justify-content-between align-items-start mb-3">
+                    <div>
+                        <h5 class="card-title mb-1">April 2026</h5>
+                        <p class="text-muted small mb-0">Tax year 2026/27 · Month 1</p>
+                    </div>
+                    <span class="badge bg-success">Profit</span>
+                </div>
+                <div class="row g-2 text-center">
+                    <div class="col-4">
+                        <div class="text-muted small">Income</div>
+                        <div class="fw-bold">£3,210</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-muted small">Expenses</div>
+                        <div class="fw-bold">£412</div>
+                    </div>
+                    <div class="col-4">
+                        <div class="text-muted small">Net</div>
+                        <div class="fw-bold text-success">£2,798</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <!-- Tabs -->
+    <section class="preview-section">
+        <h2>Tab navigation</h2>
+        <ul class="nav nav-tabs" role="tablist">
+            <li class="nav-item"><a class="nav-link active" href="#">Overview</a></li>
+            <li class="nav-item"><a class="nav-link" href="#">Jobs</a></li>
+            <li class="nav-item"><a class="nav-link" href="#">Pay</a></li>
+            <li class="nav-item"><a class="nav-link" href="#">Expenses</a></li>
+            <li class="nav-item"><a class="nav-link disabled" href="#" tabindex="-1">HMRC (coming soon)</a></li>
+        </ul>
+        <div class="border border-top-0 p-3 rounded-bottom">
+            <p class="mb-0 text-muted small">Tab panel content goes here.</p>
+        </div>
+    </section>
+
+    <!-- Chart placeholder -->
+    <section class="preview-section">
+        <h2>Chart placeholder</h2>
+        <div class="chart-placeholder">Chart · weekly pay trend</div>
+    </section>
+
+</div>
+</div>
+
+<!-- Reference inspiration -->
+<div class="container py-4">
+    <h2 class="h5 text-muted text-uppercase small">Inspiration references</h2>
+    <div class="row g-3 mt-1">
+        <div class="col-12 col-md-4">
+            <a href="https://linear.app" target="_blank" rel="noopener" class="text-decoration-none">
+                <img class="ref-img" alt="linear.app"
+                     src="https://image.thum.io/get/width/800/crop/600/noanimate/https://linear.app">
+                <div class="mt-2 small"><strong>linear.app</strong> · Theme A inspiration</div>
+            </a>
+        </div>
+        <div class="col-12 col-md-4">
+            <a href="https://notion.so" target="_blank" rel="noopener" class="text-decoration-none">
+                <img class="ref-img" alt="notion.so"
+                     src="https://image.thum.io/get/width/800/crop/600/noanimate/https://notion.so">
+                <div class="mt-2 small"><strong>notion.so</strong> · Theme B inspiration</div>
+            </a>
+        </div>
+        <div class="col-12 col-md-4">
+            <a href="https://vercel.com" target="_blank" rel="noopener" class="text-decoration-none">
+                <img class="ref-img" alt="vercel.com"
+                     src="https://image.thum.io/get/width/800/crop/600/noanimate/https://vercel.com">
+                <div class="mt-2 small"><strong>vercel.com</strong> · Theme C inspiration</div>
+            </a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+(function () {
+    const themes = {
+        '': null,
+        'a': "{{ url_for('static', filename='css/theme-a.css') }}",
+        'b': "{{ url_for('static', filename='css/theme-b.css') }}",
+        'c': "{{ url_for('static', filename='css/theme-c.css') }}",
+        'd': "{{ url_for('static', filename='css/theme-d.css') }}",
+    };
+    const linkEl = document.getElementById('theme-stylesheet');
+    const buttons = document.querySelectorAll('#themeButtons [data-theme]');
+    const frame = document.getElementById('previewFrame');
+    const mobileBtn = document.getElementById('mobileToggle');
+
+    function applyTheme(key) {
+        linkEl.href = themes[key] || '';
+        document.body.dataset.theme = key || '';
+        buttons.forEach(btn => btn.classList.toggle('active', btn.dataset.theme === key));
+        try { localStorage.setItem('designPreviewTheme', key); } catch (e) {}
+    }
+
+    buttons.forEach(btn => {
+        btn.addEventListener('click', () => applyTheme(btn.dataset.theme));
+    });
+
+    mobileBtn.addEventListener('click', () => {
+        frame.classList.toggle('mobile');
+        mobileBtn.classList.toggle('active');
+    });
+
+    // Restore last-picked theme
+    let saved = '';
+    try { saved = localStorage.getItem('designPreviewTheme') || ''; } catch (e) {}
+    if (saved in themes) applyTheme(saved);
+})();
+</script>
+{% endblock %}
