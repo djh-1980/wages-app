@@ -355,66 +355,111 @@ def process_single_payslip(file_path):
     }
 
 def process_single_runsheet(file_path, overwrite=False):
-    """Process a single runsheet file and organize it."""
-    # First, import the runsheet data
+    """Process a single runsheet file: import to DB, then copy to NAS canonical path.
+
+    Replaces the previous flow which called two scripts that no longer exist
+    (`organize_uploaded_runsheets.py`, `sync_runsheets_with_payslips.py`).
+    The PDF is now copied directly to
+    `<Config.RUNSHEETS_DIR>/<YYYY>/<MM-Month>/DH_DD-MM-YYYY.pdf`
+    using the runsheet date already extracted by the importer.
+    """
+    from app.config import Config
+
     cmd = [sys.executable, 'scripts/production/import_run_sheets.py', '--file', file_path]
     if overwrite:
         cmd.append('--overwrite')
-    
+
     import_process = subprocess.run(
         cmd,
         capture_output=True,
         text=True,
         timeout=60
     )
-    
-    # If import successful, mark as manually uploaded and organize
-    if import_process.returncode == 0:
-        # Mark all jobs from this upload as manually uploaded to protect from auto-sync
-        try:
-            with get_db_connection() as conn:
-                cursor = conn.cursor()
-                # Get the date from the most recently imported jobs from this file
-                cursor.execute("""
-                    UPDATE run_sheet_jobs 
-                    SET manually_uploaded = 1 
-                    WHERE source_file = ? 
-                    AND imported_at >= datetime('now', '-1 minute')
-                """, (Path(file_path).name,))
-                conn.commit()
-                log_settings_action('MANUAL_UPLOAD', f'Marked {cursor.rowcount} jobs as manually uploaded from {Path(file_path).name}')
-        except Exception as e:
-            log_settings_action('MANUAL_UPLOAD', f'Failed to mark jobs as manually uploaded: {str(e)}', 'ERROR')
-        # Organize the file
-        organize_process = subprocess.run(
-            [sys.executable, 'scripts/organize_uploaded_runsheets.py'],
-            capture_output=True,
-            text=True,
-            timeout=30
-        )
-        
-        # Sync with payslip data to get prices and addresses
-        sync_process = subprocess.run(
-            [sys.executable, 'scripts/sync_runsheets_with_payslips.py'],
-            capture_output=True,
-            text=True,
-            timeout=60
-        )
-        
-        output = import_process.stdout + '\n' + organize_process.stdout
-        if sync_process.returncode == 0:
-            output += '\n' + sync_process.stdout
-        
+
+    if import_process.returncode != 0:
         return {
-            'success': True,
-            'output': output,
-            'error': None
+            'success': False,
+            'output': import_process.stdout,
+            'error': import_process.stderr
         }
-    
+
+    source_filename = Path(file_path).name
+    output_lines = [import_process.stdout]
+    runsheet_date = None
+
+    # Mark jobs as manually uploaded and look up the runsheet date in one go.
+    try:
+        with get_db_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                UPDATE run_sheet_jobs
+                SET manually_uploaded = 1
+                WHERE source_file = ?
+                AND imported_at >= datetime('now', '-1 minute')
+            """, (source_filename,))
+            updated = cursor.rowcount
+            conn.commit()
+            log_settings_action(
+                'MANUAL_UPLOAD',
+                f'Marked {updated} jobs as manually uploaded from {source_filename}'
+            )
+
+            cursor.execute("""
+                SELECT date FROM run_sheet_jobs
+                WHERE source_file = ? AND date IS NOT NULL AND LENGTH(date) = 10
+                ORDER BY imported_at DESC
+                LIMIT 1
+            """, (source_filename,))
+            row = cursor.fetchone()
+            if row:
+                runsheet_date = row[0] if not hasattr(row, 'keys') else row['date']
+    except Exception as e:
+        log_settings_action(
+            'MANUAL_UPLOAD',
+            f'Failed to mark jobs as manually uploaded: {str(e)}',
+            'ERROR'
+        )
+
+    # Copy file to NAS canonical path: <RUNSHEETS_DIR>/<YYYY>/<MM-Month>/DH_DD-MM-YYYY.pdf
+    if runsheet_date:
+        try:
+            dt = datetime.strptime(runsheet_date, '%d/%m/%Y')
+            target_dir = Path(Config.RUNSHEETS_DIR) / str(dt.year) / dt.strftime('%m-%B')
+            target_dir.mkdir(parents=True, exist_ok=True)
+            target_path = target_dir / f"DH_{dt.strftime('%d-%m-%Y')}.pdf"
+
+            if target_path.exists():
+                log_settings_action(
+                    'MANUAL_UPLOAD',
+                    f'Canonical file already exists, skipping copy: {target_path}'
+                )
+                output_lines.append(f"Canonical file already exists: {target_path}")
+            else:
+                shutil.copy2(file_path, target_path)
+                log_settings_action(
+                    'MANUAL_UPLOAD',
+                    f'Copied {source_filename} to NAS: {target_path}'
+                )
+                output_lines.append(f"Copied to NAS: {target_path}")
+        except Exception as e:
+            log_settings_action(
+                'MANUAL_UPLOAD',
+                f'Failed to copy {source_filename} to NAS: {str(e)}',
+                'ERROR'
+            )
+            output_lines.append(f"WARNING: Failed to copy to NAS: {e}")
+    else:
+        log_settings_action(
+            'MANUAL_UPLOAD',
+            f'No runsheet date found for {source_filename}; file not copied to NAS',
+            'WARNING'
+        )
+        output_lines.append('WARNING: No runsheet date found in DB; file not copied to NAS')
+
     return {
-        'success': False,
-        'output': import_process.stdout,
-        'error': import_process.stderr
+        'success': True,
+        'output': '\n'.join(output_lines),
+        'error': None
     }
 
 def auto_detect_and_process(file_path, overwrite=False):
