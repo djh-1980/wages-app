@@ -117,10 +117,22 @@ class PeriodicSyncService:
     
     def start_periodic_sync(self):
         """Start the periodic sync service - syncs at configured time daily, then every N mins until complete."""
+        # Belt-and-braces env gate. app/__init__.py already checks
+        # Config.AUTO_SYNC_ENABLED before calling this, but a direct caller
+        # (e.g. /api/data/periodic-sync/start) could bypass that check.
+        # On production we want a single sync trigger (cron); the in-process
+        # scheduler must stay off regardless of how it's invoked.
+        if os.environ.get('AUTO_SYNC_ENABLED', 'true').lower() != 'true':
+            self.logger.info(
+                "Auto-sync disabled via AUTO_SYNC_ENABLED env var - "
+                "in-process scheduler will not start"
+            )
+            return
+
         if self.is_running:
             self.logger.info("Periodic sync already running")
             return
-        
+
         self.is_running = True
         self.current_state = 'idle'
         self.logger.info(f"Starting periodic sync service ({self.sync_start_time} daily, then every {self.sync_interval_minutes} minutes until complete)")
