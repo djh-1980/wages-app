@@ -595,65 +595,35 @@ class GmailRunSheetDownloader:
             return
         
         print(f"📧 Found {len(emails)} run sheet emails")
-        print("🔍 Checking which emails contain missing dates...")
-        
-        # Only download emails that match missing dates
+        print("� Downloading every matching email — date filtering happens in organize_pdf, not here")
+
+        # Download attachments from every matching email. The previous
+        # implementation parsed the date out of the email subject with a regex
+        # and silently skipped any email whose subject did not match
+        # "DAY 9th MONTH YYYY" (e.g. "Warrington - Run Sheets" with no date).
+        # That dropped a large fraction of David's multi-driver emails.
+        # We now defer date/driver classification to organize_pdf(), which
+        # reads the date out of the PDF itself and only keeps Daniel's runsheet.
         downloaded_files = []
         total_downloaded = 0
-        emails_processed = 0
-        
+
         for i, email in enumerate(emails, 1):
             try:
-                # Get email details
+                # Pull subject for logging only.
                 message = self.service.users().messages().get(
-                    userId='me', 
-                    id=email['id']
+                    userId='me',
+                    id=email['id'],
+                    format='metadata',
+                    metadataHeaders=['Subject', 'Date']
                 ).execute()
-                
-                # Get email subject and date
                 headers = message['payload'].get('headers', [])
                 subject = next((h['value'] for h in headers if h['name'] == 'Subject'), 'No Subject')
-                date_header = next((h['value'] for h in headers if h['name'] == 'Date'), '')
-                
-                # Check if this email's date matches any missing dates
-                # Extract date from subject (e.g., "MONDAY 9th MARCH 2026" -> "09/03/2026")
-                import re
-                from datetime import datetime
-                
-                # Try to parse date from subject
-                date_match = re.search(r'(\d{1,2})(?:st|nd|rd|th)?\s+(\w+)\s+(\d{4})', subject)
-                email_date_str = None
-                
-                if date_match:
-                    day = date_match.group(1).zfill(2)
-                    month_name = date_match.group(2)
-                    year = date_match.group(3)
-                    
-                    # Convert month name to number
-                    month_map = {
-                        'JANUARY': '01', 'FEBRUARY': '02', 'MARCH': '03', 'APRIL': '04',
-                        'MAY': '05', 'JUNE': '06', 'JULY': '07', 'AUGUST': '08',
-                        'SEPTEMBER': '09', 'OCTOBER': '10', 'NOVEMBER': '11', 'DECEMBER': '12'
-                    }
-                    month = month_map.get(month_name.upper())
-                    if month:
-                        email_date_str = f"{day}/{month}/{year}"
-                
-                # Check if this email's date is in our missing dates list
-                if email_date_str and email_date_str in missing_dates:
-                    emails_processed += 1
-                    print(f"\n📧 Processing email {emails_processed} (matches {email_date_str})...")
-                    print(f"  Subject: {subject}")
-                    print(f"  Date: {date_header}")
-                    
-                    # Download attachments
-                    email_files = self.download_attachments(email['id'])
-                    downloaded_files.extend(email_files)
-                    total_downloaded += len(email_files)
-                else:
-                    # Skip this email - date already in database
-                    pass
-                
+
+                print(f"\n📧 Processing email {i}/{len(emails)}: {subject}")
+
+                email_files = self.download_attachments(email['id'])
+                downloaded_files.extend(email_files)
+                total_downloaded += len(email_files)
             except Exception as e:
                 print(f"  ✗ Error processing email: {e}")
         
