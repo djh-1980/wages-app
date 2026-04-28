@@ -6,8 +6,9 @@ import json
 import logging
 import re
 from datetime import datetime
+from functools import wraps
 
-from flask import Blueprint, jsonify, request, redirect, session
+from flask import Blueprint, abort, current_app, jsonify, request, redirect, session
 
 from ..services.hmrc_auth import HMRCAuthService
 from ..services.hmrc_client import HMRCClient
@@ -19,6 +20,22 @@ from .. import limiter
 logger = logging.getLogger(__name__)
 
 hmrc_bp = Blueprint('hmrc_api', __name__, url_prefix='/api/hmrc')
+
+
+def require_property_enabled(view):
+    """Return 404 unless the HMRC_PROPERTY_ENABLED feature flag is on.
+
+    UK / foreign property income is intentionally out of scope for the current
+    HMRC Software Approvals submission. The route stays in the codebase so it
+    can be reactivated later, but is invisible (404) by default to keep the
+    application's observable behaviour aligned with what we declared to HMRC.
+    """
+    @wraps(view)
+    def wrapper(*args, **kwargs):
+        if not current_app.config.get('HMRC_PROPERTY_ENABLED', False):
+            abort(404)
+        return view(*args, **kwargs)
+    return wrapper
 
 # Input validators for HMRC data
 def validate_nino(nino):
@@ -1608,6 +1625,7 @@ def submit_final_declaration():
 
 @hmrc_bp.route('/property/obligations')
 @limiter.limit("20 per hour", override_defaults=True)
+@require_property_enabled
 def get_property_obligations():
     """
     Get UK property obligations.
@@ -1643,6 +1661,7 @@ def get_property_obligations():
 
 @hmrc_bp.route('/property/submit', methods=['POST'])
 @limiter.limit("20 per hour", override_defaults=True)
+@require_property_enabled
 def submit_property_period():
     """
     Submit UK property period data to HMRC.

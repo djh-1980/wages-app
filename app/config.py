@@ -71,6 +71,13 @@ class Config:
     HMRC_REDIRECT_URI = os.environ.get('HMRC_REDIRECT_URI', 'http://localhost:5000/api/hmrc/auth/callback')
     HMRC_ENVIRONMENT = os.environ.get('HMRC_ENVIRONMENT', 'sandbox')  # sandbox or production
     HMRC_SERVER_TOKEN = os.environ.get('HMRC_SERVER_TOKEN', '')  # For server-to-server auth
+
+    # HMRC scope feature flags. We currently only support self-employment income
+    # for an individual customer; UK / foreign property is intentionally hidden
+    # from the UI and the property API routes return 404 unless explicitly
+    # enabled. This keeps the visible scope of the application aligned with the
+    # answers given on the HMRC Software Approvals Production Checklist.
+    HMRC_PROPERTY_ENABLED = os.environ.get('HMRC_PROPERTY_ENABLED', 'false').lower() == 'true'
     
     @property
     def HMRC_API_BASE_URL(self):

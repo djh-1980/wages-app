@@ -103,11 +103,13 @@
                         <i class="fas fa-paper-plane"></i> Submission History
                     </a>
                 </li>
+                {% if config.HMRC_PROPERTY_ENABLED %}
                 <li class="nav-item">
                     <a class="nav-link" data-bs-toggle="pill" data-bs-target="#property" role="tab">
                         <i class="fas fa-home"></i> Property
                     </a>
                 </li>
+                {% endif %}
                 <li class="nav-item">
                     <a class="nav-link" data-bs-toggle="pill" data-bs-target="#bsas" role="tab">
                         <i class="fas fa-calculator"></i> BSAS
@@ -167,7 +169,8 @@
                     </div>
                 </div>
                 
-                <!-- Property Tab -->
+                {% if config.HMRC_PROPERTY_ENABLED %}
+                <!-- Property Tab (gated on HMRC_PROPERTY_ENABLED feature flag) -->
                 <div class="tab-pane fade" id="property">
                     <div class="card settings-card">
                         <div class="card-body">
@@ -235,6 +238,7 @@
                         </div>
                     </div>
                 </div>
+                {% endif %}
                 
                 <!-- BSAS Tab -->
                 <div class="tab-pane fade" id="bsas">
@@ -454,14 +458,22 @@
                                 <!-- Step 3: Final Declaration -->
                                 <div id="step3" class="mb-4 d-none">
                                     <h6 class="text-warning"><i class="fas fa-exclamation-triangle"></i> Step 3: Final Declaration</h6>
-                                    <div class="alert alert-danger">
-                                        <h6><strong>HMRC Declaration Statement</strong></h6>
-                                        <p class="mb-0">I confirm that the information I have provided is correct and complete to the best of my knowledge and belief. I understand that I may have to pay financial penalties and face prosecution if I give false information.</p>
+                                    <!--
+                                        Final Declaration Statement (Individual customers).
+                                        Wording is taken verbatim from the HMRC MTD IT End to End
+                                        Service Guide and MUST NOT be paraphrased.
+                                        https://developer.service.hmrc.gov.uk/guides/income-tax-mtd-end-to-end-service-guide/
+                                    -->
+                                    <div class="alert alert-danger" id="finalDeclarationStatement" aria-labelledby="finalDeclarationStatementHeading">
+                                        <h6 id="finalDeclarationStatementHeading" class="mb-3"><strong>Final Declaration Statement</strong></h6>
+                                        <p>Before you submit your final declaration to HMRC you should ensure that the information you are providing is correct and complete. A person who knowingly or recklessly makes a false statement, or submits a false document, in connection with their tax affairs may be liable to financial penalties and/or prosecution.</p>
+                                        <p>I declare that the information I have provided is correct and complete to the best of my knowledge and belief.</p>
+                                        <p class="mb-0">By submitting this declaration you are confirming that the information given is true and complete. Any false statement may result in prosecution.</p>
                                     </div>
                                     <div class="form-check mb-3">
                                         <input type="checkbox" class="form-check-input" id="declarationCheckbox">
                                         <label class="form-check-label" for="declarationCheckbox">
-                                            <strong>I have read and agree to the above declaration</strong>
+                                            <strong>I have read and agreed to the declaration above</strong>
                                         </label>
                                     </div>
                                     <button id="submitDeclBtn" class="btn btn-danger" disabled>
