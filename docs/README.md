@@ -1,178 +1,404 @@
-# Wages App - Enterprise Business Intelligence Platform
+# TVS Wages Application
 
-## 🚀 Overview
+A comprehensive Flask-based web application for managing driver wages, runsheets, payslips, expenses, and HMRC MTD (Making Tax Digital) compliance for TVS delivery operations.
 
-A sophisticated wages tracking application that has evolved into a comprehensive **business intelligence platform** with advanced analytics, predictive modeling, and enterprise-grade architecture.
+---
 
-## ✨ Features
+## What is tvstcms?
 
-### 📊 **Core Functionality**
-- **Automated payslip data extraction** from PDFs
-- **Runsheet management** and job tracking
-- **SQLite database** with intelligent data management
-- **Web interface** with modern, responsive design
+tvstcms (TVS Content Management System) is a full-featured wages and compliance management system that:
+- Automatically syncs runsheets and payslips from Gmail
+- Processes and parses PDF documents using advanced table extraction
+- Tracks daily jobs, mileage, fuel costs, and expenses
+- Generates comprehensive reports for tax compliance
+- Integrates with HMRC MTD API for digital tax submissions
+- Provides a modern, mobile-responsive web interface
 
-### 🧠 **Business Intelligence**
-- **Predictive analytics** - Earnings forecasting with confidence intervals
-- **Route optimization** - Smart scheduling suggestions
-- **Client profitability analysis** - Premium/Standard/Basic tier classification
-- **Seasonal pattern analysis** - Monthly trend identification
-- **Performance tracking** - Efficiency metrics and KPIs
+---
 
-### 🏗️ **Enterprise Architecture**
-- **Modular design** - Clean separation of concerns
-- **Service layer** - Advanced business logic
-- **Configuration management** - Environment-aware settings
-- **Comprehensive logging** - Structured logging with performance tracking
-- **Error handling** - Robust middleware and validation
+## Requirements
 
-## 🚀 Quick Start
+- **Python:** 3.14+
+- **Operating System:** macOS, Linux, or Windows
+- **Database:** SQLite (included)
+- **External Services:** Gmail API (optional, for auto-sync)
 
-### 1. Install Dependencies
+### Python Dependencies
+
+All dependencies are pinned in `requirements.txt`:
+- Flask 3.1.3 (web framework)
+- pdfplumber 0.11.9 (PDF parsing)
+- camelot-py 1.0.9 (table extraction)
+- pandas 3.0.0 (data processing)
+- reportlab 4.4.9 (PDF generation)
+- See `requirements.txt` for complete list (70 packages)
+
+---
+
+## Setup Instructions
+
+### 1. Clone the Repository
+
+```bash
+git clone <repository-url>
+cd Wages-App
+```
+
+### 2. Create Virtual Environment
+
+```bash
+python3.14 -m venv venv
+source venv/bin/activate  # On macOS/Linux
+# or
+venv\Scripts\activate  # On Windows
+```
+
+### 3. Install Dependencies
+
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Start the Application
+### 4. Configure Environment Variables
+
+Create a `.env` file in the project root:
+
 ```bash
-python3 new_web_app.py
+cp .env.example .env
 ```
 
-### 3. Access the Web Interface
-Open your browser to: **http://localhost:5001**
+Edit `.env` and configure the following:
 
-## 📊 Advanced Features
-
-### Database Management
 ```bash
-# Create intelligent backup
-python3 tools/db_manager.py backup
+# Flask Configuration
+SECRET_KEY=<generate-with-command-below>
+FLASK_ENV=development  # or 'production'
 
-# Validate data integrity
-python3 tools/db_manager.py validate
+# Database
+DATABASE_PATH=data/database/payslips.db
 
-# Optimize database performance
-python3 tools/db_manager.py optimize
+# Gmail API (optional - for auto-sync)
+GMAIL_CREDENTIALS_PATH=credentials.json
+GMAIL_TOKEN_PATH=token.json
 
-# Perform intelligent sync
-python3 tools/db_manager.py sync
+# HMRC MTD API (optional - for tax submissions)
+HMRC_CLIENT_ID=<your-hmrc-client-id>
+HMRC_CLIENT_SECRET=<your-hmrc-client-secret>
+HMRC_SERVER_TOKEN=<your-hmrc-server-token>
+HMRC_REDIRECT_URI=http://localhost:5001/api/hmrc/callback
+
+# Application Settings
+LOG_LEVEL=DEBUG  # or 'INFO' for production
 ```
 
-### Quick Statistics
+### 5. Generate SECRET_KEY
+
+**IMPORTANT:** Generate a secure secret key:
+
 ```bash
-# Basic statistics
-python3 scripts/quick_stats_new.py
-
-# Advanced business intelligence
-python3 scripts/quick_stats_new.py --advanced
+python -c 'import secrets; print(secrets.token_hex(32))'
 ```
 
-## 🏛️ Architecture
+Copy the output and paste it as your `SECRET_KEY` in `.env`.
 
-```
-app/
-├── models/          # Data access layer
-├── services/        # Business logic layer
-├── routes/          # API endpoints (blueprints)
-├── utils/           # Shared utilities
-└── config.py        # Configuration management
+### 6. Initialize Database
 
-static/              # Web assets (CSS/JS)
-templates/           # HTML templates
-docs/               # Documentation
-tools/              # Database management utilities
-scripts/            # Utility scripts
+The database will be created automatically on first run. To manually initialize:
+
+```bash
+python create_admin_user.py
 ```
 
-## 📈 API Endpoints
+This creates an admin user with credentials:
+- Username: `admin`
+- Password: (you'll be prompted to set)
 
-### Enhanced Analytics
-- `GET /api/summary` - Dashboard with performance indicators
-- `GET /api/earnings_forecast` - Predictive analytics
-- `GET /api/client-profitability` - Business intelligence
-- `GET /api/seasonal-patterns` - Trend analysis
+---
 
-### Smart Operations
-- `GET /api/runsheets/route-optimization/<date>` - Route suggestions
-- `GET /api/runsheets/customer-performance` - Client analysis
-- `POST /api/data/intelligent-sync` - Smart synchronization
-- `GET /api/data/validate-integrity` - Health monitoring
+## Running Locally
 
-## 🔧 Configuration
+### Development Mode
 
-### Environment Variables
+```bash
+source venv/bin/activate
+python new_web_app.py
+```
+
+The application will start on `http://localhost:5001`
+
+### Production Mode
+
 ```bash
 export FLASK_ENV=production
-export DATABASE_PATH=/path/to/production.db
-export LOG_LEVEL=INFO
-export FEATURE_ADVANCED_ANALYTICS=true
+source venv/bin/activate
+python new_web_app.py
 ```
 
-### Feature Flags
-- `FEATURE_ADVANCED_ANALYTICS` - Enhanced reporting
-- `FEATURE_ROUTE_OPTIMIZATION` - Smart scheduling
-- `FEATURE_PREDICTIVE_ANALYTICS` - Forecasting
-- `FEATURE_INTELLIGENT_SYNC` - Smart data sync
+Or use the provided shell script:
 
-## 📚 Documentation
+```bash
+./start_web.sh
+```
 
-- `docs/README.md` - Architecture overview
-- `docs/API.md` - Complete API reference
-- `docs/DEPLOYMENT.md` - Production deployment guide
+---
 
-## 🎯 Key Benefits
+## Deploying to Proxmox LXC Container
 
-### **Business Intelligence**
-- Advanced analytics and predictive modeling
-- Client profitability analysis with tier classification
-- Route optimization and efficiency scoring
-- Seasonal pattern recognition
+### Prerequisites
 
-### **Enterprise Grade**
-- Modular, maintainable architecture
-- Comprehensive logging and monitoring
-- Robust error handling and validation
-- Production-ready configuration management
+- Proxmox VE server
+- Debian 12 LXC container
+- SSH access to the container
 
-### **Performance**
-- Intelligent data synchronization
-- Database optimization tools
-- Smart caching and validation
-- Efficient query processing
+### Deployment Steps
 
-## 🛠️ Development
+1. **Prepare the container:**
 
-### Project Structure
-- **Models** - Database operations and data access
-- **Services** - Business logic and complex calculations
-- **Routes** - API endpoints organized as blueprints
-- **Utils** - Shared utilities (logging, validation, dates)
-- **Config** - Environment-aware configuration
+```bash
+# SSH into your Proxmox LXC container
+ssh user@your-lxc-container
 
-### Adding New Features
-1. Create models for data access
-2. Implement business logic in services
-3. Add API endpoints in routes
-4. Update configuration as needed
+# Update system
+sudo apt update && sudo apt upgrade -y
 
-## 📊 Transformation Journey
+# Install Python 3.14 and dependencies
+sudo apt install python3.14 python3.14-venv python3-pip git libmagic1 -y
+```
 
-**From**: Simple payslip tracker (2,612-line monolithic file)
-**To**: Enterprise business intelligence platform (4,200+ organized lines)
+2. **Clone and setup the application:**
 
-### What Changed
-- ✅ **Modular architecture** - Clean, maintainable code
-- ✅ **Advanced analytics** - Predictive and business intelligence
-- ✅ **Professional documentation** - Complete guides and references
-- ✅ **Production infrastructure** - Logging, monitoring, configuration
-- ✅ **Smart automation** - Intelligent sync and optimization
+```bash
+# Clone repository
+git clone <repository-url> /opt/wages-app
+cd /opt/wages-app
 
-## 🎉 Result
+# Create virtual environment
+python3.14 -m venv venv
+source venv/bin/activate
 
-A **world-class business intelligence platform** with:
-- Sophisticated analytics and forecasting
-- Enterprise-grade architecture
-- Production-ready infrastructure
-- Advanced automation capabilities
+# Install dependencies
+pip install -r requirements.txt
+```
 
-**Perfect for businesses needing comprehensive wages tracking with intelligent insights!**
+3. **Configure environment:**
+
+```bash
+# Copy and edit .env file
+cp .env.example .env
+nano .env
+
+# Set production values:
+# FLASK_ENV=production
+# LOG_LEVEL=INFO
+# DATABASE_PATH=/opt/wages-app/data/database/payslips.db
+```
+
+4. **Create systemd service:**
+
+Create `/etc/systemd/system/wages-app.service`:
+
+```ini
+[Unit]
+Description=TVS Wages Application
+After=network.target
+
+[Service]
+Type=simple
+User=www-data
+WorkingDirectory=/opt/wages-app
+Environment="PATH=/opt/wages-app/venv/bin"
+ExecStart=/opt/wages-app/venv/bin/python /opt/wages-app/new_web_app.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+5. **Enable and start service:**
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable wages-app
+sudo systemctl start wages-app
+sudo systemctl status wages-app
+```
+
+6. **Configure reverse proxy (Nginx):**
+
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    location / {
+        proxy_pass http://127.0.0.1:5001;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
+}
+```
+
+7. **Use deployment script (alternative):**
+
+```bash
+# Use the provided deployment script
+./deploy_to_debian.sh
+```
+
+---
+
+## Environment Variables Reference
+
+### Required Variables
+
+| Variable | Description | Example |
+|----------|-------------|---------|
+| `SECRET_KEY` | Flask secret key for sessions | `a1b2c3d4...` (64 chars) |
+| `FLASK_ENV` | Environment mode | `development` or `production` |
+| `DATABASE_PATH` | Path to SQLite database | `data/database/payslips.db` |
+
+### Optional Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `LOG_LEVEL` | Logging verbosity | `INFO` |
+| `GMAIL_CREDENTIALS_PATH` | Gmail API credentials file | `credentials.json` |
+| `GMAIL_TOKEN_PATH` | Gmail API token file | `token.json` |
+| `HMRC_CLIENT_ID` | HMRC MTD client ID | None |
+| `HMRC_CLIENT_SECRET` | HMRC MTD client secret | None |
+| `HMRC_SERVER_TOKEN` | HMRC MTD server token | None |
+| `HMRC_REDIRECT_URI` | HMRC OAuth callback URL | `http://localhost:5001/api/hmrc/callback` |
+
+### Gmail API Setup (Optional)
+
+To enable automatic Gmail sync:
+
+1. Create a Google Cloud Project
+2. Enable Gmail API
+3. Create OAuth 2.0 credentials
+4. Download `credentials.json` to project root
+5. Run the app and authenticate when prompted
+6. `token.json` will be created automatically
+
+### HMRC MTD API Setup (Optional)
+
+To enable HMRC tax submissions:
+
+1. Register for HMRC MTD API sandbox/production
+2. Create an application in HMRC Developer Hub
+3. Obtain Client ID, Client Secret, and Server Token
+4. Add credentials to `.env` file
+5. Configure redirect URI in HMRC Developer Hub
+
+---
+
+## Directory Structure
+
+```
+Wages-App/
+├── app/                      # Core application code
+│   ├── __init__.py          # Flask app factory
+│   ├── config.py            # Configuration classes
+│   ├── database.py          # Database initialization
+│   ├── middleware.py        # Request/response middleware
+│   ├── models/              # Database models
+│   ├── routes/              # API and page routes
+│   ├── services/            # Business logic services
+│   └── utils/               # Utility functions
+├── data/                     # Application data (gitignored)
+│   ├── database/            # SQLite database files
+│   ├── documents/           # Runsheets and payslips
+│   ├── exports/             # CSV exports
+│   ├── processing/          # File processing queue
+│   └── uploads/             # File uploads
+├── static/                   # Web assets
+│   ├── css/                 # Stylesheets
+│   ├── js/                  # JavaScript files
+│   └── images/              # Images and icons
+├── templates/                # Jinja2 HTML templates
+├── scripts/                  # Utility scripts
+│   ├── production/          # Production scripts
+│   ├── testing/             # Test scripts
+│   └── utilities/           # Helper scripts
+├── docs/                     # Documentation
+├── logs/                     # Application logs (gitignored)
+├── .env                      # Environment variables (gitignored)
+├── .env.example             # Environment template
+├── .gitignore               # Git ignore rules
+├── .windsurfrules           # AI coding rules
+├── requirements.txt         # Python dependencies
+├── create_admin_user.py     # Admin user creation script
+├── new_web_app.py           # Main application entry point
+├── README.md                # This file
+└── SECURITY_AUDIT.md        # Security documentation
+```
+
+---
+
+## Features
+
+### Core Functionality
+- **Runsheet Management:** Import, parse, and track daily delivery jobs
+- **Payslip Processing:** Extract job items and earnings from PDF payslips
+- **Expense Tracking:** Record and categorize business expenses
+- **Mileage Logging:** Track daily mileage and fuel costs
+- **Attendance Records:** Monitor work days and patterns
+
+### Advanced Features
+- **Gmail Integration:** Automatic sync of runsheets and payslips
+- **PDF Parsing:** Advanced table extraction using camelot-py
+- **HMRC MTD Integration:** Digital tax submissions
+- **Recurring Payments:** Smart template matching for expenses
+- **Route Planning:** Optimize delivery routes
+- **Comprehensive Reports:** Weekly summaries, tax year reports, analytics
+
+### User Interface
+- Modern, responsive design
+- Mobile-optimized
+- Real-time updates
+- Dark mode support
+- Accessible (WCAG compliant)
+
+---
+
+## Security
+
+### Implemented Security Measures
+
+- ✅ **SQL Injection Protection:** Parameterized queries throughout
+- ✅ **Session Security:** Session fixation prevention
+- ✅ **Password Policy:** 12+ characters with complexity requirements
+- ✅ **Security Headers:** CSP, HSTS, X-Frame-Options, etc.
+- ✅ **Input Validation:** NINO, tax year, and user input validation
+- ✅ **Logging:** Secure logging (no sensitive data logged)
+- ✅ **Dependency Management:** All packages pinned, vulnerabilities fixed
+
+See `SECURITY_AUDIT.md` for complete security documentation.
+
+---
+
+## Documentation
+
+- **`SECURITY_AUDIT.md`** - Complete security audit and fixes
+- **`DEPENDENCY_RESOLUTION.md`** - Dependency conflict resolution
+- **`docs/`** - Additional guides and documentation
+- **`.windsurfrules`** - AI coding standards for this project
+
+---
+
+## Support
+
+For issues, questions, or contributions, please contact the development team.
+
+---
+
+## License
+
+Proprietary - TVS Internal Use Only
+
+---
+
+*Last Updated: March 31, 2026*

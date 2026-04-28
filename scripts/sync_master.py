@@ -60,44 +60,99 @@ class MasterSync:
             self.results['errors'].append(f"Database setup: {e}")
             return False
     
-    def download_files(self):
-        """Phase 1: Download files from Gmail"""
-        self.log("📥 Phase 1: Downloading files from Gmail...")
-        
-        os.chdir(self.base_dir)
-        
-        # Download runsheets - smart mode (only missing dates)
-        self.log("   Checking database for missing runsheets...")
+    def _run_runsheet_download(self, label, args):
+        """Run download_runsheets_gmail.py with the given args and return the
+        number of downloaded files (counted from `Downloaded:` / `Saved:`
+        lines in stdout). Errors are appended to self.results['errors'].
+
+        Returns -1 if the subprocess failed entirely.
+        """
         try:
-            result = subprocess.run([
-                sys.executable, 
-                'scripts/production/download_runsheets_gmail.py', 
-                '--missing'
-            ], capture_output=True, text=True, timeout=120)
-            
-            if result.returncode == 0:
-                # Count downloaded files from output
-                for line in result.stdout.split('\n'):
-                    if 'Downloaded:' in line or 'Saved:' in line:
-                        self.results['runsheets_downloaded'] += 1
-                
-                # Log the actual output for debugging
-                if self.results['runsheets_downloaded'] == 0:
-                    self.log(f"   ⚠️  No runsheets downloaded (script succeeded but found 0 files)")
-                    # Check if Gmail auth failed
-                    if 'authentication failed' in result.stdout.lower() or 'no run sheet emails found' in result.stdout.lower():
-                        self.log(f"   📋 Download script output: {result.stdout[-500:]}")
-                        self.results['errors'].append("Runsheet download: No emails found or auth failed")
-                else:
-                    self.log(f"   ✅ Downloaded {self.results['runsheets_downloaded']} runsheets")
-            else:
-                self.log(f"   ❌ Runsheet download failed with exit code {result.returncode}")
-                self.log(f"   📋 Error output: {result.stderr[:500]}")
-                self.results['errors'].append("Runsheet download failed")
-                
-        except Exception as e:
-            self.log(f"   ❌ Runsheet download error: {e}")
-            self.results['errors'].append(f"Runsheet download: {e}")
+            # 5-minute timeout per pass: --recent can scan a wide Gmail
+            # window (last 7 days plus future-dated emails) and the old
+            # 120s ceiling occasionally tripped before any download had
+            # a chance to complete.
+            result = subprocess.run(
+                [sys.executable, 'scripts/production/download_runsheets_gmail.py', *args],
+                capture_output=True, text=True, timeout=300,
+            )
+        except Exception as e:  # noqa: BLE001
+            self.log(f'   ❌ {label} runsheet download error: {e}')
+            self.results['errors'].append(f'{label} runsheet download: {e}')
+            return -1
+
+        if result.returncode != 0:
+            self.log(f'   ❌ {label} runsheet download failed (exit {result.returncode})')
+            self.log(f'   📋 Error output: {result.stderr[:500]}')
+            self.results['errors'].append(f'{label} runsheet download failed')
+            return -1
+
+        downloaded = sum(
+            1 for line in result.stdout.split('\n')
+            if 'Downloaded:' in line or 'Saved:' in line
+        )
+
+        if downloaded == 0:
+            stdout_lower = result.stdout.lower()
+            if 'authentication failed' in stdout_lower:
+                self.log(f'   📋 {label} pass: Gmail authentication failed')
+                self.log(f'   📋 Output tail: {result.stdout[-500:]}')
+                self.results['errors'].append(
+                    f'{label} runsheet download: Gmail auth failed'
+                )
+
+        return downloaded
+
+    def download_files(self):
+        """Phase 1: Download files from Gmail.
+
+        Two-pass strategy:
+          1. ``--runsheets --recent`` — fetches the last 7 days of emails
+             (including future-dated runsheets that arrive ahead of time),
+             so an auto-sync run always picks up tomorrow's new runsheet
+             email even when today's data is already in the DB.
+          2. ``--missing`` — backfills any historical gaps in the last
+             30 days that pass 1 may have skipped.
+
+        The two passes are independent: a "no new emails" result on
+        pass 1 does not prevent pass 2 from running, and vice versa.
+        """
+        self.log("📥 Phase 1: Downloading files from Gmail...")
+
+        os.chdir(self.base_dir)
+
+        # --- Pass 1: recent emails (catches new + future-dated runsheets) ---
+        self.log("   Checking Gmail for recent runsheet emails (last 7 days)...")
+        recent_count = self._run_runsheet_download(
+            'Recent', ['--runsheets', '--recent']
+        )
+        if recent_count > 0:
+            self.log(f"   ✅ Recent pass: downloaded {recent_count} runsheet(s)")
+            self.results['runsheets_downloaded'] += recent_count
+        elif recent_count == 0:
+            self.log("   ℹ️  Recent pass: no new emails in the last 7 days")
+
+        # --- Pass 2: backfill missing dates ---
+        self.log("   Checking database for missing runsheet dates (backfill)...")
+        missing_count = self._run_runsheet_download('Backfill', ['--missing'])
+        if missing_count > 0:
+            self.log(f"   ✅ Backfill pass: downloaded {missing_count} runsheet(s)")
+            self.results['runsheets_downloaded'] += missing_count
+        elif missing_count == 0:
+            self.log("   ℹ️  Backfill pass: no historical gaps to fill")
+
+        # Final summary line — only declare the smart-skip if BOTH passes
+        # confirmed there was nothing to download.
+        if recent_count == 0 and missing_count == 0:
+            self.log(
+                "   ⏭️  Smart sync: no new emails available and no historical "
+                "gaps to fill"
+            )
+        else:
+            self.log(
+                f"   ✅ Total runsheets downloaded this run: "
+                f"{self.results['runsheets_downloaded']}"
+            )
         
         # Download payslips (Tuesdays or if recent payslips exist)
         if datetime.now().weekday() == 1 or self._has_recent_payslips():
