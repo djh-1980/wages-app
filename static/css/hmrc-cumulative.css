@@ -1,0 +1,64 @@
+/* HMRC cumulative submission panel.
+ * Used on /settings/hmrc - Quarterly Obligations tab.
+ *
+ * Variables come from unified-styles.css; we deliberately avoid hard-coded
+ * hex values so the panel matches the rest of the app and dark mode works.
+ */
+
+.cumulative-panel {
+    border-left: 4px solid var(--bs-primary);
+    border-radius: var(--bs-border-radius, 0.5rem);
+}
+
+.cumulative-panel .card {
+    border: 1px solid var(--bs-border-color);
+    box-shadow: var(--bs-box-shadow-sm, 0 .125rem .25rem rgba(0, 0, 0, .075));
+}
+
+/* Summary cards (Cumulative Turnover / Other Income). */
+.cumulative-summary-card {
+    background-color: var(--bs-tertiary-bg, var(--bs-light));
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius, 0.5rem);
+    padding: 1rem;
+    height: 100%;
+    text-align: center;
+}
+
+.cumulative-summary-label {
+    font-size: 0.875rem;
+    color: var(--bs-secondary-color, var(--bs-body-secondary));
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.25rem;
+}
+
+.cumulative-summary-value {
+    font-size: 1.5rem;
+    font-weight: 600;
+    color: var(--bs-primary);
+}
+
+/* Tables in the panel use Bootstrap defaults; this is just a small accent. */
+.cumulative-expenses-table tbody tr:last-child td,
+.cumulative-breakdown-table tbody tr:last-child td {
+    border-bottom: 0;
+}
+
+.cumulative-breakdown-table .partial-quarter {
+    font-style: italic;
+    color: var(--bs-secondary-color, var(--bs-body-secondary));
+}
+
+/* Result message slot - reuses Bootstrap alert classes when populated. */
+#cumulativeResult .receipt-id {
+    font-family: var(--bs-font-monospace);
+    font-size: 0.95em;
+    word-break: break-all;
+}
+
+/* Locked state after a successful submission. */
+.cumulative-panel.cumulative-panel-locked .card-body > :not(#cumulativeResult) {
+    opacity: 0.55;
+    pointer-events: none;
+}

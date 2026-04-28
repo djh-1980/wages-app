@@ -138,16 +138,121 @@
                     <div class="card settings-card">
                         <div class="card-body">
                             <h5 class="card-title">Quarterly Obligations</h5>
-                            
+
                             <div class="alert alert-info">
                                 <strong><i class="fas fa-lock"></i> Digital Records Lock</strong>
                                 <p class="mb-0 mt-2">Once submitted, your quarterly update has been sent to HMRC. To amend this data, you must resubmit the period with corrected figures.</p>
                             </div>
-                            
+
+                            <div class="alert alert-warning">
+                                <strong><i class="fas fa-info-circle"></i> Cumulative Submissions</strong>
+                                <p class="mb-0 mt-2">Each quarterly update is a <strong>running total</strong> from 6 April of the tax year up to the end of the current quarter. Q2 includes Q1's figures, Q3 includes Q1 + Q2, and Q4 covers the full year.</p>
+                            </div>
+
                             <div id="obligationsList">
                                 <div class="text-center text-muted py-5">
                                     <i class="fas fa-calendar-times fa-3x mb-3"></i>
                                     <p>Connect to HMRC to view your quarterly obligations</p>
+                                </div>
+                            </div>
+
+                            <!-- Cumulative submission panel -->
+                            <div id="cumulativePanel" class="cumulative-panel d-none mt-4" aria-live="polite">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-paper-plane"></i>
+                                            Submit Quarterly Update
+                                            (<span id="cumulativePanelPeriod">—</span>)
+                                        </h6>
+                                        <button type="button" class="btn-close" id="cumulativePanelClose" aria-label="Close"></button>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted mb-3">
+                                            <i class="fas fa-calendar-alt"></i>
+                                            Cumulative window:
+                                            <strong id="cumulativeStartDate">—</strong>
+                                            to
+                                            <strong id="cumulativeEndDate">—</strong>
+                                        </p>
+
+                                        <div id="cumulativeLoading" class="text-center py-4">
+                                            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                                            <p class="mt-2 mb-0 text-muted">Calculating cumulative totals…</p>
+                                        </div>
+
+                                        <div id="cumulativeContent" class="d-none">
+                                            <div class="row g-3 mb-3">
+                                                <div class="col-12 col-md-6">
+                                                    <div class="cumulative-summary-card">
+                                                        <div class="cumulative-summary-label">Cumulative Turnover</div>
+                                                        <div class="cumulative-summary-value" id="cumulativeTurnover">£0.00</div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12 col-md-6">
+                                                    <div class="cumulative-summary-card">
+                                                        <div class="cumulative-summary-label">Other Income</div>
+                                                        <div class="cumulative-summary-value" id="cumulativeOther">£0.00</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <h6 class="mt-4">Cumulative Expenses</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm cumulative-expenses-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th scope="col">Category</th>
+                                                            <th scope="col" class="text-end">Cumulative Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="cumulativeExpenseBody">
+                                                        <tr><td colspan="2" class="text-muted text-center">No expenses</td></tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <h6 class="mt-4">Quarterly Breakdown</h6>
+                                            <p class="text-muted small">
+                                                Shows what each quarter contributed to today's running total.
+                                            </p>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm cumulative-breakdown-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th scope="col">Quarter</th>
+                                                            <th scope="col">Window</th>
+                                                            <th scope="col" class="text-end">Turnover</th>
+                                                            <th scope="col" class="text-end">Expenses</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="cumulativeBreakdownBody">
+                                                        <tr><td colspan="4" class="text-muted text-center">—</td></tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <hr class="my-4">
+
+                                            <div class="form-check mb-3">
+                                                <input type="checkbox" class="form-check-input" id="cumulativeConfirmCheckbox">
+                                                <label class="form-check-label" for="cumulativeConfirmCheckbox">
+                                                    I confirm these cumulative totals are correct and I want to submit them to HMRC.
+                                                </label>
+                                            </div>
+
+                                            <div id="cumulativeResult" class="d-none mb-3"></div>
+
+                                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                                <button type="button" class="btn btn-secondary" id="cumulativePanelCancel">
+                                                    Cancel
+                                                </button>
+                                                <button type="button" class="btn btn-primary" id="cumulativeSubmitBtn" disabled>
+                                                    <i class="fas fa-paper-plane"></i> Confirm and Submit
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
                                 </div>
                             </div>
                         </div>
@@ -682,7 +787,12 @@
 
 {% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-cumulative.css') }}?v={{ range(1000, 9999) | random }}">
+{% endblock %}
+
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/hmrc-fraud-headers.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hmrc-cumulative.js') }}"></script>
 <script src="{{ url_for('static', filename='js/settings-hmrc.js') }}"></script>
 {% endblock %}

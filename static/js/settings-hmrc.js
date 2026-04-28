@@ -419,32 +419,35 @@ function submitPeriod(periodId) {
     // Find the obligation data for this period
     const obligationsList = document.getElementById('obligationsList');
     const obligationCard = obligationsList.querySelector(`[data-period-id="${periodId}"]`);
-    
+
     if (!obligationCard) {
         showNotification('Could not find obligation details', 'error');
         return;
     }
-    
+
     // Get dates from data attributes (already in YYYY-MM-DD format)
     const startDate = obligationCard.dataset.startDate;
     const endDate = obligationCard.dataset.endDate;
     let taxYear = obligationCard.dataset.taxYear;
-    
+
     // If tax year not stored, derive from start date
     if (!taxYear) {
         const startDateObj = new Date(startDate);
         const taxYearStart = startDateObj.getMonth() >= 3 ? startDateObj.getFullYear() : startDateObj.getFullYear() - 1;
         taxYear = `${taxYearStart}/${taxYearStart + 1}`;
     }
-    
-    console.log('Submitting period:', {
-        period_id: periodId,
-        from_date: startDate,
-        to_date: endDate,
-        tax_year: taxYear
-    });
-    
-    // Navigate to expenses page with all required parameters
+
+    // Phase 2.1: open the cumulative submission panel rather than the
+    // legacy per-period flow on /expenses. The legacy expenses.js modal
+    // is still in place for migration safety but is no longer reachable
+    // from this button.
+    if (window.HMRCCumulative && typeof window.HMRCCumulative.open === 'function') {
+        window.HMRCCumulative.open(periodId, taxYear, endDate);
+        return;
+    }
+
+    // Defensive fallback: if the cumulative module failed to load, fall
+    // back to the legacy expenses.js modal so submission is never blocked.
     const params = new URLSearchParams({
         from_date: startDate,
         to_date: endDate,
@@ -452,7 +455,6 @@ function submitPeriod(periodId) {
         period_id: periodId,
         mode: 'mtd_submission'
     });
-    
     window.location.href = `/expenses?${params.toString()}`;
 }
 
