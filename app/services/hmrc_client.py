@@ -377,17 +377,20 @@ class HMRCClient:
     
     def create_period(self, nino, business_id, tax_year, period_data):
         """
-        Submit period data to HMRC.
-        
-        Self Employment Business API v5.0 POST /period endpoint.
-        Tax year is NOT in the URL - it's derived from the periodDates in the payload.
-        
+        Submit period data to HMRC (LEGACY non-cumulative endpoint).
+
+        DEPRECATED: HMRC Self-Employment Business API v5.0 has retired
+        per-quarter submissions in favour of cumulative period summaries.
+        New code must call :meth:`submit_cumulative_period` instead. This
+        method is retained only for backwards compatibility with already
+        submitted records.
+
         Args:
             nino: National Insurance Number
             business_id: Business ID from HMRC
             tax_year: Tax year (not used in URL, kept for compatibility)
             period_data: Period data including dates and financials
-            
+
         Returns:
             dict: Submission response
         """
@@ -395,6 +398,79 @@ class HMRCClient:
         # Tax year is NOT in the URL path
         endpoint = f"/individuals/business/self-employment/{nino}/{business_id}/period"
         return self._make_request('POST', endpoint, data=period_data)
+
+    def submit_cumulative_period(self, nino, business_id, tax_year, period_data):
+        """
+        POST a cumulative period summary to HMRC.
+
+        Self-Employment Business (MTD) API v5.0 cumulative endpoint:
+        ``POST /individuals/business/self-employment/{nino}/{businessId}/period/cumulative/{taxYear}``
+
+        ``period_data`` must contain running totals from the start of the
+        tax year (06 April) up to ``periodEndDate``. The payload shape is
+        the same as the legacy POST /period:
+
+            {
+                'periodDates':    {'periodStartDate', 'periodEndDate'},
+                'periodIncome':   {'turnover', 'other'},
+                'periodExpenses': {<HMRC expense fields>},
+            }
+
+        Args:
+            nino: National Insurance Number.
+            business_id: Business ID from HMRC.
+            tax_year: Tax year in YYYY-YY (e.g. '2025-26') or YYYY/YYYY
+                form. The hyphen form is what HMRC expects in the URL;
+                the slash form is normalised to it here.
+            period_data: Cumulative payload (see above).
+
+        Returns:
+            dict: ``_make_request`` result envelope (success/error +
+            status_code + data).
+        """
+        formatted_tax_year = tax_year.replace('/', '-') if tax_year else tax_year
+        # If caller passed 'YYYY-YYYY' style ('2025-2026'), collapse the
+        # second half down to two digits so the URL matches HMRC's
+        # canonical 'YYYY-YY' form.
+        if isinstance(formatted_tax_year, str) and formatted_tax_year.count('-') == 1:
+            head, tail = formatted_tax_year.split('-')
+            if len(tail) == 4:
+                formatted_tax_year = f"{head}-{tail[-2:]}"
+
+        endpoint = (
+            f"/individuals/business/self-employment/{nino}/{business_id}"
+            f"/period/cumulative/{formatted_tax_year}"
+        )
+        return self._make_request('POST', endpoint, data=period_data)
+
+    def get_cumulative_period(self, nino, business_id, tax_year):
+        """
+        GET the latest cumulative period summary for a tax year.
+
+        Self-Employment Business (MTD) API v5.0:
+        ``GET /individuals/business/self-employment/{nino}/{businessId}/period/cumulative/{taxYear}``
+
+        Args:
+            nino: National Insurance Number.
+            business_id: Business ID from HMRC.
+            tax_year: Tax year in YYYY-YY or YYYY/YYYY form.
+
+        Returns:
+            dict: ``_make_request`` result envelope. ``data`` matches
+            HMRC's cumulative period summary schema (periodDates,
+            periodIncome, periodExpenses).
+        """
+        formatted_tax_year = tax_year.replace('/', '-') if tax_year else tax_year
+        if isinstance(formatted_tax_year, str) and formatted_tax_year.count('-') == 1:
+            head, tail = formatted_tax_year.split('-')
+            if len(tail) == 4:
+                formatted_tax_year = f"{head}-{tail[-2:]}"
+
+        endpoint = (
+            f"/individuals/business/self-employment/{nino}/{business_id}"
+            f"/period/cumulative/{formatted_tax_year}"
+        )
+        return self._make_request('GET', endpoint)
     
     def update_period(self, nino, business_id, period_id, period_data):
         """
