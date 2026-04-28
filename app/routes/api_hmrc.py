@@ -587,6 +587,215 @@ def submit_period():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@hmrc_bp.route('/period/cumulative/<tax_year>', methods=['POST'])
+@limiter.limit("20 per hour", override_defaults=True)
+def submit_cumulative_period(tax_year):
+    """
+    Submit a cumulative period summary to HMRC (Self-Employment Business v5.0).
+
+    Replaces the legacy POST /period flow. The submitted figures must be
+    running totals from 6 April of the tax year up to the period end.
+
+    URL:
+        POST /api/hmrc/period/cumulative/<tax_year>
+        ``tax_year`` accepts 'YYYY-YY' or 'YYYY/YYYY'.
+
+    Request JSON:
+        {
+            'nino': 'AA123456A',
+            'business_id': 'XAIS12345678901',
+            'period_id': 'Q1' | 'Q2' | 'Q3' | 'Q4'        # optional
+            'period_end_date': 'YYYY-MM-DD'               # optional
+        }
+        Exactly one of ``period_id`` / ``period_end_date`` must be provided.
+
+    Returns:
+        200 on success with calculation reference and submission row id.
+        400 / 401 / 409 / 5xx on the obvious failure modes.
+    """
+    from ..services.hmrc_cumulative_calculator import (
+        calculate_cumulative_totals,
+        strip_meta,
+    )
+
+    try:
+        # Auth guard - delegate to the connected-to-HMRC check, not just
+        # local Flask-Login. Both must pass.
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        auth_status = HMRCAuthService().get_connection_status()
+        if not auth_status.get('connected'):
+            return jsonify({
+                'success': False,
+                'error': 'Not connected to HMRC. Please connect first.',
+            }), 400
+
+        data = request.get_json(silent=True) or {}
+        for required in ('nino', 'business_id'):
+            if not data.get(required):
+                return jsonify({
+                    'success': False,
+                    'error': f'Missing required field: {required}',
+                }), 400
+
+        period_id = data.get('period_id')
+        period_end_date = data.get('period_end_date')
+        if (period_id is None) == (period_end_date is None):
+            return jsonify({
+                'success': False,
+                'error': 'Provide exactly one of period_id or period_end_date',
+            }), 400
+
+        # Build the cumulative payload. ValueError -> 400 (malformed input).
+        try:
+            payload = calculate_cumulative_totals(
+                tax_year,
+                period_end_date=period_end_date,
+                period_id=period_id,
+            )
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+        period_dates = payload['periodDates']
+        from_date = period_dates['periodStartDate']
+        to_date = period_dates['periodEndDate']
+        effective_period_id = (
+            payload['meta'].get('period_id')
+            or f"cumulative:{to_date}"
+        )
+
+        # Duplicate detection: same NINO + tax_year + cumulative end date
+        # already submitted successfully? Caller may force=true to override.
+        force = request.args.get('force', 'false').lower() == 'true'
+        if not force:
+            existing = execute_query(
+                """
+                SELECT id, hmrc_receipt_id
+                  FROM hmrc_submissions
+                 WHERE submission_type = 'cumulative'
+                   AND status = 'submitted'
+                   AND tax_year = ?
+                   AND nino = ?
+                   AND period_end_date = ?
+                 LIMIT 1
+                """,
+                (tax_year, data['nino'], to_date),
+                fetch_one=True,
+            )
+            if existing:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        f'A cumulative submission for {tax_year} ending '
+                        f'{to_date} already exists for this NINO.'
+                    ),
+                    'existing_submission_id': existing['id'],
+                    'hmrc_receipt_id': existing['hmrc_receipt_id'],
+                }), 409
+
+        # Strip the internal meta block before sending to HMRC.
+        outbound = strip_meta(payload)
+
+        client = HMRCClient()
+        result = client.submit_cumulative_period(
+            data['nino'], data['business_id'], tax_year, outbound,
+        )
+
+        submission_row_id = _store_submission(
+            tax_year,
+            effective_period_id,
+            outbound,
+            result,
+            nino=data['nino'],
+            from_date=from_date,
+            to_date=to_date,
+            submission_type='cumulative',
+        )
+
+        if result.get('success'):
+            return jsonify({
+                'success': True,
+                'data': result.get('data', {}),
+                'submission_id': submission_row_id,
+                'period_dates': period_dates,
+                'breakdown': payload['meta'].get('breakdown_by_quarter', []),
+            })
+
+        # Surface HMRC error details to the caller, but keep our row stored.
+        status_code = result.get('status_code') or 502
+        return jsonify({
+            'success': False,
+            'error': result.get('error', 'HMRC submission failed'),
+            'submission_id': submission_row_id,
+            'details': result.get('details'),
+            'validation_errors': result.get('validation_errors'),
+        }), status_code
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error submitting cumulative period: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/period/cumulative/<tax_year>', methods=['GET'])
+@limiter.limit("60 per hour", override_defaults=True)
+def get_cumulative_period(tax_year):
+    """
+    Return the latest stored cumulative submission for the given tax year.
+
+    Looks up ``hmrc_submissions`` where ``submission_type='cumulative'``
+    and ``status='submitted'``, ordered by submission_date DESC.
+
+    Returns:
+        200 with the latest cumulative row, or
+        401 if not logged in,
+        404 if no cumulative submission exists yet for the tax year.
+    """
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        row = execute_query(
+            """
+            SELECT id, tax_year, period_id, status, hmrc_receipt_id,
+                   submission_data, response_data, submission_date, nino,
+                   period_start_date, period_end_date, submission_type
+              FROM hmrc_submissions
+             WHERE submission_type = 'cumulative'
+               AND status = 'submitted'
+               AND tax_year = ?
+             ORDER BY submission_date DESC
+             LIMIT 1
+            """,
+            (tax_year,),
+            fetch_one=True,
+        )
+
+        if not row:
+            return jsonify({
+                'success': False,
+                'error': f'No cumulative submission found for {tax_year}',
+            }), 404
+
+        record = dict(row)
+        # Re-hydrate the JSON blobs for convenience.
+        for blob_key in ('submission_data', 'response_data'):
+            blob = record.get(blob_key)
+            if isinstance(blob, str) and blob:
+                try:
+                    record[blob_key] = json.loads(blob)
+                except json.JSONDecodeError:
+                    pass
+
+        return jsonify({'success': True, 'data': record})
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error fetching cumulative period: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @hmrc_bp.route('/businesses')
 @limiter.limit("20 per hour", override_defaults=True)
 def get_businesses():
@@ -870,13 +1079,18 @@ def _get_sandbox_nino():
 
 
 def _store_submission(tax_year, period_id, submission_data, result, nino=None,
-                      from_date=None, to_date=None):
+                      from_date=None, to_date=None, submission_type='period'):
     """Store submission record in database.
 
     If the submission succeeded and from_date/to_date were supplied (or can
     be inferred from submission_data), the record is locked via
     hmrc_lock.lock_submission so that covered expenses cannot be silently
     edited afterwards (MTD digital-records compliance).
+
+    Args:
+        submission_type: 'period' (legacy per-quarter) or 'cumulative'
+            (Self-Employment Business v5.0). Stored in the
+            ``submission_type`` column added by migration 009.
     """
     status = 'submitted' if result.get('success') else 'failed'
     receipt_id = result.get('data', {}).get('id') if result.get('success') else None
@@ -885,8 +1099,14 @@ def _store_submission(tax_year, period_id, submission_data, result, nino=None,
     # Infer period dates from submission payload if not supplied explicitly
     if not from_date:
         from_date = (submission_data or {}).get('fromDate') or (submission_data or {}).get('from')
+        if not from_date:
+            period_dates = (submission_data or {}).get('periodDates') or {}
+            from_date = period_dates.get('periodStartDate')
     if not to_date:
         to_date = (submission_data or {}).get('toDate') or (submission_data or {}).get('to')
+        if not to_date:
+            period_dates = (submission_data or {}).get('periodDates') or {}
+            to_date = period_dates.get('periodEndDate')
 
     with get_db_connection() as conn:
         cursor = conn.cursor()
@@ -894,8 +1114,8 @@ def _store_submission(tax_year, period_id, submission_data, result, nino=None,
             INSERT INTO hmrc_submissions
             (tax_year, period_id, submission_date, status, hmrc_receipt_id,
              submission_data, response_data, error_message, nino,
-             period_start_date, period_end_date)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+             period_start_date, period_end_date, submission_type)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         """, (
             tax_year,
             period_id,
@@ -908,6 +1128,7 @@ def _store_submission(tax_year, period_id, submission_data, result, nino=None,
             nino,
             from_date,
             to_date,
+            submission_type,
         ))
         submission_row_id = cursor.lastrowid
         conn.commit()
@@ -919,6 +1140,8 @@ def _store_submission(tax_year, period_id, submission_data, result, nino=None,
             lock_submission(submission_row_id, from_date, to_date)
         except Exception as e:  # noqa: BLE001
             logger.error(f'Could not lock submission {submission_row_id}: {e}')
+
+    return submission_row_id
 
 
 @hmrc_bp.route('/obligations/final-declaration')
