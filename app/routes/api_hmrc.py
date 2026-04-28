@@ -625,20 +625,30 @@ def submit_cumulative_period(tax_year):
         if not current_user.is_authenticated:
             return jsonify({'success': False, 'error': 'Login required'}), 401
 
-        auth_status = HMRCAuthService().get_connection_status()
-        if not auth_status.get('connected'):
-            return jsonify({
-                'success': False,
-                'error': 'Not connected to HMRC. Please connect first.',
-            }), 400
+        is_preview = request.args.get('preview', 'false').lower() in ('1', 'true', 'yes')
 
-        data = request.get_json(silent=True) or {}
-        for required in ('nino', 'business_id'):
-            if not data.get(required):
+        # Preview mode skips the HMRC connection requirement: it never
+        # talks to HMRC and never writes a row, so a connected OAuth
+        # session is not required to compute the running totals.
+        if not is_preview:
+            auth_status = HMRCAuthService().get_connection_status()
+            if not auth_status.get('connected'):
                 return jsonify({
                     'success': False,
-                    'error': f'Missing required field: {required}',
+                    'error': 'Not connected to HMRC. Please connect first.',
                 }), 400
+
+        data = request.get_json(silent=True) or {}
+
+        # Preview only needs a window argument; submission additionally
+        # needs nino + business_id.
+        if not is_preview:
+            for required in ('nino', 'business_id'):
+                if not data.get(required):
+                    return jsonify({
+                        'success': False,
+                        'error': f'Missing required field: {required}',
+                    }), 400
 
         period_id = data.get('period_id')
         period_end_date = data.get('period_end_date')
@@ -657,6 +667,22 @@ def submit_cumulative_period(tax_year):
             )
         except ValueError as e:
             return jsonify({'success': False, 'error': str(e)}), 400
+
+        # Preview short-circuit: return the calculated totals and the
+        # per-quarter breakdown without contacting HMRC and without
+        # writing anything to hmrc_submissions. The response shape
+        # matches a successful submission (sans submission_id) so the
+        # UI can render the same panel.
+        if is_preview:
+            return jsonify({
+                'success': True,
+                'preview': True,
+                'data': {
+                    'submission_data': strip_meta(payload),
+                },
+                'period_dates': payload['periodDates'],
+                'breakdown': payload['meta'].get('breakdown_by_quarter', []),
+            })
 
         period_dates = payload['periodDates']
         from_date = period_dates['periodStartDate']

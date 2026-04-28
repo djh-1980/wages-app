@@ -23,10 +23,15 @@ Daniel's profile (used to mark questions N/A):
 |---|---|
 | Total checklist questions (incl. info rows) | **35** |
 | Substantive Yes/No questions | **31** |
-| ✅ Yes — confidently evidenced in code | **18** |
+| ✅ Yes — confidently evidenced in code | **19** |
 | ⚠️ Yes — needs screenshot or sandbox-test log capture | **5** |
-| ❌ Gap — code missing, must build before submitting | **5** |
+| ❌ Gap — code missing, must build before submitting | **4** |
 | ➖ N/A — does not apply to Daniel's build | **3** |
+
+**Phase 2.1 update (28 Apr 2026):** Cumulative Period Summary endpoints
+(IY7) are now implemented and fully tested. Gap count drops from 5 to 4;
+the cumulative work also lays the groundwork for closing BSAS list/submit
+(EOY4) since both share the same submission-record + lock pattern.
 
 **Honest summary:**
 
@@ -35,7 +40,7 @@ are End-of-Year endpoints HMRC explicitly tests against:
 
 1. **Periods of Account** endpoints (Business Details API) — not implemented at all.
 2. **Late Accounting Date Rule** (retrieve/disapply/withdraw) — not implemented.
-3. **Cumulative Period Summary** endpoints (Self Employment Business API) — we use the legacy `POST /period` endpoint, not the cumulative variant the checklist calls out.
+3. ~~**Cumulative Period Summary** endpoints (Self Employment Business API)~~ — ✅ **Resolved Phase 2.1** (28 Apr 2026). New `submit_cumulative_period` / `get_cumulative_period` client methods, new `POST/GET /api/hmrc/period/cumulative/<tax_year>` routes (with `?preview=1`), new cumulative panel UI in `templates/settings/hmrc.html`, 49 dedicated tests. Legacy `POST /period` retained for backwards compatibility.
 4. **Update Annual Submission** end-of-year endpoint testing — code path exists (PUT /annual/{taxYear}) but never exercised in sandbox.
 5. The UI does not yet drive `intent-to-amend` / `confirm-amendment` flow even though the API client supports it. HMRC will want to see this work end-to-end.
 
@@ -179,8 +184,19 @@ This is **verbatim** the example wording in the checklist comment column. ✅
 **Suggested answer:** **Yes** — *Comments:* "Quarterly submission body is built server-side from the user's expenses (`expenses` table) and income (`payslips` table). The HTTP `submit` endpoint does not accept user-typed income/expense values — corrections must be made by editing the underlying record. Records covering a submitted period are then locked (see digital-records lock, migration 007)."
 
 ### IY7 — Submit & retrieve in-year **cumulative** period summaries (Self-Employment Business + Property APIs)
-**Status:** ❌ **Gap** — we currently call `POST /individuals/business/self-employment/{nino}/{businessId}/period` (legacy non-cumulative endpoint) — see `hmrc_client.py:378-397`. The checklist explicitly says "Test all **cumulative** period summary endpoints". v5.0 of the API has separate cumulative endpoints (`PUT .../cumulative/{taxYear}`, `GET .../cumulative/{taxYear}/{submissionId}`) which we have not implemented.
-**Suggested answer (honest):** **No** for the cumulative endpoints — *Comments:* "Currently submitting via the non-cumulative `POST /period` endpoint. Cumulative Period Summary endpoints will be added before production access is granted (see Action Plan A3). Property cumulative endpoints not applicable — UK property not supported."
+**Status:** ✅ **Resolved (Phase 2.1, 28 Apr 2026)**
+
+**Evidence:**
+- `HMRCClient.submit_cumulative_period` POSTs to `/individuals/business/self-employment/{nino}/{businessId}/period/cumulative/{taxYear}` (`@/Users/danielhanson/CascadeProjects/Wages-App/app/services/hmrc_client.py:402-444`).
+- `HMRCClient.get_cumulative_period` GETs the same path (`@/Users/danielhanson/CascadeProjects/Wages-App/app/services/hmrc_client.py:446-473`).
+- New routes `POST /api/hmrc/period/cumulative/<tax_year>` and `GET /api/hmrc/period/cumulative/<tax_year>` (`@/Users/danielhanson/CascadeProjects/Wages-App/app/routes/api_hmrc.py:590-800`). POST also supports `?preview=1` to return calculated totals without contacting HMRC and without storing.
+- Cumulative aggregator: `@/Users/danielhanson/CascadeProjects/Wages-App/app/services/hmrc_cumulative_calculator.py` builds running totals from 6 April of the tax year up to the requested period end. Q2 includes Q1, Q3 includes Q1+Q2, Q4 covers the full year.
+- Submissions land in `hmrc_submissions` with `submission_type='cumulative'` (migration `@/Users/danielhanson/CascadeProjects/Wages-App/migrations/009_hmrc_submission_type.sql`) and trigger the existing digital-records lock (`hmrc_lock.lock_submission`).
+- UI: `@/Users/danielhanson/CascadeProjects/Wages-App/templates/settings/hmrc.html` Quarterly Obligations tab now opens the cumulative panel; preview, breakdown, confirmation checkbox + Submit button driven by `@/Users/danielhanson/CascadeProjects/Wages-App/static/js/hmrc-cumulative.js`.
+- Tests: 49 dedicated tests across `tests/sync/test_hmrc_cumulative_calculator.py` (20), `tests/sync/test_hmrc_cumulative_client.py` (16), `tests/sync/test_hmrc_cumulative_routes.py` (18), `tests/sync/test_hmrc_cumulative_ui.py` (10). Mocks the HTTP layer; covers Q1..Q4 cumulative arithmetic, leap year, tax-year boundary, sandbox/production URL switching, fraud headers, OAuth, 4xx/5xx/timeout, duplicate detection, lock activation, GET ignores legacy `period` rows.
+- Property cumulative endpoints intentionally not implemented — UK Property not supported (matches answer to G10).
+
+**Suggested answer:** **Yes** — *Comments:* "Self-Employment Business cumulative period summary endpoints implemented (`POST/GET .../period/cumulative/{taxYear}`). Submissions are running totals from 6 April; subsequent quarters include all prior quarters' figures. Sandbox test logs and screenshots of the new submission panel attached. Property cumulative endpoints not applicable — UK Property is not in scope (see G10)."
 
 ### IY8 — Annual Submission (allowances/adjustments) included in in-year stage
 **Status:** ⚠️ Marginal — `update_annual_summary` exists (`hmrc_client.py:430-444`) and `/api/hmrc/self-employment/annual-summary` route exists (`api_hmrc.py:1151-1225`), but it has not been exercised in sandbox.
@@ -326,11 +342,11 @@ Effort guide: `XS=<1h, S=2-4h, M=1d, L=2-3d`.
 |---|---|---|---|
 | **A1** | Hide / feature-flag UK & Foreign Property UI (`templates/settings/hmrc.html:170-237`) so the screenshots match the "No property" answer. | XS | Yes |
 | **A2** | Tighten G16 non-mandated-income disclaimer text in HMRC page footer. | XS | Yes |
-| **A3** | Implement Cumulative Period Summary endpoints on `HMRCClient` and route in `api_hmrc.py`. Switch `submit_period` to PUT cumulative. (Self-Employment Business API v5+: `PUT /individuals/business/self-employment/{nino}/{businessId}/cumulative/{taxYear}` and `GET .../cumulative/{taxYear}`). | M | **Yes** |
+| ~~**A3**~~ | ~~Implement Cumulative Period Summary endpoints on `HMRCClient` and route in `api_hmrc.py`.~~ ✅ **Done** Phase 2.1 (28 Apr 2026). New `submit_cumulative_period` / `get_cumulative_period` client methods, new `POST/GET /api/hmrc/period/cumulative/<tax_year>` routes (with `?preview=1`), `hmrc_cumulative_calculator.py`, panel UI in `templates/settings/hmrc.html`, 49 tests. Legacy `POST /period` retained for backwards compatibility. | ~~M~~ | ~~Yes~~ ✅ |
 | **A4** | Implement Periods of Account endpoints (Business Details API v2.0): Retrieve, Create, Update. Add minimal admin UI. | M | **Yes** |
 | **A5** | Implement Late Accounting Date Rule (Business Details API v2.0): Retrieve, Disapply, Withdraw. | S | **Yes** |
 | **A6** | Implement Annual Submission UI (allowances + adjustments — typically zero for cash-basis sole trader, but must demonstrate the call). | S | Yes (so we can answer Yes truthfully on EOY3) |
-| **A7** | Add List BSAS and Submit BSAS adjustments endpoints + sandbox test. | S | Yes (EOY4) |
+| **A7** | Add List BSAS and Submit BSAS adjustments endpoints + sandbox test. The Phase 2.1 cumulative work established the submission-record + lock pattern these will reuse, so this is now a smaller change than originally estimated. | S | Yes (EOY4) |
 | **A8** | Add Retrieve/Amend/Delete brought-forward loss endpoints to satisfy "all endpoints" requirement. | S | Yes (EOY5) |
 | **A9** | UI affordance to drive `intent-to-amend` calculation and `confirm-amendment` final declaration. Backend already supports both. | S | Yes (EOY6, EOY10) |
 | **A10** | Replace Individual Final Declaration Statement text with the verbatim wording from the MTD IT End-to-End Service Guide. Add separate text for the amendment statement. | XS | **Yes** |
@@ -339,7 +355,9 @@ Effort guide: `XS=<1h, S=2-4h, M=1d, L=2-3d`.
 | **A13** | Preserve sandbox API request/response logs (one per endpoint family) ready to attach if HMRC asks. | S | Yes |
 | **A14** | Improve validation-error UX so field-level 422 errors render inline (G19 screenshot). | S | Soft |
 
-**Critical-path total:** ~3-4 dev days for A3+A4+A5+A6+A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~5 days work** before the form can be returned honestly.
+**Critical-path total (original):** ~3-4 dev days for A3+A4+A5+A6+A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~5 days work** before the form can be returned honestly.
+
+**Critical-path total (after Phase 2.1, A3 done):** ~2-3 dev days for A4+A5+A6+A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~4 days work** remaining.
 
 ---
 

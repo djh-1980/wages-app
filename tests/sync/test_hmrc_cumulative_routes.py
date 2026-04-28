@@ -439,6 +439,73 @@ def test_get_returns_latest_cumulative_for_tax_year(auth_client, app, connected)
     assert record['submission_data']['periodDates']['periodEndDate'] == '2025-10-05'
 
 
+class TestPreview:
+    """?preview=1 returns calculated totals without contacting HMRC."""
+
+    def test_preview_returns_totals_without_calling_hmrc(self, auth_client, app, connected):
+        with app.app_context():
+            _seed_minimal(app)
+
+        with patch(
+            f'{PAYLOAD_PATH}.HMRCClient.submit_cumulative_period',
+        ) as mock_submit:
+            response = auth_client.post(
+                '/api/hmrc/period/cumulative/2025-26?preview=1',
+                json={'period_id': 'Q1'},
+            )
+
+        assert response.status_code == 200, response.get_data(as_text=True)
+        body = response.get_json()
+        assert body['success'] is True
+        assert body['preview'] is True
+
+        # Must NOT have called HMRC.
+        mock_submit.assert_not_called()
+
+        # Must NOT have written anything to hmrc_submissions.
+        with app.app_context():
+            row = execute_query(
+                'SELECT COUNT(*) AS n FROM hmrc_submissions',
+                fetch_one=True,
+            )
+        assert row['n'] == 0
+
+        # Response carries the calculated totals and the per-quarter breakdown.
+        sub = body['data']['submission_data']
+        assert sub['periodDates'] == {
+            'periodStartDate': '2025-04-06',
+            'periodEndDate': '2025-07-05',
+        }
+        assert sub['periodIncome']['turnover'] == 1000.00
+        assert body['breakdown'][0]['period_id'] == 'Q1'
+        assert body['breakdown'][0]['turnover'] == 1000.00
+
+    def test_preview_works_without_hmrc_connection(self, auth_client, app, disconnected):
+        """Preview must not require an active OAuth session - it never
+        talks to HMRC. NINO + business_id are also not required."""
+        with app.app_context():
+            _seed_minimal(app)
+
+        response = auth_client.post(
+            '/api/hmrc/period/cumulative/2025-26?preview=1',
+            json={'period_id': 'Q1'},
+        )
+
+        assert response.status_code == 200, response.get_data(as_text=True)
+        body = response.get_json()
+        assert body['success'] is True
+        assert body['preview'] is True
+
+    def test_preview_still_validates_window_argument(self, auth_client, app, connected):
+        """Even in preview mode, exactly one of period_id /
+        period_end_date is required."""
+        response = auth_client.post(
+            '/api/hmrc/period/cumulative/2025-26?preview=1',
+            json={},
+        )
+        assert response.status_code == 400
+
+
 def test_get_ignores_legacy_period_submissions(auth_client, app):
     """Only ``submission_type='cumulative'`` rows count for the GET."""
     with app.app_context():
