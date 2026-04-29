@@ -2189,6 +2189,399 @@ def list_losses():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# Periods of Account (Business Details API v2.0)
+# ---------------------------------------------------------------------------
+# Two-phase write pattern:
+#   1. Call HMRC client first (HMRC is the source of truth).
+#   2. Only mutate the local mirror after HMRC confirms success.
+#   3. If HMRC fails, surface the error and leave local state unchanged.
+#
+# Tax-year format: HMRC URLs use 'YYYY-YY'. Internally we accept either
+# 'YYYY-YY' or 'YYYY/YYYY' and normalise on read.
+
+def _require_hmrc_connected():
+    """Return None if connected, else a (response, status) tuple."""
+    auth_status = HMRCAuthService().get_connection_status()
+    if not auth_status.get('connected'):
+        return jsonify({
+            'success': False,
+            'error': 'Not connected to HMRC. Please connect first.',
+        }), 400
+    return None
+
+
+@hmrc_bp.route('/period-of-account/<tax_year>', methods=['POST'])
+@limiter.limit("20 per hour", override_defaults=True)
+def create_period_of_account_route(tax_year):
+    """
+    Create a Period of Account for ``tax_year``.
+
+    Request JSON:
+        {
+            'nino': 'AA123456A',
+            'business_id': 'XAIS12345678901',
+            'period_type': 'standard'   # optional, default 'standard'
+            'start_date': 'YYYY-MM-DD'  # required if period_type='non-standard'
+            'end_date':   'YYYY-MM-DD'  # required if period_type='non-standard'
+        }
+
+    Two-phase write: POSTs to HMRC first, only writes the local mirror
+    after HMRC confirms.
+    """
+    from ..services import periods_of_account_service as poa_service
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        guard = _require_hmrc_connected()
+        if guard is not None:
+            return guard
+
+        data = request.get_json(silent=True) or {}
+        for required in ('nino', 'business_id'):
+            if not data.get(required):
+                return jsonify({
+                    'success': False,
+                    'error': f'Missing required field: {required}',
+                }), 400
+
+        nino = data['nino']
+        business_id = data['business_id']
+        period_type = (data.get('period_type') or 'standard').lower()
+
+        # Resolve the start/end dates we want to register.
+        if period_type == 'standard':
+            try:
+                start_iso, end_iso = poa_service.standard_period_dates(tax_year)
+            except ValueError as e:
+                return jsonify({'success': False, 'error': str(e)}), 400
+        else:
+            start_in = data.get('start_date')
+            end_in = data.get('end_date')
+            if not (start_in and end_in):
+                return jsonify({
+                    'success': False,
+                    'error': 'Non-standard periods require start_date and end_date',
+                }), 400
+            try:
+                start_iso = poa_service._to_iso(start_in)
+                end_iso = poa_service._to_iso(end_in)
+            except ValueError as e:
+                return jsonify({'success': False, 'error': str(e)}), 400
+
+        # Refuse if a local active period already exists for this TY.
+        if poa_service.get_for_tax_year(tax_year) is not None:
+            return jsonify({
+                'success': False,
+                'error': (
+                    f'A period of account for {tax_year} already exists. '
+                    'Use PUT to update it.'
+                ),
+            }), 409
+
+        # ---- Phase 1: HMRC ----
+        client = HMRCClient()
+        hmrc_result = client.create_period_of_account(
+            nino, business_id,
+            {'startDate': start_iso, 'endDate': end_iso},
+        )
+        if not hmrc_result.get('success'):
+            status_code = hmrc_result.get('status_code') or 502
+            return jsonify({
+                'success': False,
+                'error': hmrc_result.get('error', 'HMRC submission failed'),
+                'details': hmrc_result.get('details'),
+                'validation_errors': hmrc_result.get('validation_errors'),
+            }), status_code
+
+        # ---- Phase 2: local mirror ----
+        try:
+            if period_type == 'standard':
+                local = poa_service.create_standard_period(
+                    tax_year, business_id=business_id,
+                )
+            else:
+                local = poa_service.create_custom_period(
+                    tax_year, start_iso, end_iso, business_id=business_id,
+                )
+            # Persist HMRC's assigned periodId (if any) on the local row.
+            hmrc_period_id = (hmrc_result.get('data') or {}).get('periodId')
+            if hmrc_period_id:
+                local = poa_service.update_period(
+                    tax_year, period_id=hmrc_period_id,
+                )
+        except Exception as e:  # noqa: BLE001
+            logger.error(
+                f'HMRC create_period_of_account succeeded but local write '
+                f'failed for {tax_year}: {e}', exc_info=True,
+            )
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Period of account was registered with HMRC, but the '
+                    'local mirror could not be saved. Run GET to resync.'
+                ),
+                'hmrc_data': hmrc_result.get('data'),
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'data': local,
+            'hmrc': hmrc_result.get('data'),
+        })
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error creating period of account: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/periods-of-account', methods=['GET'])
+@limiter.limit("60 per hour", override_defaults=True)
+def list_periods_of_account_route():
+    """
+    Return the local mirror of all Periods of Account (most recent first).
+
+    This is the last-known-good local view; clients that need a fresh
+    sync from HMRC should call POST/PUT first to push their state.
+    """
+    from ..services import periods_of_account_service as poa_service
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        rows = poa_service.list_periods()
+        return jsonify({'success': True, 'data': rows})
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error listing periods of account: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/period-of-account/<tax_year>', methods=['GET'])
+@limiter.limit("60 per hour", override_defaults=True)
+def get_period_of_account_route(tax_year):
+    """Return the local active period for ``tax_year`` (404 if none)."""
+    from ..services import periods_of_account_service as poa_service
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        record = poa_service.get_for_tax_year(tax_year)
+        if record is None:
+            return jsonify({
+                'success': False,
+                'error': f'No period of account found for {tax_year}',
+            }), 404
+        return jsonify({'success': True, 'data': record})
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error fetching period of account: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/period-of-account/<tax_year>', methods=['PUT'])
+@limiter.limit("20 per hour", override_defaults=True)
+def update_period_of_account_route(tax_year):
+    """
+    Update an existing Period of Account.
+
+    Request JSON:
+        {
+            'nino': 'AA123456A',
+            'business_id': 'XAIS12345678901',
+            'start_date': 'YYYY-MM-DD',  # optional
+            'end_date':   'YYYY-MM-DD',  # optional
+            'period_type': 'standard' | 'non-standard'  # optional
+        }
+    """
+    from ..services import periods_of_account_service as poa_service
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        guard = _require_hmrc_connected()
+        if guard is not None:
+            return guard
+
+        data = request.get_json(silent=True) or {}
+        for required in ('nino', 'business_id'):
+            if not data.get(required):
+                return jsonify({
+                    'success': False,
+                    'error': f'Missing required field: {required}',
+                }), 400
+
+        existing = poa_service.get_for_tax_year(tax_year)
+        if existing is None:
+            return jsonify({
+                'success': False,
+                'error': f'No period of account found for {tax_year}',
+            }), 404
+
+        # Resolve target dates (use existing values if not supplied).
+        try:
+            start_iso = (
+                poa_service._to_iso(data['start_date'])
+                if data.get('start_date') else existing['period_start_date']
+            )
+            end_iso = (
+                poa_service._to_iso(data['end_date'])
+                if data.get('end_date') else existing['period_end_date']
+            )
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+
+        # Need an HMRC-side period_id to PUT against.
+        hmrc_period_id = existing.get('period_id')
+        if not hmrc_period_id:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Local period has no HMRC periodId on record; cannot '
+                    'update remotely. Re-create via POST.'
+                ),
+            }), 409
+
+        # ---- Phase 1: HMRC ----
+        client = HMRCClient()
+        hmrc_result = client.update_period_of_account(
+            data['nino'], data['business_id'], hmrc_period_id,
+            {'startDate': start_iso, 'endDate': end_iso},
+        )
+        if not hmrc_result.get('success'):
+            status_code = hmrc_result.get('status_code') or 502
+            return jsonify({
+                'success': False,
+                'error': hmrc_result.get('error', 'HMRC update failed'),
+                'details': hmrc_result.get('details'),
+                'validation_errors': hmrc_result.get('validation_errors'),
+            }), status_code
+
+        # ---- Phase 2: local mirror ----
+        try:
+            updated = poa_service.update_period(
+                tax_year,
+                start_date=start_iso,
+                end_date=end_iso,
+                period_type=data.get('period_type'),
+                business_id=data['business_id'],
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.error(
+                f'HMRC update_period_of_account succeeded but local update '
+                f'failed for {tax_year}: {e}', exc_info=True,
+            )
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Period was updated with HMRC, but the local mirror '
+                    'could not be saved.'
+                ),
+                'hmrc_data': hmrc_result.get('data'),
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'data': updated,
+            'hmrc': hmrc_result.get('data'),
+        })
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error updating period of account: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/period-of-account/<tax_year>', methods=['DELETE'])
+@limiter.limit("20 per hour", override_defaults=True)
+def delete_period_of_account_route(tax_year):
+    """
+    Delete a Period of Account from HMRC and soft-delete the local mirror.
+
+    Query / JSON parameters:
+        nino, business_id (required, may come from JSON body or ?args)
+    """
+    from ..services import periods_of_account_service as poa_service
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        guard = _require_hmrc_connected()
+        if guard is not None:
+            return guard
+
+        data = request.get_json(silent=True) or {}
+        nino = data.get('nino') or request.args.get('nino')
+        business_id = data.get('business_id') or request.args.get('business_id')
+        if not (nino and business_id):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: nino and business_id',
+            }), 400
+
+        existing = poa_service.get_for_tax_year(tax_year)
+        if existing is None:
+            return jsonify({
+                'success': False,
+                'error': f'No period of account found for {tax_year}',
+            }), 404
+
+        hmrc_period_id = existing.get('period_id')
+        if not hmrc_period_id:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Local period has no HMRC periodId on record; cannot '
+                    'delete remotely.'
+                ),
+            }), 409
+
+        # ---- Phase 1: HMRC ----
+        client = HMRCClient()
+        hmrc_result = client.delete_period_of_account(
+            nino, business_id, hmrc_period_id,
+        )
+        if not hmrc_result.get('success'):
+            status_code = hmrc_result.get('status_code') or 502
+            return jsonify({
+                'success': False,
+                'error': hmrc_result.get('error', 'HMRC delete failed'),
+                'details': hmrc_result.get('details'),
+            }), status_code
+
+        # ---- Phase 2: local soft-delete ----
+        try:
+            poa_service.delete_period(tax_year)
+        except Exception as e:  # noqa: BLE001
+            logger.error(
+                f'HMRC delete_period_of_account succeeded but local '
+                f'soft-delete failed for {tax_year}: {e}', exc_info=True,
+            )
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Period was deleted on HMRC but the local mirror could '
+                    'not be soft-deleted.'
+                ),
+            }), 500
+
+        return jsonify({'success': True})
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error deleting period of account: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @hmrc_bp.route('/export')
 @limiter.limit("10 per hour", override_defaults=True)
 def export_data():
