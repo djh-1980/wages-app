@@ -336,6 +336,81 @@ class HMRCClient:
         )
         return self._make_request('DELETE', endpoint)
 
+    # ------------------------------------------------------------------
+    # Late Accounting Date Rule (Business Details API v2.0)
+    # ------------------------------------------------------------------
+    # The Late Accounting Date Rule lets a sole trader elect whether
+    # their tax-year basis applies even when their accounting period
+    # ends late in the tax year. Three operations:
+    #
+    #   GET    /{taxYear}/late-accounting-date-rule           - retrieve
+    #   PUT    /{taxYear}/late-accounting-date-rule/disapply  - opt out
+    #   DELETE /{taxYear}/late-accounting-date-rule/disapply  - withdraw
+    #
+    # This is a flag, not a record - no local mirror table needed.
+
+    @staticmethod
+    def _normalise_tax_year(tax_year):
+        """Normalise a tax-year string to HMRC's canonical 'YYYY-YY' form.
+
+        Accepts:
+          - 'YYYY-YY'   (passthrough)
+          - 'YYYY/YYYY' (legacy app format)
+          - 'YYYY-YYYY' (explicit form)
+        Returns ``tax_year`` unchanged if it doesn't match any of those.
+        """
+        if not isinstance(tax_year, str) or not tax_year:
+            return tax_year
+        formatted = tax_year.replace('/', '-')
+        if formatted.count('-') == 1:
+            head, tail = formatted.split('-')
+            if len(tail) == 4:
+                formatted = f"{head}-{tail[-2:]}"
+        return formatted
+
+    def get_late_accounting_date_rule(self, nino, business_id, tax_year):
+        """
+        GET the current Late Accounting Date Rule status for ``tax_year``.
+
+        Returns:
+            dict: ``_make_request`` result envelope. ``data`` follows the
+            HMRC schema for the LADR retrieve endpoint.
+        """
+        ty = self._normalise_tax_year(tax_year)
+        endpoint = (
+            f"/individuals/business/details/{nino}/{business_id}"
+            f"/{ty}/late-accounting-date-rule"
+        )
+        return self._make_request('GET', endpoint)
+
+    def disapply_late_accounting_date_rule(self, nino, business_id, tax_year):
+        """
+        PUT a disapplication of the Late Accounting Date Rule for the
+        given tax year (i.e. opt the trader out of the rule).
+
+        HMRC's PUT endpoint takes no body - the action is the URL.
+        """
+        ty = self._normalise_tax_year(tax_year)
+        endpoint = (
+            f"/individuals/business/details/{nino}/{business_id}"
+            f"/{ty}/late-accounting-date-rule/disapply"
+        )
+        return self._make_request('PUT', endpoint, data={})
+
+    def withdraw_late_accounting_date_rule_disapplication(
+        self, nino, business_id, tax_year,
+    ):
+        """
+        DELETE a previous disapplication of the Late Accounting Date
+        Rule (re-apply the rule for the given tax year).
+        """
+        ty = self._normalise_tax_year(tax_year)
+        endpoint = (
+            f"/individuals/business/details/{nino}/{business_id}"
+            f"/{ty}/late-accounting-date-rule/disapply"
+        )
+        return self._make_request('DELETE', endpoint)
+
     def get_business_list(self, nino):
         """
         Get list of self-employment businesses for a NINO.
