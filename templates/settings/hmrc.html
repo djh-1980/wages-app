@@ -88,7 +88,98 @@
             </div>
         </div>
     </div>
-    
+
+    <!-- Period of Account Card (Business Details API v2.0) -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card settings-card mb-4 poa-card" id="periodOfAccountCard">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-calendar-day"></i> Period of Account
+                    </h5>
+                    <p class="text-muted">
+                        Your accounting period for the selected tax year. For most
+                        sole traders this is the standard 6 April to 5 April window;
+                        non-standard periods can be set with custom dates.
+                    </p>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-4">
+                            <label for="poaTaxYearSelect" class="form-label">Tax Year</label>
+                            <select class="form-select" id="poaTaxYearSelect">
+                                <option value="2024-25">2024-25</option>
+                                <option value="2025-26" selected>2025-26</option>
+                                <option value="2026-27">2026-27</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Current period summary -->
+                    <div id="poaSummary" class="poa-summary mb-3" aria-live="polite">
+                        <div id="poaSummaryEmpty" class="text-muted poa-summary-empty">
+                            <i class="fas fa-info-circle"></i>
+                            No period of account on record for this tax year yet.
+                        </div>
+                        <div id="poaSummaryContent" class="d-none">
+                            <div class="row g-2 align-items-center">
+                                <div class="col-12 col-md-6">
+                                    <div class="poa-summary-label">Period dates</div>
+                                    <div class="poa-summary-value">
+                                        <strong id="poaSummaryDates">&mdash;</strong>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="poa-summary-label">Type</div>
+                                    <span class="badge poa-type-badge" id="poaTypeBadge">&mdash;</span>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="poa-summary-label">HMRC Period&nbsp;ID</div>
+                                    <code id="poaSummaryPeriodId" class="poa-period-id">&mdash;</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Form -->
+                    <form id="poaForm" novalidate>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" role="switch" id="poaCustomToggle">
+                            <label class="form-check-label" for="poaCustomToggle">
+                                Use custom dates (non-standard period)
+                            </label>
+                        </div>
+
+                        <div id="poaCustomDates" class="row g-3 mb-3 d-none">
+                            <div class="col-12 col-md-6">
+                                <label for="poaStartDate" class="form-label">Start date</label>
+                                <input type="date" class="form-control" id="poaStartDate">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label for="poaEndDate" class="form-label">End date</label>
+                                <input type="date" class="form-control" id="poaEndDate">
+                            </div>
+                        </div>
+
+                        <div id="poaResult" class="d-none mb-3" aria-live="polite"></div>
+
+                        <div class="d-grid gap-2 d-md-flex">
+                            <button type="button" class="btn btn-primary poa-action-btn" id="poaCreateBtn">
+                                <i class="fas fa-plus-circle"></i>
+                                <span id="poaCreateBtnLabel">Set Standard Period</span>
+                            </button>
+                            <button type="button" class="btn btn-outline-primary poa-action-btn" id="poaUpdateBtn" disabled>
+                                <i class="fas fa-pen"></i> Update
+                            </button>
+                            <button type="button" class="btn btn-outline-danger poa-action-btn" id="poaDeleteBtn" disabled>
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Tabs for Obligations and Submissions -->
     <div class="row">
         <div class="col-12">
@@ -789,10 +880,12 @@
 
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-cumulative.css') }}?v={{ range(1000, 9999) | random }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-periods-of-account.css') }}?v={{ range(1000, 9999) | random }}">
 {% endblock %}
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/hmrc-fraud-headers.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hmrc-cumulative.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hmrc-periods-of-account.js') }}"></script>
 <script src="{{ url_for('static', filename='js/settings-hmrc.js') }}"></script>
 {% endblock %}
