@@ -23,9 +23,9 @@ Daniel's profile (used to mark questions N/A):
 |---|---|
 | Total checklist questions (incl. info rows) | **35** |
 | Substantive Yes/No questions | **31** |
-| ✅ Yes — confidently evidenced in code | **21** |
+| ✅ Yes — confidently evidenced in code | **22** |
 | ⚠️ Yes — needs screenshot or sandbox-test log capture | **5** |
-| ❌ Gap — code missing, must build before submitting | **2** |
+| ❌ Gap — code missing, must build before submitting | **1** |
 | ➖ N/A — does not apply to Daniel's build | **3** |
 
 **Phase 2.1 update (28 Apr 2026):** Cumulative Period Summary endpoints
@@ -58,6 +58,22 @@ write contract; GET serves cached state with `stale=True` when HMRC
 isn't connected. New LADR panel in `templates/settings/hmrc.html`.
 83 dedicated tests. Gap count drops from 3 to 2.
 
+**Phase 2.4 update (29 Apr 2026):** Annual Submission UI + clean
+RESTful route family (EOY3) is now implemented and fully tested.
+The legacy `/api/hmrc/self-employment/annual-summary` route had no
+auth gate, no connection check, no tax-year normalisation and no
+tests; it is retained for backwards compatibility but new UI work
+talks to a clean family at
+`GET/PUT /api/hmrc/annual-submission/<tax_year>` plus
+`POST/DELETE /api/hmrc/annual-submission/<tax_year>/draft`. Lightweight
+draft + last-submitted cache lives in the existing `settings` table
+(no new migration) keyed by `hmrc_annual_draft_*` /
+`hmrc_annual_last_*`. Two-phase write contract. New Annual Submission
+panel in `templates/settings/hmrc.html` with three accordion sections
+(7 allowance fields, 9 adjustment fields, non-financials checkbox +
+Class 4 NICs exemption dropdown). 64 dedicated tests. Gap count
+drops from 2 to 1.
+
 **Honest summary:**
 
 We are **not** ready to send the form back today. The biggest blockers
@@ -66,11 +82,12 @@ are End-of-Year endpoints HMRC explicitly tests against:
 1. ~~**Periods of Account** endpoints (Business Details API) — not implemented at all.~~ ✅ **Resolved Phase 2.2** (29 Apr 2026). New `create/list/update/delete_period_of_account` client methods, full route family at `/api/hmrc/period-of-account/<tax_year>` plus `/api/hmrc/periods-of-account`, `periods_of_account_service` with soft-delete, migration 010, Period of Account panel in `templates/settings/hmrc.html`, 102 dedicated tests.
 2. ~~**Late Accounting Date Rule** (retrieve/disapply/withdraw) — not implemented.~~ ✅ **Resolved Phase 2.3** (29 Apr 2026). New `get/disapply/withdraw_late_accounting_date_rule_*` client methods, full route family at `/api/hmrc/late-accounting-date-rule/<tax_year>` and `/disapply`, lightweight settings-table cache (no migration), LADR panel in `templates/settings/hmrc.html`, 83 dedicated tests.
 3. ~~**Cumulative Period Summary** endpoints (Self Employment Business API)~~ — ✅ **Resolved Phase 2.1** (28 Apr 2026). New `submit_cumulative_period` / `get_cumulative_period` client methods, new `POST/GET /api/hmrc/period/cumulative/<tax_year>` routes (with `?preview=1`), new cumulative panel UI in `templates/settings/hmrc.html`, 49 dedicated tests. Legacy `POST /period` retained for backwards compatibility.
-4. **Update Annual Submission** end-of-year endpoint testing — code path exists (PUT /annual/{taxYear}) but never exercised in sandbox.
+4. ~~**Update Annual Submission** end-of-year endpoint testing — code path exists (PUT /annual/{taxYear}) but never exercised in sandbox.~~ ✅ **Resolved Phase 2.4** (29 Apr 2026). Existing `HMRCClient.get_annual_summary` / `update_annual_summary` now have full test coverage. New clean route family at `/api/hmrc/annual-submission/<tax_year>` (GET, PUT, POST/DELETE draft) with auth, connection guard and two-phase write. Annual Submission panel with three accordion sections (allowances, adjustments, non-financials) in `templates/settings/hmrc.html`. 64 dedicated tests.
 5. The UI does not yet drive `intent-to-amend` / `confirm-amendment` flow even though the API client supports it. HMRC will want to see this work end-to-end.
 
-**Estimated effort to close all gaps:** ~1.5–3 dev days for code + UI
-(after Phase 2.3), plus 1 day for sandbox test runs and screenshot capture.
+**Estimated effort to close all gaps:** ~1–2 dev days for code + UI
+(after Phase 2.4 — only A9 `intent-to-amend` UI remains as a hard
+gap), plus 1 day for sandbox test runs and screenshot capture.
 
 We can answer Yes to the everyday flow (auth, fraud headers, period
 submit, calculation, final declaration with statement + checkbox, lock,
@@ -275,8 +292,17 @@ This question has **three** sub-confirmations:
 **Suggested answer:** **Yes**
 
 ### EOY3 — Submit allowances and adjustments per business source (Annual Submission)
-**Status:** ⚠️ Code exists but untested — `update_annual_summary` PUT to `/individuals/business/self-employment/{nino}/{businessId}/annual/{taxYear}` (`hmrc_client.py:430-444`), wired to `api_hmrc.py:1151-1225`. UI: no dedicated page yet. Cash-basis sole traders frequently submit zero allowances, but the endpoint must demonstrably work.
-**Suggested answer:** **Yes — but pending sandbox evidence.** *Comments:* "PUT Annual Submission endpoint implemented (`HMRCClient.update_annual_summary`). Sandbox test required before form submission. Trading allowance / adjustments UI to be added (Action Plan A6)."
+**Status:** ✅ **Resolved (Phase 2.4, 29 Apr 2026)**
+
+**Evidence:**
+- `HMRCClient.get_annual_summary` GETs `/individuals/business/self-employment/{nino}/{businessId}/annual/{taxYear}` (`@/Users/danielhanson/CascadeProjects/Wages-App/app/services/hmrc_client.py:648-661`).
+- `HMRCClient.update_annual_summary` PUTs the same endpoint with the verbatim `{adjustments, allowances, nonFinancials}` payload (`@/Users/danielhanson/CascadeProjects/Wages-App/app/services/hmrc_client.py:663-677`).
+- New clean route family with auth + connection guard + two-phase write: `GET/PUT /api/hmrc/annual-submission/<tax_year>` plus `POST/DELETE /api/hmrc/annual-submission/<tax_year>/draft` (`@/Users/danielhanson/CascadeProjects/Wages-App/app/routes/api_hmrc.py:2871-3138`). HMRC failures (4xx/5xx) explicitly leave the local cache untouched. Legacy `/api/hmrc/self-employment/annual-summary` route (`api_hmrc.py:1417-1491`) retained for backwards compatibility, audit comment in source explains why.
+- Lightweight cache: `@/Users/danielhanson/CascadeProjects/Wages-App/app/services/hmrc_annual_submission_cache.py` persists draft + last-submitted state in the existing `settings` table keyed by `hmrc_annual_draft_<business_id>_<tax_year>` and `hmrc_annual_last_<business_id>_<tax_year>`. No new migration. Both keys coexist so the user can edit a fresh draft without losing the last-submitted reference.
+- UI: `#annCard` panel in `@/Users/danielhanson/CascadeProjects/Wages-App/templates/settings/hmrc.html` — plain-English helper text ("cash basis" / "mandatory"), tax-year selector, last-submitted timestamp, draft badge with age, three Bootstrap accordion sections (Allowances — 7 numeric fields; Adjustments — 9 numeric fields; Non-Financials — `businessDetailsChangedRecently` checkbox + `class4NicsExemptionReason` dropdown with all 6 HMRC-defined codes). All numeric inputs are `type=number step=0.01 min=0 value=0`. Save Draft / Discard Draft / Submit to HMRC buttons with `confirm()` prompts on the latter two. Driven by `@/Users/danielhanson/CascadeProjects/Wages-App/static/js/hmrc-annual-submission.js` (`window.HMRCAnnualSubmission = { load, saveDraft, discardDraft, submit }`), styled by `@/Users/danielhanson/CascadeProjects/Wages-App/static/css/hmrc-annual-submission.css` (Bootstrap variables only — no hex, no `!important`, no inline styles).
+- Tests: 64 dedicated tests across `tests/sync/test_hmrc_annual_submission_routes.py` (41 = 13 client + 21 route + 7 cache helper) and `tests/sync/test_annual_submission_ui.py` (23). Covers OAuth + fraud headers, sandbox/production URL switching, 4xx/5xx/timeout/missing-token paths, two-phase write no-corruption guarantee, draft + last-submitted key isolation, HMRC 404 surfaced as success+null (so UI can start fresh), all 16 numeric input attribute combinations, accordion wiring, and CSS rule compliance.
+
+**Suggested answer:** **Yes** — *Comments:* "PUT Annual Submission endpoint exercised end-to-end via the new UI panel. Sandbox test logs and screenshot of the Annual Submission panel attached."
 
 ### EOY4 — BSAS endpoints (per business source) plus List + Trigger
 **Status:** ⚠️ Partial — `trigger_bsas` (`hmrc_client.py:586-620`) and `get_bsas_summary` (`hmrc_client.py:622-640`) implemented and routed (`api_hmrc.py:1723-1818`). **List** BSAS and **Submit BSAS adjustments** not implemented; the checklist says "all endpoints for each business source supported, plus List and Trigger". List BSAS is missing.
@@ -390,7 +416,7 @@ Effort guide: `XS=<1h, S=2-4h, M=1d, L=2-3d`.
 | ~~**A3**~~ | ~~Implement Cumulative Period Summary endpoints on `HMRCClient` and route in `api_hmrc.py`.~~ ✅ **Done** Phase 2.1 (28 Apr 2026). New `submit_cumulative_period` / `get_cumulative_period` client methods, new `POST/GET /api/hmrc/period/cumulative/<tax_year>` routes (with `?preview=1`), `hmrc_cumulative_calculator.py`, panel UI in `templates/settings/hmrc.html`, 49 tests. Legacy `POST /period` retained for backwards compatibility. | ~~M~~ | ~~Yes~~ ✅ |
 | ~~**A4**~~ | ~~Implement Periods of Account endpoints (Business Details API v2.0): Retrieve, Create, Update. Add minimal admin UI.~~ ✅ **Done** Phase 2.2 (29 Apr 2026). Full Retrieve / Create / Update / Delete on `HMRCClient`, full route family at `/api/hmrc/period-of-account/<tax_year>` and `/api/hmrc/periods-of-account`, `periods_of_account_service` with soft delete, migration 010, two-phase write contract (HMRC → local), Period of Account panel in `templates/settings/hmrc.html`, 102 tests. | ~~M~~ | ~~Yes~~ ✅ |
 | ~~**A5**~~ | ~~Implement Late Accounting Date Rule (Business Details API v2.0): Retrieve, Disapply, Withdraw.~~ ✅ **Done** Phase 2.3 (29 Apr 2026). Full Retrieve / Disapply / Withdraw on `HMRCClient`, route family at `/api/hmrc/late-accounting-date-rule/<tax_year>` and `/disapply`, lightweight cache via `hmrc_ladr_cache.py` in the existing `settings` table (no migration), two-phase write contract (HMRC → cache), LADR panel in `templates/settings/hmrc.html`, 83 tests. | ~~S~~ | ~~Yes~~ ✅ |
-| **A6** | Implement Annual Submission UI (allowances + adjustments — typically zero for cash-basis sole trader, but must demonstrate the call). | S | Yes (so we can answer Yes truthfully on EOY3) |
+| ~~**A6**~~ | ~~Implement Annual Submission UI (allowances + adjustments — typically zero for cash-basis sole trader, but must demonstrate the call).~~ ✅ **Done** Phase 2.4 (29 Apr 2026). Full test coverage of existing `HMRCClient.get_annual_summary` / `update_annual_summary`. New clean route family at `/api/hmrc/annual-submission/<tax_year>` (GET, PUT, POST/DELETE draft) with auth + connection guard + two-phase write. Draft + last-submitted cache via `hmrc_annual_submission_cache.py` in the existing `settings` table (no migration). Annual Submission panel with three accordion sections in `templates/settings/hmrc.html`, 64 tests. | ~~S~~ | ~~Yes~~ ✅ |
 | **A7** | Add List BSAS and Submit BSAS adjustments endpoints + sandbox test. The Phase 2.1 cumulative work established the submission-record + lock pattern these will reuse, so this is now a smaller change than originally estimated. | S | Yes (EOY4) |
 | **A8** | Add Retrieve/Amend/Delete brought-forward loss endpoints to satisfy "all endpoints" requirement. | S | Yes (EOY5) |
 | **A9** | UI affordance to drive `intent-to-amend` calculation and `confirm-amendment` final declaration. Backend already supports both. | S | Yes (EOY6, EOY10) |
@@ -407,6 +433,8 @@ Effort guide: `XS=<1h, S=2-4h, M=1d, L=2-3d`.
 **Critical-path total (after Phase 2.2, A3+A4 done):** ~1.5-2 dev days for A5+A6+A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~3-3.5 days work** remaining.
 
 **Critical-path total (after Phase 2.3, A3+A4+A5 done):** ~1-1.5 dev days for A6+A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~2.5-3 days work** remaining.
+
+**Critical-path total (after Phase 2.4, A3+A4+A5+A6 done):** ~0.5-1 dev day for A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~2-2.5 days work** remaining.
 
 ---
 
