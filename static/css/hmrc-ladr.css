@@ -1,0 +1,74 @@
+/* HMRC Late Accounting Date Rule panel.
+ * Used on /settings/hmrc - Configuration section, below Periods of Account.
+ *
+ * All colours come from Bootstrap CSS variables so dark mode works and
+ * the panel matches the rest of the app. No hardcoded hex values, no
+ * forced overrides, and no inline styles in the template.
+ */
+
+.ladr-card {
+    border-left: 4px solid var(--bs-secondary);
+    border-radius: var(--bs-border-radius, 0.5rem);
+}
+
+.ladr-helper-text {
+    font-size: 0.95rem;
+}
+
+.ladr-summary {
+    background-color: var(--bs-tertiary-bg, var(--bs-light));
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius, 0.5rem);
+    padding: 1rem;
+}
+
+.ladr-summary-label {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color, var(--bs-body-secondary));
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.125rem;
+}
+
+.ladr-summary-value {
+    font-size: 1rem;
+    color: var(--bs-body-color);
+}
+
+/* Status badge - 3 variants. JS swaps the modifier class on .ladr-status-badge. */
+.ladr-status-badge {
+    font-size: 0.875rem;
+    padding: 0.4rem 0.75rem;
+    border: 1px solid var(--bs-border-color);
+}
+
+.ladr-status-badge.ladr-status-applied {
+    background-color: var(--bs-success-bg-subtle, var(--bs-success));
+    color: var(--bs-success-text-emphasis, var(--bs-body-color));
+}
+
+.ladr-status-badge.ladr-status-disapplied {
+    background-color: var(--bs-warning-bg-subtle, var(--bs-warning));
+    color: var(--bs-warning-text-emphasis, var(--bs-body-color));
+}
+
+.ladr-status-badge.ladr-status-unknown {
+    background-color: var(--bs-secondary-bg-subtle, var(--bs-secondary-bg));
+    color: var(--bs-secondary-text-emphasis, var(--bs-body-color));
+}
+
+.ladr-stale-badge {
+    background-color: var(--bs-info-bg-subtle, var(--bs-info));
+    color: var(--bs-info-text-emphasis, var(--bs-body-color));
+    border: 1px solid var(--bs-border-color);
+    font-size: 0.75rem;
+}
+
+/* 44px touch-target rule for mobile. */
+.ladr-action-btn {
+    min-height: 44px;
+}
+
+#ladrResult.alert {
+    margin-bottom: 0;
+}

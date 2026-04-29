@@ -180,6 +180,71 @@
         </div>
     </div>
 
+    <!-- Late Accounting Date Rule Card (Business Details API v2.0) -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card settings-card mb-4 ladr-card" id="ladrCard">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-balance-scale"></i> Late Accounting Date Rule
+                    </h5>
+                    <p class="text-muted ladr-helper-text">
+                        The Late Accounting Date Rule applies if your accounting
+                        period ends after 5 April. For most sole traders with a
+                        tax-year aligned period (6 April&ndash;5 April), this rule
+                        does not apply and no action is needed.
+                    </p>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-4">
+                            <label for="ladrTaxYearSelect" class="form-label">Tax Year</label>
+                            <select class="form-select" id="ladrTaxYearSelect">
+                                <option value="2024-25">2024-25</option>
+                                <option value="2025-26" selected>2025-26</option>
+                                <option value="2026-27">2026-27</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Current status summary -->
+                    <div id="ladrSummary" class="ladr-summary mb-3" aria-live="polite">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-md-4">
+                                <div class="ladr-summary-label">Status</div>
+                                <span class="badge ladr-status-badge ladr-status-unknown" id="ladrStatusBadge">Unknown</span>
+                            </div>
+                            <div class="col-12 col-md-5">
+                                <div class="ladr-summary-label">Last synced</div>
+                                <div class="ladr-summary-value">
+                                    <span id="ladrLastSynced">&mdash;</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <span class="badge ladr-stale-badge d-none" id="ladrStaleBadge">
+                                    <i class="fas fa-cloud-arrow-down"></i> Stale (cached)
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="ladrResult" class="d-none mb-3" aria-live="polite"></div>
+
+                    <div class="d-grid gap-2 d-md-flex">
+                        <button type="button" class="btn btn-outline-primary ladr-action-btn" id="ladrRefreshBtn">
+                            <i class="fas fa-sync"></i> Refresh from HMRC
+                        </button>
+                        <button type="button" class="btn btn-warning ladr-action-btn d-none" id="ladrDisapplyBtn" disabled>
+                            <i class="fas fa-ban"></i> Disapply Rule
+                        </button>
+                        <button type="button" class="btn btn-success ladr-action-btn d-none" id="ladrWithdrawBtn" disabled>
+                            <i class="fas fa-undo"></i> Withdraw Disapplication
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Tabs for Obligations and Submissions -->
     <div class="row">
         <div class="col-12">
@@ -881,11 +946,13 @@
 {% block extra_css %}
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-cumulative.css') }}?v={{ range(1000, 9999) | random }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-periods-of-account.css') }}?v={{ range(1000, 9999) | random }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-ladr.css') }}?v={{ range(1000, 9999) | random }}">
 {% endblock %}
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/hmrc-fraud-headers.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hmrc-cumulative.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hmrc-periods-of-account.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hmrc-ladr.js') }}"></script>
 <script src="{{ url_for('static', filename='js/settings-hmrc.js') }}"></script>
 {% endblock %}
