@@ -117,6 +117,8 @@ class HMRCClient:
                 if data:
                     logger.info(f'Annual submission payload: {json.dumps(data, indent=2)}')
                 response = requests.put(url, headers=headers, json=data, timeout=30)
+            elif method == 'DELETE':
+                response = requests.delete(url, headers=headers, params=params, timeout=30)
             else:
                 logger.error(f"Unsupported HTTP method: {method}")
                 return {'success': False, 'error': f'Unsupported method: {method}'}
@@ -253,7 +255,87 @@ class HMRCClient:
         endpoint = f"/individuals/business/details/{nino}/{business_id}/quarterly-period-type"
         data = {'quarterlyPeriodType': period_type}
         return self._make_request('PUT', endpoint, data=data)
-    
+
+    # ------------------------------------------------------------------
+    # Periods of Account (Business Details API v2.0)
+    # ------------------------------------------------------------------
+    # A "Period of Account" is the accounting period the trader uses for
+    # the given tax year. For a standard tax-year-aligned sole trader
+    # this is 6 April YYYY -> 5 April YYYY+1; non-standard traders may
+    # declare a different window (e.g. April->March).
+    #
+    # HMRC URL family:
+    #   POST   /individuals/business/details/{nino}/{businessId}/periods-of-account
+    #   GET    /individuals/business/details/{nino}/{businessId}/periods-of-account
+    #   PUT    /individuals/business/details/{nino}/{businessId}/periods-of-account/{periodId}
+    #   DELETE /individuals/business/details/{nino}/{businessId}/periods-of-account/{periodId}
+
+    def create_period_of_account(self, nino, business_id, period_data):
+        """
+        POST a new Period of Account to HMRC.
+
+        Args:
+            nino: National Insurance Number
+            business_id: Business ID from HMRC (e.g. 'XAIS12345678901')
+            period_data: dict with at minimum 'startDate' and 'endDate'
+                in ISO YYYY-MM-DD format.
+
+        Returns:
+            dict: ``_make_request`` result envelope. On success ``data``
+            typically contains the HMRC-assigned ``periodId``.
+        """
+        endpoint = (
+            f"/individuals/business/details/{nino}/{business_id}"
+            f"/periods-of-account"
+        )
+        return self._make_request('POST', endpoint, data=period_data)
+
+    def list_periods_of_account(self, nino, business_id):
+        """
+        GET the list of Periods of Account currently registered with HMRC
+        for the given business.
+
+        Returns:
+            dict: ``_make_request`` result envelope. ``data`` matches the
+            HMRC schema (collection of period entries).
+        """
+        endpoint = (
+            f"/individuals/business/details/{nino}/{business_id}"
+            f"/periods-of-account"
+        )
+        return self._make_request('GET', endpoint)
+
+    def update_period_of_account(self, nino, business_id, period_id, period_data):
+        """
+        PUT an update to an existing Period of Account.
+
+        Args:
+            nino: National Insurance Number
+            business_id: Business ID from HMRC
+            period_id: HMRC-assigned period identifier
+            period_data: dict with the new 'startDate' and/or 'endDate'.
+        """
+        endpoint = (
+            f"/individuals/business/details/{nino}/{business_id}"
+            f"/periods-of-account/{period_id}"
+        )
+        return self._make_request('PUT', endpoint, data=period_data)
+
+    def delete_period_of_account(self, nino, business_id, period_id):
+        """
+        DELETE a Period of Account from HMRC.
+
+        Returns:
+            dict: ``_make_request`` result envelope. HMRC typically
+            returns 204 No Content; the envelope's ``data`` is therefore
+            an empty dict on success.
+        """
+        endpoint = (
+            f"/individuals/business/details/{nino}/{business_id}"
+            f"/periods-of-account/{period_id}"
+        )
+        return self._make_request('DELETE', endpoint)
+
     def get_business_list(self, nino):
         """
         Get list of self-employment businesses for a NINO.
