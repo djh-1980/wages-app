@@ -2582,6 +2582,292 @@ def delete_period_of_account_route(tax_year):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# Late Accounting Date Rule (Business Details API v2.0)
+# ---------------------------------------------------------------------------
+# Two-phase write pattern:
+#   1. Call HMRC client first (HMRC is the source of truth).
+#   2. Only update the local cache after HMRC confirms success.
+#   3. If HMRC fails, surface the error and leave the cache unchanged.
+#
+# The cache lives in the ``settings`` table keyed by
+# ``hmrc_ladr_<business_id>_<tax_year>`` - see app/services/hmrc_ladr_cache.py.
+
+@hmrc_bp.route('/late-accounting-date-rule/<tax_year>', methods=['GET'])
+@limiter.limit("60 per hour", override_defaults=True)
+def get_late_accounting_date_rule_route(tax_year):
+    """
+    Return the current LADR status for ``tax_year``.
+
+    If HMRC is connected and ``nino`` + ``business_id`` are supplied, fetches
+    fresh from HMRC and refreshes the cache. Otherwise serves from cache
+    with a ``stale=True`` flag so the UI can show "last synced X ago".
+
+    Query parameters:
+        nino, business_id - required for a fresh HMRC fetch; optional when
+            serving from cache only.
+    """
+    from ..services import hmrc_ladr_cache as ladr_cache
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        nino = request.args.get('nino')
+        business_id = request.args.get('business_id')
+
+        # If we don't have the identifiers we can only serve the cache.
+        if not (nino and business_id):
+            return jsonify({
+                'success': False,
+                'error': 'nino and business_id are required query parameters',
+            }), 400
+
+        connected = HMRCAuthService().get_connection_status().get('connected')
+
+        # Cache-only path when not connected.
+        if not connected:
+            cached = ladr_cache.get(business_id, tax_year)
+            if cached is None:
+                return jsonify({
+                    'success': False,
+                    'error': (
+                        'Not connected to HMRC and no cached status '
+                        'available for this tax year.'
+                    ),
+                }), 404
+            return jsonify({
+                'success': True,
+                'data': {
+                    'tax_year': tax_year,
+                    'business_id': business_id,
+                    'status': cached.get('status'),
+                    'last_synced_at': cached.get('last_synced_at'),
+                    'hmrc_response': cached.get('hmrc_response'),
+                    'stale': True,
+                    'source': 'cache',
+                },
+            })
+
+        # Connected: fetch fresh.
+        client = HMRCClient()
+        hmrc_result = client.get_late_accounting_date_rule(
+            nino, business_id, tax_year,
+        )
+        if not hmrc_result.get('success'):
+            status_code = hmrc_result.get('status_code') or 502
+            # Fall back to cache on read failure if anything is on file.
+            cached = ladr_cache.get(business_id, tax_year)
+            payload = {
+                'success': False,
+                'error': hmrc_result.get('error', 'HMRC retrieve failed'),
+                'details': hmrc_result.get('details'),
+                'validation_errors': hmrc_result.get('validation_errors'),
+            }
+            if cached is not None:
+                payload['cached'] = {
+                    'status': cached.get('status'),
+                    'last_synced_at': cached.get('last_synced_at'),
+                    'stale': True,
+                }
+            return jsonify(payload), status_code
+
+        # ---- refresh cache ----
+        derived = ladr_cache.derive_status_from_hmrc_data(hmrc_result.get('data'))
+        try:
+            updated = ladr_cache.set(
+                business_id, tax_year, derived,
+                hmrc_response=hmrc_result.get('data'),
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.error(
+                f'HMRC GET LADR succeeded but cache write failed for '
+                f'{business_id}/{tax_year}: {e}', exc_info=True,
+            )
+            updated = {
+                'status': derived,
+                'last_synced_at': None,
+                'hmrc_response': hmrc_result.get('data'),
+            }
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'tax_year': tax_year,
+                'business_id': business_id,
+                'status': updated['status'],
+                'last_synced_at': updated['last_synced_at'],
+                'hmrc_response': updated['hmrc_response'],
+                'stale': False,
+                'source': 'hmrc',
+            },
+        })
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error retrieving LADR: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route(
+    '/late-accounting-date-rule/<tax_year>/disapply', methods=['POST'],
+)
+@limiter.limit("20 per hour", override_defaults=True)
+def disapply_late_accounting_date_rule_route(tax_year):
+    """
+    Disapply the Late Accounting Date Rule for ``tax_year`` (opt out).
+
+    Request JSON: ``{'nino': ..., 'business_id': ...}``
+
+    Two-phase write: PUTs to HMRC first, only updates the cache after HMRC
+    confirms.
+    """
+    from ..services import hmrc_ladr_cache as ladr_cache
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        guard = _require_hmrc_connected()
+        if guard is not None:
+            return guard
+
+        data = request.get_json(silent=True) or {}
+        nino = data.get('nino')
+        business_id = data.get('business_id')
+        if not (nino and business_id):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: nino and business_id',
+            }), 400
+
+        # ---- Phase 1: HMRC ----
+        client = HMRCClient()
+        hmrc_result = client.disapply_late_accounting_date_rule(
+            nino, business_id, tax_year,
+        )
+        if not hmrc_result.get('success'):
+            status_code = hmrc_result.get('status_code') or 502
+            return jsonify({
+                'success': False,
+                'error': hmrc_result.get('error', 'HMRC disapply failed'),
+                'details': hmrc_result.get('details'),
+                'validation_errors': hmrc_result.get('validation_errors'),
+            }), status_code
+
+        # ---- Phase 2: cache ----
+        try:
+            updated = ladr_cache.set(
+                business_id, tax_year, ladr_cache.STATUS_DISAPPLIED,
+                hmrc_response=hmrc_result.get('data'),
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.error(
+                f'HMRC disapply LADR succeeded but cache write failed for '
+                f'{business_id}/{tax_year}: {e}', exc_info=True,
+            )
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Disapplication was registered with HMRC, but the local '
+                    'cache could not be updated.'
+                ),
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'tax_year': tax_year,
+                'business_id': business_id,
+                'status': updated['status'],
+                'last_synced_at': updated['last_synced_at'],
+            },
+        })
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error disapplying LADR: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route(
+    '/late-accounting-date-rule/<tax_year>/disapply', methods=['DELETE'],
+)
+@limiter.limit("20 per hour", override_defaults=True)
+def withdraw_late_accounting_date_rule_disapplication_route(tax_year):
+    """
+    Withdraw a previous disapplication of the LADR (re-apply the rule).
+
+    Request JSON or query: ``{'nino': ..., 'business_id': ...}``
+    """
+    from ..services import hmrc_ladr_cache as ladr_cache
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        guard = _require_hmrc_connected()
+        if guard is not None:
+            return guard
+
+        data = request.get_json(silent=True) or {}
+        nino = data.get('nino') or request.args.get('nino')
+        business_id = data.get('business_id') or request.args.get('business_id')
+        if not (nino and business_id):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: nino and business_id',
+            }), 400
+
+        # ---- Phase 1: HMRC ----
+        client = HMRCClient()
+        hmrc_result = client.withdraw_late_accounting_date_rule_disapplication(
+            nino, business_id, tax_year,
+        )
+        if not hmrc_result.get('success'):
+            status_code = hmrc_result.get('status_code') or 502
+            return jsonify({
+                'success': False,
+                'error': hmrc_result.get('error', 'HMRC withdraw failed'),
+                'details': hmrc_result.get('details'),
+                'validation_errors': hmrc_result.get('validation_errors'),
+            }), status_code
+
+        # ---- Phase 2: cache ----
+        try:
+            updated = ladr_cache.set(
+                business_id, tax_year, ladr_cache.STATUS_APPLIED,
+                hmrc_response=hmrc_result.get('data'),
+            )
+        except Exception as e:  # noqa: BLE001
+            logger.error(
+                f'HMRC withdraw LADR succeeded but cache write failed for '
+                f'{business_id}/{tax_year}: {e}', exc_info=True,
+            )
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Withdrawal was registered with HMRC, but the local '
+                    'cache could not be updated.'
+                ),
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'tax_year': tax_year,
+                'business_id': business_id,
+                'status': updated['status'],
+                'last_synced_at': updated['last_synced_at'],
+            },
+        })
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error withdrawing LADR disapplication: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @hmrc_bp.route('/export')
 @limiter.limit("10 per hour", override_defaults=True)
 def export_data():
