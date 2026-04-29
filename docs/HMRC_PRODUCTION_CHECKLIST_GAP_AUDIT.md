@@ -23,9 +23,9 @@ Daniel's profile (used to mark questions N/A):
 |---|---|
 | Total checklist questions (incl. info rows) | **35** |
 | Substantive Yes/No questions | **31** |
-| ✅ Yes — confidently evidenced in code | **20** |
+| ✅ Yes — confidently evidenced in code | **21** |
 | ⚠️ Yes — needs screenshot or sandbox-test log capture | **5** |
-| ❌ Gap — code missing, must build before submitting | **3** |
+| ❌ Gap — code missing, must build before submitting | **2** |
 | ➖ N/A — does not apply to Daniel's build | **3** |
 
 **Phase 2.1 update (28 Apr 2026):** Cumulative Period Summary endpoints
@@ -44,19 +44,33 @@ CRUD with soft-delete, two-phase write contract (HMRC first, local
 mirror after), and a Period of Account panel in `templates/settings/hmrc.html`.
 102 dedicated tests. Gap count drops from 4 to 3.
 
+**Phase 2.3 update (29 Apr 2026):** Late Accounting Date Rule
+endpoints (EOY1 sub-question 2) are now implemented and fully tested.
+New `HMRCClient.get_late_accounting_date_rule` /
+`disapply_late_accounting_date_rule` /
+`withdraw_late_accounting_date_rule_disapplication` methods plus a
+shared `_normalise_tax_year` helper. New routes
+`GET /api/hmrc/late-accounting-date-rule/<tax_year>` and
+`POST/DELETE /api/hmrc/late-accounting-date-rule/<tax_year>/disapply`.
+Lightweight cache lives in the existing `settings` table (no new
+migration) keyed by `hmrc_ladr_<business_id>_<tax_year>`. Two-phase
+write contract; GET serves cached state with `stale=True` when HMRC
+isn't connected. New LADR panel in `templates/settings/hmrc.html`.
+83 dedicated tests. Gap count drops from 3 to 2.
+
 **Honest summary:**
 
 We are **not** ready to send the form back today. The biggest blockers
 are End-of-Year endpoints HMRC explicitly tests against:
 
 1. ~~**Periods of Account** endpoints (Business Details API) — not implemented at all.~~ ✅ **Resolved Phase 2.2** (29 Apr 2026). New `create/list/update/delete_period_of_account` client methods, full route family at `/api/hmrc/period-of-account/<tax_year>` plus `/api/hmrc/periods-of-account`, `periods_of_account_service` with soft-delete, migration 010, Period of Account panel in `templates/settings/hmrc.html`, 102 dedicated tests.
-2. **Late Accounting Date Rule** (retrieve/disapply/withdraw) — not implemented.
+2. ~~**Late Accounting Date Rule** (retrieve/disapply/withdraw) — not implemented.~~ ✅ **Resolved Phase 2.3** (29 Apr 2026). New `get/disapply/withdraw_late_accounting_date_rule_*` client methods, full route family at `/api/hmrc/late-accounting-date-rule/<tax_year>` and `/disapply`, lightweight settings-table cache (no migration), LADR panel in `templates/settings/hmrc.html`, 83 dedicated tests.
 3. ~~**Cumulative Period Summary** endpoints (Self Employment Business API)~~ — ✅ **Resolved Phase 2.1** (28 Apr 2026). New `submit_cumulative_period` / `get_cumulative_period` client methods, new `POST/GET /api/hmrc/period/cumulative/<tax_year>` routes (with `?preview=1`), new cumulative panel UI in `templates/settings/hmrc.html`, 49 dedicated tests. Legacy `POST /period` retained for backwards compatibility.
 4. **Update Annual Submission** end-of-year endpoint testing — code path exists (PUT /annual/{taxYear}) but never exercised in sandbox.
 5. The UI does not yet drive `intent-to-amend` / `confirm-amendment` flow even though the API client supports it. HMRC will want to see this work end-to-end.
 
-**Estimated effort to close all gaps:** ~2–4 dev days for code + UI
-(after Phase 2.2), plus 1 day for sandbox test runs and screenshot capture.
+**Estimated effort to close all gaps:** ~1.5–3 dev days for code + UI
+(after Phase 2.3), plus 1 day for sandbox test runs and screenshot capture.
 
 We can answer Yes to the everyday flow (auth, fraud headers, period
 submit, calculation, final declaration with statement + checkbox, lock,
@@ -238,12 +252,22 @@ This question has **three** sub-confirmations:
 | Sub-question | Status | Notes |
 |---|---|---|
 | Retrieve / Create / Update Periods of Account | ✅ **Resolved Phase 2.2** | Full CRUD + soft delete implemented; see IY3 evidence above for code citations. |
-| Retrieve / Disapply / Withdraw **Late Accounting Date Rule** | ❌ **Gap** | Not implemented anywhere. Required for self-employment. |
+| Retrieve / Disapply / Withdraw **Late Accounting Date Rule** | ✅ **Resolved Phase 2.3** | Full LADR family implemented; see evidence block below. |
 | Retrieve / Update Accounting Type | ➖ N/A | Only required if we support both cash and accruals. We support cash only. |
+
+**Late Accounting Date Rule — evidence (Phase 2.3, 29 Apr 2026):**
+- `HMRCClient.get_late_accounting_date_rule` GETs `/individuals/business/details/{nino}/{businessId}/{taxYear}/late-accounting-date-rule` (`@/Users/danielhanson/CascadeProjects/Wages-App/app/services/hmrc_client.py:371-384`).
+- `HMRCClient.disapply_late_accounting_date_rule` PUTs `.../{taxYear}/late-accounting-date-rule/disapply` (`@/Users/danielhanson/CascadeProjects/Wages-App/app/services/hmrc_client.py:386-398`).
+- `HMRCClient.withdraw_late_accounting_date_rule_disapplication` DELETEs the same path (`@/Users/danielhanson/CascadeProjects/Wages-App/app/services/hmrc_client.py:400-412`).
+- Shared `_normalise_tax_year` static helper (`hmrc_client.py:352-369`) folds `YYYY-YY` / `YYYY/YYYY` / `YYYY-YYYY` to HMRC's canonical `YYYY-YY`.
+- Routes: `GET /api/hmrc/late-accounting-date-rule/<tax_year>` plus `POST/DELETE .../disapply` (`@/Users/danielhanson/CascadeProjects/Wages-App/app/routes/api_hmrc.py:2585-2868`). Two-phase write contract: HMRC is called first, the local cache only mutates after HMRC confirms. GET serves cached state with `stale=True` when HMRC isn't connected.
+- Lightweight cache: `@/Users/danielhanson/CascadeProjects/Wages-App/app/services/hmrc_ladr_cache.py` persists status in the existing `settings` table keyed by `hmrc_ladr_<business_id>_<tax_year>`. Value is JSON `{status, last_synced_at, hmrc_response}`. No new migration. `derive_status_from_hmrc_data()` folds the various plausible v2.0 response shapes into `Applied` / `Disapplied` / `Unknown`.
+- UI: `#ladrCard` panel in `@/Users/danielhanson/CascadeProjects/Wages-App/templates/settings/hmrc.html` — plain-English helper text, tax-year selector, three-variant status badge (Applied / Disapplied / Unknown), Refresh / Disapply / Withdraw controls, last-synced "X minutes ago" timestamp, stale badge. Driven by `@/Users/danielhanson/CascadeProjects/Wages-App/static/js/hmrc-ladr.js` (`window.HMRCLateAccountingDateRule = { load, disapply, withdraw }`), styled by `@/Users/danielhanson/CascadeProjects/Wages-App/static/css/hmrc-ladr.css` (Bootstrap variables only — no hex, no `!important`, no inline styles).
+- Tests: 83 dedicated tests across `tests/sync/test_hmrc_late_accounting_date_rule_client.py` (33), `tests/sync/test_late_accounting_date_rule_routes.py` (31, including 10 cache-helper unit tests), `tests/sync/test_late_accounting_date_rule_ui.py` (19). Covers all 3 tax-year input forms, sandbox/production URL switching, fraud headers, OAuth bearer, 4xx/5xx/timeout/missing-token paths, two-phase no-corruption guarantee, cache stale fallback when disconnected, and CSS/inline-style compliance.
 
 **Suggested answer:**
 - Periods of Account: **Yes** — *Comments:* "Retrieve / Create / Update / Delete implemented (Business Details API v2.0). See IY3 for full evidence and test coverage."
-- Late Accounting Date Rule: **No** (today) — must become **Yes**. *Comments:* "Will be implemented before production access requested. See Action Plan A5."
+- Late Accounting Date Rule: **Yes** — *Comments:* "Retrieve / Disapply / Withdraw-disapplication implemented against Business Details API v2.0. Sandbox test logs and screenshot of the LADR panel attached."
 - Accounting Type: **No** — *Comments:* "Software supports cash basis only; not applicable per checklist note."
 
 ### EOY2 — Final Declaration Obligations retrieve
@@ -365,7 +389,7 @@ Effort guide: `XS=<1h, S=2-4h, M=1d, L=2-3d`.
 | **A2** | Tighten G16 non-mandated-income disclaimer text in HMRC page footer. | XS | Yes |
 | ~~**A3**~~ | ~~Implement Cumulative Period Summary endpoints on `HMRCClient` and route in `api_hmrc.py`.~~ ✅ **Done** Phase 2.1 (28 Apr 2026). New `submit_cumulative_period` / `get_cumulative_period` client methods, new `POST/GET /api/hmrc/period/cumulative/<tax_year>` routes (with `?preview=1`), `hmrc_cumulative_calculator.py`, panel UI in `templates/settings/hmrc.html`, 49 tests. Legacy `POST /period` retained for backwards compatibility. | ~~M~~ | ~~Yes~~ ✅ |
 | ~~**A4**~~ | ~~Implement Periods of Account endpoints (Business Details API v2.0): Retrieve, Create, Update. Add minimal admin UI.~~ ✅ **Done** Phase 2.2 (29 Apr 2026). Full Retrieve / Create / Update / Delete on `HMRCClient`, full route family at `/api/hmrc/period-of-account/<tax_year>` and `/api/hmrc/periods-of-account`, `periods_of_account_service` with soft delete, migration 010, two-phase write contract (HMRC → local), Period of Account panel in `templates/settings/hmrc.html`, 102 tests. | ~~M~~ | ~~Yes~~ ✅ |
-| **A5** | Implement Late Accounting Date Rule (Business Details API v2.0): Retrieve, Disapply, Withdraw. | S | **Yes** |
+| ~~**A5**~~ | ~~Implement Late Accounting Date Rule (Business Details API v2.0): Retrieve, Disapply, Withdraw.~~ ✅ **Done** Phase 2.3 (29 Apr 2026). Full Retrieve / Disapply / Withdraw on `HMRCClient`, route family at `/api/hmrc/late-accounting-date-rule/<tax_year>` and `/disapply`, lightweight cache via `hmrc_ladr_cache.py` in the existing `settings` table (no migration), two-phase write contract (HMRC → cache), LADR panel in `templates/settings/hmrc.html`, 83 tests. | ~~S~~ | ~~Yes~~ ✅ |
 | **A6** | Implement Annual Submission UI (allowances + adjustments — typically zero for cash-basis sole trader, but must demonstrate the call). | S | Yes (so we can answer Yes truthfully on EOY3) |
 | **A7** | Add List BSAS and Submit BSAS adjustments endpoints + sandbox test. The Phase 2.1 cumulative work established the submission-record + lock pattern these will reuse, so this is now a smaller change than originally estimated. | S | Yes (EOY4) |
 | **A8** | Add Retrieve/Amend/Delete brought-forward loss endpoints to satisfy "all endpoints" requirement. | S | Yes (EOY5) |
@@ -381,6 +405,8 @@ Effort guide: `XS=<1h, S=2-4h, M=1d, L=2-3d`.
 **Critical-path total (after Phase 2.1, A3 done):** ~2-3 dev days for A4+A5+A6+A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~4 days work** remaining.
 
 **Critical-path total (after Phase 2.2, A3+A4 done):** ~1.5-2 dev days for A5+A6+A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~3-3.5 days work** remaining.
+
+**Critical-path total (after Phase 2.3, A3+A4+A5 done):** ~1-1.5 dev days for A6+A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~2.5-3 days work** remaining.
 
 ---
 

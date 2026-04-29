@@ -2868,6 +2868,276 @@ def withdraw_late_accounting_date_rule_disapplication_route(tax_year):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+# ---------------------------------------------------------------------------
+# Annual Submission (Self-Employment Business API v5.0)
+# ---------------------------------------------------------------------------
+# Audit (29 Apr 2026): The legacy route at /self-employment/annual-summary
+# (POST/GET above, registered around line 1417) calls the HMRC client but
+# has no auth gate, no connection check, no tax-year normalisation and no
+# tests. It is retained for backwards compatibility, but new UI work talks
+# to the clean RESTful family below, which adds:
+#   - Flask-Login auth required on every route.
+#   - HMRC connection guard on mutating routes.
+#   - Tax-year normalised via HMRCClient._normalise_tax_year before the
+#     URL is built so callers may pass YYYY-YY / YYYY/YYYY / YYYY-YYYY.
+#   - Two-phase write: HMRC PUT first, local cache second; HMRC failures
+#     leave the cache untouched.
+#   - Local 'draft' state in the existing settings table so users can
+#     iterate on numbers before submitting.
+
+@hmrc_bp.route('/annual-submission/<tax_year>', methods=['GET'])
+@limiter.limit("60 per hour", override_defaults=True)
+def get_annual_submission_route(tax_year):
+    """
+    Return the annual submission state for ``tax_year``.
+
+    If HMRC is connected and ``nino`` + ``business_id`` are supplied,
+    fetches fresh from HMRC. Otherwise falls back to the local
+    last-submitted cache (and the draft, if any). Always includes any
+    on-file local draft so the UI can let the user resume editing.
+
+    Query params: ``nino``, ``business_id`` (required for HMRC fetch).
+    """
+    from ..services import hmrc_annual_submission_cache as ann_cache
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        nino = request.args.get('nino')
+        business_id = request.args.get('business_id')
+        if not (nino and business_id):
+            return jsonify({
+                'success': False,
+                'error': 'nino and business_id are required query parameters',
+            }), 400
+
+        draft = ann_cache.get_draft(business_id, tax_year)
+        last = ann_cache.get_last_submitted(business_id, tax_year)
+
+        connected = HMRCAuthService().get_connection_status().get('connected')
+        if not connected:
+            return jsonify({
+                'success': True,
+                'data': {
+                    'tax_year': tax_year,
+                    'business_id': business_id,
+                    'hmrc_data': None,
+                    'last_submitted': last,
+                    'draft': draft,
+                    'stale': True,
+                    'source': 'cache',
+                },
+            })
+
+        client = HMRCClient()
+        hmrc_result = client.get_annual_summary(nino, business_id, tax_year)
+        if not hmrc_result.get('success'):
+            status_code = hmrc_result.get('status_code') or 502
+            # 404 from HMRC just means "no annual submission yet" -
+            # surface that as success with hmrc_data=None so the UI can
+            # let the user start a fresh submission.
+            if status_code == 404:
+                return jsonify({
+                    'success': True,
+                    'data': {
+                        'tax_year': tax_year,
+                        'business_id': business_id,
+                        'hmrc_data': None,
+                        'last_submitted': last,
+                        'draft': draft,
+                        'stale': False,
+                        'source': 'hmrc',
+                    },
+                })
+            return jsonify({
+                'success': False,
+                'error': hmrc_result.get('error', 'HMRC retrieve failed'),
+                'details': hmrc_result.get('details'),
+                'validation_errors': hmrc_result.get('validation_errors'),
+                'last_submitted': last,
+                'draft': draft,
+            }), status_code
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'tax_year': tax_year,
+                'business_id': business_id,
+                'hmrc_data': hmrc_result.get('data'),
+                'last_submitted': last,
+                'draft': draft,
+                'stale': False,
+                'source': 'hmrc',
+            },
+        })
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error retrieving annual submission: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/annual-submission/<tax_year>', methods=['PUT'])
+@limiter.limit("20 per hour", override_defaults=True)
+def submit_annual_submission_route(tax_year):
+    """
+    Submit annual allowances + adjustments + nonFinancials to HMRC.
+
+    Request JSON: ``{nino, business_id, annual_data}``
+
+    ``annual_data`` follows HMRC's schema: top-level keys ``adjustments``,
+    ``allowances`` and (optionally) ``nonFinancials``. The route does
+    NOT manipulate the payload; it forwards verbatim so HMRC's own
+    validation surfaces any errors.
+
+    Two-phase write: HMRC PUT first, local cache second. HMRC failures
+    leave the cache untouched.
+    """
+    from ..services import hmrc_annual_submission_cache as ann_cache
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        guard = _require_hmrc_connected()
+        if guard is not None:
+            return guard
+
+        data = request.get_json(silent=True) or {}
+        nino = data.get('nino')
+        business_id = data.get('business_id')
+        annual_data = data.get('annual_data')
+        if not (nino and business_id):
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: nino and business_id',
+            }), 400
+        if not isinstance(annual_data, dict) or not annual_data:
+            return jsonify({
+                'success': False,
+                'error': 'annual_data must be a non-empty object',
+            }), 400
+
+        # ---- Phase 1: HMRC ----
+        client = HMRCClient()
+        hmrc_result = client.update_annual_summary(
+            nino, business_id, tax_year, annual_data,
+        )
+        if not hmrc_result.get('success'):
+            status_code = hmrc_result.get('status_code') or 502
+            return jsonify({
+                'success': False,
+                'error': hmrc_result.get('error', 'HMRC submission failed'),
+                'details': hmrc_result.get('details'),
+                'validation_errors': hmrc_result.get('validation_errors'),
+            }), status_code
+
+        # ---- Phase 2: cache ----
+        try:
+            stored = ann_cache.set_last_submitted(
+                business_id, tax_year, annual_data,
+                hmrc_response=hmrc_result.get('data'),
+            )
+            # Clear any draft once the values have been accepted by HMRC.
+            ann_cache.clear_draft(business_id, tax_year)
+        except Exception as e:  # noqa: BLE001
+            logger.error(
+                f'HMRC annual submission succeeded but cache write failed '
+                f'for {business_id}/{tax_year}: {e}', exc_info=True,
+            )
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Annual submission was accepted by HMRC but the local '
+                    'last-submitted record could not be saved.'
+                ),
+                'hmrc_data': hmrc_result.get('data'),
+            }), 500
+
+        return jsonify({
+            'success': True,
+            'data': {
+                'tax_year': tax_year,
+                'business_id': business_id,
+                'submitted_at': stored['submitted_at'],
+                'annual_data': annual_data,
+                'hmrc_response': hmrc_result.get('data'),
+            },
+        })
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error submitting annual submission: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/annual-submission/<tax_year>/draft', methods=['POST'])
+@limiter.limit("60 per hour", override_defaults=True)
+def save_annual_submission_draft_route(tax_year):
+    """
+    Save a local draft of the annual submission. Does NOT call HMRC.
+
+    Request JSON: ``{business_id, annual_data}``
+    """
+    from ..services import hmrc_annual_submission_cache as ann_cache
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        data = request.get_json(silent=True) or {}
+        business_id = data.get('business_id')
+        annual_data = data.get('annual_data')
+        if not business_id:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: business_id',
+            }), 400
+        if not isinstance(annual_data, dict):
+            return jsonify({
+                'success': False,
+                'error': 'annual_data must be an object',
+            }), 400
+
+        stored = ann_cache.set_draft(business_id, tax_year, annual_data)
+        return jsonify({'success': True, 'data': stored})
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error saving annual submission draft: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/annual-submission/<tax_year>/draft', methods=['DELETE'])
+@limiter.limit("60 per hour", override_defaults=True)
+def delete_annual_submission_draft_route(tax_year):
+    """Discard a local draft. Does NOT call HMRC."""
+    from ..services import hmrc_annual_submission_cache as ann_cache
+
+    try:
+        from flask_login import current_user
+        if not current_user.is_authenticated:
+            return jsonify({'success': False, 'error': 'Login required'}), 401
+
+        business_id = (
+            (request.get_json(silent=True) or {}).get('business_id')
+            or request.args.get('business_id')
+        )
+        if not business_id:
+            return jsonify({
+                'success': False,
+                'error': 'Missing required field: business_id',
+            }), 400
+
+        ann_cache.clear_draft(business_id, tax_year)
+        return jsonify({'success': True})
+
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error clearing annual submission draft: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @hmrc_bp.route('/export')
 @limiter.limit("10 per hour", override_defaults=True)
 def export_data():
