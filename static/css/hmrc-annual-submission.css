@@ -1,0 +1,84 @@
+/* HMRC Annual Submission panel.
+ * Used on /settings/hmrc - Configuration section, below LADR.
+ *
+ * All colours come from Bootstrap CSS variables so dark mode works and
+ * the panel matches the rest of the app. No hardcoded hex values, no
+ * forced overrides, and no inline styles in the template.
+ */
+
+.ann-card {
+    border-left: 4px solid var(--bs-success);
+    border-radius: var(--bs-border-radius, 0.5rem);
+}
+
+.ann-helper-text {
+    font-size: 0.95rem;
+}
+
+.ann-summary {
+    background-color: var(--bs-tertiary-bg, var(--bs-light));
+    border: 1px solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius, 0.5rem);
+    padding: 1rem;
+}
+
+.ann-summary-label {
+    font-size: 0.75rem;
+    color: var(--bs-secondary-color, var(--bs-body-secondary));
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.125rem;
+}
+
+.ann-summary-value {
+    font-size: 1rem;
+    color: var(--bs-body-color);
+}
+
+.ann-draft-badge {
+    background-color: var(--bs-warning-bg-subtle, var(--bs-warning));
+    color: var(--bs-warning-text-emphasis, var(--bs-body-color));
+    border: 1px solid var(--bs-border-color);
+    font-size: 0.75rem;
+    padding: 0.4rem 0.75rem;
+}
+
+/* Accordion: keep the existing Bootstrap look but add a subtle accent
+ * so the three sections feel grouped under the parent card. */
+.ann-accordion .accordion-item {
+    background-color: var(--bs-body-bg);
+    border: 1px solid var(--bs-border-color);
+}
+
+.ann-accordion .accordion-button {
+    font-weight: 500;
+    background-color: var(--bs-tertiary-bg, var(--bs-light));
+    color: var(--bs-body-color);
+}
+
+.ann-accordion .accordion-button:not(.collapsed) {
+    background-color: var(--bs-success-bg-subtle, var(--bs-success));
+    color: var(--bs-success-text-emphasis, var(--bs-body-color));
+    box-shadow: none;
+}
+
+/* Numeric inputs share the same min height as Bootstrap form-control;
+ * we just bump font-size on small viewports so iOS doesn't auto-zoom. */
+.ann-numeric {
+    font-size: 1rem;
+}
+
+@media (max-width: 768px) {
+    .ann-numeric {
+        font-size: 16px;
+    }
+}
+
+/* 44px touch-target for action buttons (mobile rule). */
+.ann-action-btn {
+    min-height: 44px;
+}
+
+#annResult.alert {
+    margin-bottom: 0;
+}

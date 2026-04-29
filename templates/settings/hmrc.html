@@ -245,6 +245,295 @@
         </div>
     </div>
 
+    <!-- Annual Submission Card (Self-Employment Business API v5.0) -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card settings-card mb-4 ann-card" id="annCard">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-file-invoice"></i> Annual Submission
+                    </h5>
+                    <p class="text-muted ann-helper-text" id="annHelperText">
+                        Annual submission is required at the end of each tax
+                        year. Most sole traders on cash basis submit zeroes for
+                        allowances and adjustments. This is mandatory regardless
+                        of the values.
+                    </p>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-4">
+                            <label for="annTaxYearSelect" class="form-label">Tax Year</label>
+                            <select class="form-select" id="annTaxYearSelect">
+                                <option value="2024-25">2024-25</option>
+                                <option value="2025-26" selected>2025-26</option>
+                                <option value="2026-27">2026-27</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Status row: last submitted + draft age -->
+                    <div class="ann-summary mb-3" aria-live="polite">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-md-6">
+                                <div class="ann-summary-label">Last submitted</div>
+                                <div class="ann-summary-value">
+                                    <span id="annLastSubmittedTimestamp">&mdash;</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <span class="badge ann-draft-badge d-none" id="annDraftBadge">
+                                    <i class="fas fa-pen"></i>
+                                    Draft saved <span id="annDraftAge">&mdash;</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form id="annForm" novalidate>
+                        <div class="accordion ann-accordion" id="annAccordion">
+
+                            <!-- Allowances -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#annAllowancesBody"
+                                            aria-expanded="true"
+                                            aria-controls="annAllowancesBody"
+                                            id="annAllowancesToggle">
+                                        <i class="fas fa-coins me-2"></i> Allowances
+                                    </button>
+                                </h2>
+                                <div id="annAllowancesBody" class="accordion-collapse collapse show"
+                                     data-bs-parent="#annAccordion">
+                                    <div class="accordion-body">
+                                        <p class="text-muted small mb-3">
+                                            Defaults are zero. Most cash-basis sole traders leave these untouched.
+                                        </p>
+                                        <div class="row g-3">
+                                            <div class="col-12 col-md-6">
+                                                <label for="annAnnualInvestmentAllowance" class="form-label">Annual Investment Allowance (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annAnnualInvestmentAllowance"
+                                                       data-section="allowances"
+                                                       data-field="annualInvestmentAllowance"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annCapitalAllowanceMainPool" class="form-label">Capital Allowance (Main Pool) (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annCapitalAllowanceMainPool"
+                                                       data-section="allowances"
+                                                       data-field="capitalAllowanceMainPool"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annCapitalAllowanceSpecialRatePool" class="form-label">Capital Allowance (Special Rate Pool) (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annCapitalAllowanceSpecialRatePool"
+                                                       data-section="allowances"
+                                                       data-field="capitalAllowanceSpecialRatePool"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annZeroEmissionGoodsVehicleAllowance" class="form-label">Zero-Emission Goods Vehicle Allowance (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annZeroEmissionGoodsVehicleAllowance"
+                                                       data-section="allowances"
+                                                       data-field="zeroEmissionGoodsVehicleAllowance"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annBusinessPremisesRenovationAllowance" class="form-label">Business Premises Renovation Allowance (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annBusinessPremisesRenovationAllowance"
+                                                       data-section="allowances"
+                                                       data-field="businessPremisesRenovationAllowance"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annEnhancedCapitalAllowance" class="form-label">Enhanced Capital Allowance (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annEnhancedCapitalAllowance"
+                                                       data-section="allowances"
+                                                       data-field="enhancedCapitalAllowance"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annAllowanceOnSales" class="form-label">Allowance on Sales (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annAllowanceOnSales"
+                                                       data-section="allowances"
+                                                       data-field="allowanceOnSales"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Adjustments -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#annAdjustmentsBody"
+                                            aria-expanded="false"
+                                            aria-controls="annAdjustmentsBody"
+                                            id="annAdjustmentsToggle">
+                                        <i class="fas fa-balance-scale-right me-2"></i> Adjustments
+                                    </button>
+                                </h2>
+                                <div id="annAdjustmentsBody" class="accordion-collapse collapse"
+                                     data-bs-parent="#annAccordion">
+                                    <div class="accordion-body">
+                                        <p class="text-muted small mb-3">
+                                            Defaults are zero. Use these only if HMRC has asked you to declare an adjustment.
+                                        </p>
+                                        <div class="row g-3">
+                                            <div class="col-12 col-md-6">
+                                                <label for="annIncludedNonTaxableProfits" class="form-label">Included Non-Taxable Profits (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annIncludedNonTaxableProfits"
+                                                       data-section="adjustments"
+                                                       data-field="includedNonTaxableProfits"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annBasisAdjustment" class="form-label">Basis Adjustment (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annBasisAdjustment"
+                                                       data-section="adjustments"
+                                                       data-field="basisAdjustment"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annOverlapReliefUsed" class="form-label">Overlap Relief Used (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annOverlapReliefUsed"
+                                                       data-section="adjustments"
+                                                       data-field="overlapReliefUsed"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annAccountingAdjustment" class="form-label">Accounting Adjustment (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annAccountingAdjustment"
+                                                       data-section="adjustments"
+                                                       data-field="accountingAdjustment"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annAveragingAdjustment" class="form-label">Averaging Adjustment (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annAveragingAdjustment"
+                                                       data-section="adjustments"
+                                                       data-field="averagingAdjustment"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annOutstandingBusinessIncome" class="form-label">Outstanding Business Income (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annOutstandingBusinessIncome"
+                                                       data-section="adjustments"
+                                                       data-field="outstandingBusinessIncome"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annBalancingChargeBpra" class="form-label">Balancing Charge (BPRA) (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annBalancingChargeBpra"
+                                                       data-section="adjustments"
+                                                       data-field="balancingChargeBpra"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annBalancingChargeOther" class="form-label">Balancing Charge (Other) (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annBalancingChargeOther"
+                                                       data-section="adjustments"
+                                                       data-field="balancingChargeOther"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annGoodsAndServicesOwnUse" class="form-label">Goods and Services for Own Use (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annGoodsAndServicesOwnUse"
+                                                       data-section="adjustments"
+                                                       data-field="goodsAndServicesOwnUse"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Non-Financials -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#annNonFinancialsBody"
+                                            aria-expanded="false"
+                                            aria-controls="annNonFinancialsBody"
+                                            id="annNonFinancialsToggle">
+                                        <i class="fas fa-clipboard-list me-2"></i> Non-Financials
+                                    </button>
+                                </h2>
+                                <div id="annNonFinancialsBody" class="accordion-collapse collapse"
+                                     data-bs-parent="#annAccordion">
+                                    <div class="accordion-body">
+                                        <div class="form-check mb-3">
+                                            <input type="checkbox" class="form-check-input"
+                                                   id="annBusinessDetailsChangedRecently"
+                                                   data-section="nonFinancials"
+                                                   data-field="businessDetailsChangedRecently">
+                                            <label class="form-check-label" for="annBusinessDetailsChangedRecently">
+                                                Business details changed recently
+                                            </label>
+                                        </div>
+
+                                        <div class="row g-3">
+                                            <div class="col-12 col-md-6">
+                                                <label for="annClass4NicsExemptionReason" class="form-label">Class 4 NICs Exemption Reason</label>
+                                                <select class="form-select"
+                                                        id="annClass4NicsExemptionReason"
+                                                        data-section="nonFinancials"
+                                                        data-field="class4NicsExemptionReason">
+                                                    <option value="">None (not exempt)</option>
+                                                    <option value="non-resident">Non-resident</option>
+                                                    <option value="trustee">Trustee</option>
+                                                    <option value="diver">Diver</option>
+                                                    <option value="ITTOIA-2005">ITTOIA 2005</option>
+                                                    <option value="over-state-pension-age">Over State Pension age</option>
+                                                    <option value="under-16">Under 16</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="annResult" class="d-none mt-3 mb-3" aria-live="polite"></div>
+
+                        <div class="d-grid gap-2 d-md-flex mt-3">
+                            <button type="button" class="btn btn-outline-primary ann-action-btn" id="annSaveDraftBtn">
+                                <i class="fas fa-save"></i> Save Draft
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary ann-action-btn d-none" id="annDiscardDraftBtn">
+                                <i class="fas fa-trash"></i> Discard Draft
+                            </button>
+                            <button type="button" class="btn btn-success ann-action-btn" id="annSubmitBtn">
+                                <i class="fas fa-paper-plane"></i> Submit to HMRC
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Tabs for Obligations and Submissions -->
     <div class="row">
         <div class="col-12">
@@ -947,6 +1236,7 @@
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-cumulative.css') }}?v={{ range(1000, 9999) | random }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-periods-of-account.css') }}?v={{ range(1000, 9999) | random }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-ladr.css') }}?v={{ range(1000, 9999) | random }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-annual-submission.css') }}?v={{ range(1000, 9999) | random }}">
 {% endblock %}
 
 {% block extra_js %}
@@ -954,5 +1244,6 @@
 <script src="{{ url_for('static', filename='js/hmrc-cumulative.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hmrc-periods-of-account.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hmrc-ladr.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hmrc-annual-submission.js') }}"></script>
 <script src="{{ url_for('static', filename='js/settings-hmrc.js') }}"></script>
 {% endblock %}
