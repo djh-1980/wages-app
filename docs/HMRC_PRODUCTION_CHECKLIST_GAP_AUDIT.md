@@ -23,9 +23,9 @@ Daniel's profile (used to mark questions N/A):
 |---|---|
 | Total checklist questions (incl. info rows) | **35** |
 | Substantive Yes/No questions | **31** |
-| ✅ Yes — confidently evidenced in code | **19** |
+| ✅ Yes — confidently evidenced in code | **20** |
 | ⚠️ Yes — needs screenshot or sandbox-test log capture | **5** |
-| ❌ Gap — code missing, must build before submitting | **4** |
+| ❌ Gap — code missing, must build before submitting | **3** |
 | ➖ N/A — does not apply to Daniel's build | **3** |
 
 **Phase 2.1 update (28 Apr 2026):** Cumulative Period Summary endpoints
@@ -33,19 +33,30 @@ Daniel's profile (used to mark questions N/A):
 the cumulative work also lays the groundwork for closing BSAS list/submit
 (EOY4) since both share the same submission-record + lock pattern.
 
+**Phase 2.2 update (29 Apr 2026):** Periods of Account endpoints
+(IY3 / EOY1 sub-question 1) are now implemented and fully tested. New
+`HMRCClient.create_period_of_account` / `list_periods_of_account` /
+`update_period_of_account` / `delete_period_of_account` methods, new
+`POST/GET/PUT/DELETE /api/hmrc/period-of-account/<tax_year>` and
+`GET /api/hmrc/periods-of-account` routes, new `periods_of_account`
+table (migration 010), `periods_of_account_service` providing local
+CRUD with soft-delete, two-phase write contract (HMRC first, local
+mirror after), and a Period of Account panel in `templates/settings/hmrc.html`.
+102 dedicated tests. Gap count drops from 4 to 3.
+
 **Honest summary:**
 
 We are **not** ready to send the form back today. The biggest blockers
 are End-of-Year endpoints HMRC explicitly tests against:
 
-1. **Periods of Account** endpoints (Business Details API) — not implemented at all.
+1. ~~**Periods of Account** endpoints (Business Details API) — not implemented at all.~~ ✅ **Resolved Phase 2.2** (29 Apr 2026). New `create/list/update/delete_period_of_account` client methods, full route family at `/api/hmrc/period-of-account/<tax_year>` plus `/api/hmrc/periods-of-account`, `periods_of_account_service` with soft-delete, migration 010, Period of Account panel in `templates/settings/hmrc.html`, 102 dedicated tests.
 2. **Late Accounting Date Rule** (retrieve/disapply/withdraw) — not implemented.
 3. ~~**Cumulative Period Summary** endpoints (Self Employment Business API)~~ — ✅ **Resolved Phase 2.1** (28 Apr 2026). New `submit_cumulative_period` / `get_cumulative_period` client methods, new `POST/GET /api/hmrc/period/cumulative/<tax_year>` routes (with `?preview=1`), new cumulative panel UI in `templates/settings/hmrc.html`, 49 dedicated tests. Legacy `POST /period` retained for backwards compatibility.
 4. **Update Annual Submission** end-of-year endpoint testing — code path exists (PUT /annual/{taxYear}) but never exercised in sandbox.
 5. The UI does not yet drive `intent-to-amend` / `confirm-amendment` flow even though the API client supports it. HMRC will want to see this work end-to-end.
 
-**Estimated effort to close all gaps:** ~3–5 dev days for code + UI, plus
-1 day for sandbox test runs and screenshot capture.
+**Estimated effort to close all gaps:** ~2–4 dev days for code + UI
+(after Phase 2.2), plus 1 day for sandbox test runs and screenshot capture.
 
 We can answer Yes to the everyday flow (auth, fraud headers, period
 submit, calculation, final declaration with statement + checkbox, lock,
@@ -165,8 +176,18 @@ This is **verbatim** the example wording in the checklist comment column. ✅
 **Suggested answer:** **No** — *Comments:* "Not applicable — software does not support calendar quarters."
 
 ### IY3 — Periods of Account (Retrieve/Create/Update) included in in-year build?
-**Status:** ❌ **Gap** — endpoint not implemented at all (no `period-of-account` references anywhere in `app/`).
-**Suggested answer:** **No** — *Comments:* "Periods of Account endpoints will be exercised at end-of-year (see EOY1 in this checklist), not in-year. Self-employment software."
+**Status:** ✅ **Resolved (Phase 2.2, 29 Apr 2026)**
+
+**Evidence:**
+- `HMRCClient.create_period_of_account` POSTs to `/individuals/business/details/{nino}/{businessId}/periods-of-account` (`@/Users/danielhanson/CascadeProjects/Wages-App/app/services/hmrc_client.py:273-291`).
+- `HMRCClient.list_periods_of_account` (`hmrc_client.py:293-306`), `update_period_of_account` (`hmrc_client.py:308-322`), `delete_period_of_account` (`hmrc_client.py:324-337`) cover the full Business Details API v2.0 family. `_make_request` extended with a DELETE branch.
+- Routes: `POST/GET/PUT/DELETE /api/hmrc/period-of-account/<tax_year>` plus `GET /api/hmrc/periods-of-account` (`@/Users/danielhanson/CascadeProjects/Wages-App/app/routes/api_hmrc.py:2192-2582`). Two-phase write contract: HMRC is called first, the local mirror only mutates after HMRC confirms — HMRC failures (4xx/5xx) leave local state unchanged.
+- Local mirror service: `@/Users/danielhanson/CascadeProjects/Wages-App/app/services/periods_of_account_service.py` exposes `get_for_tax_year`, `list_periods`, `create_standard_period` (idempotent 6 Apr → 5 Apr default), `create_custom_period`, `update_period`, `delete_period` (soft).
+- New table `periods_of_account` with `(business_id, tax_year)` and `(tax_year, deleted_at)` indexes (`@/Users/danielhanson/CascadeProjects/Wages-App/migrations/010_periods_of_account.sql`).
+- UI: `#periodOfAccountCard` panel in `@/Users/danielhanson/CascadeProjects/Wages-App/templates/settings/hmrc.html` — tax-year selector, current-period summary (dates / type badge / HMRC `period_id`), Set Standard / Update / Delete controls and a custom-dates toggle for non-standard periods. Driven by `@/Users/danielhanson/CascadeProjects/Wages-App/static/js/hmrc-periods-of-account.js`, styled by `@/Users/danielhanson/CascadeProjects/Wages-App/static/css/hmrc-periods-of-account.css` (Bootstrap variables only — no hex, no `!important`, no inline styles).
+- Tests: 102 dedicated tests across `tests/sync/test_periods_of_account_service.py` (18), `tests/sync/test_hmrc_periods_of_account_client.py` (35), `tests/sync/test_periods_of_account_routes.py` (33), `tests/sync/test_periods_of_account_ui.py` (16). Mocks the HTTP layer; covers standard + custom periods, soft delete, two-phase write no-corruption guarantee, sandbox/production URL switching, fraud headers, OAuth bearer, 4xx/5xx/timeout, and CSS/inline-style compliance.
+
+**Suggested answer:** **Yes** — *Comments:* "Periods of Account Retrieve / Create / Update / Delete endpoints implemented against Business Details API v2.0. Local mirror persisted in `periods_of_account` table; two-phase write keeps HMRC as the source of truth. Sandbox test logs and screenshot of the Period of Account panel attached."
 
 ### IY4 — Retrieve I&E Obligations
 **Status:** ✅ Confirmed
@@ -216,12 +237,12 @@ This question has **three** sub-confirmations:
 
 | Sub-question | Status | Notes |
 |---|---|---|
-| Retrieve / Create / Update Periods of Account | ❌ **Gap** | Not implemented anywhere. Required for self-employment. |
+| Retrieve / Create / Update Periods of Account | ✅ **Resolved Phase 2.2** | Full CRUD + soft delete implemented; see IY3 evidence above for code citations. |
 | Retrieve / Disapply / Withdraw **Late Accounting Date Rule** | ❌ **Gap** | Not implemented anywhere. Required for self-employment. |
 | Retrieve / Update Accounting Type | ➖ N/A | Only required if we support both cash and accruals. We support cash only. |
 
 **Suggested answer:**
-- Periods of Account: **No** (today) — must become **Yes** before submitting form. *Comments:* "Will be implemented before production access requested. See Action Plan A4."
+- Periods of Account: **Yes** — *Comments:* "Retrieve / Create / Update / Delete implemented (Business Details API v2.0). See IY3 for full evidence and test coverage."
 - Late Accounting Date Rule: **No** (today) — must become **Yes**. *Comments:* "Will be implemented before production access requested. See Action Plan A5."
 - Accounting Type: **No** — *Comments:* "Software supports cash basis only; not applicable per checklist note."
 
@@ -343,7 +364,7 @@ Effort guide: `XS=<1h, S=2-4h, M=1d, L=2-3d`.
 | **A1** | Hide / feature-flag UK & Foreign Property UI (`templates/settings/hmrc.html:170-237`) so the screenshots match the "No property" answer. | XS | Yes |
 | **A2** | Tighten G16 non-mandated-income disclaimer text in HMRC page footer. | XS | Yes |
 | ~~**A3**~~ | ~~Implement Cumulative Period Summary endpoints on `HMRCClient` and route in `api_hmrc.py`.~~ ✅ **Done** Phase 2.1 (28 Apr 2026). New `submit_cumulative_period` / `get_cumulative_period` client methods, new `POST/GET /api/hmrc/period/cumulative/<tax_year>` routes (with `?preview=1`), `hmrc_cumulative_calculator.py`, panel UI in `templates/settings/hmrc.html`, 49 tests. Legacy `POST /period` retained for backwards compatibility. | ~~M~~ | ~~Yes~~ ✅ |
-| **A4** | Implement Periods of Account endpoints (Business Details API v2.0): Retrieve, Create, Update. Add minimal admin UI. | M | **Yes** |
+| ~~**A4**~~ | ~~Implement Periods of Account endpoints (Business Details API v2.0): Retrieve, Create, Update. Add minimal admin UI.~~ ✅ **Done** Phase 2.2 (29 Apr 2026). Full Retrieve / Create / Update / Delete on `HMRCClient`, full route family at `/api/hmrc/period-of-account/<tax_year>` and `/api/hmrc/periods-of-account`, `periods_of_account_service` with soft delete, migration 010, two-phase write contract (HMRC → local), Period of Account panel in `templates/settings/hmrc.html`, 102 tests. | ~~M~~ | ~~Yes~~ ✅ |
 | **A5** | Implement Late Accounting Date Rule (Business Details API v2.0): Retrieve, Disapply, Withdraw. | S | **Yes** |
 | **A6** | Implement Annual Submission UI (allowances + adjustments — typically zero for cash-basis sole trader, but must demonstrate the call). | S | Yes (so we can answer Yes truthfully on EOY3) |
 | **A7** | Add List BSAS and Submit BSAS adjustments endpoints + sandbox test. The Phase 2.1 cumulative work established the submission-record + lock pattern these will reuse, so this is now a smaller change than originally estimated. | S | Yes (EOY4) |
@@ -358,6 +379,8 @@ Effort guide: `XS=<1h, S=2-4h, M=1d, L=2-3d`.
 **Critical-path total (original):** ~3-4 dev days for A3+A4+A5+A6+A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~5 days work** before the form can be returned honestly.
 
 **Critical-path total (after Phase 2.1, A3 done):** ~2-3 dev days for A4+A5+A6+A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~4 days work** remaining.
+
+**Critical-path total (after Phase 2.2, A3+A4 done):** ~1.5-2 dev days for A5+A6+A7+A8+A9 + 1 day for screenshots + 0.5 day for A1/A2/A10/A11 housekeeping = **~3-3.5 days work** remaining.
 
 ---
 
