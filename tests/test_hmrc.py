@@ -21,17 +21,17 @@ import pytest
 
 # Verbatim wording from the MTD IT End to End Service Guide (Individuals).
 # Do NOT paraphrase any of these strings.
-FINAL_DECL_PARAGRAPHS = (
-    'Before you submit your final declaration to HMRC you should ensure '
-    'that the information you are providing is correct and complete. '
-    'A person who knowingly or recklessly makes a false statement, or '
-    'submits a false document, in connection with their tax affairs may '
-    'be liable to financial penalties and/or prosecution.',
-    'I declare that the information I have provided is correct and '
-    'complete to the best of my knowledge and belief.',
-    'By submitting this declaration you are confirming that the '
-    'information given is true and complete. Any false statement may '
-    'result in prosecution.',
+FINAL_DECL_PREAMBLE = (
+    'Before you can submit the information displayed here in response to '
+    'your notice to file from HM Revenue & Customs, you must read and '
+    'agree to the following statement by ticking the box below.'
+)
+
+FINAL_DECL_STATEMENT = (
+    'I declare that the information and tax return I have submitted are '
+    '(taken together) correct and complete to the best of my knowledge. '
+    'I understand that I may have to pay financial penalties and face '
+    'prosecution if I give false information.'
 )
 
 CHECKBOX_LABEL = 'I have read and agreed to the declaration above'
@@ -47,9 +47,12 @@ def test_final_declaration_requires_agreement(auth_client):
     assert response.status_code == 200, response.get_data(as_text=True)[:200]
     body = response.get_data(as_text=True)
 
-    # The full declaration paragraphs must appear byte-for-byte.
-    for para in FINAL_DECL_PARAGRAPHS:
-        assert para in body, f'Missing verbatim declaration paragraph: {para!r}'
+    # The preamble paragraph must appear byte-for-byte (with HTML entity for &).
+    preamble_html = FINAL_DECL_PREAMBLE.replace('&', '&amp;')
+    assert preamble_html in body, f'Missing verbatim preamble: {FINAL_DECL_PREAMBLE!r}'
+
+    # The declaration statement must appear byte-for-byte.
+    assert FINAL_DECL_STATEMENT in body, f'Missing verbatim declaration: {FINAL_DECL_STATEMENT!r}'
 
     # The labelled section heading must be present.
     assert 'Final Declaration Statement' in body
