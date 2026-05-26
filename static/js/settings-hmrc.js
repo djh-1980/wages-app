@@ -50,6 +50,9 @@ function setupEventListeners() {
     // BSAS event listeners
     document.getElementById('triggerBsasBtn').addEventListener('click', triggerBsas);
     document.getElementById('fetchBsasSummaryBtn').addEventListener('click', fetchBsasSummary);
+    document.getElementById('listBsasBtn').addEventListener('click', listBsasSummaries);
+    document.getElementById('submitAdjustmentsBtn').addEventListener('click', submitBsasAdjustments);
+    document.getElementById('cancelAdjustmentsBtn').addEventListener('click', cancelAdjustments);
     
     // Losses event listeners
     document.getElementById('listLossesBtn').addEventListener('click', listLosses);
@@ -1350,6 +1353,178 @@ function displayBsasSummary(data) {
     html += '</div></div>';
     
     container.innerHTML = html;
+}
+
+async function listBsasSummaries() {
+    const nino = hmrcConfig.nino || document.getElementById('ninoInput').value;
+    const taxYear = document.getElementById('bsasListTaxYear').value;
+    const typeOfBusiness = document.getElementById('bsasListBusinessType').value;
+    
+    if (!nino) {
+        showNotification('Please enter your NINO first', 'warning');
+        return;
+    }
+    
+    if (!taxYear) {
+        showNotification('Please enter a tax year', 'warning');
+        return;
+    }
+    
+    const btn = document.getElementById('listBsasBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch(`/api/hmrc/bsas/list/${taxYear}?nino=${nino}&type_of_business=${typeOfBusiness}`);
+        const data = await response.json();
+        
+        console.log('BSAS list response:', data);
+        
+        if (data.success && data.data) {
+            displayBsasList(data.data);
+            showNotification('BSAS summaries loaded successfully', 'success');
+        } else {
+            showNotification('Failed to load BSAS summaries: ' + (data.error || 'Unknown error'), 'danger');
+            document.getElementById('bsasListDisplay').classList.add('d-none');
+        }
+    } catch (error) {
+        console.error('Error listing BSAS summaries:', error);
+        showNotification('Failed to load BSAS summaries', 'danger');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
+}
+
+function displayBsasList(data) {
+    const container = document.getElementById('bsasListDisplay');
+    const tbody = document.getElementById('bsasListTableBody');
+    const summaries = data.summaries || [];
+    
+    console.log('Displaying BSAS list:', summaries);
+    
+    if (summaries.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="text-center text-muted py-3">
+                    <i class="fas fa-inbox"></i> No BSAS summaries found for this tax year
+                </td>
+            </tr>
+        `;
+        container.classList.remove('d-none');
+        return;
+    }
+    
+    let html = '';
+    summaries.forEach(summary => {
+        const calculationId = summary.calculationId || summary.id || 'N/A';
+        const status = summary.status || 'unknown';
+        const type = summary.typeOfBusiness || summary.type || 'N/A';
+        
+        html += '<tr>';
+        html += `<td><code>${calculationId}</code></td>`;
+        html += `<td><span class="badge badge-${status === 'valid' ? 'success' : 'warning'}">${status}</span></td>`;
+        html += `<td>${type}</td>`;
+        html += `<td>
+            <button class="btn btn-sm btn-primary" onclick="selectBsasForAdjustment('${calculationId}')">
+                <i class="fas fa-edit"></i> Adjust
+            </button>
+        </td>`;
+        html += '</tr>';
+    });
+    
+    tbody.innerHTML = html;
+    container.classList.remove('d-none');
+}
+
+function selectBsasForAdjustment(calculationId) {
+    document.getElementById('selectedCalculationId').textContent = calculationId;
+    document.getElementById('bsasAdjustmentsForm').classList.remove('d-none');
+    
+    // Reset form
+    document.getElementById('adjTurnover').value = 0;
+    document.getElementById('adjOtherIncome').value = 0;
+    document.getElementById('adjCostOfGoods').value = 0;
+    document.getElementById('adjAdminCosts').value = 0;
+    document.getElementById('adjPremisesRunningCosts').value = 0;
+    document.getElementById('adjMaintenanceCosts').value = 0;
+    document.getElementById('adjTravelCosts').value = 0;
+    document.getElementById('adjOtherExpenses').value = 0;
+    
+    // Scroll to form
+    document.getElementById('bsasAdjustmentsForm').scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+}
+
+function cancelAdjustments() {
+    document.getElementById('bsasAdjustmentsForm').classList.add('d-none');
+    document.getElementById('selectedCalculationId').textContent = '';
+}
+
+async function submitBsasAdjustments() {
+    const nino = hmrcConfig.nino || document.getElementById('ninoInput').value;
+    const calculationId = document.getElementById('selectedCalculationId').textContent;
+    
+    if (!nino) {
+        showNotification('Please enter your NINO first', 'warning');
+        return;
+    }
+    
+    if (!calculationId) {
+        showNotification('No calculation ID selected', 'warning');
+        return;
+    }
+    
+    // Build adjustments object
+    const adjustments = {
+        income: {
+            turnover: parseFloat(document.getElementById('adjTurnover').value) || 0,
+            other: parseFloat(document.getElementById('adjOtherIncome').value) || 0
+        },
+        expenses: {
+            costOfGoods: parseFloat(document.getElementById('adjCostOfGoods').value) || 0,
+            adminCosts: parseFloat(document.getElementById('adjAdminCosts').value) || 0,
+            premisesRunningCosts: parseFloat(document.getElementById('adjPremisesRunningCosts').value) || 0,
+            maintenanceCosts: parseFloat(document.getElementById('adjMaintenanceCosts').value) || 0,
+            travelCosts: parseFloat(document.getElementById('adjTravelCosts').value) || 0,
+            other: parseFloat(document.getElementById('adjOtherExpenses').value) || 0
+        }
+    };
+    
+    const btn = document.getElementById('submitAdjustmentsBtn');
+    const originalText = btn.innerHTML;
+    btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
+    btn.disabled = true;
+    
+    try {
+        const response = await fetch(`/api/hmrc/bsas/${calculationId}/adjust`, {
+            method: 'POST',
+            headers: getCSRFHeaders(),
+            body: JSON.stringify({
+                nino: nino,
+                adjustments: adjustments
+            })
+        });
+        
+        const data = await response.json();
+        
+        console.log('BSAS adjustments response:', data);
+        
+        if (data.success) {
+            showNotification('BSAS adjustments submitted successfully', 'success');
+            cancelAdjustments();
+            // Refresh the list
+            listBsasSummaries();
+        } else {
+            showNotification('Failed to submit adjustments: ' + (data.error || 'Unknown error'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error submitting BSAS adjustments:', error);
+        showNotification('Failed to submit adjustments', 'danger');
+    } finally {
+        btn.innerHTML = originalText;
+        btn.disabled = false;
+    }
 }
 
 // ============================================================================

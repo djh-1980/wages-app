@@ -872,6 +872,69 @@ class HMRCClient:
         
         return self._make_request('GET', endpoint)
     
+    def list_bsas_summaries(self, nino, tax_year=None, type_of_business='self-employment'):
+        """
+        List all Business Source Adjustable Summaries for a NINO using BSAS API v7.0.
+        
+        Args:
+            nino: National Insurance Number
+            tax_year: Optional tax year filter (e.g., '2024-25')
+            type_of_business: 'self-employment' or 'uk-property', defaults to 'self-employment'
+            
+        Returns:
+            dict: List of BSAS summaries with calculationIds and metadata
+        """
+        endpoint = f"/individuals/self-assessment/adjustable-summary/{nino}"
+        params = {}
+        
+        if tax_year:
+            # Normalize tax year to YYYY-YY format
+            formatted_tax_year = self._normalise_tax_year(tax_year)
+            params['taxYear'] = formatted_tax_year
+        
+        params['typeOfBusiness'] = type_of_business
+        
+        logger.info(f"List BSAS summaries: nino={nino}, tax_year={tax_year}, type={type_of_business}")
+        
+        return self._make_request('GET', endpoint, params=params)
+    
+    def submit_bsas_adjustments(self, nino, calculation_id, adjustments):
+        """
+        Submit accounting adjustments for a self-employment BSAS using BSAS API v7.0.
+        
+        Args:
+            nino: National Insurance Number
+            calculation_id: calculationId from trigger or list response
+            adjustments: dict containing income and expense adjustment fields
+                Example:
+                {
+                    'income': {'turnover': 1000.00, 'other': 500.00},
+                    'expenses': {'costOfGoods': 200.00, 'adminCosts': 100.00}
+                }
+                Only non-zero values should be included.
+            
+        Returns:
+            dict: Submission response
+        """
+        endpoint = f"/individuals/self-assessment/adjustable-summary/{nino}/self-employment/{calculation_id}/adjust"
+        
+        # Filter out zero values from adjustments
+        filtered_adjustments = {}
+        
+        if 'income' in adjustments:
+            filtered_income = {k: v for k, v in adjustments['income'].items() if v != 0}
+            if filtered_income:
+                filtered_adjustments['income'] = filtered_income
+        
+        if 'expenses' in adjustments:
+            filtered_expenses = {k: v for k, v in adjustments['expenses'].items() if v != 0}
+            if filtered_expenses:
+                filtered_adjustments['expenses'] = filtered_expenses
+        
+        logger.info(f"Submit BSAS adjustments: calculation_id={calculation_id}, adjustments={filtered_adjustments}")
+        
+        return self._make_request('POST', endpoint, data=filtered_adjustments)
+    
     def create_loss(self, nino, tax_year, type_of_loss, business_id, loss_amount):
         """
         Create a brought forward loss using Individual Losses API v6.0.

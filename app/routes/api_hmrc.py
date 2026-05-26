@@ -2086,6 +2086,105 @@ def get_bsas_summary(bsas_id):
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@hmrc_bp.route('/bsas/list/<tax_year>')
+@limiter.limit("20 per hour", override_defaults=True)
+def list_bsas_summaries(tax_year):
+    """
+    List all Business Source Adjustable Summaries for a tax year.
+    
+    Path params:
+        tax_year: Tax year (e.g., '2024-25')
+    
+    Query params:
+        nino: National Insurance Number
+        type_of_business: 'self-employment' or 'uk-property' (optional, defaults to 'self-employment')
+    
+    Returns:
+        List of BSAS summaries
+    """
+    try:
+        nino = request.args.get('nino')
+        type_of_business = request.args.get('type_of_business', 'self-employment')
+        
+        if not nino:
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
+        
+        if not tax_year:
+            return jsonify({'success': False, 'error': 'tax_year is required'}), 400
+        
+        if type_of_business not in ['self-employment', 'uk-property']:
+            return jsonify({'success': False, 'error': 'type_of_business must be "self-employment" or "uk-property"'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.list_bsas_summaries(nino, tax_year, type_of_business)
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error listing BSAS summaries: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/bsas/<calculation_id>/adjust', methods=['POST'])
+@limiter.limit("20 per hour", override_defaults=True)
+def submit_bsas_adjustments(calculation_id):
+    """
+    Submit accounting adjustments for a self-employment BSAS.
+    
+    Path params:
+        calculation_id: calculationId from trigger or list response
+    
+    Request body:
+    {
+        "nino": "AA123456A",
+        "adjustments": {
+            "income": {"turnover": 1000.00, "other": 500.00},
+            "expenses": {"costOfGoods": 200.00, "adminCosts": 100.00}
+        }
+    }
+    
+    Returns:
+        Adjustment submission result
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'error': 'Request body is required'}), 400
+        
+        if 'nino' not in data:
+            return jsonify({'success': False, 'error': 'Missing required field: nino'}), 400
+        
+        if 'adjustments' not in data:
+            return jsonify({'success': False, 'error': 'Missing required field: adjustments'}), 400
+        
+        if not calculation_id:
+            return jsonify({'success': False, 'error': 'calculation_id is required'}), 400
+        
+        try:
+            nino = validate_nino(data['nino'])
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.submit_bsas_adjustments(nino, calculation_id, data['adjustments'])
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error submitting BSAS adjustments: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @hmrc_bp.route('/losses/create', methods=['POST'])
 @limiter.limit("20 per hour", override_defaults=True)
 def create_loss():
