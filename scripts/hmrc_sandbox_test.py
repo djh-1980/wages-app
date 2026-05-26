@@ -121,14 +121,15 @@ class HMRCSandboxTester:
 
         logger.info("✓ OAuth access token is valid")
 
-        # Get test NINO from token
-        token_data = self.auth_service.get_token_data()
-        if token_data and 'nino' in token_data:
-            self.test_nino = token_data['nino']
+        # Get test NINO from stored credentials
+        credentials = self.auth_service.get_stored_credentials()
+        if credentials and credentials.get('nino'):
+            self.test_nino = credentials['nino']
             logger.info(f"✓ Test NINO: {self.test_nino}")
         else:
-            logger.warning("No NINO found in token data, will use sandbox test NINO")
-            self.test_nino = 'AA123456A'  # Sandbox test NINO
+            # Use NINO from environment or default sandbox test NINO
+            self.test_nino = os.environ.get('HMRC_TEST_NINO', 'AA123456A')
+            logger.info(f"✓ Using test NINO: {self.test_nino}")
 
         return True
 
