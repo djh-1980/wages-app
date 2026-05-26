@@ -133,6 +133,42 @@ class HMRCSandboxTester:
 
         return True
 
+    def setup_test_business(self):
+        """Create or retrieve test business for sandbox testing."""
+        logger.info("\n--- Setup: Create/Retrieve Test Business ---")
+
+        # First, check if a business already exists
+        result = self.client.get_business_details(self.test_nino)
+        if result.get('success') and result.get('data'):
+            businesses = result['data'].get('businessData', [])
+            if businesses:
+                self.test_business_id = businesses[0].get('businessId')
+                logger.info(f"✓ Found existing business ID: {self.test_business_id}")
+                return True
+
+        # No business exists, create one using sandbox test support API
+        logger.info("No existing business found, creating test business...")
+        result = self.client.create_test_business(self.test_nino)
+
+        self.log_result(
+            f"/test-support/self-assessment/ni/{self.test_nino}/self-employments",
+            "POST",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        # Extract business ID from creation response
+        if result.get('success') and result.get('data'):
+            self.test_business_id = result['data'].get('businessId')
+            if self.test_business_id:
+                logger.info(f"✓ Created test business ID: {self.test_business_id}")
+                return True
+
+        logger.error("Failed to create or retrieve test business")
+        return False
+
     def test_business_details_list(self):
         """Test: GET Business Details - list businesses."""
         logger.info("\n--- Test: List Business Details ---")
@@ -945,35 +981,58 @@ class HMRCSandboxTester:
         logger.info(f"Environment: {self.config.HMRC_ENVIRONMENT}")
         logger.info(f"API Base URL: {self.config.HMRC_API_BASE_URL}")
 
-        # Run tests in order matching Production Approvals Checklist
+        # Setup: Create or retrieve test business first
+        if not self.setup_test_business():
+            logger.error("\nFailed to setup test business. Cannot continue with tests.")
+            return
+
+        # Run tests in correct dependency order:
+        # 1. Business details and obligations
+        # 2. Submit data (cumulative period) BEFORE calculations/BSAS
+        # 3. Annual submission
+        # 4. BSAS (requires submitted data)
+        # 5. Losses
+        # 6. Calculations (requires submitted data)
+        # 7. Final declaration
+        # 8. Periods of Account
+        # 9. LADR
         test_methods = [
+            # Business and obligations
             self.test_business_details_list,
             self.test_business_detail_get,
             self.test_obligations_ie,
             self.test_obligations_final_declaration,
+            # Submit data FIRST (other tests depend on this)
             self.test_cumulative_period_submit,
             self.test_cumulative_period_get,
+            # Annual submission
             self.test_annual_submission_get,
             self.test_annual_submission_put,
-            self.test_bsas_list,
+            # BSAS (requires submitted data)
             self.test_bsas_trigger,
+            self.test_bsas_list,
             self.test_bsas_get,
             self.test_bsas_submit_adjustments,
-            self.test_losses_list,
+            # Losses
             self.test_losses_create,
+            self.test_losses_list,
             self.test_losses_get,
             self.test_losses_update,
             self.test_losses_delete,
+            # Calculations (requires submitted data)
             self.test_trigger_calculation_intent_to_finalise,
             self.test_list_calculations,
             self.test_retrieve_calculation,
             self.test_trigger_calculation_intent_to_amend,
+            # Final declaration
             self.test_submit_final_declaration,
             self.test_submit_confirm_amendment,
+            # Periods of Account
             self.test_periods_of_account_create,
             self.test_periods_of_account_list,
             self.test_periods_of_account_update,
             self.test_periods_of_account_delete,
+            # LADR
             self.test_ladr_get,
             self.test_ladr_disapply,
             self.test_ladr_withdraw,
