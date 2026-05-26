@@ -1,0 +1,1019 @@
+#!/usr/bin/env python3
+"""
+HMRC Sandbox Integration Test Script
+
+This script performs a comprehensive end-to-end test of all HMRC MTD API endpoints
+against the actual HMRC sandbox environment. It is designed to generate testing
+activity logs that HMRC can review as part of the Production Approvals Checklist.
+
+IMPORTANT: This script makes REAL API calls to HMRC's sandbox servers.
+It requires valid sandbox credentials and an active OAuth access token.
+
+Usage:
+    python scripts/hmrc_sandbox_test.py
+
+Requirements:
+    - HMRC_ENVIRONMENT=sandbox in .env
+    - Valid HMRC_CLIENT_ID and HMRC_CLIENT_SECRET
+    - Active OAuth access token (authenticate via web UI first)
+"""
+
+import json
+import logging
+import os
+import sys
+from datetime import datetime
+from pathlib import Path
+
+# Add project root to path
+project_root = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(project_root))
+
+from app.config import Config
+from app.services.hmrc_client import HMRCClient
+from app.services.hmrc_auth import HMRCAuthService
+
+
+# Configure logging
+LOG_FILE = project_root / 'logs' / 'hmrc_sandbox_test_results.log'
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(LOG_FILE),
+        logging.StreamHandler()
+    ]
+)
+logger = logging.getLogger(__name__)
+
+
+class HMRCSandboxTester:
+    """Comprehensive HMRC sandbox integration tester."""
+
+    def __init__(self):
+        self.config = Config()
+        self.client = HMRCClient()
+        self.auth_service = HMRCAuthService()
+        self.results = []
+        self.test_nino = None
+        self.test_business_id = None
+        self.test_tax_year = '2025-26'
+        self.test_calculation_id = None
+        self.test_bsas_id = None
+        self.test_loss_id = None
+        self.test_period_id = None
+
+    def log_result(self, endpoint, method, status_code, success, error=None, details=None):
+        """Log test result for an API call."""
+        result = {
+            'timestamp': datetime.now().isoformat(),
+            'endpoint': endpoint,
+            'method': method,
+            'status_code': status_code,
+            'success': success,
+            'error': error,
+            'details': details
+        }
+        self.results.append(result)
+
+        status = '✓ PASS' if success else '✗ FAIL'
+        logger.info(f"{status} | {method} {endpoint} | Status: {status_code}")
+        if error:
+            logger.error(f"  Error: {error}")
+        if details:
+            logger.debug(f"  Details: {json.dumps(details, indent=2)}")
+
+    def check_prerequisites(self):
+        """Check that all prerequisites are met."""
+        logger.info("=" * 80)
+        logger.info("HMRC SANDBOX INTEGRATION TEST - PREREQUISITES CHECK")
+        logger.info("=" * 80)
+
+        # Check environment
+        if self.config.HMRC_ENVIRONMENT != 'sandbox':
+            logger.error(f"HMRC_ENVIRONMENT is '{self.config.HMRC_ENVIRONMENT}', must be 'sandbox'")
+            return False
+
+        logger.info(f"✓ HMRC Environment: {self.config.HMRC_ENVIRONMENT}")
+        logger.info(f"✓ API Base URL: {self.config.HMRC_API_BASE_URL}")
+
+        # Check credentials
+        if not self.config.HMRC_CLIENT_ID or self.config.HMRC_CLIENT_ID == 'your-client-id-here':
+            logger.error("HMRC_CLIENT_ID not configured")
+            return False
+
+        if not self.config.HMRC_CLIENT_SECRET or self.config.HMRC_CLIENT_SECRET == 'your-client-secret-here':
+            logger.error("HMRC_CLIENT_SECRET not configured")
+            return False
+
+        logger.info(f"✓ Client ID: {self.config.HMRC_CLIENT_ID[:10]}...")
+
+        # Check OAuth token
+        access_token = self.auth_service.get_valid_access_token()
+        if not access_token:
+            logger.error("No valid OAuth access token found")
+            logger.error("Please authenticate via the web UI first:")
+            logger.error("  1. Start the web app: ./start_web.sh")
+            logger.error("  2. Go to Settings > HMRC")
+            logger.error("  3. Click 'Connect to HMRC'")
+            logger.error("  4. Complete the OAuth flow")
+            return False
+
+        logger.info("✓ OAuth access token is valid")
+
+        # Get test NINO from token
+        token_data = self.auth_service.get_token_data()
+        if token_data and 'nino' in token_data:
+            self.test_nino = token_data['nino']
+            logger.info(f"✓ Test NINO: {self.test_nino}")
+        else:
+            logger.warning("No NINO found in token data, will use sandbox test NINO")
+            self.test_nino = 'AA123456A'  # Sandbox test NINO
+
+        return True
+
+    def test_business_details_list(self):
+        """Test: GET Business Details - list businesses."""
+        logger.info("\n--- Test: List Business Details ---")
+        result = self.client.get_business_details(self.test_nino)
+
+        self.log_result(
+            f"/individuals/business/details/{self.test_nino}/list",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        # Extract business ID for subsequent tests
+        if result.get('success') and result.get('data'):
+            businesses = result['data'].get('businessData', [])
+            if businesses:
+                self.test_business_id = businesses[0].get('businessId')
+                logger.info(f"Using business ID: {self.test_business_id}")
+
+        return result.get('success', False)
+
+    def test_business_detail_get(self):
+        """Test: GET Business Detail - retrieve specific business."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: Get Business Detail ---")
+        result = self.client.get_business_detail(self.test_nino, self.test_business_id)
+
+        self.log_result(
+            f"/individuals/business/details/{self.test_nino}/{self.test_business_id}",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_obligations_ie(self):
+        """Test: GET Obligations - retrieve I&E obligations."""
+        logger.info("\n--- Test: Get Income & Expenses Obligations ---")
+        result = self.client.get_obligations(
+            self.test_nino,
+            from_date='2025-04-06',
+            to_date='2026-04-05',
+            test_scenario='QUARTERLY_FULFILLED'
+        )
+
+        self.log_result(
+            f"/individuals/business/self-employment/{self.test_nino}/obligations",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_obligations_final_declaration(self):
+        """Test: GET Obligations - retrieve Final Declaration obligations."""
+        logger.info("\n--- Test: Get Final Declaration Obligations ---")
+        result = self.client.get_final_declaration_obligations(
+            self.test_nino,
+            from_date='2025-04-06',
+            to_date='2026-04-05'
+        )
+
+        self.log_result(
+            f"/obligations/details/{self.test_nino}/crystallisation",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_cumulative_period_submit(self):
+        """Test: POST Cumulative Period Summary - submit quarterly update."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: Submit Cumulative Period Summary ---")
+
+        period_data = {
+            'periodDates': {
+                'periodStartDate': '2025-04-06',
+                'periodEndDate': '2025-07-05'
+            },
+            'periodIncome': {
+                'turnover': 5000.00,
+                'other': 100.00
+            },
+            'periodExpenses': {
+                'costOfGoods': 1000.00,
+                'adminCosts': 500.00,
+                'businessEntertainmentCosts': 50.00,
+                'advertisingCosts': 200.00,
+                'other': 100.00
+            }
+        }
+
+        result = self.client.submit_cumulative_period(
+            self.test_nino,
+            self.test_business_id,
+            self.test_tax_year,
+            period_data
+        )
+
+        self.log_result(
+            f"/individuals/business/self-employment/{self.test_nino}/{self.test_business_id}/period/cumulative/{self.test_tax_year}",
+            "POST",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_cumulative_period_get(self):
+        """Test: GET Cumulative Period Summary - retrieve it back."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: Get Cumulative Period Summary ---")
+        result = self.client.get_cumulative_period(
+            self.test_nino,
+            self.test_business_id,
+            self.test_tax_year
+        )
+
+        self.log_result(
+            f"/individuals/business/self-employment/{self.test_nino}/{self.test_business_id}/period/cumulative/{self.test_tax_year}",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_annual_submission_get(self):
+        """Test: GET Annual Submission - retrieve annual summary."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: Get Annual Submission ---")
+        result = self.client.get_annual_summary(
+            self.test_nino,
+            self.test_business_id,
+            self.test_tax_year
+        )
+
+        self.log_result(
+            f"/individuals/business/self-employment/{self.test_nino}/{self.test_business_id}/annual/{self.test_tax_year}",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_annual_submission_put(self):
+        """Test: PUT Annual Submission - update annual summary."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: Update Annual Submission ---")
+
+        annual_data = {
+            'allowances': {
+                'annualInvestmentAllowance': 1000.00,
+                'capitalAllowanceMainPool': 500.00,
+                'zeroEmissionsGoodsVehicleAllowance': 200.00
+            },
+            'adjustments': {
+                'includedNonTaxableProfits': 100.00,
+                'overlapReliefUsed': 50.00,
+                'accountingAdjustment': 25.00
+            }
+        }
+
+        result = self.client.update_annual_summary(
+            self.test_nino,
+            self.test_business_id,
+            self.test_tax_year,
+            annual_data
+        )
+
+        self.log_result(
+            f"/individuals/business/self-employment/{self.test_nino}/{self.test_business_id}/annual/{self.test_tax_year}",
+            "PUT",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_bsas_list(self):
+        """Test: GET BSAS - list BSAS summaries."""
+        logger.info("\n--- Test: List BSAS Summaries ---")
+        result = self.client.list_bsas_summaries(
+            self.test_nino,
+            tax_year=self.test_tax_year,
+            type_of_business='self-employment'
+        )
+
+        self.log_result(
+            f"/individuals/self-assessment/adjustable-summary/{self.test_nino}",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        # Extract BSAS ID if available
+        if result.get('success') and result.get('data'):
+            summaries = result['data'].get('summaries', [])
+            if summaries:
+                self.test_bsas_id = summaries[0].get('calculationId')
+                logger.info(f"Using BSAS ID: {self.test_bsas_id}")
+
+        return result.get('success', False)
+
+    def test_bsas_trigger(self):
+        """Test: POST BSAS - trigger a BSAS."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: Trigger BSAS ---")
+        result = self.client.trigger_bsas(
+            self.test_nino,
+            self.test_business_id,
+            self.test_tax_year,
+            type_of_business='self-employment'
+        )
+
+        self.log_result(
+            f"/individuals/self-assessment/adjustable-summary/{self.test_nino}/trigger",
+            "POST",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        # Extract BSAS ID from trigger response
+        if result.get('success') and result.get('data'):
+            self.test_bsas_id = result['data'].get('calculationId')
+            logger.info(f"Triggered BSAS ID: {self.test_bsas_id}")
+
+        return result.get('success', False)
+
+    def test_bsas_get(self):
+        """Test: GET BSAS - retrieve the triggered summary."""
+        if not self.test_bsas_id:
+            logger.warning("Skipping: No BSAS ID available")
+            return False
+
+        logger.info("\n--- Test: Get BSAS Summary ---")
+        result = self.client.get_bsas_summary(
+            self.test_nino,
+            self.test_bsas_id,
+            tax_year=self.test_tax_year,
+            type_of_business='self-employment'
+        )
+
+        self.log_result(
+            f"/individuals/self-assessment/adjustable-summary/{self.test_nino}/self-employment/{self.test_bsas_id}",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_bsas_submit_adjustments(self):
+        """Test: POST BSAS - submit adjustments."""
+        if not self.test_bsas_id:
+            logger.warning("Skipping: No BSAS ID available")
+            return False
+
+        logger.info("\n--- Test: Submit BSAS Adjustments ---")
+
+        adjustments = {
+            'income': {
+                'turnover': 100.00
+            },
+            'expenses': {
+                'costOfGoods': 50.00,
+                'adminCosts': 25.00
+            }
+        }
+
+        result = self.client.submit_bsas_adjustments(
+            self.test_nino,
+            self.test_bsas_id,
+            adjustments
+        )
+
+        self.log_result(
+            f"/individuals/self-assessment/adjustable-summary/{self.test_nino}/self-employment/{self.test_bsas_id}/adjust",
+            "POST",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_losses_list(self):
+        """Test: GET Losses - list losses."""
+        logger.info("\n--- Test: List Losses ---")
+        result = self.client.list_losses(
+            self.test_nino,
+            tax_year=self.test_tax_year,
+            type_of_loss='self-employment'
+        )
+
+        self.log_result(
+            f"/individuals/losses/{self.test_nino}/brought-forward-losses",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        # Extract loss ID if available
+        if result.get('success') and result.get('data'):
+            losses = result['data'].get('losses', [])
+            if losses:
+                self.test_loss_id = losses[0].get('lossId')
+                logger.info(f"Using loss ID: {self.test_loss_id}")
+
+        return result.get('success', False)
+
+    def test_losses_create(self):
+        """Test: POST Losses - create a test loss."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: Create Loss ---")
+        result = self.client.create_loss(
+            self.test_nino,
+            '2024-25',  # Previous tax year
+            'self-employment',
+            self.test_business_id,
+            1000.00
+        )
+
+        self.log_result(
+            f"/individuals/losses/{self.test_nino}/brought-forward-losses",
+            "POST",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        # Extract loss ID from creation response
+        if result.get('success') and result.get('data'):
+            self.test_loss_id = result['data'].get('lossId')
+            logger.info(f"Created loss ID: {self.test_loss_id}")
+
+        return result.get('success', False)
+
+    def test_losses_get(self):
+        """Test: GET Losses - retrieve the created loss."""
+        if not self.test_loss_id:
+            logger.warning("Skipping: No loss ID available")
+            return False
+
+        logger.info("\n--- Test: Get Loss ---")
+        result = self.client.get_loss(self.test_nino, self.test_loss_id)
+
+        self.log_result(
+            f"/individuals/losses/{self.test_nino}/brought-forward-losses/{self.test_loss_id}",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_losses_update(self):
+        """Test: PUT Losses - update the loss amount."""
+        if not self.test_loss_id:
+            logger.warning("Skipping: No loss ID available")
+            return False
+
+        logger.info("\n--- Test: Update Loss ---")
+        result = self.client.update_loss(self.test_nino, self.test_loss_id, 1500.00)
+
+        self.log_result(
+            f"/individuals/losses/{self.test_nino}/brought-forward-losses/{self.test_loss_id}/change-loss-amount",
+            "PUT",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_losses_delete(self):
+        """Test: DELETE Losses - delete the test loss."""
+        if not self.test_loss_id:
+            logger.warning("Skipping: No loss ID available")
+            return False
+
+        logger.info("\n--- Test: Delete Loss ---")
+        result = self.client.delete_loss(self.test_nino, self.test_loss_id)
+
+        self.log_result(
+            f"/individuals/losses/{self.test_nino}/brought-forward-losses/{self.test_loss_id}",
+            "DELETE",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_trigger_calculation_intent_to_finalise(self):
+        """Test: POST Trigger Calculation - with calculationType: 'intent-to-finalise'."""
+        logger.info("\n--- Test: Trigger Calculation (Intent to Finalise) ---")
+        result = self.client.trigger_crystallisation(
+            self.test_nino,
+            self.test_tax_year,
+            calculation_type='intent-to-finalise'
+        )
+
+        self.log_result(
+            f"/individuals/calculations/{self.test_nino}/self-assessment",
+            "POST",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        # Extract calculation ID
+        if result.get('success') and result.get('data'):
+            self.test_calculation_id = result['data'].get('calculationId')
+            logger.info(f"Calculation ID: {self.test_calculation_id}")
+
+        return result.get('success', False)
+
+    def test_list_calculations(self):
+        """Test: GET List Calculations."""
+        logger.info("\n--- Test: List Calculations ---")
+        result = self.client.list_calculations(self.test_nino, self.test_tax_year.replace('-', '/'))
+
+        self.log_result(
+            f"/individuals/calculations/{self.test_nino}/self-assessment",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        # Extract calculation ID if not already set
+        if not self.test_calculation_id and result.get('success') and result.get('data'):
+            calculations = result['data'].get('calculations', [])
+            if calculations:
+                self.test_calculation_id = calculations[0].get('calculationId')
+                logger.info(f"Using calculation ID: {self.test_calculation_id}")
+
+        return result.get('success', False)
+
+    def test_retrieve_calculation(self):
+        """Test: GET Retrieve Calculation."""
+        if not self.test_calculation_id:
+            logger.warning("Skipping: No calculation ID available")
+            return False
+
+        logger.info("\n--- Test: Retrieve Calculation ---")
+        result = self.client.retrieve_calculation(self.test_nino, self.test_calculation_id)
+
+        self.log_result(
+            f"/individuals/calculations/{self.test_nino}/self-assessment/{self.test_calculation_id}",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_trigger_calculation_intent_to_amend(self):
+        """Test: POST Trigger Calculation - with calculationType: 'intent-to-amend'."""
+        logger.info("\n--- Test: Trigger Calculation (Intent to Amend) ---")
+        result = self.client.trigger_crystallisation(
+            self.test_nino,
+            self.test_tax_year,
+            calculation_type='intent-to-amend'
+        )
+
+        self.log_result(
+            f"/individuals/calculations/{self.test_nino}/self-assessment",
+            "POST",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_submit_final_declaration(self):
+        """Test: POST Submit Final Declaration - with declarationType: 'final-declaration'."""
+        if not self.test_calculation_id:
+            logger.warning("Skipping: No calculation ID available")
+            return False
+
+        logger.info("\n--- Test: Submit Final Declaration ---")
+        result = self.client.submit_final_declaration(
+            self.test_nino,
+            self.test_tax_year.replace('-', '/'),
+            self.test_calculation_id,
+            declaration_type='final-declaration'
+        )
+
+        self.log_result(
+            f"/individuals/declarations/{self.test_nino}/{self.test_tax_year}",
+            "POST",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_submit_confirm_amendment(self):
+        """Test: POST Submit Final Declaration - with declarationType: 'confirm-amendment'."""
+        if not self.test_calculation_id:
+            logger.warning("Skipping: No calculation ID available")
+            return False
+
+        logger.info("\n--- Test: Submit Confirm Amendment ---")
+        result = self.client.submit_final_declaration(
+            self.test_nino,
+            self.test_tax_year.replace('-', '/'),
+            self.test_calculation_id,
+            declaration_type='confirm-amendment'
+        )
+
+        self.log_result(
+            f"/individuals/declarations/{self.test_nino}/{self.test_tax_year}",
+            "POST",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_periods_of_account_create(self):
+        """Test: POST Periods of Account - create."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: Create Period of Account ---")
+
+        period_data = {
+            'startDate': '2025-04-06',
+            'endDate': '2026-04-05'
+        }
+
+        result = self.client.create_period_of_account(
+            self.test_nino,
+            self.test_business_id,
+            period_data
+        )
+
+        self.log_result(
+            f"/individuals/business/details/{self.test_nino}/{self.test_business_id}/periods-of-account",
+            "POST",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        # Extract period ID
+        if result.get('success') and result.get('data'):
+            self.test_period_id = result['data'].get('periodId')
+            logger.info(f"Created period ID: {self.test_period_id}")
+
+        return result.get('success', False)
+
+    def test_periods_of_account_list(self):
+        """Test: GET Periods of Account - list."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: List Periods of Account ---")
+        result = self.client.list_periods_of_account(self.test_nino, self.test_business_id)
+
+        self.log_result(
+            f"/individuals/business/details/{self.test_nino}/{self.test_business_id}/periods-of-account",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        # Extract period ID if not already set
+        if not self.test_period_id and result.get('success') and result.get('data'):
+            periods = result['data'].get('periods', [])
+            if periods:
+                self.test_period_id = periods[0].get('periodId')
+                logger.info(f"Using period ID: {self.test_period_id}")
+
+        return result.get('success', False)
+
+    def test_periods_of_account_update(self):
+        """Test: PUT Periods of Account - update."""
+        if not self.test_business_id or not self.test_period_id:
+            logger.warning("Skipping: No business ID or period ID available")
+            return False
+
+        logger.info("\n--- Test: Update Period of Account ---")
+
+        period_data = {
+            'startDate': '2025-04-06',
+            'endDate': '2026-04-05'
+        }
+
+        result = self.client.update_period_of_account(
+            self.test_nino,
+            self.test_business_id,
+            self.test_period_id,
+            period_data
+        )
+
+        self.log_result(
+            f"/individuals/business/details/{self.test_nino}/{self.test_business_id}/periods-of-account/{self.test_period_id}",
+            "PUT",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_periods_of_account_delete(self):
+        """Test: DELETE Periods of Account - delete."""
+        if not self.test_business_id or not self.test_period_id:
+            logger.warning("Skipping: No business ID or period ID available")
+            return False
+
+        logger.info("\n--- Test: Delete Period of Account ---")
+        result = self.client.delete_period_of_account(
+            self.test_nino,
+            self.test_business_id,
+            self.test_period_id
+        )
+
+        self.log_result(
+            f"/individuals/business/details/{self.test_nino}/{self.test_business_id}/periods-of-account/{self.test_period_id}",
+            "DELETE",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_ladr_get(self):
+        """Test: GET Late Accounting Date Rule."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: Get Late Accounting Date Rule ---")
+        result = self.client.get_late_accounting_date_rule(
+            self.test_nino,
+            self.test_business_id,
+            self.test_tax_year
+        )
+
+        self.log_result(
+            f"/individuals/business/details/{self.test_nino}/{self.test_business_id}/{self.test_tax_year}/late-accounting-date-rule",
+            "GET",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_ladr_disapply(self):
+        """Test: PUT Late Accounting Date Rule - disapply."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: Disapply Late Accounting Date Rule ---")
+        result = self.client.disapply_late_accounting_date_rule(
+            self.test_nino,
+            self.test_business_id,
+            self.test_tax_year
+        )
+
+        self.log_result(
+            f"/individuals/business/details/{self.test_nino}/{self.test_business_id}/{self.test_tax_year}/late-accounting-date-rule/disapply",
+            "PUT",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def test_ladr_withdraw(self):
+        """Test: DELETE Late Accounting Date Rule - withdraw."""
+        if not self.test_business_id:
+            logger.warning("Skipping: No business ID available")
+            return False
+
+        logger.info("\n--- Test: Withdraw Late Accounting Date Rule Disapplication ---")
+        result = self.client.withdraw_late_accounting_date_rule_disapplication(
+            self.test_nino,
+            self.test_business_id,
+            self.test_tax_year
+        )
+
+        self.log_result(
+            f"/individuals/business/details/{self.test_nino}/{self.test_business_id}/{self.test_tax_year}/late-accounting-date-rule/disapply",
+            "DELETE",
+            result.get('status_code', 0),
+            result.get('success', False),
+            result.get('error'),
+            result.get('data')
+        )
+
+        return result.get('success', False)
+
+    def print_summary(self):
+        """Print test summary."""
+        logger.info("\n" + "=" * 80)
+        logger.info("HMRC SANDBOX INTEGRATION TEST - SUMMARY")
+        logger.info("=" * 80)
+
+        passed = sum(1 for r in self.results if r['success'])
+        failed = sum(1 for r in self.results if not r['success'])
+        total = len(self.results)
+
+        logger.info(f"\nTotal Tests: {total}")
+        logger.info(f"Passed: {passed} ({passed/total*100:.1f}%)")
+        logger.info(f"Failed: {failed} ({failed/total*100:.1f}%)")
+
+        if failed > 0:
+            logger.info("\nFailed Tests:")
+            for result in self.results:
+                if not result['success']:
+                    logger.info(f"  ✗ {result['method']} {result['endpoint']}")
+                    logger.info(f"    Status: {result['status_code']}, Error: {result['error']}")
+
+        logger.info(f"\nFull results saved to: {LOG_FILE}")
+        logger.info("\nNote: Some failures are expected in sandbox (e.g., 404 for non-existent data).")
+        logger.info("The important thing is that HMRC can see the API calls were made.")
+
+    def run_all_tests(self):
+        """Run all integration tests in sequence."""
+        logger.info("\n" + "=" * 80)
+        logger.info("HMRC SANDBOX INTEGRATION TEST - START")
+        logger.info("=" * 80)
+        logger.info(f"Test NINO: {self.test_nino}")
+        logger.info(f"Tax Year: {self.test_tax_year}")
+        logger.info(f"Environment: {self.config.HMRC_ENVIRONMENT}")
+        logger.info(f"API Base URL: {self.config.HMRC_API_BASE_URL}")
+
+        # Run tests in order matching Production Approvals Checklist
+        test_methods = [
+            self.test_business_details_list,
+            self.test_business_detail_get,
+            self.test_obligations_ie,
+            self.test_obligations_final_declaration,
+            self.test_cumulative_period_submit,
+            self.test_cumulative_period_get,
+            self.test_annual_submission_get,
+            self.test_annual_submission_put,
+            self.test_bsas_list,
+            self.test_bsas_trigger,
+            self.test_bsas_get,
+            self.test_bsas_submit_adjustments,
+            self.test_losses_list,
+            self.test_losses_create,
+            self.test_losses_get,
+            self.test_losses_update,
+            self.test_losses_delete,
+            self.test_trigger_calculation_intent_to_finalise,
+            self.test_list_calculations,
+            self.test_retrieve_calculation,
+            self.test_trigger_calculation_intent_to_amend,
+            self.test_submit_final_declaration,
+            self.test_submit_confirm_amendment,
+            self.test_periods_of_account_create,
+            self.test_periods_of_account_list,
+            self.test_periods_of_account_update,
+            self.test_periods_of_account_delete,
+            self.test_ladr_get,
+            self.test_ladr_disapply,
+            self.test_ladr_withdraw,
+        ]
+
+        for test_method in test_methods:
+            try:
+                test_method()
+            except Exception as e:
+                logger.error(f"Exception in {test_method.__name__}: {str(e)}", exc_info=True)
+
+        self.print_summary()
+
+
+def main():
+    """Main entry point."""
+    print("\n" + "=" * 80)
+    print("HMRC SANDBOX INTEGRATION TEST")
+    print("=" * 80)
+    print("\nThis script will make REAL API calls to HMRC's sandbox environment.")
+    print("It will test all required MTD endpoints for the Production Approvals Checklist.")
+    print("\nPrerequisites:")
+    print("  - HMRC_ENVIRONMENT=sandbox in .env")
+    print("  - Valid HMRC_CLIENT_ID and HMRC_CLIENT_SECRET")
+    print("  - Active OAuth access token (authenticate via web UI first)")
+    print("\nResults will be saved to: logs/hmrc_sandbox_test_results.log")
+    print("=" * 80)
+
+    response = input("\nContinue? (y/n): ").strip().lower()
+    if response != 'y':
+        print("Test cancelled.")
+        return
+
+    tester = HMRCSandboxTester()
+
+    if not tester.check_prerequisites():
+        logger.error("\nPrerequisites check failed. Please fix the issues above and try again.")
+        sys.exit(1)
+
+    tester.run_all_tests()
+
+
+if __name__ == '__main__':
+    main()
