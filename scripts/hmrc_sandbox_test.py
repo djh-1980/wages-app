@@ -10,7 +10,8 @@ IMPORTANT: This script makes REAL API calls to HMRC's sandbox servers.
 It requires valid sandbox credentials and an active OAuth access token.
 
 Usage:
-    python scripts/hmrc_sandbox_test.py
+    python scripts/hmrc_sandbox_test.py              # Non-stateful (scenario-based)
+    python scripts/hmrc_sandbox_test.py --stateful   # Stateful mode (requires test data)
 
 Requirements:
     - HMRC_ENVIRONMENT=sandbox in .env
@@ -18,6 +19,7 @@ Requirements:
     - Active OAuth access token (authenticate via web UI first)
 """
 
+import argparse
 import json
 import logging
 import os
@@ -47,21 +49,30 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
+# Dummy IDs for non-stateful testing (format-valid but not real)
+DUMMY_BUSINESS_ID = 'XAIS12345678901'
+DUMMY_CALCULATION_ID = 'f2fb30e5-4ab6-4a29-b3c1-c7264259ff1c'
+DUMMY_BSAS_ID = 'f2fb30e5-4ab6-4a29-b3c1-c7264259ff1c'
+DUMMY_LOSS_ID = 'AAZZ1234567890a'
+DUMMY_PERIOD_ID = '2025-04-06_2026-04-05'
+
+
 class HMRCSandboxTester:
     """Comprehensive HMRC sandbox integration tester."""
 
-    def __init__(self):
+    def __init__(self, stateful_mode=False):
         self.config = Config()
         self.client = HMRCClient()
         self.auth_service = HMRCAuthService()
         self.results = []
         self.test_nino = None
-        self.test_business_id = None
+        self.test_business_id = DUMMY_BUSINESS_ID
         self.test_tax_year = '2025-26'
-        self.test_calculation_id = None
-        self.test_bsas_id = None
-        self.test_loss_id = None
-        self.test_period_id = None
+        self.test_calculation_id = DUMMY_CALCULATION_ID
+        self.test_bsas_id = DUMMY_BSAS_ID
+        self.test_loss_id = DUMMY_LOSS_ID
+        self.test_period_id = DUMMY_PERIOD_ID
+        self.stateful_mode = stateful_mode
 
     def log_result(self, endpoint, method, status_code, success, error=None, details=None):
         """Log test result for an API call."""
@@ -134,8 +145,12 @@ class HMRCSandboxTester:
         return True
 
     def setup_test_business(self):
-        """Create or retrieve test business for sandbox testing."""
-        logger.info("\n--- Setup: Create/Retrieve Test Business ---")
+        """Create or retrieve test business for sandbox testing (stateful mode only)."""
+        if not self.stateful_mode:
+            logger.info(f"\n--- Using dummy business ID: {self.test_business_id} (non-stateful mode) ---")
+            return True
+
+        logger.info("\n--- Setup: Create/Retrieve Test Business (Stateful Mode) ---")
 
         # First, check if a business already exists
         result = self.client.get_business_details(self.test_nino)
@@ -166,8 +181,10 @@ class HMRCSandboxTester:
                 logger.info(f"✓ Created test business ID: {self.test_business_id}")
                 return True
 
-        logger.error("Failed to create or retrieve test business")
-        return False
+        logger.warning("Failed to create or retrieve test business in stateful mode")
+        logger.info(f"Falling back to dummy business ID: {DUMMY_BUSINESS_ID}")
+        self.test_business_id = DUMMY_BUSINESS_ID
+        return True
 
     def test_business_details_list(self):
         """Test: GET Business Details - list businesses."""
@@ -183,8 +200,8 @@ class HMRCSandboxTester:
             result.get('data')
         )
 
-        # Extract business ID for subsequent tests
-        if result.get('success') and result.get('data'):
+        # In stateful mode, extract business ID for subsequent tests
+        if self.stateful_mode and result.get('success') and result.get('data'):
             businesses = result['data'].get('businessData', [])
             if businesses:
                 self.test_business_id = businesses[0].get('businessId')
@@ -194,11 +211,8 @@ class HMRCSandboxTester:
 
     def test_business_detail_get(self):
         """Test: GET Business Detail - retrieve specific business."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: Get Business Detail ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
         result = self.client.get_business_detail(self.test_nino, self.test_business_id)
 
         self.log_result(
@@ -215,11 +229,13 @@ class HMRCSandboxTester:
     def test_obligations_ie(self):
         """Test: GET Obligations - retrieve I&E obligations."""
         logger.info("\n--- Test: Get Income & Expenses Obligations ---")
+        # Use QUARTERLY_FULFILLED scenario for non-stateful, or None for stateful
+        test_scenario = None if self.stateful_mode else 'QUARTERLY_FULFILLED'
         result = self.client.get_obligations(
             self.test_nino,
             from_date='2025-04-06',
             to_date='2026-04-05',
-            test_scenario='QUARTERLY_FULFILLED'
+            test_scenario=test_scenario
         )
 
         self.log_result(
@@ -255,11 +271,8 @@ class HMRCSandboxTester:
 
     def test_cumulative_period_submit(self):
         """Test: POST Cumulative Period Summary - submit quarterly update."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: Submit Cumulative Period Summary ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
 
         period_data = {
             'periodDates': {
@@ -299,11 +312,8 @@ class HMRCSandboxTester:
 
     def test_cumulative_period_get(self):
         """Test: GET Cumulative Period Summary - retrieve it back."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: Get Cumulative Period Summary ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
         result = self.client.get_cumulative_period(
             self.test_nino,
             self.test_business_id,
@@ -323,11 +333,8 @@ class HMRCSandboxTester:
 
     def test_annual_submission_get(self):
         """Test: GET Annual Submission - retrieve annual summary."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: Get Annual Submission ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
         result = self.client.get_annual_summary(
             self.test_nino,
             self.test_business_id,
@@ -347,11 +354,8 @@ class HMRCSandboxTester:
 
     def test_annual_submission_put(self):
         """Test: PUT Annual Submission - update annual summary."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: Update Annual Submission ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
 
         annual_data = {
             'allowances': {
@@ -402,8 +406,8 @@ class HMRCSandboxTester:
             result.get('data')
         )
 
-        # Extract BSAS ID if available
-        if result.get('success') and result.get('data'):
+        # In stateful mode, extract BSAS ID if available
+        if self.stateful_mode and result.get('success') and result.get('data'):
             summaries = result['data'].get('summaries', [])
             if summaries:
                 self.test_bsas_id = summaries[0].get('calculationId')
@@ -413,11 +417,8 @@ class HMRCSandboxTester:
 
     def test_bsas_trigger(self):
         """Test: POST BSAS - trigger a BSAS."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: Trigger BSAS ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
         result = self.client.trigger_bsas(
             self.test_nino,
             self.test_business_id,
@@ -434,8 +435,8 @@ class HMRCSandboxTester:
             result.get('data')
         )
 
-        # Extract BSAS ID from trigger response
-        if result.get('success') and result.get('data'):
+        # In stateful mode, extract BSAS ID from trigger response
+        if self.stateful_mode and result.get('success') and result.get('data'):
             self.test_bsas_id = result['data'].get('calculationId')
             logger.info(f"Triggered BSAS ID: {self.test_bsas_id}")
 
@@ -443,11 +444,8 @@ class HMRCSandboxTester:
 
     def test_bsas_get(self):
         """Test: GET BSAS - retrieve the triggered summary."""
-        if not self.test_bsas_id:
-            logger.warning("Skipping: No BSAS ID available")
-            return False
-
         logger.info("\n--- Test: Get BSAS Summary ---")
+        logger.info(f"Using BSAS ID: {self.test_bsas_id}")
         result = self.client.get_bsas_summary(
             self.test_nino,
             self.test_bsas_id,
@@ -468,11 +466,8 @@ class HMRCSandboxTester:
 
     def test_bsas_submit_adjustments(self):
         """Test: POST BSAS - submit adjustments."""
-        if not self.test_bsas_id:
-            logger.warning("Skipping: No BSAS ID available")
-            return False
-
         logger.info("\n--- Test: Submit BSAS Adjustments ---")
+        logger.info(f"Using BSAS ID: {self.test_bsas_id}")
 
         adjustments = {
             'income': {
@@ -519,8 +514,8 @@ class HMRCSandboxTester:
             result.get('data')
         )
 
-        # Extract loss ID if available
-        if result.get('success') and result.get('data'):
+        # In stateful mode, extract loss ID if available
+        if self.stateful_mode and result.get('success') and result.get('data'):
             losses = result['data'].get('losses', [])
             if losses:
                 self.test_loss_id = losses[0].get('lossId')
@@ -530,11 +525,8 @@ class HMRCSandboxTester:
 
     def test_losses_create(self):
         """Test: POST Losses - create a test loss."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: Create Loss ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
         result = self.client.create_loss(
             self.test_nino,
             '2024-25',  # Previous tax year
@@ -552,8 +544,8 @@ class HMRCSandboxTester:
             result.get('data')
         )
 
-        # Extract loss ID from creation response
-        if result.get('success') and result.get('data'):
+        # In stateful mode, extract loss ID from creation response
+        if self.stateful_mode and result.get('success') and result.get('data'):
             self.test_loss_id = result['data'].get('lossId')
             logger.info(f"Created loss ID: {self.test_loss_id}")
 
@@ -561,11 +553,8 @@ class HMRCSandboxTester:
 
     def test_losses_get(self):
         """Test: GET Losses - retrieve the created loss."""
-        if not self.test_loss_id:
-            logger.warning("Skipping: No loss ID available")
-            return False
-
         logger.info("\n--- Test: Get Loss ---")
+        logger.info(f"Using loss ID: {self.test_loss_id}")
         result = self.client.get_loss(self.test_nino, self.test_loss_id)
 
         self.log_result(
@@ -581,11 +570,8 @@ class HMRCSandboxTester:
 
     def test_losses_update(self):
         """Test: PUT Losses - update the loss amount."""
-        if not self.test_loss_id:
-            logger.warning("Skipping: No loss ID available")
-            return False
-
         logger.info("\n--- Test: Update Loss ---")
+        logger.info(f"Using loss ID: {self.test_loss_id}")
         result = self.client.update_loss(self.test_nino, self.test_loss_id, 1500.00)
 
         self.log_result(
@@ -601,11 +587,8 @@ class HMRCSandboxTester:
 
     def test_losses_delete(self):
         """Test: DELETE Losses - delete the test loss."""
-        if not self.test_loss_id:
-            logger.warning("Skipping: No loss ID available")
-            return False
-
         logger.info("\n--- Test: Delete Loss ---")
+        logger.info(f"Using loss ID: {self.test_loss_id}")
         result = self.client.delete_loss(self.test_nino, self.test_loss_id)
 
         self.log_result(
@@ -637,8 +620,8 @@ class HMRCSandboxTester:
             result.get('data')
         )
 
-        # Extract calculation ID
-        if result.get('success') and result.get('data'):
+        # In stateful mode, extract calculation ID
+        if self.stateful_mode and result.get('success') and result.get('data'):
             self.test_calculation_id = result['data'].get('calculationId')
             logger.info(f"Calculation ID: {self.test_calculation_id}")
 
@@ -658,8 +641,8 @@ class HMRCSandboxTester:
             result.get('data')
         )
 
-        # Extract calculation ID if not already set
-        if not self.test_calculation_id and result.get('success') and result.get('data'):
+        # In stateful mode, extract calculation ID if not already set
+        if self.stateful_mode and not self.test_calculation_id and result.get('success') and result.get('data'):
             calculations = result['data'].get('calculations', [])
             if calculations:
                 self.test_calculation_id = calculations[0].get('calculationId')
@@ -669,11 +652,8 @@ class HMRCSandboxTester:
 
     def test_retrieve_calculation(self):
         """Test: GET Retrieve Calculation."""
-        if not self.test_calculation_id:
-            logger.warning("Skipping: No calculation ID available")
-            return False
-
         logger.info("\n--- Test: Retrieve Calculation ---")
+        logger.info(f"Using calculation ID: {self.test_calculation_id}")
         result = self.client.retrieve_calculation(self.test_nino, self.test_calculation_id)
 
         self.log_result(
@@ -709,11 +689,8 @@ class HMRCSandboxTester:
 
     def test_submit_final_declaration(self):
         """Test: POST Submit Final Declaration - with declarationType: 'final-declaration'."""
-        if not self.test_calculation_id:
-            logger.warning("Skipping: No calculation ID available")
-            return False
-
         logger.info("\n--- Test: Submit Final Declaration ---")
+        logger.info(f"Using calculation ID: {self.test_calculation_id}")
         result = self.client.submit_final_declaration(
             self.test_nino,
             self.test_tax_year.replace('-', '/'),
@@ -734,11 +711,8 @@ class HMRCSandboxTester:
 
     def test_submit_confirm_amendment(self):
         """Test: POST Submit Final Declaration - with declarationType: 'confirm-amendment'."""
-        if not self.test_calculation_id:
-            logger.warning("Skipping: No calculation ID available")
-            return False
-
         logger.info("\n--- Test: Submit Confirm Amendment ---")
+        logger.info(f"Using calculation ID: {self.test_calculation_id}")
         result = self.client.submit_final_declaration(
             self.test_nino,
             self.test_tax_year.replace('-', '/'),
@@ -759,11 +733,8 @@ class HMRCSandboxTester:
 
     def test_periods_of_account_create(self):
         """Test: POST Periods of Account - create."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: Create Period of Account ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
 
         period_data = {
             'startDate': '2025-04-06',
@@ -785,8 +756,8 @@ class HMRCSandboxTester:
             result.get('data')
         )
 
-        # Extract period ID
-        if result.get('success') and result.get('data'):
+        # In stateful mode, extract period ID
+        if self.stateful_mode and result.get('success') and result.get('data'):
             self.test_period_id = result['data'].get('periodId')
             logger.info(f"Created period ID: {self.test_period_id}")
 
@@ -794,11 +765,8 @@ class HMRCSandboxTester:
 
     def test_periods_of_account_list(self):
         """Test: GET Periods of Account - list."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: List Periods of Account ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
         result = self.client.list_periods_of_account(self.test_nino, self.test_business_id)
 
         self.log_result(
@@ -810,8 +778,8 @@ class HMRCSandboxTester:
             result.get('data')
         )
 
-        # Extract period ID if not already set
-        if not self.test_period_id and result.get('success') and result.get('data'):
+        # In stateful mode, extract period ID if not already set
+        if self.stateful_mode and not self.test_period_id and result.get('success') and result.get('data'):
             periods = result['data'].get('periods', [])
             if periods:
                 self.test_period_id = periods[0].get('periodId')
@@ -821,11 +789,8 @@ class HMRCSandboxTester:
 
     def test_periods_of_account_update(self):
         """Test: PUT Periods of Account - update."""
-        if not self.test_business_id or not self.test_period_id:
-            logger.warning("Skipping: No business ID or period ID available")
-            return False
-
         logger.info("\n--- Test: Update Period of Account ---")
+        logger.info(f"Using business ID: {self.test_business_id}, period ID: {self.test_period_id}")
 
         period_data = {
             'startDate': '2025-04-06',
@@ -852,11 +817,8 @@ class HMRCSandboxTester:
 
     def test_periods_of_account_delete(self):
         """Test: DELETE Periods of Account - delete."""
-        if not self.test_business_id or not self.test_period_id:
-            logger.warning("Skipping: No business ID or period ID available")
-            return False
-
         logger.info("\n--- Test: Delete Period of Account ---")
+        logger.info(f"Using business ID: {self.test_business_id}, period ID: {self.test_period_id}")
         result = self.client.delete_period_of_account(
             self.test_nino,
             self.test_business_id,
@@ -876,11 +838,8 @@ class HMRCSandboxTester:
 
     def test_ladr_get(self):
         """Test: GET Late Accounting Date Rule."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: Get Late Accounting Date Rule ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
         result = self.client.get_late_accounting_date_rule(
             self.test_nino,
             self.test_business_id,
@@ -900,11 +859,8 @@ class HMRCSandboxTester:
 
     def test_ladr_disapply(self):
         """Test: PUT Late Accounting Date Rule - disapply."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: Disapply Late Accounting Date Rule ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
         result = self.client.disapply_late_accounting_date_rule(
             self.test_nino,
             self.test_business_id,
@@ -924,11 +880,8 @@ class HMRCSandboxTester:
 
     def test_ladr_withdraw(self):
         """Test: DELETE Late Accounting Date Rule - withdraw."""
-        if not self.test_business_id:
-            logger.warning("Skipping: No business ID available")
-            return False
-
         logger.info("\n--- Test: Withdraw Late Accounting Date Rule Disapplication ---")
+        logger.info(f"Using business ID: {self.test_business_id}")
         result = self.client.withdraw_late_accounting_date_rule_disapplication(
             self.test_nino,
             self.test_business_id,
@@ -976,15 +929,14 @@ class HMRCSandboxTester:
         logger.info("\n" + "=" * 80)
         logger.info("HMRC SANDBOX INTEGRATION TEST - START")
         logger.info("=" * 80)
+        logger.info(f"Test Mode: {'STATEFUL' if self.stateful_mode else 'NON-STATEFUL (Scenario-based)'}")
         logger.info(f"Test NINO: {self.test_nino}")
         logger.info(f"Tax Year: {self.test_tax_year}")
         logger.info(f"Environment: {self.config.HMRC_ENVIRONMENT}")
         logger.info(f"API Base URL: {self.config.HMRC_API_BASE_URL}")
 
-        # Setup: Create or retrieve test business first
-        if not self.setup_test_business():
-            logger.error("\nFailed to setup test business. Cannot continue with tests.")
-            return
+        # Setup: Create or retrieve test business (stateful mode only)
+        self.setup_test_business()
 
         # Run tests in correct dependency order:
         # 1. Business details and obligations
@@ -1049,15 +1001,36 @@ class HMRCSandboxTester:
 
 def main():
     """Main entry point."""
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description='HMRC Sandbox Integration Test - Test all MTD API endpoints'
+    )
+    parser.add_argument(
+        '--stateful',
+        action='store_true',
+        help='Use stateful mode (requires real test data). Default is non-stateful (scenario-based).'
+    )
+    args = parser.parse_args()
+
     print("\n" + "=" * 80)
     print("HMRC SANDBOX INTEGRATION TEST")
     print("=" * 80)
+    print(f"\nMode: {'STATEFUL' if args.stateful else 'NON-STATEFUL (Scenario-based)'}")
     print("\nThis script will make REAL API calls to HMRC's sandbox environment.")
     print("It will test all required MTD endpoints for the Production Approvals Checklist.")
     print("\nPrerequisites:")
     print("  - HMRC_ENVIRONMENT=sandbox in .env")
     print("  - Valid HMRC_CLIENT_ID and HMRC_CLIENT_SECRET")
     print("  - Active OAuth access token (authenticate via web UI first)")
+    if args.stateful:
+        print("\nStateful Mode:")
+        print("  - Requires test business to exist or be creatable")
+        print("  - Tests depend on actual data in sandbox")
+    else:
+        print("\nNon-Stateful Mode (Recommended):")
+        print("  - Uses Gov-Test-Scenario headers for canned responses")
+        print("  - Tests run independently without requiring real data")
+        print("  - All endpoints called regardless of individual failures")
     print("\nResults will be saved to: logs/hmrc_sandbox_test_results.log")
     print("=" * 80)
 
@@ -1066,7 +1039,7 @@ def main():
         print("Test cancelled.")
         return
 
-    tester = HMRCSandboxTester()
+    tester = HMRCSandboxTester(stateful_mode=args.stateful)
 
     if not tester.check_prerequisites():
         logger.error("\nPrerequisites check failed. Please fix the issues above and try again.")
