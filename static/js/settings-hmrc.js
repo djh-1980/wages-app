@@ -606,6 +606,9 @@ function resetFinalDeclFlow() {
     document.getElementById('calcDetails').style.display = 'none';
     document.getElementById('declarationCheckbox').checked = false;
     document.getElementById('submitDeclBtn').disabled = true;
+    
+    // Load declaration status to check if amendment mode should be enabled
+    loadFinalDeclarationStatus();
 }
 
 async function triggerTaxCalculation() {
@@ -619,6 +622,10 @@ async function triggerTaxCalculation() {
     
     const btn = document.getElementById('triggerCalcBtn');
     const loading = document.getElementById('step1Loading');
+    
+    // Check if this is an amendment (final declaration already submitted)
+    const isAmendment = window.finalDeclarationSubmitted || false;
+    const calculationType = isAmendment ? 'intent-to-amend' : 'intent-to-finalise';
     
     btn.disabled = true;
     loading.style.display = 'block';
@@ -634,7 +641,7 @@ async function triggerTaxCalculation() {
             body: JSON.stringify({
                 tax_year: taxYear,
                 nino: nino,
-                calculation_type: 'intent-to-finalise'
+                calculation_type: calculationType
             })
         });
         const data = await response.json();
@@ -757,6 +764,10 @@ async function submitFinalDeclaration() {
         return;
     }
     
+    // Check if this is an amendment (final declaration already submitted)
+    const isAmendment = window.finalDeclarationSubmitted || false;
+    const declarationType = isAmendment ? 'confirm-amendment' : 'final-declaration';
+    
     btn.disabled = true;
     btn.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Submitting...';
     
@@ -772,7 +783,8 @@ async function submitFinalDeclaration() {
                 tax_year: taxYear,
                 calculation_id: currentCalculationId,
                 nino: nino,
-                confirmed: true
+                confirmed: true,
+                declaration_type: declarationType
             })
         });
         const data = await response.json();
@@ -799,6 +811,36 @@ async function submitFinalDeclaration() {
 // FINAL DECLARATION FUNCTIONS
 // ============================================================================
 
+function updateFinalDeclarationMode(isAmendment) {
+    const step1Heading = document.querySelector('#step1 h6');
+    const triggerBtn = document.getElementById('triggerCalcBtn');
+    const amendmentBanner = document.getElementById('amendmentBanner');
+    
+    if (isAmendment) {
+        // Amendment mode
+        if (step1Heading) {
+            step1Heading.innerHTML = '<i class="fas fa-edit"></i> Step 1: Trigger Amendment Calculation';
+        }
+        if (triggerBtn) {
+            triggerBtn.innerHTML = '<i class="fas fa-calculator"></i> Trigger Amendment Calculation';
+        }
+        if (amendmentBanner) {
+            amendmentBanner.classList.remove('d-none');
+        }
+    } else {
+        // Initial declaration mode
+        if (step1Heading) {
+            step1Heading.innerHTML = '<i class="fas fa-calculator"></i> Step 1: Trigger Tax Calculation';
+        }
+        if (triggerBtn) {
+            triggerBtn.innerHTML = '<i class="fas fa-calculator"></i> Trigger Tax Calculation';
+        }
+        if (amendmentBanner) {
+            amendmentBanner.classList.add('d-none');
+        }
+    }
+}
+
 async function loadFinalDeclarationStatus() {
     const taxYear = document.getElementById('finalDeclTaxYear').value;
     
@@ -807,6 +849,12 @@ async function loadFinalDeclarationStatus() {
         const data = await response.json();
         
         if (data.success) {
+            // Check if final declaration has been submitted
+            const declarationStatus = data.data.declaration_status;
+            window.finalDeclarationSubmitted = (declarationStatus === 'submitted');
+            
+            // Update UI based on amendment mode
+            updateFinalDeclarationMode(window.finalDeclarationSubmitted);
             updateFinalDeclarationUI(data.data);
         } else {
             showNotification('Failed to load final declaration status: ' + data.error, 'danger');
