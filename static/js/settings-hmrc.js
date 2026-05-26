@@ -1594,16 +1594,31 @@ function displayLossesList(data) {
     html += '<th>Business ID</th>';
     html += '<th>Loss Amount</th>';
     html += '<th>Last Modified</th>';
+    html += '<th>Actions</th>';
     html += '</tr></thead><tbody>';
     
     losses.forEach(loss => {
+        const lossId = loss.lossId || '';
+        const amount = (loss.lossAmount || 0).toFixed(2);
+        
         html += '<tr>';
-        html += `<td><code>${loss.lossId || 'N/A'}</code></td>`;
+        html += `<td><code>${lossId || 'N/A'}</code></td>`;
         html += `<td>${loss.taxYearBroughtForwardFrom || 'N/A'}</td>`;
         html += `<td><span class="badge badge-info">${loss.typeOfLoss || 'N/A'}</span></td>`;
         html += `<td><code>${loss.businessId || 'N/A'}</code></td>`;
-        html += `<td class="text-right"><strong>£${(loss.lossAmount || 0).toFixed(2)}</strong></td>`;
+        html += `<td class="text-right"><strong>£${amount}</strong></td>`;
         html += `<td>${loss.lastModified ? new Date(loss.lastModified).toLocaleDateString() : 'N/A'}</td>`;
+        html += `<td>
+            <button class="btn btn-sm btn-info" onclick="viewLoss('${lossId}')" title="View Details">
+                <i class="fas fa-eye"></i>
+            </button>
+            <button class="btn btn-sm btn-warning" onclick="editLoss('${lossId}', ${amount})" title="Edit Amount">
+                <i class="fas fa-edit"></i>
+            </button>
+            <button class="btn btn-sm btn-danger" onclick="confirmDeleteLoss('${lossId}')" title="Delete">
+                <i class="fas fa-trash"></i>
+            </button>
+        </td>`;
         html += '</tr>';
     });
     
@@ -1702,6 +1717,170 @@ async function createLoss() {
     } finally {
         btn.innerHTML = originalText;
         btn.disabled = false;
+    }
+}
+
+async function viewLoss(lossId) {
+    const nino = hmrcConfig.nino || document.getElementById('ninoInput').value;
+    
+    if (!nino) {
+        showNotification('Please enter your NINO first', 'warning');
+        return;
+    }
+    
+    if (!lossId) {
+        showNotification('No loss ID provided', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/hmrc/losses/${lossId}?nino=${nino}`);
+        const data = await response.json();
+        
+        console.log('View loss response:', data);
+        
+        if (data.success && data.data) {
+            const loss = data.data;
+            const modalContent = `
+                <div class="modal fade" id="viewLossModal" tabindex="-1">
+                    <div class="modal-dialog">
+                        <div class="modal-content">
+                            <div class="modal-header">
+                                <h5 class="modal-title">Loss Details</h5>
+                                <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                            </div>
+                            <div class="modal-body">
+                                <table class="table table-sm">
+                                    <tr><th>Loss ID:</th><td><code>${loss.lossId || 'N/A'}</code></td></tr>
+                                    <tr><th>Tax Year From:</th><td>${loss.taxYearBroughtForwardFrom || 'N/A'}</td></tr>
+                                    <tr><th>Type of Loss:</th><td><span class="badge badge-info">${loss.typeOfLoss || 'N/A'}</span></td></tr>
+                                    <tr><th>Business ID:</th><td><code>${loss.businessId || 'N/A'}</code></td></tr>
+                                    <tr><th>Loss Amount:</th><td><strong>£${(loss.lossAmount || 0).toFixed(2)}</strong></td></tr>
+                                    <tr><th>Last Modified:</th><td>${loss.lastModified ? new Date(loss.lastModified).toLocaleString() : 'N/A'}</td></tr>
+                                </table>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            // Remove any existing modal
+            const existingModal = document.getElementById('viewLossModal');
+            if (existingModal) {
+                existingModal.remove();
+            }
+            
+            // Add modal to body and show it
+            document.body.insertAdjacentHTML('beforeend', modalContent);
+            const modal = new bootstrap.Modal(document.getElementById('viewLossModal'));
+            modal.show();
+            
+            // Clean up modal after it's hidden
+            document.getElementById('viewLossModal').addEventListener('hidden.bs.modal', function() {
+                this.remove();
+            });
+        } else {
+            showNotification('Failed to retrieve loss details: ' + (data.error || 'Unknown error'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error viewing loss:', error);
+        showNotification('Failed to retrieve loss details', 'danger');
+    }
+}
+
+async function editLoss(lossId, currentAmount) {
+    const nino = hmrcConfig.nino || document.getElementById('ninoInput').value;
+    
+    if (!nino) {
+        showNotification('Please enter your NINO first', 'warning');
+        return;
+    }
+    
+    if (!lossId) {
+        showNotification('No loss ID provided', 'warning');
+        return;
+    }
+    
+    const newAmount = prompt(`Enter new loss amount (current: £${currentAmount}):`, currentAmount);
+    
+    if (newAmount === null) {
+        return; // User cancelled
+    }
+    
+    const amount = parseFloat(newAmount);
+    if (isNaN(amount) || amount <= 0) {
+        showNotification('Please enter a valid amount greater than 0', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/hmrc/losses/${lossId}`, {
+            method: 'PUT',
+            headers: getCSRFHeaders(),
+            body: JSON.stringify({
+                nino: nino,
+                loss_amount: amount
+            })
+        });
+        
+        const data = await response.json();
+        
+        console.log('Update loss response:', data);
+        
+        if (data.success) {
+            showNotification('Loss amount updated successfully', 'success');
+            // Refresh the losses list
+            listLosses();
+        } else {
+            showNotification('Failed to update loss: ' + (data.error || 'Unknown error'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error updating loss:', error);
+        showNotification('Failed to update loss', 'danger');
+    }
+}
+
+function confirmDeleteLoss(lossId) {
+    if (!lossId) {
+        showNotification('No loss ID provided', 'warning');
+        return;
+    }
+    
+    if (confirm('Are you sure you want to delete this loss? This action cannot be undone.')) {
+        deleteLoss(lossId);
+    }
+}
+
+async function deleteLoss(lossId) {
+    const nino = hmrcConfig.nino || document.getElementById('ninoInput').value;
+    
+    if (!nino) {
+        showNotification('Please enter your NINO first', 'warning');
+        return;
+    }
+    
+    try {
+        const response = await fetch(`/api/hmrc/losses/${lossId}?nino=${nino}`, {
+            method: 'DELETE'
+        });
+        
+        const data = await response.json();
+        
+        console.log('Delete loss response:', data);
+        
+        if (data.success) {
+            showNotification('Loss deleted successfully', 'success');
+            // Refresh the losses list
+            listLosses();
+        } else {
+            showNotification('Failed to delete loss: ' + (data.error || 'Unknown error'), 'danger');
+        }
+    } catch (error) {
+        console.error('Error deleting loss:', error);
+        showNotification('Failed to delete loss', 'danger');
     }
 }
 

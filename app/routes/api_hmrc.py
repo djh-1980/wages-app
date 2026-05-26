@@ -2288,6 +2288,146 @@ def list_losses():
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
+@hmrc_bp.route('/losses/<loss_id>')
+@limiter.limit("20 per hour", override_defaults=True)
+def get_loss(loss_id):
+    """
+    Retrieve a specific brought forward loss by ID.
+    
+    Path params:
+        loss_id: Loss ID from create or list response
+    
+    Query params:
+        nino: National Insurance Number (required)
+    
+    Returns:
+        Loss details
+    """
+    try:
+        nino = request.args.get('nino')
+        
+        if not nino:
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
+        
+        if not loss_id:
+            return jsonify({'success': False, 'error': 'loss_id is required'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.get_loss(nino, loss_id)
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error getting loss: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/losses/<loss_id>', methods=['PUT'])
+@limiter.limit("20 per hour", override_defaults=True)
+def update_loss(loss_id):
+    """
+    Update the amount of a brought forward loss.
+    
+    Path params:
+        loss_id: Loss ID from create or list response
+    
+    Request body:
+    {
+        "nino": "AA123456A",
+        "loss_amount": 1500.00
+    }
+    
+    Returns:
+        Update confirmation
+    """
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'success': False, 'error': 'Request body is required'}), 400
+        
+        if 'nino' not in data:
+            return jsonify({'success': False, 'error': 'Missing required field: nino'}), 400
+        
+        if 'loss_amount' not in data:
+            return jsonify({'success': False, 'error': 'Missing required field: loss_amount'}), 400
+        
+        if not loss_id:
+            return jsonify({'success': False, 'error': 'loss_id is required'}), 400
+        
+        try:
+            nino = validate_nino(data['nino'])
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        # Validate loss_amount is a number
+        try:
+            loss_amount = float(data['loss_amount'])
+            if loss_amount <= 0:
+                return jsonify({'success': False, 'error': 'loss_amount must be greater than 0'}), 400
+        except (ValueError, TypeError):
+            return jsonify({'success': False, 'error': 'loss_amount must be a valid number'}), 400
+        
+        client = HMRCClient()
+        result = client.update_loss(nino, loss_id, loss_amount)
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})})
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error updating loss: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
+@hmrc_bp.route('/losses/<loss_id>', methods=['DELETE'])
+@limiter.limit("20 per hour", override_defaults=True)
+def delete_loss(loss_id):
+    """
+    Delete a brought forward loss.
+    
+    Path params:
+        loss_id: Loss ID from create or list response
+    
+    Query params:
+        nino: National Insurance Number (required)
+    
+    Returns:
+        Deletion confirmation
+    """
+    try:
+        nino = request.args.get('nino')
+        
+        if not nino:
+            return jsonify({'success': False, 'error': 'NINO is required'}), 400
+        
+        if not loss_id:
+            return jsonify({'success': False, 'error': 'loss_id is required'}), 400
+        
+        try:
+            nino = validate_nino(nino)
+        except ValueError as e:
+            return jsonify({'success': False, 'error': str(e)}), 400
+        
+        client = HMRCClient()
+        result = client.delete_loss(nino, loss_id)
+        
+        if result.get('success'):
+            return jsonify({'success': True, 'data': result.get('data', {})}), 200
+        else:
+            return jsonify(result)
+    except Exception as e:
+        logger.error(f'Error deleting loss: {e}')
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 # ---------------------------------------------------------------------------
 # Periods of Account (Business Details API v2.0)
 # ---------------------------------------------------------------------------

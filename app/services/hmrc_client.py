@@ -982,6 +982,61 @@ class HMRCClient:
         
         return self._make_request('GET', endpoint, params=params if params else None)
     
+    def get_loss(self, nino, loss_id):
+        """
+        Retrieve a specific brought forward loss by ID using Individual Losses API v6.0.
+        
+        Args:
+            nino: National Insurance Number
+            loss_id: Loss ID from create or list response
+            
+        Returns:
+            dict: Loss details including amount, tax year, type, and business ID
+        """
+        endpoint = f"/individuals/losses/{nino}/brought-forward-losses/{loss_id}"
+        
+        logger.info(f"Get loss: nino={nino}, loss_id={loss_id}")
+        
+        return self._make_request('GET', endpoint)
+    
+    def update_loss(self, nino, loss_id, new_amount):
+        """
+        Update the amount of a brought forward loss using Individual Losses API v6.0.
+        
+        Args:
+            nino: National Insurance Number
+            loss_id: Loss ID from create or list response
+            new_amount: New loss amount in pounds (e.g., 1500.00)
+            
+        Returns:
+            dict: Update confirmation
+        """
+        endpoint = f"/individuals/losses/{nino}/brought-forward-losses/{loss_id}/change-loss-amount"
+        data = {
+            'lossAmount': float(new_amount)
+        }
+        
+        logger.info(f"Update loss: nino={nino}, loss_id={loss_id}, new_amount={new_amount}")
+        
+        return self._make_request('PUT', endpoint, data=data)
+    
+    def delete_loss(self, nino, loss_id):
+        """
+        Delete a brought forward loss using Individual Losses API v6.0.
+        
+        Args:
+            nino: National Insurance Number
+            loss_id: Loss ID from create or list response
+            
+        Returns:
+            dict: Deletion confirmation
+        """
+        endpoint = f"/individuals/losses/{nino}/brought-forward-losses/{loss_id}"
+        
+        logger.info(f"Delete loss: nino={nino}, loss_id={loss_id}")
+        
+        return self._make_request('DELETE', endpoint)
+    
     def get_mock_obligations(self):
         """
         Return realistic mock obligations data for sandbox testing.
