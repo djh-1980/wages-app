@@ -56,6 +56,84 @@ def validate_tax_year(tax_year):
     return tax_year
 
 
+@hmrc_bp.route('/fraud-headers/validate', methods=['GET'])
+@limiter.limit("60 per hour", override_defaults=True)
+def fraud_headers_validate():
+    """
+    Self-validate the fraud prevention headers we'd send to HMRC.
+
+    Calls HMRC's Test Fraud Prevention Headers API (txm-fph-validator-api v1.0)
+    GET /test/fraud-prevention-headers/validate forwarding the exact set of
+    Gov-* headers built by `build_fraud_prevention_headers()`.
+
+    Must be called from a logged-in browser session so that the session
+    contains the captured browser context (screens, JS UA, etc.). Use
+    application-restricted OAuth (client_credentials grant) - the
+    validator does not accept user bearers.
+
+    Returns:
+        JSON envelope with HMRC's response body (specVersion, code,
+        message, errors[], warnings[]).
+    """
+    import requests
+    from ..services.hmrc_fraud_headers import build_fraud_prevention_headers
+    from ..services.hmrc_sandbox import HMRCSandboxService
+
+    try:
+        sandbox = HMRCSandboxService()
+        app_token = sandbox._get_application_token()
+        if not app_token:
+            return jsonify({
+                'success': False,
+                'error': (
+                    'Could not obtain application OAuth token. Check '
+                    'HMRC_CLIENT_ID / HMRC_CLIENT_SECRET and that the '
+                    'application is subscribed to "Test Fraud Prevention '
+                    'Headers" in the Developer Hub.'
+                ),
+            }), 502
+
+        fp_headers = build_fraud_prevention_headers()
+        if not fp_headers:
+            return jsonify({
+                'success': False,
+                'error': 'No fraud prevention headers built (no request context).',
+            }), 500
+
+        request_headers = {
+            'Authorization': f'Bearer {app_token}',
+            'Accept': 'application/vnd.hmrc.1.0+json',
+            **fp_headers,
+        }
+
+        url = (
+            current_app.config.get('HMRC_API_BASE_URL')
+            or 'https://test-api.service.hmrc.gov.uk'
+        ) + '/test/fraud-prevention-headers/validate'
+
+        r = requests.get(url, headers=request_headers, timeout=30)
+        body = r.json() if r.content else {}
+
+        # Surface a concise log line so we have a record without dumping
+        # tokens or PII.
+        logger.info(
+            'HMRC fraud header validator: %s %s (sent=%d)',
+            r.status_code,
+            body.get('code', '?'),
+            len(fp_headers),
+        )
+
+        return jsonify({
+            'success': r.status_code == 200,
+            'status_code': r.status_code,
+            'sent_headers': sorted(fp_headers.keys()),
+            'data': body,
+        })
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error calling HMRC fraud header validator: {e}', exc_info=True)
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+
 @hmrc_bp.route('/fraud-headers/record', methods=['POST'])
 @limiter.limit("120 per hour", override_defaults=True)
 def fraud_headers_record():

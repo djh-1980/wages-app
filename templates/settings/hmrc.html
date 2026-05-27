@@ -57,6 +57,35 @@
         </div>
     </div>
     
+    <!-- Fraud Prevention Header Validation Card -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card settings-card mb-4">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-shield-alt"></i> Fraud Prevention Headers
+                    </h5>
+                    <p class="text-muted small mb-3">
+                        Self-check the WEB_APP_VIA_SERVER fraud prevention headers
+                        against HMRC's Test Fraud Prevention Headers API. Required for
+                        MTD ITSA software recognition - HMRC checks these in production.
+                    </p>
+                    <button id="validateFraudHeadersBtn" class="btn btn-primary">
+                        <i class="fas fa-vial"></i> Validate Fraud Headers Now
+                    </button>
+                    <div id="fraudHeadersResult" class="mt-3 d-none">
+                        <div class="alert" id="fraudHeadersAlert" role="alert"></div>
+                        <details class="small">
+                            <summary class="text-muted">Show details</summary>
+                            <pre id="fraudHeadersDetails" class="mt-2 p-2 bg-light border rounded small"
+                                 style="max-height: 320px; overflow: auto;"></pre>
+                        </details>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Configuration Card -->
     <div class="row">
         <div class="col-12">
@@ -1361,6 +1390,7 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/hmrc-fraud-headers.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hmrc-fraud-headers-validate.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hmrc-cumulative.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hmrc-periods-of-account.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hmrc-ladr.js') }}"></script>

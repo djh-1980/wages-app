@@ -185,12 +185,15 @@ class HMRCClient:
     def test_connection(self):
         """
         Test connection to HMRC API.
-        
+
+        Uses /hello/user, which is user-restricted and accepts the OAuth
+        bearer token we hold. /hello/world is application-restricted and
+        would reject the user bearer.
+
         Returns:
             dict: Connection test result
         """
-        # Test with HMRC hello world endpoint
-        result = self._make_request('GET', '/hello/world')
+        result = self._make_request('GET', '/hello/user')
         
         if result.get('success'):
             return {

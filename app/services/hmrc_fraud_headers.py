@@ -14,12 +14,12 @@ from __future__ import annotations
 
 import hashlib
 import logging
-import platform
 import socket
 import uuid
 from datetime import datetime, timezone
 from typing import Optional
 from urllib.parse import quote
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from flask import request, session
 
@@ -43,8 +43,11 @@ def record_browser_context(data: dict) -> None:
     Called by the /api/hmrc/fraud-headers/record endpoint on every page load
     of an HMRC page.
     """
+    # Only fields that map to a header HMRC expects for WEB_APP_VIA_SERVER.
+    # 'plugins' and 'do_not_track' were sent by older builds but are NOT part
+    # of the WEB_APP_VIA_SERVER spec - we no longer persist them.
     allowed = {
-        'js_user_agent', 'plugins', 'do_not_track',
+        'js_user_agent',
         'window_width', 'window_height',
         'screen_width', 'screen_height', 'screen_scaling', 'screen_colour_depth',
         'timezone', 'device_id',
@@ -85,6 +88,20 @@ def _client_public_ip() -> str:
     return request.remote_addr or ''
 
 
+def _client_public_ip_timestamp() -> str:
+    """
+    Timestamp at which Gov-Client-Public-IP was collected.
+
+    HMRC requires UTC ISO 8601 with milliseconds and a trailing 'Z':
+    ``yyyy-MM-ddThh:mm:ss.sssZ``.
+    """
+    if not _in_request_context():
+        return ''
+    now = datetime.now(timezone.utc)
+    # %f gives microseconds; trim to milliseconds.
+    return now.strftime('%Y-%m-%dT%H:%M:%S.') + f'{now.microsecond // 1000:03d}Z'
+
+
 def _client_public_port() -> str:
     if not _in_request_context():
         return ''
@@ -92,21 +109,36 @@ def _client_public_port() -> str:
     return request.headers.get('X-Forwarded-Port') or str(request.environ.get('REMOTE_PORT') or '')
 
 
-def _client_user_agent() -> str:
-    if not _in_request_context():
-        return ''
-    return request.headers.get('User-Agent', '')
+def _format_utc_offset(td) -> str:
+    """Format a `timedelta` UTC offset as ``UTC±hh:mm`` per HMRC spec."""
+    total = int(td.total_seconds())
+    sign = '+' if total >= 0 else '-'
+    total = abs(total)
+    hours, rem = divmod(total, 3600)
+    minutes = rem // 60
+    return f'UTC{sign}{hours:02d}:{minutes:02d}'
 
 
 def _client_timezone() -> str:
-    """Prefer the browser-reported IANA zone; fall back to server offset."""
-    tz = _ctx().get('timezone')
+    """
+    Browser-reported timezone, normalised to HMRC's required ``UTC±hh:mm``
+    format.
+
+    The JS captures an IANA name (e.g. ``Europe/London``); HMRC rejects
+    that form, so resolve it against the current instant to obtain the
+    actual offset (which correctly handles DST).
+    """
+    tz = _ctx().get('timezone') or ''
     if tz:
-        return tz
-    offset = datetime.now(timezone.utc).astimezone().strftime('%z')
-    if len(offset) == 5:
-        return f"UTC{offset[:3]}:{offset[3:]}"
-    return 'UTC+00:00'
+        try:
+            offset = datetime.now(ZoneInfo(tz)).utcoffset()
+            if offset is not None:
+                return _format_utc_offset(offset)
+        except (ZoneInfoNotFoundError, ValueError):
+            pass
+    # Fallback: server's local offset.
+    offset = datetime.now(timezone.utc).astimezone().utcoffset()
+    return _format_utc_offset(offset) if offset is not None else 'UTC+00:00'
 
 
 def _client_device_id() -> str:
@@ -147,22 +179,38 @@ def _client_browser_js_user_agent() -> str:
     return _ctx().get('js_user_agent', '')
 
 
-def _client_browser_plugins() -> str:
-    # Already comma-separated percent-encoded from the JS side.
-    return _ctx().get('plugins', '')
+def _client_user_ids() -> str:
+    """
+    Identifiers for the user driving the request, percent-encoded per
+    RFC 3986. Format: ``<account-key>=<identifier>``.
 
-
-def _client_browser_do_not_track() -> str:
-    v = _ctx().get('do_not_track')
-    if v in ('1', 'true', 'yes'):
-        return 'true'
-    if v in ('0', 'false', 'no'):
-        return 'false'
-    return 'false'
+    HMRC requires this for WEB_APP_VIA_SERVER. We expose the locally
+    authenticated Flask-Login user (username, falling back to email or
+    user id). Separators (``=`` and ``&``) are kept literal; values are
+    percent-encoded.
+    """
+    if not _in_request_context():
+        return ''
+    try:
+        from flask_login import current_user
+        if not getattr(current_user, 'is_authenticated', False):
+            return ''
+        identifier = (
+            getattr(current_user, 'username', None)
+            or getattr(current_user, 'email', None)
+            or str(getattr(current_user, 'id', '') or '')
+        )
+        if not identifier:
+            return ''
+        return f'tvs-wages={_pct(str(identifier))}'
+    except Exception:  # noqa: BLE001
+        return ''
 
 
 def _client_multi_factor() -> str:
-    # We do not yet enforce MFA. HMRC accepts an empty list:
+    # We do not yet enforce MFA. HMRC accepts the header being absent
+    # provided the application authenticates with username + password
+    # only - which is our case (see the 'missing data' guidance).
     return ''
 
 
@@ -203,7 +251,8 @@ def _vendor_local_ips() -> str:
 
 
 def _vendor_product_name() -> str:
-    return 'TVS Wages'
+    # Per HMRC spec the value must be percent-encoded.
+    return _pct('TVS Wages')
 
 
 def _vendor_version() -> str:
@@ -236,24 +285,25 @@ def build_fraud_prevention_headers() -> dict:
     HMRC rejects known-required headers if missing, so callers should log a
     warning in production when this set is incomplete.
     """
+    # Only headers listed by HMRC for WEB_APP_VIA_SERVER. Anything else
+    # the validator team flags as 'unexpected'.
     headers = {
         'Gov-Client-Connection-Method': 'WEB_APP_VIA_SERVER',
-        'Gov-Client-Public-IP': _client_public_ip(),
-        'Gov-Client-Public-Port': _client_public_port(),
-        'Gov-Client-Device-ID': _client_device_id(),
-        'Gov-Client-User-Agent': _client_user_agent(),
-        'Gov-Client-Timezone': _client_timezone(),
-        'Gov-Client-Screens': _client_screens(),
-        'Gov-Client-Window-Size': _client_window_size(),
         'Gov-Client-Browser-JS-User-Agent': _client_browser_js_user_agent(),
-        'Gov-Client-Browser-Plugins': _client_browser_plugins(),
-        'Gov-Client-Browser-Do-Not-Track': _client_browser_do_not_track(),
+        'Gov-Client-Device-ID': _client_device_id(),
         'Gov-Client-Multi-Factor': _client_multi_factor(),
-        'Gov-Vendor-Version': _vendor_version(),
-        'Gov-Vendor-Product-Name': _vendor_product_name(),
-        'Gov-Vendor-License-IDs': _vendor_license_ids(),
-        'Gov-Vendor-Public-IP': _vendor_public_ip(),
+        'Gov-Client-Public-IP': _client_public_ip(),
+        'Gov-Client-Public-IP-Timestamp': _client_public_ip_timestamp(),
+        'Gov-Client-Public-Port': _client_public_port(),
+        'Gov-Client-Screens': _client_screens(),
+        'Gov-Client-Timezone': _client_timezone(),
+        'Gov-Client-User-IDs': _client_user_ids(),
+        'Gov-Client-Window-Size': _client_window_size(),
         'Gov-Vendor-Forwarded': _vendor_forwarded(),
+        'Gov-Vendor-License-IDs': _vendor_license_ids(),
+        'Gov-Vendor-Product-Name': _vendor_product_name(),
+        'Gov-Vendor-Public-IP': _vendor_public_ip(),
+        'Gov-Vendor-Version': _vendor_version(),
     }
 
     # Strip empty-string values - HMRC prefers the header absent to being blank.
@@ -266,6 +316,7 @@ def build_fraud_prevention_headers() -> dict:
             'Gov-Client-Browser-JS-User-Agent',
             'Gov-Client-Screens',
             'Gov-Client-Window-Size',
+            'Gov-Client-User-IDs',
         )
         missing = [h for h in required_browser if h not in headers]
         if missing:

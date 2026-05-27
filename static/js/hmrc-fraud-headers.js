@@ -2,10 +2,14 @@
  * HMRC fraud-prevention browser context capture.
  *
  * HMRC requires WEB_APP_VIA_SERVER applications to forward a number of
- * client-side values (browser UA, screen dimensions, window size, timezone,
- * plugins, DNT, device ID) on every API call. The browser captures these
- * here and POSTs them to the backend, which stashes them in the Flask
- * session and replays them on every HMRC API request made via HMRCClient.
+ * client-side values (browser JS user-agent, screen dimensions, window
+ * size, timezone, device ID) on every API call. The browser captures
+ * these here and POSTs them to the backend, which stashes them in the
+ * Flask session and replays them on every HMRC API request made via
+ * HMRCClient.
+ *
+ * Plugins and Do-Not-Track were captured by older builds but are NOT
+ * part of the WEB_APP_VIA_SERVER spec - they have been removed.
  *
  * Load this script on every page that can trigger an HMRC API call
  * (settings/hmrc, MTD sandbox, etc.).
@@ -36,24 +40,6 @@
         }
     }
 
-    function collectPlugins() {
-        try {
-            if (!navigator.plugins || navigator.plugins.length === 0) return '';
-            return Array.from(navigator.plugins)
-                .map((p) => encodeURIComponent(p.name || ''))
-                .filter(Boolean)
-                .join(',');
-        } catch (e) {
-            return '';
-        }
-    }
-
-    function collectDoNotTrack() {
-        if (navigator.doNotTrack === '1' || window.doNotTrack === '1') return '1';
-        if (navigator.doNotTrack === '0' || window.doNotTrack === '0') return '0';
-        return 'unspecified';
-    }
-
     function collectTimezone() {
         try {
             return Intl.DateTimeFormat().resolvedOptions().timeZone || '';
@@ -66,8 +52,6 @@
         const screenScaling = (window.devicePixelRatio || 1).toString();
         return {
             js_user_agent: navigator.userAgent || '',
-            plugins: collectPlugins(),
-            do_not_track: collectDoNotTrack(),
             window_width: window.innerWidth,
             window_height: window.innerHeight,
             screen_width: screen && screen.width,
