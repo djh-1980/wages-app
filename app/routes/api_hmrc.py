@@ -76,6 +76,7 @@ def fraud_headers_validate():
         message, errors[], warnings[]).
     """
     import requests
+    from ..config import Config
     from ..services.hmrc_fraud_headers import build_fraud_prevention_headers
     from ..services.hmrc_sandbox import HMRCSandboxService
 
@@ -106,10 +107,8 @@ def fraud_headers_validate():
             **fp_headers,
         }
 
-        url = (
-            current_app.config.get('HMRC_API_BASE_URL')
-            or 'https://test-api.service.hmrc.gov.uk'
-        ) + '/test/fraud-prevention-headers/validate'
+        base_url = Config().HMRC_API_BASE_URL or 'https://test-api.service.hmrc.gov.uk'
+        url = base_url + '/test/fraud-prevention-headers/validate'
 
         r = requests.get(url, headers=request_headers, timeout=30)
         body = r.json() if r.content else {}

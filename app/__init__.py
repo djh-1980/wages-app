@@ -58,6 +58,22 @@ def create_app(config_name=None, test_config=None):
     # Initialize configuration
     config_class.init_app(app)
 
+    # When running behind a reverse proxy (e.g. nginx on
+    # tvs.daniel-hanson.co.uk), trust the X-Forwarded-* headers so that
+    # request.remote_addr resolves to the real client IP rather than the
+    # proxy. This is required by the HMRC fraud-prevention header builder
+    # for `Gov-Client-Public-IP` and `Gov-Vendor-Forwarded` to carry the
+    # public IP HMRC's validator demands.
+    if os.environ.get('FLASK_ENV') == 'production' or os.environ.get('TRUST_PROXY_HEADERS') == '1':
+        from werkzeug.middleware.proxy_fix import ProxyFix
+        # One proxy hop in front of us (nginx). Adjust counts if you add a
+        # CDN or load balancer in front later.
+        app.wsgi_app = ProxyFix(
+            app.wsgi_app,
+            x_for=1, x_proto=1, x_host=1, x_port=1, x_prefix=1,
+        )
+        logger.info('ProxyFix middleware enabled (trusting 1 proxy hop)')
+
     # Keep the module-level DB_PATH in sync with the final resolved config so
     # that helpers which imported `from .database import DB_PATH` at module
     # load time cannot drift. Tests rely on this to redirect to a temp DB.

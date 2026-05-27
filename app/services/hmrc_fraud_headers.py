@@ -58,6 +58,10 @@ def record_browser_context(data: dict) -> None:
             fp[k] = str(v)[:512]  # safety cap
     fp['captured_at'] = datetime.now(timezone.utc).isoformat()
     session['hmrc_fraud_ctx'] = fp
+    # Flask only auto-detects top-level mutation; nested dict edits can be
+    # missed. Force the cookie to be re-signed so the next request sees it.
+    session.modified = True
+    session.permanent = True
 
 
 def _ctx() -> dict:
@@ -260,9 +264,21 @@ def _vendor_version() -> str:
 
 
 def _vendor_license_ids() -> str:
-    # No commercial license — single-user self-hosted. Empty is allowed.
+    """
+    Per HMRC fraud prevention spec, ``Gov-Vendor-License-IDs`` carries a
+    map of ``<software-name>=<hashed-license-value>``. TVS Wages is a
+    self-hosted single-user product with no commercial licence keys, so
+    we publish a stable SHA-256 of the install identifier (or override
+    via the ``HMRC_VENDOR_LICENSE_IDS`` env var if you have a real key).
+    """
     import os
-    return os.environ.get('HMRC_VENDOR_LICENSE_IDS', '')
+    override = os.environ.get('HMRC_VENDOR_LICENSE_IDS', '').strip()
+    if override:
+        return override
+    # Stable per-install hash so HMRC sees the same licence id on every
+    # call from this server.
+    digest = hashlib.sha256(f'tvs-wages-self-hosted-{uuid.getnode()}'.encode()).hexdigest()
+    return f'tvs-wages={digest}'
 
 
 def _vendor_forwarded() -> str:
