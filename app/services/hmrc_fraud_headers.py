@@ -203,11 +203,11 @@ def _vendor_local_ips() -> str:
 
 
 def _vendor_product_name() -> str:
-    return 'TVS TCMS'
+    return 'TVS Wages'
 
 
 def _vendor_version() -> str:
-    return f"TVS-TCMS={Config.VERSION}"
+    return f"TVS-Wages={Config.VERSION}"
 
 
 def _vendor_license_ids() -> str:

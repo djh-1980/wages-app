@@ -7,7 +7,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>{% block title %}TVS TCMS{% endblock %}</title>
+    <title>{% block title %}TVS Wages{% endblock %}</title>
     
     <!-- Favicon -->
     <link rel="icon" type="image/svg+xml" href="{{ url_for('static', filename='images/favicon.svg') }}">
@@ -36,7 +36,7 @@
         <div class="container-fluid">
             <a class="navbar-brand d-flex align-items-center" href="/">
                 <img src="{{ url_for('static', filename='images/tvs-logo.svg') }}" alt="TVS Logo" height="32" class="me-2">
-                <span class="fw-bold">TVS TCMS</span>
+                <span class="fw-bold">TVS Wages</span>
             </a>
             <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
                 <span class="navbar-toggler-icon"></span>
@@ -165,7 +165,7 @@
     <footer class="text-center text-muted py-3 mt-auto app-footer">
         <div class="container">
             <small>
-                TVS TCMS v{{ config.VERSION if config.VERSION else '2.1.0' }} | 
+                TVS Wages v{{ config.VERSION if config.VERSION else '2.1.0' }} | 
                 <a href="/privacy" class="text-muted text-decoration-none">Privacy Policy</a> | 
                 <a href="/terms" class="text-muted text-decoration-none">Terms & Conditions</a>
             </small>
