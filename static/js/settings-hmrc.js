@@ -40,7 +40,6 @@ function setupEventListeners() {
     document.getElementById('disconnectBtn').addEventListener('click', disconnectFromHMRC);
     document.getElementById('testConnectionBtn').addEventListener('click', testConnection);
     document.getElementById('refreshObligationsBtn').addEventListener('click', refreshObligations);
-    document.getElementById('saveConfigBtn').addEventListener('click', saveConfiguration);
     document.getElementById('modalSaveBtn').addEventListener('click', saveModalConfig);
     
     // Property event listeners
@@ -354,45 +353,25 @@ async function loadSubmissions() {
     }
 }
 
-function saveConfiguration() {
-    const nino = document.getElementById('ninoInput').value.trim();
-    const businessId = document.getElementById('businessIdInput').value.trim();
-    
-    if (!nino || !businessId) {
-        showNotification('Please enter both NINO and Business ID', 'warning');
-        return;
-    }
-    
-    // Validate NINO format (basic)
-    const ninoRegex = /^[A-Z]{2}[0-9]{6}[A-Z]$/;
-    if (!ninoRegex.test(nino)) {
-        showNotification('Invalid NINO format. Should be like: AA123456A', 'danger');
-        return;
-    }
-    
-    hmrcConfig.nino = nino;
-    hmrcConfig.businessId = businessId;
-    
-    // Store in localStorage
-    localStorage.setItem('hmrc_nino', nino);
-    localStorage.setItem('hmrc_business_id', businessId);
-    
-    showNotification('Configuration saved successfully', 'success');
-}
-
-function loadStoredConfig() {
-    // Load from localStorage
-    const nino = localStorage.getItem('hmrc_nino');
-    const businessId = localStorage.getItem('hmrc_business_id');
-    
-    if (nino) {
-        document.getElementById('ninoInput').value = nino;
-        hmrcConfig.nino = nino;
-    }
-    
-    if (businessId) {
-        document.getElementById('businessIdInput').value = businessId;
-        hmrcConfig.businessId = businessId;
+// Configuration is now managed in Profile settings page
+// This function loads config from API for use in this page
+async function loadStoredConfig() {
+    try {
+        const response = await fetch('/api/settings/hmrc-config');
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.config) {
+                hmrcConfig.nino = data.config.nino || '';
+                hmrcConfig.businessId = data.config.business_id || '';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading HMRC config:', error);
+        // Fallback to localStorage for backward compatibility
+        const nino = localStorage.getItem('hmrc_nino');
+        const businessId = localStorage.getItem('hmrc_business_id');
+        if (nino) hmrcConfig.nino = nino;
+        if (businessId) hmrcConfig.businessId = businessId;
     }
 }
 
@@ -408,11 +387,16 @@ function saveModalConfig() {
     hmrcConfig.nino = nino;
     hmrcConfig.businessId = businessId;
     
-    localStorage.setItem('hmrc_nino', nino);
-    localStorage.setItem('hmrc_business_id', businessId);
-    
-    document.getElementById('ninoInput').value = nino;
-    document.getElementById('businessIdInput').value = businessId;
+    // Save to API endpoint
+    try {
+        await fetch('/api/settings/hmrc-config', {
+            method: 'POST',
+            headers: getJSONHeaders(),
+            body: JSON.stringify({ nino, business_id: businessId })
+        });
+    } catch (error) {
+        console.error('Error saving HMRC config:', error);
+    }
     
     $('#configModal').modal('hide');
     

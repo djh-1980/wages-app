@@ -115,6 +115,35 @@
 
                 <div class="settings-card">
                     <div class="card-header">
+                        <h5><i class="bi bi-landmark me-2"></i>HMRC MTD Configuration</h5>
+                    </div>
+                    <div class="card-body">
+                        <p class="text-muted mb-3">
+                            These credentials are required for Making Tax Digital submissions to HMRC.
+                            You must configure these before using the MTD features.
+                        </p>
+                        <div class="row g-3">
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">National Insurance Number (NINO)</label>
+                                <input type="text" class="form-control" id="hmrcNino" placeholder="AA123456A">
+                                <small class="text-muted">Required for MTD ITSA submissions</small>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label class="form-label">Business ID</label>
+                                <input type="text" class="form-control" id="hmrcBusinessId" placeholder="XAIS12345678901">
+                                <small class="text-muted">Provided by HMRC after MTD registration</small>
+                            </div>
+                        </div>
+                        <div class="mt-3">
+                            <button type="button" class="btn btn-primary" onclick="saveHmrcConfig()">
+                                <i class="bi bi-save me-2"></i>Save HMRC Configuration
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="settings-card">
+                    <div class="card-header">
                         <h5><i class="bi bi-shield-lock me-2"></i>Change Password</h5>
                     </div>
                     <div class="card-body">

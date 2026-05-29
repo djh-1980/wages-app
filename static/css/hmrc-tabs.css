@@ -1,0 +1,126 @@
+/**
+ * HMRC MTD Settings Page - Tab Navigation Styling
+ * Navy #1A2D3D and Gold #C9A96E theme
+ */
+
+.hmrc-tabs {
+    border-bottom: 3px solid #1A2D3D;
+    background: linear-gradient(to bottom, #f8f9fa 0%, #ffffff 100%);
+    padding: 1rem 0 0 0;
+    margin-bottom: 0 !important;
+}
+
+.hmrc-tabs .nav-link {
+    color: #1A2D3D;
+    font-weight: 500;
+    border: none;
+    border-bottom: 3px solid transparent;
+    margin-bottom: -3px;
+    padding: 0.75rem 1.5rem;
+    transition: all 0.3s ease;
+    background: transparent;
+}
+
+.hmrc-tabs .nav-link:hover {
+    color: #C9A96E;
+    border-bottom-color: #C9A96E;
+    background: transparent;
+}
+
+.hmrc-tabs .nav-link.active {
+    color: #C9A96E;
+    background: transparent;
+    border-bottom-color: #C9A96E;
+    font-weight: 600;
+}
+
+.hmrc-tabs .nav-link i {
+    margin-right: 0.5rem;
+}
+
+/* Mobile responsive */
+@media (max-width: 768px) {
+    .hmrc-tabs {
+        overflow-x: auto;
+        white-space: nowrap;
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+    }
+    
+    .hmrc-tabs .nav-link {
+        padding: 0.75rem 1rem;
+        font-size: 0.9rem;
+        display: inline-block;
+    }
+    
+    .hmrc-tabs::-webkit-scrollbar {
+        height: 4px;
+    }
+    
+    .hmrc-tabs::-webkit-scrollbar-track {
+        background: #f1f1f1;
+    }
+    
+    .hmrc-tabs::-webkit-scrollbar-thumb {
+        background: #C9A96E;
+        border-radius: 2px;
+    }
+}
+
+/* Tab content styling */
+.tab-content {
+    padding-top: 2rem;
+}
+
+/* Connection status enhancements */
+.connection-status {
+    border-radius: 8px;
+    padding: 2rem;
+    margin-bottom: 2rem;
+}
+
+.connection-status.connected {
+    background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+    color: white;
+}
+
+.connection-status.disconnected {
+    background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+    color: white;
+}
+
+.connection-status .status-icon {
+    font-size: 3rem;
+    margin-bottom: 1rem;
+}
+
+.connection-status h3 {
+    margin-bottom: 0.5rem;
+    font-weight: 600;
+}
+
+.environment-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 20px;
+    font-size: 0.875rem;
+    font-weight: 600;
+    margin-top: 1rem;
+}
+
+.environment-badge.sandbox {
+    background-color: #C9A96E;
+    color: #1A2D3D;
+}
+
+.environment-badge.production {
+    background-color: #1A2D3D;
+    color: #C9A96E;
+}
+
+/* MTD Footer */
+.mtd-footer {
+    margin-top: 3rem;
+    padding-top: 2rem;
+    border-top: 1px solid #e5e7eb;
+}

@@ -188,12 +188,61 @@ async function loadUserInfo() {
     }
 }
 
+// HMRC Configuration functions
+async function loadHmrcConfig() {
+    try {
+        const response = await fetch('/api/settings/hmrc-config');
+        if (response.ok) {
+            const data = await response.json();
+            if (data.success && data.config) {
+                document.getElementById('hmrcNino').value = data.config.nino || '';
+                document.getElementById('hmrcBusinessId').value = data.config.business_id || '';
+            }
+        }
+    } catch (error) {
+        console.error('Error loading HMRC config:', error);
+    }
+}
+
+async function saveHmrcConfig() {
+    const configData = {
+        nino: document.getElementById('hmrcNino').value.trim().toUpperCase(),
+        business_id: document.getElementById('hmrcBusinessId').value.trim()
+    };
+    
+    // Validate NINO format (basic check)
+    if (configData.nino && !/^[A-Z]{2}\d{6}[A-D]$/.test(configData.nino)) {
+        showError('Invalid NINO format. Expected format: AA123456A');
+        return;
+    }
+    
+    try {
+        const response = await fetch('/api/settings/hmrc-config', {
+            method: 'POST',
+            headers: getJSONHeaders(),
+            body: JSON.stringify(configData)
+        });
+        
+        if (response.ok) {
+            const data = await response.json();
+            showSuccess('HMRC configuration saved successfully!');
+        } else {
+            const errorData = await response.json();
+            showError(`Failed to save HMRC config: ${errorData.error || 'Unknown error'}`);
+        }
+    } catch (error) {
+        console.error('Error saving HMRC config:', error);
+        showError('Failed to save HMRC configuration. Please try again.');
+    }
+}
+
 // Initialize when page loads
 document.addEventListener('DOMContentLoaded', function() {
     console.log('Profile settings page loaded');
     loadProfile();
     loadEmailSettings();
     loadUserInfo();
+    loadHmrcConfig();
     
     // Add password change form handler
     const passwordForm = document.getElementById('changePasswordForm');

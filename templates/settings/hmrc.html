@@ -6,14 +6,53 @@
 
 {% block content %}
 <div class="container-fluid mt-4">
-    <div class="row">
+    <!-- Page Header -->
+    <div class="row mb-4">
         <div class="col-12">
-            <h1 class="mb-4">
+            <h1 class="mb-2">
                 <i class="fas fa-landmark"></i> HMRC Making Tax Digital
             </h1>
+            <p class="text-muted">Manage your Making Tax Digital submissions and compliance</p>
         </div>
     </div>
     
+    <!-- Tab Navigation -->
+    <div class="row">
+        <div class="col-12">
+            <ul class="nav nav-pills hmrc-tabs mb-4 flex-nowrap overflow-auto" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="pill" data-bs-target="#overview" role="tab">
+                        <i class="fas fa-home"></i> Overview
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#quarterly" role="tab">
+                        <i class="fas fa-calendar-check"></i> Quarterly Filing
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#endofyear" role="tab">
+                        <i class="fas fa-calculator"></i> End of Year
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#finaldeclaration" role="tab">
+                        <i class="fas fa-file-signature"></i> Final Declaration
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#help" role="tab">
+                        <i class="fas fa-question-circle"></i> Help
+                    </a>
+                </li>
+            </ul>
+            
+            <!-- Tab Content -->
+            <div class="tab-content">
+                
+                <!-- TAB 1: OVERVIEW -->
+                <div class="tab-pane fade show active" id="overview">
+                    
     <!-- Connection Status Card -->
     <div class="row">
         <div class="col-12">
@@ -57,39 +96,6 @@
         </div>
     </div>
     
-
-    <!-- Configuration Card -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card settings-card mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="fas fa-cog"></i> Configuration
-                    </h5>
-                    <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="ninoInput">National Insurance Number</label>
-                                <input type="text" class="form-control" id="ninoInput" placeholder="AA123456A">
-                                <small class="form-text text-muted">Required for MTD submissions</small>
-                            </div>
-                        </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label for="businessIdInput">Business ID</label>
-                                <input type="text" class="form-control" id="businessIdInput" placeholder="XAIS12345678901">
-                                <small class="form-text text-muted">Provided by HMRC after registration</small>
-                            </div>
-                        </div>
-                    </div>
-                    <button id="saveConfigBtn" class="btn btn-success">
-                        <i class="fas fa-save"></i> Save Configuration
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
     <!-- Period of Account Card (Business Details API v2.0) -->
     <div class="row">
         <div class="col-12">
@@ -534,54 +540,15 @@
             </div>
         </div>
     </div>
-
-    <!-- Tabs for Obligations and Submissions -->
-    <div class="row">
-        <div class="col-12">
-            <ul class="nav nav-pills mb-3 flex-nowrap overflow-auto" role="tablist">
-                <li class="nav-item">
-                    <a class="nav-link active" data-bs-toggle="pill" data-bs-target="#obligations" role="tab">
-                        <i class="fas fa-calendar-check"></i> Quarterly Obligations
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#submissions" role="tab">
-                        <i class="fas fa-paper-plane"></i> Submission History
-                    </a>
-                </li>
-                {% if config.HMRC_PROPERTY_ENABLED %}
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#property" role="tab">
-                        <i class="fas fa-home"></i> Property
-                    </a>
-                </li>
-                {% endif %}
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#bsas" role="tab">
-                        <i class="fas fa-calculator"></i> BSAS
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#losses" role="tab">
-                        <i class="fas fa-chart-line"></i> Losses
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#finalDeclaration" role="tab">
-                        <i class="fas fa-file-signature"></i> Final Declaration
-                    </a>
-                </li>
-                <li class="nav-item">
-                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#help" role="tab">
-                        <i class="fas fa-question-circle"></i> Help & Documentation
-                    </a>
-                </li>
-            </ul>
-            
-            <div class="tab-content">
-                <!-- Obligations Tab -->
-                <div class="tab-pane fade show active" id="obligations">
-                    <div class="card settings-card">
+    
+                </div>
+                <!-- END TAB 1: OVERVIEW -->
+                
+                <!-- TAB 2: QUARTERLY FILING -->
+                <div class="tab-pane fade" id="quarterly">
+                    
+                    <!-- Quarterly Obligations -->
+                    <div class="card settings-card mb-4">
                         <div class="card-body">
                             <h5 class="card-title">Quarterly Obligations</h5>
 
@@ -705,8 +672,7 @@
                     </div>
                 </div>
                 
-                <!-- Submissions Tab -->
-                <div class="tab-pane fade" id="submissions">
+                    <!-- Submission History -->
                     <div class="card settings-card">
                         <div class="card-body">
                             <h5 class="card-title">Submission History</h5>
@@ -718,45 +684,15 @@
                             </div>
                         </div>
                     </div>
+                    
                 </div>
+                <!-- END TAB 2: QUARTERLY FILING -->
                 
-                {% if config.HMRC_PROPERTY_ENABLED %}
-                <!-- Property Tab (gated on HMRC_PROPERTY_ENABLED feature flag) -->
-                <div class="tab-pane fade" id="property">
-                    <div class="card settings-card">
-                        <div class="card-body">
-                            <h5 class="card-title">
-                                <i class="fas fa-home"></i> UK Property Business
-                            </h5>
-                            
-                            <div class="alert alert-info">
-                                <h6><i class="fas fa-info-circle"></i> Property Business API v6.0</h6>
-                                <p class="mb-0">Submit UK property income and expenses for Making Tax Digital. This covers rental income from UK properties.</p>
-                            </div>
-                            
-                            <!-- Fetch Obligations Button -->
-                            <div class="mb-4">
-                                <button id="fetchPropertyObligationsBtn" class="btn btn-primary">
-                                    <i class="fas fa-sync"></i> Fetch Property Obligations
-                                </button>
-                            </div>
-                            
-                            <!-- Obligations Display -->
-                            <div id="propertyObligationsList">
-                                <div class="text-center text-muted py-5">
-                                    <i class="fas fa-home fa-3x mb-3"></i>
-                                    <p>Click "Fetch Property Obligations" to load from HMRC</p>
-                                </div>
-                            </div>
-                            
-                        </div>
-                    </div>
-                </div>
-                {% endif %}
+                <!-- TAB 3: END OF YEAR -->
+                <div class="tab-pane fade" id="endofyear">
                 
-                <!-- BSAS Tab -->
-                <div class="tab-pane fade" id="bsas">
-                    <div class="card settings-card">
+                    <!-- BSAS Section -->
+                    <div class="card settings-card mb-4">
                         <div class="card-body">
                             <h5 class="card-title">
                                 <i class="fas fa-calculator"></i> Business Source Adjustable Summary (BSAS)
@@ -937,11 +873,9 @@
                             </div>
                         </div>
                     </div>
-                </div>
-                
-                <!-- Losses Tab -->
-                <div class="tab-pane fade" id="losses">
-                    <div class="card settings-card">
+                    
+                    <!-- Losses Section -->
+                    <div class="card settings-card mb-4">
                         <div class="card-body">
                             <h5 class="card-title">
                                 <i class="fas fa-chart-line"></i> Individual Losses (Brought Forward)
@@ -1014,10 +948,12 @@
                             <div id="createLossResult" class="mt-3 d-none"></div>
                         </div>
                     </div>
+                    
                 </div>
+                <!-- END TAB 3: END OF YEAR -->
                 
-                <!-- Final Declaration Tab -->
-                <div class="tab-pane fade" id="finalDeclaration">
+                <!-- TAB 4: FINAL DECLARATION -->
+                <div class="tab-pane fade" id="finaldeclaration">
                     <div class="card settings-card">
                         <div class="card-body">
                             <h5 class="card-title">
@@ -1121,9 +1057,11 @@
                             </div>
                         </div>
                     </div>
+                    
                 </div>
+                <!-- END TAB 4: FINAL DECLARATION -->
                 
-                <!-- Help Tab -->
+                <!-- TAB 5: HELP -->
                 <div class="tab-pane fade" id="help">
                     <div class="card settings-card">
                         <div class="card-body">
@@ -1214,8 +1152,12 @@
                             </div>
                         </div>
                     </div>
+                    
                 </div>
+                <!-- END TAB 5: HELP -->
+                
             </div>
+            <!-- END TAB CONTENT -->
         </div>
     </div>
     
@@ -1317,6 +1259,7 @@
 {% endblock %}
 
 {% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-tabs.css') }}?v={{ range(1000, 9999) | random }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-cumulative.css') }}?v={{ range(1000, 9999) | random }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-periods-of-account.css') }}?v={{ range(1000, 9999) | random }}">
 <link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-ladr.css') }}?v={{ range(1000, 9999) | random }}">
