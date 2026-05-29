@@ -44,8 +44,10 @@ function setupEventListeners() {
     document.getElementById('modalSaveBtn').addEventListener('click', saveModalConfig);
     
     // Property event listeners
-    document.getElementById('fetchPropertyObligationsBtn').addEventListener('click', fetchPropertyObligations);
-    document.getElementById('submitPropertyTestBtn').addEventListener('click', submitPropertyTest);
+    const fetchPropertyBtn = document.getElementById('fetchPropertyObligationsBtn');
+    if (fetchPropertyBtn) {
+        fetchPropertyBtn.addEventListener('click', fetchPropertyObligations);
+    }
     
     // BSAS event listeners
     document.getElementById('triggerBsasBtn').addEventListener('click', triggerBsas);
@@ -1171,7 +1173,7 @@ async function submitPropertyTest() {
             resultDiv.innerHTML = `
                 <div class="alert alert-success">
                     <h6><i class="fas fa-check-circle"></i> Test Submission Successful</h6>
-                    <p class="mb-0">Property period submitted successfully to HMRC sandbox.</p>
+                    <p class="mb-0">Property period submitted successfully to HMRC.</p>
                     ${data.data && data.data.id ? `<p class="mb-0 mt-2"><strong>Period ID:</strong> <code>${data.data.id}</code></p>` : ''}
                 </div>
             `;
@@ -1393,9 +1395,9 @@ function displayBsasSummary(data) {
         html += '</div>';
     }
     
-    // Full JSON for debugging
-    html += '<hr><details><summary>Full Response (JSON)</summary>';
-    html += `<pre class="bg-light p-3" style="max-height: 400px; overflow-y: auto;">${JSON.stringify(data, null, 2)}</pre>`;
+    // Full JSON for debugging (collapsed by default)
+    html += '<hr><details class="mt-3"><summary class="text-muted small">Show full response (JSON)</summary>';
+    html += `<pre class="bg-light p-3 mt-2" style="max-height: 400px; overflow-y: auto;">${JSON.stringify(data, null, 2)}</pre>`;
     html += '</details>';
     
     html += '</div></div>';
@@ -1735,7 +1737,7 @@ async function createLoss() {
             resultDiv.innerHTML = `
                 <div class="alert alert-success">
                     <h6><i class="fas fa-check-circle"></i> Loss Created Successfully</h6>
-                    <p class="mb-0">Loss has been recorded in HMRC sandbox.</p>
+                    <p class="mb-0">Loss has been recorded with HMRC.</p>
                     ${lossId ? `<p class="mb-0 mt-2"><strong>Loss ID:</strong> <code>${lossId}</code></p>` : ''}
                 </div>
             `;

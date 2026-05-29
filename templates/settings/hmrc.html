@@ -57,34 +57,6 @@
         </div>
     </div>
     
-    <!-- Fraud Prevention Header Validation Card -->
-    <div class="row">
-        <div class="col-12">
-            <div class="card settings-card mb-4">
-                <div class="card-body">
-                    <h5 class="card-title">
-                        <i class="fas fa-shield-alt"></i> Fraud Prevention Headers
-                    </h5>
-                    <p class="text-muted small mb-3">
-                        Self-check the WEB_APP_VIA_SERVER fraud prevention headers
-                        against HMRC's Test Fraud Prevention Headers API. Required for
-                        MTD ITSA software recognition - HMRC checks these in production.
-                    </p>
-                    <button id="validateFraudHeadersBtn" class="btn btn-primary">
-                        <i class="fas fa-vial"></i> Validate Fraud Headers Now
-                    </button>
-                    <div id="fraudHeadersResult" class="mt-3 d-none">
-                        <div class="alert" id="fraudHeadersAlert" role="alert"></div>
-                        <details class="small">
-                            <summary class="text-muted">Show details</summary>
-                            <pre id="fraudHeadersDetails" class="mt-2 p-2 bg-light border rounded small"
-                                 style="max-height: 320px; overflow: auto;"></pre>
-                        </details>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Configuration Card -->
     <div class="row">
@@ -777,43 +749,6 @@
                                 </div>
                             </div>
                             
-                            <hr class="my-4">
-                            
-                            <!-- Test Submission Section -->
-                            <h6><i class="fas fa-vial"></i> Sandbox Test Submission</h6>
-                            <p class="text-muted">Submit a test period with zero values for sandbox testing</p>
-                            
-                            <div class="row">
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label>Tax Year</label>
-                                        <input type="text" class="form-control" id="propertyTaxYear" value="2024-25" placeholder="2024-25">
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label>From Date</label>
-                                        <input type="date" class="form-control" id="propertyFromDate" value="2024-04-06">
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label>To Date</label>
-                                        <input type="date" class="form-control" id="propertyToDate" value="2024-07-05">
-                                    </div>
-                                </div>
-                                <div class="col-md-3">
-                                    <div class="form-group">
-                                        <label>&nbsp;</label>
-                                        <button id="submitPropertyTestBtn" class="btn btn-success w-100">
-                                            <i class="fas fa-paper-plane"></i> Submit Test Period
-                                        </button>
-                                    </div>
-                                </div>
-                            </div>
-                            
-                            <!-- Test Result Display -->
-                            <div id="propertyTestResult" class="mt-3 d-none"></div>
                         </div>
                     </div>
                 </div>
@@ -1035,8 +970,8 @@
                             <hr>
                             
                             <!-- Create Loss Section -->
-                            <h6><i class="fas fa-plus-circle"></i> Create Test Loss</h6>
-                            <p class="text-muted">Record a new brought forward loss (sandbox testing)</p>
+                            <h6><i class="fas fa-plus-circle"></i> Record Brought Forward Loss</h6>
+                            <p class="text-muted">Record a new brought forward loss from a previous tax year</p>
                             
                             <div class="row mb-3">
                                 <div class="col-md-3">
@@ -1390,7 +1325,6 @@
 
 {% block extra_js %}
 <script src="{{ url_for('static', filename='js/hmrc-fraud-headers.js') }}"></script>
-<script src="{{ url_for('static', filename='js/hmrc-fraud-headers-validate.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hmrc-cumulative.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hmrc-periods-of-account.js') }}"></script>
 <script src="{{ url_for('static', filename='js/hmrc-ladr.js') }}"></script>

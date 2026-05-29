@@ -14,6 +14,12 @@ document.addEventListener('DOMContentLoaded', function() {
     
     loadActiveUser();
     loadTestUserHistory();
+    
+    // Setup fraud header validation
+    const validateBtn = document.getElementById('validateFraudHeadersBtn');
+    if (validateBtn) {
+        validateBtn.addEventListener('click', validateFraudHeaders);
+    }
 });
 
 /**
@@ -447,5 +453,55 @@ async function clearSubmissions() {
         loadingModal.hide();
         console.error('Error clearing submissions:', error);
         showNotification('Error clearing submissions', 'error');
+    }
+}
+
+/**
+ * Validate fraud prevention headers against HMRC Test API
+ */
+async function validateFraudHeaders() {
+    const btn = document.getElementById('validateFraudHeadersBtn');
+    const resultDiv = document.getElementById('fraudHeadersResult');
+    const alertDiv = document.getElementById('fraudHeadersAlert');
+    const detailsPre = document.getElementById('fraudHeadersDetails');
+    
+    try {
+        btn.disabled = true;
+        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Validating...';
+        
+        const response = await fetch('/api/hmrc/fraud-headers/validate');
+        const result = await response.json();
+        
+        resultDiv.classList.remove('d-none');
+        
+        if (result.success) {
+            alertDiv.className = 'alert alert-success';
+            alertDiv.innerHTML = `
+                <h6><i class="bi bi-check-circle-fill"></i> Validation Successful</h6>
+                <p class="mb-0">All fraud prevention headers validated successfully.</p>
+                <p class="mb-0 mt-2"><strong>Headers sent:</strong> ${result.sent_headers ? result.sent_headers.length : 0}</p>
+            `;
+        } else {
+            alertDiv.className = 'alert alert-danger';
+            alertDiv.innerHTML = `
+                <h6><i class="bi bi-exclamation-circle-fill"></i> Validation Failed</h6>
+                <p class="mb-0">${result.error || 'Unknown error occurred'}</p>
+            `;
+        }
+        
+        // Show full response details
+        detailsPre.textContent = JSON.stringify(result, null, 2);
+        
+    } catch (error) {
+        console.error('Error validating fraud headers:', error);
+        resultDiv.classList.remove('d-none');
+        alertDiv.className = 'alert alert-danger';
+        alertDiv.innerHTML = `
+            <h6><i class="bi bi-exclamation-circle-fill"></i> Error</h6>
+            <p class="mb-0">Failed to validate fraud headers: ${error.message}</p>
+        `;
+    } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<i class="bi bi-shield-check"></i> Validate Fraud Headers Now';
     }
 }
