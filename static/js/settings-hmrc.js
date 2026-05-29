@@ -36,8 +36,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 function setupEventListeners() {
-    document.getElementById('connectBtn').addEventListener('click', connectToHMRC);
-    document.getElementById('disconnectBtn').addEventListener('click', disconnectFromHMRC);
+    // Connect/disconnect buttons are now dynamically created in updateConnectionUI
     document.getElementById('testConnectionBtn').addEventListener('click', testConnection);
     document.getElementById('refreshObligationsBtn').addEventListener('click', refreshObligations);
     document.getElementById('modalSaveBtn').addEventListener('click', saveModalConfig);
@@ -88,46 +87,54 @@ async function loadConnectionStatus() {
 
 function updateConnectionUI(status) {
     const statusDiv = document.getElementById('connectionStatus');
-    const connectBtn = document.getElementById('connectBtn');
-    const disconnectBtn = document.getElementById('disconnectBtn');
-    const testBtn = document.getElementById('testConnectionBtn');
-    const refreshBtn = document.getElementById('refreshObligationsBtn');
+    const connectedActions = document.getElementById('connectedActions');
     
     if (status.connected) {
-        statusDiv.className = 'connection-status connected text-center';
+        statusDiv.className = 'connection-status connected';
         statusDiv.innerHTML = `
             <div class="status-icon">
                 <i class="fas fa-check-circle"></i>
             </div>
-            <h3>Connected to HMRC</h3>
-            <p class="mb-2">${status.message}</p>
-            <small>Expires: ${new Date(status.expires_at).toLocaleString()}</small>
+            <div class="status-text">
+                <h3>Connected to HMRC</h3>
+                <p>${status.message} - Expires: ${new Date(status.expires_at).toLocaleString()}</p>
+            </div>
             <span class="environment-badge ${status.environment}">${status.environment.toUpperCase()}</span>
+            <button id="disconnectBtn" class="btn btn-danger">
+                <i class="fas fa-unlink"></i> Disconnect
+            </button>
         `;
         
-        connectBtn.style.display = 'none';
-        disconnectBtn.style.display = 'block';
-        testBtn.style.display = 'block';
-        refreshBtn.style.display = 'block';
+        // Re-attach event listener for disconnect button
+        document.getElementById('disconnectBtn').addEventListener('click', disconnectFromHMRC);
+        
+        // Show connected actions
+        connectedActions.classList.remove('d-none');
         
         // Load obligations and submissions
         loadObligations();
         loadSubmissions();
     } else {
-        statusDiv.className = 'connection-status disconnected text-center';
+        statusDiv.className = 'connection-status disconnected';
         statusDiv.innerHTML = `
             <div class="status-icon">
                 <i class="fas fa-plug"></i>
             </div>
-            <h3>Not Connected</h3>
-            <p class="mb-0">${status.message}</p>
+            <div class="status-text">
+                <h3>Not Connected</h3>
+                <p>${status.message}</p>
+            </div>
             <span class="environment-badge ${status.environment}">${status.environment.toUpperCase()}</span>
+            <button id="connectBtn" class="btn btn-primary">
+                <i class="fas fa-link"></i> Connect to HMRC
+            </button>
         `;
         
-        connectBtn.style.display = 'block';
-        disconnectBtn.style.display = 'none';
-        testBtn.style.display = 'none';
-        refreshBtn.style.display = 'none';
+        // Re-attach event listener for connect button
+        document.getElementById('connectBtn').addEventListener('click', connectToHMRC);
+        
+        // Hide connected actions
+        connectedActions.classList.add('d-none');
     }
 }
 

@@ -57,8 +57,8 @@
 }
 
 .ann-accordion .accordion-button:not(.collapsed) {
-    background-color: var(--bs-success-bg-subtle, var(--bs-success));
-    color: var(--bs-success-text-emphasis, var(--bs-body-color));
+    background-color: var(--bs-tertiary-bg, var(--bs-light));
+    color: var(--bs-body-color);
     box-shadow: none;
 }
 
