@@ -33,7 +33,7 @@ async function loadOAuthStatus() {
         const badge = document.getElementById('oauthStatusBadge');
         if (!badge) return;
         
-        if (data.authenticated) {
+        if (data.connected) {
             const expiryDate = new Date(data.expires_at);
             const now = new Date();
             const hoursRemaining = Math.round((expiryDate - now) / (1000 * 60 * 60));
