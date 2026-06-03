@@ -121,6 +121,21 @@
                                 </button>
                             </div>
                             
+                            <h5 class="mb-3 mt-4">HMRC Authentication</h5>
+                            <p class="text-muted mb-3">
+                                Authenticate the test user via HMRC OAuth. Required before fetching business ID or running API tests.
+                            </p>
+                            <div class="mb-3">
+                                <button type="button" class="btn btn-primary" id="sandboxConnectBtn">
+                                    <i class="bi bi-link-45deg"></i> Connect to HMRC
+                                </button>
+                            </div>
+                            <div id="sandboxAuthStatus" class="mb-3">
+                                <span class="badge bg-secondary">
+                                    <i class="bi bi-x-circle"></i> Not authenticated
+                                </span>
+                            </div>
+                            
                             <h5 class="mb-3 mt-4">Test Data Actions</h5>
                             <div class="btn-group mb-3" role="group">
                                 <button type="button" class="btn btn-warning" onclick="generateTestExpenses()">

@@ -14,11 +14,18 @@ document.addEventListener('DOMContentLoaded', function() {
     
     loadActiveUser();
     loadTestUserHistory();
+    loadSandboxAuthStatus();
     
     // Setup fraud header validation
     const validateBtn = document.getElementById('validateFraudHeadersBtn');
     if (validateBtn) {
         validateBtn.addEventListener('click', validateFraudHeaders);
+    }
+    
+    // Setup sandbox OAuth connect button
+    const connectBtn = document.getElementById('sandboxConnectBtn');
+    if (connectBtn) {
+        connectBtn.addEventListener('click', connectToHMRC);
     }
 });
 
@@ -503,5 +510,68 @@ async function validateFraudHeaders() {
     } finally {
         btn.disabled = false;
         btn.innerHTML = '<i class="bi bi-shield-check"></i> Validate Fraud Headers Now';
+    }
+}
+
+/**
+ * Load HMRC authentication status
+ */
+async function loadSandboxAuthStatus() {
+    try {
+        const response = await fetch('/api/hmrc/auth/status');
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
+        
+        const statusDiv = document.getElementById('sandboxAuthStatus');
+        if (!statusDiv) return;
+        
+        if (data.authenticated) {
+            const expiryDate = new Date(data.expires_at);
+            const now = new Date();
+            const hoursRemaining = Math.round((expiryDate - now) / (1000 * 60 * 60));
+            
+            statusDiv.innerHTML = `
+                <span class="badge bg-success">
+                    <i class="bi bi-check-circle-fill"></i> Connected
+                </span>
+                <span class="text-muted ms-2">
+                    Expires in ${hoursRemaining} hours (${expiryDate.toLocaleString()})
+                </span>
+            `;
+        } else {
+            statusDiv.innerHTML = `
+                <span class="badge bg-secondary">
+                    <i class="bi bi-x-circle"></i> Not authenticated
+                </span>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading auth status:', error);
+    }
+}
+
+/**
+ * Connect to HMRC via OAuth (reuses existing flow from settings page)
+ */
+async function connectToHMRC() {
+    try {
+        const response = await fetch('/api/hmrc/auth/start', {
+            credentials: 'same-origin',
+            headers: {
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+        
+        const data = await response.json();
+        
+        if (data.success && data.auth_url) {
+            // Redirect to HMRC OAuth page
+            window.location.href = data.auth_url;
+        } else {
+            showNotification(data.error || 'Failed to start OAuth flow', 'error');
+        }
+    } catch (error) {
+        console.error('Error starting OAuth:', error);
+        showNotification('Failed to connect to HMRC', 'error');
     }
 }
