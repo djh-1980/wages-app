@@ -8,8 +8,10 @@ let credentialsModal;
 let activeUserNino = null;
 
 document.addEventListener('DOMContentLoaded', function() {
-    loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
-    credentialsModal = new bootstrap.Modal(document.getElementById('credentialsModal'));
+    const loadingEl = document.getElementById('loadingModal');
+    const credentialsEl = document.getElementById('credentialsModal');
+    if (loadingEl) loadingModal = new bootstrap.Modal(loadingEl);
+    if (credentialsEl) credentialsModal = new bootstrap.Modal(credentialsEl);
     
     loadOAuthStatus();
     loadActiveUser();
