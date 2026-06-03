@@ -26,7 +26,7 @@ function getCsrfToken() {
  */
 async function loadOAuthStatus() {
     try {
-        const response = await fetch('/api/hmrc/auth/status');
+        const response = await fetch('/api/hmrc/auth/status', { credentials: 'include' });
         const responseData = await response.json();
         const data = responseData.success ? responseData.data : responseData;
         
