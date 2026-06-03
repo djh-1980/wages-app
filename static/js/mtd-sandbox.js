@@ -379,9 +379,5 @@ async function clearAllSubmissions() {
  * Show notification
  */
 function showNotification(message, type) {
-    if (typeof window.showNotification === 'function') {
-        window.showNotification(message, type);
-    } else {
-        alert(message);
-    }
+    alert(message);
 }
