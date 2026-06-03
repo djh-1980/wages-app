@@ -249,6 +249,47 @@ def start_auth():
         }), 500
 
 
+@hmrc_bp.route('/auth/start/redirect')
+@limiter.limit("20 per hour", override_defaults=True)
+def start_auth_redirect():
+    """
+    Start HMRC OAuth authorization flow with server-side redirect.
+    
+    This is identical to /auth/start but performs a server-side redirect
+    instead of returning JSON. Useful for simple anchor tags.
+    
+    Returns:
+        Server-side redirect to HMRC OAuth page
+    """
+    logger.debug("auth/start/redirect called")
+    try:
+        from flask_login import current_user
+        
+        auth_service = HMRCAuthService()
+        auth_url, state = auth_service.get_authorization_url()
+        
+        # Store state in session for CSRF protection
+        session['hmrc_oauth_state'] = state
+        
+        # Store user ID before OAuth redirect to restore session after callback
+        if current_user.is_authenticated:
+            session['pre_oauth_user_id'] = current_user.id
+            session.permanent = True
+            session.modified = True
+            logger.debug(f"Stored user ID {current_user.id} in session before OAuth redirect")
+        
+        logger.debug(f"Redirecting to: {auth_url[:100]}...")
+        
+        return redirect(auth_url)
+    except Exception as e:
+        logger.error(f'auth/start/redirect error: {e}', exc_info=True)
+        return jsonify({
+            'success': False, 
+            'error': str(e), 
+            'type': type(e).__name__
+        }), 500
+
+
 @hmrc_bp.route('/auth/callback')
 @limiter.limit("20 per hour", override_defaults=True)
 def auth_callback():

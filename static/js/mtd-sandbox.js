@@ -14,19 +14,7 @@ document.addEventListener('DOMContentLoaded', function() {
     
     loadActiveUser();
     loadTestUserHistory();
-    loadSandboxAuthStatus();
-    
-    // Setup fraud header validation
-    const validateBtn = document.getElementById('validateFraudHeadersBtn');
-    if (validateBtn) {
-        validateBtn.addEventListener('click', validateFraudHeaders);
-    }
-    
-    // Setup sandbox OAuth connect button
-    const connectBtn = document.getElementById('sandboxConnectBtn');
-    if (connectBtn) {
-        connectBtn.addEventListener('click', connectToHMRC);
-    }
+    loadAuthStatus();
 });
 
 /**
@@ -35,6 +23,40 @@ document.addEventListener('DOMContentLoaded', function() {
 function getCsrfToken() {
     const metaTag = document.querySelector('meta[name="csrf-token"]');
     return metaTag ? metaTag.content : '';
+}
+
+/**
+ * Load HMRC authentication status
+ */
+async function loadAuthStatus() {
+    try {
+        const response = await fetch('/api/hmrc/auth/status');
+        const responseData = await response.json();
+        const data = responseData.success ? responseData.data : responseData;
+        
+        const statusDiv = document.getElementById('oauthStatus');
+        if (!statusDiv) return;
+        
+        if (data.authenticated) {
+            const expiryDate = new Date(data.expires_at);
+            const now = new Date();
+            const hoursRemaining = Math.round((expiryDate - now) / (1000 * 60 * 60));
+            
+            statusDiv.innerHTML = `
+                <span class="badge bg-success" title="Expires: ${expiryDate.toLocaleString()}">
+                    <i class="bi bi-check-circle-fill"></i> Connected (${hoursRemaining}h)
+                </span>
+            `;
+        } else {
+            statusDiv.innerHTML = `
+                <span class="badge bg-secondary">
+                    <i class="bi bi-x-circle"></i> Not Connected
+                </span>
+            `;
+        }
+    } catch (error) {
+        console.error('Error loading auth status:', error);
+    }
 }
 
 /**
@@ -57,55 +79,76 @@ async function loadActiveUser() {
 }
 
 /**
- * Display active test user details
+ * Display active test user in the card
  */
 function displayActiveUser(user) {
-    document.getElementById('noUserAlert').classList.add('d-none');
-    document.getElementById('activeUserCard').classList.remove('d-none');
+    const bodyDiv = document.getElementById('activeUserBody');
+    const ninoDiv = document.getElementById('activeNino');
+    const businessDiv = document.getElementById('activeBusinessId');
     
-    document.getElementById('userId').value = user.userId || '';
-    document.getElementById('nino').value = user.nino || '';
-    document.getElementById('saUtr').value = user.saUtr || '';
-    document.getElementById('businessId').value = user.businessId || 'Not fetched yet';
-    document.getElementById('tradingName').value = user.tradingName || 'N/A';
-    document.getElementById('accountingType').value = user.accountingType || 'N/A';
-    document.getElementById('createdAt').textContent = formatDateTime(user.createdAt);
+    // Update status tiles
+    if (ninoDiv) ninoDiv.innerHTML = `<strong>${user.nino || '—'}</strong>`;
+    if (businessDiv) businessDiv.innerHTML = `<strong>${user.businessId || '—'}</strong>`;
     
-    // Enable fetch business button if no business exists
-    const createBusinessBtn = document.getElementById('createBusinessBtn');
-    if (!user.businessId) {
-        createBusinessBtn.disabled = false;
-        createBusinessBtn.classList.remove('btn-success');
-        createBusinessBtn.classList.add('btn-warning');
-        createBusinessBtn.innerHTML = '<i class="bi bi-download"></i> Fetch Business ID (Required)';
-    } else {
-        createBusinessBtn.disabled = true;
-        createBusinessBtn.classList.remove('btn-warning');
-        createBusinessBtn.classList.add('btn-success');
-        createBusinessBtn.innerHTML = '<i class="bi bi-check-circle"></i> Business ID Retrieved';
-    }
+    // Update card body
+    bodyDiv.innerHTML = `
+        <div class="row">
+            <div class="col-md-6 mb-3">
+                <label class="form-label fw-bold">User ID</label>
+                <input type="text" class="form-control" value="${user.userId || ''}" readonly>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label fw-bold">NINO</label>
+                <input type="text" class="form-control" value="${user.nino || ''}" readonly>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label fw-bold">SA UTR</label>
+                <input type="text" class="form-control" value="${user.saUtr || ''}" readonly>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label fw-bold">Business ID</label>
+                <input type="text" class="form-control" value="${user.businessId || 'Not fetched'}" readonly>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label fw-bold">Trading Name</label>
+                <input type="text" class="form-control" value="${user.tradingName || '—'}" readonly>
+            </div>
+            <div class="col-md-6 mb-3">
+                <label class="form-label fw-bold">Created</label>
+                <input type="text" class="form-control" value="${new Date(user.createdAt).toLocaleString()}" readonly>
+            </div>
+        </div>
+        <button type="button" class="btn btn-success" onclick="fetchBusinessId('${user.nino}')" ${user.businessId ? 'disabled' : ''}>
+            <i class="bi bi-download"></i> Fetch Business ID
+        </button>
+    `;
 }
 
 /**
- * Show no user alert
+ * Show "no user" alert
  */
 function showNoUserAlert() {
-    document.getElementById('noUserAlert').classList.remove('d-none');
-    document.getElementById('activeUserCard').classList.add('d-none');
-    document.getElementById('createBusinessBtn').disabled = true;
+    const bodyDiv = document.getElementById('activeUserBody');
+    const ninoDiv = document.getElementById('activeNino');
+    const businessDiv = document.getElementById('activeBusinessId');
+    
+    if (ninoDiv) ninoDiv.innerHTML = '<span class="text-muted">—</span>';
+    if (businessDiv) businessDiv.innerHTML = '<span class="text-muted">—</span>';
+    
+    bodyDiv.innerHTML = `
+        <div class="alert alert-info">
+            <i class="bi bi-info-circle"></i> No active test user — create one below
+        </div>
+    `;
 }
 
 /**
  * Create a new test user
  */
 async function createTestUser() {
-    if (!confirm('This will create a new test user and deactivate the current one. Continue?')) {
-        return;
-    }
-    
     try {
-        document.getElementById('loadingMessage').textContent = 'Creating test user...';
         loadingModal.show();
+        document.getElementById('loadingMessage').textContent = 'Creating test user...';
         
         const response = await fetch('/api/hmrc/sandbox/create-test-user', {
             method: 'POST',
@@ -118,29 +161,12 @@ async function createTestUser() {
         const result = await response.json();
         loadingModal.hide();
         
-        // Log full response for debugging
-        console.log('Create test user response:', {
-            status: response.status,
-            ok: response.ok,
-            result: result
-        });
-        
         if (result.success) {
-            // Show credentials modal
-            document.getElementById('modalUserId').value = result.data.userId;
-            document.getElementById('modalPassword').value = result.data.password;
-            document.getElementById('modalNino').value = result.data.nino;
-            document.getElementById('modalSaUtr').value = result.data.saUtr;
-            
-            credentialsModal.show();
-            
-            // Reload active user and history
+            showCredentialsModal(result.data);
             loadActiveUser();
             loadTestUserHistory();
-            
-            showNotification('Test user created successfully!', 'success');
+            showNotification('Test user created successfully', 'success');
         } else {
-            console.error('Create test user failed:', result);
             showNotification(result.error || 'Failed to create test user', 'error');
         }
     } catch (error) {
@@ -151,23 +177,12 @@ async function createTestUser() {
 }
 
 /**
- * Fetch the auto-provisioned test business for the active user
+ * Fetch business ID for active user
  */
-async function createTestBusiness() {
-    const nino = document.getElementById('nino').value;
-    
-    if (!nino) {
-        showNotification('No active test user found', 'error');
-        return;
-    }
-    
-    if (!confirm('This will fetch the auto-provisioned business ID for the current test user. Make sure you have authenticated via OAuth first. Continue?')) {
-        return;
-    }
-    
+async function fetchBusinessId(nino) {
     try {
-        document.getElementById('loadingMessage').textContent = 'Fetching business ID...';
         loadingModal.show();
+        document.getElementById('loadingMessage').textContent = 'Fetching business ID...';
         
         const response = await fetch('/api/hmrc/sandbox/create-test-business', {
             method: 'POST',
@@ -181,30 +196,50 @@ async function createTestBusiness() {
         const result = await response.json();
         loadingModal.hide();
         
-        // Log full response for debugging
-        console.log('Create test business response:', {
-            status: response.status,
-            ok: response.ok,
-            result: result
-        });
-        
         if (result.success) {
-            showNotification('Business ID retrieved successfully!', 'success');
             loadActiveUser();
-            loadTestUserHistory();
+            showNotification('Business ID fetched successfully', 'success');
         } else {
-            console.error('Fetch business failed:', result);
-            if (result.error.includes('Not authenticated')) {
-                showNotification('Please authenticate via OAuth first. Go to HMRC MTD page and connect.', 'error');
-            } else {
-                showNotification(result.error || 'Failed to retrieve business ID', 'error');
-            }
+            showNotification(result.error || 'Failed to fetch business ID', 'error');
         }
     } catch (error) {
         loadingModal.hide();
-        console.error('Error fetching business:', error);
+        console.error('Error fetching business ID:', error);
         showNotification('Error fetching business ID', 'error');
     }
+}
+
+/**
+ * Show credentials modal
+ */
+function showCredentialsModal(data) {
+    const bodyDiv = document.getElementById('credentialsBody');
+    bodyDiv.innerHTML = `
+        <div class="alert alert-success">
+            <i class="bi bi-check-circle-fill"></i> Test user created successfully!
+        </div>
+        <div class="mb-3">
+            <label class="form-label fw-bold">User ID</label>
+            <input type="text" class="form-control" value="${data.userId}" readonly>
+        </div>
+        <div class="mb-3">
+            <label class="form-label fw-bold">Password</label>
+            <input type="text" class="form-control" value="${data.password}" readonly>
+        </div>
+        <div class="mb-3">
+            <label class="form-label fw-bold">NINO</label>
+            <input type="text" class="form-control" value="${data.nino}" readonly>
+        </div>
+        <div class="alert alert-info">
+            <strong>Next Steps:</strong>
+            <ol class="mb-0 mt-2">
+                <li>Click "Connect to HMRC" above</li>
+                <li>Use the User ID and Password to authenticate</li>
+                <li>Return here and click "Fetch Business ID"</li>
+            </ol>
+        </div>
+    `;
+    credentialsModal.show();
 }
 
 /**
@@ -215,8 +250,24 @@ async function loadTestUserHistory() {
         const response = await fetch('/api/hmrc/sandbox/test-users');
         const result = await response.json();
         
-        if (result.success) {
-            displayTestUserHistory(result.data);
+        const tbody = document.getElementById('testUserHistoryBody');
+        if (!tbody) return;
+        
+        if (result.success && result.data && result.data.length > 0) {
+            tbody.innerHTML = result.data.map(user => `
+                <tr>
+                    <td>${user.nino}</td>
+                    <td>${user.business_id || '—'}</td>
+                    <td>${new Date(user.created_at).toLocaleString()}</td>
+                    <td>
+                        ${user.is_active ? 
+                            '<span class="badge bg-success">Active</span>' : 
+                            '<span class="badge bg-secondary">Inactive</span>'}
+                    </td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No test users found</td></tr>';
         }
     } catch (error) {
         console.error('Error loading test user history:', error);
@@ -224,262 +275,21 @@ async function loadTestUserHistory() {
 }
 
 /**
- * Display test user history table
- */
-function displayTestUserHistory(users) {
-    const tbody = document.getElementById('historyTableBody');
-    
-    if (users.length === 0) {
-        tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">No test users found</td></tr>';
-        return;
-    }
-    
-    tbody.innerHTML = users.map(user => `
-        <tr>
-            <td>${user.user_id || 'N/A'}</td>
-            <td><code>${user.nino || 'N/A'}</code></td>
-            <td><code>${user.business_id || 'N/A'}</code></td>
-            <td>${user.trading_name || 'N/A'}</td>
-            <td>
-                ${user.is_active ? 
-                    '<span class="badge bg-success">Active</span>' : 
-                    '<span class="badge bg-secondary">Inactive</span>'}
-            </td>
-            <td>${formatDateTime(user.created_at)}</td>
-            <td>
-                <button class="btn btn-sm btn-danger" onclick="deleteTestUser(${user.id})">
-                    <i class="bi bi-trash"></i>
-                </button>
-            </td>
-        </tr>
-    `).join('');
-}
-
-/**
- * Delete a test user
- */
-async function deleteTestUser(userId) {
-    if (!confirm('Are you sure you want to delete this test user record?')) {
-        return;
-    }
-    
-    try {
-        const response = await fetch(`/api/hmrc/sandbox/test-users/${userId}`, {
-            method: 'DELETE',
-            headers: {
-                'X-CSRFToken': getCsrfToken()
-            }
-        });
-        
-        const result = await response.json();
-        
-        if (result.success) {
-            showNotification('Test user deleted successfully', 'success');
-            loadActiveUser();
-            loadTestUserHistory();
-        } else {
-            showNotification(result.error || 'Failed to delete test user', 'error');
-        }
-    } catch (error) {
-        console.error('Error deleting test user:', error);
-        showNotification('Error deleting test user', 'error');
-    }
-}
-
-/**
- * Copy text to clipboard
- */
-function copyToClipboard(elementId) {
-    const element = document.getElementById(elementId);
-    const text = element.value;
-    
-    if (!text || text === 'Not created yet' || text === 'N/A') {
-        showNotification('Nothing to copy', 'warning');
-        return;
-    }
-    
-    navigator.clipboard.writeText(text).then(() => {
-        showNotification('Copied to clipboard!', 'success');
-    }).catch(err => {
-        console.error('Failed to copy:', err);
-        showNotification('Failed to copy', 'error');
-    });
-}
-
-/**
- * Format datetime string
- */
-function formatDateTime(dateString) {
-    if (!dateString) return 'N/A';
-    
-    const date = new Date(dateString);
-    return date.toLocaleString('en-GB', {
-        day: '2-digit',
-        month: '2-digit',
-        year: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-    });
-}
-
-/**
- * Show notification
- */
-function showNotification(message, type = 'info') {
-    // Create Bootstrap alert notification
-    const alertDiv = document.createElement('div');
-    alertDiv.className = `alert alert-${getAlertClass(type)} alert-dismissible fade show position-fixed top-0 end-0 m-3`;
-    alertDiv.style.zIndex = '9999';
-    alertDiv.style.minWidth = '300px';
-    alertDiv.innerHTML = `
-        ${message}
-        <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
-    `;
-    
-    document.body.appendChild(alertDiv);
-    
-    // Auto-dismiss after 5 seconds
-    setTimeout(() => {
-        alertDiv.classList.remove('show');
-        setTimeout(() => alertDiv.remove(), 150);
-    }, 5000);
-}
-
-/**
- * Get Bootstrap alert class for notification type
- */
-function getAlertClass(type) {
-    const typeMap = {
-        'success': 'success',
-        'error': 'danger',
-        'warning': 'warning',
-        'info': 'info'
-    };
-    return typeMap[type] || 'info';
-}
-
-/**
- * Generate test expenses for MTD sandbox testing
- */
-async function generateTestExpenses() {
-    if (!confirm('This will generate 12 test expenses (3 per quarter) for tax year 2024/2025.\n\nAll expenses will be prefixed with "TEST -" for easy identification.\n\nContinue?')) {
-        return;
-    }
-    
-    try {
-        document.getElementById('loadingMessage').textContent = 'Generating test expenses...';
-        loadingModal.show();
-        
-        const response = await fetch('/api/hmrc/sandbox/generate-test-expenses', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken()
-            }
-        });
-        
-        const result = await response.json();
-        loadingModal.hide();
-        
-        if (result.success) {
-            showNotification(`Successfully generated ${result.count} test expenses!`, 'success');
-        } else {
-            showNotification(result.error || 'Failed to generate test expenses', 'error');
-        }
-    } catch (error) {
-        loadingModal.hide();
-        console.error('Error generating test expenses:', error);
-        showNotification('Error generating test expenses', 'error');
-    }
-}
-
-/**
- * Delete all test expenses
- */
-async function deleteTestExpenses() {
-    if (!confirm('This will permanently delete ALL test expenses (those with description starting with "TEST -").\n\nThis action cannot be undone.\n\nContinue?')) {
-        return;
-    }
-    
-    try {
-        document.getElementById('loadingMessage').textContent = 'Deleting test expenses...';
-        loadingModal.show();
-        
-        const response = await fetch('/api/hmrc/sandbox/delete-test-expenses', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken()
-            }
-        });
-        
-        const result = await response.json();
-        loadingModal.hide();
-        
-        if (result.success) {
-            showNotification(`Successfully deleted ${result.count} test expenses!`, 'success');
-        } else {
-            showNotification(result.error || 'Failed to delete test expenses', 'error');
-        }
-    } catch (error) {
-        loadingModal.hide();
-        console.error('Error deleting test expenses:', error);
-        showNotification('Error deleting test expenses', 'error');
-    }
-}
-
-/**
- * Clear all HMRC submission records
- */
-async function clearSubmissions() {
-    if (!confirm('⚠️ WARNING: This will permanently delete ALL HMRC submission records!\n\nThis includes:\n- All quarterly submissions\n- All final declarations\n\nUse this when testing with a new test user to re-submit all quarters.\n\nThis action cannot be undone.\n\nContinue?')) {
-        return;
-    }
-    
-    try {
-        document.getElementById('loadingMessage').textContent = 'Clearing submissions...';
-        loadingModal.show();
-        
-        const response = await fetch('/api/hmrc/sandbox/clear-submissions', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': getCsrfToken()
-            }
-        });
-        
-        const result = await response.json();
-        loadingModal.hide();
-        
-        if (result.success) {
-            showNotification(`Successfully cleared ${result.total_deleted} submission records (${result.submissions_deleted} submissions, ${result.declarations_deleted} declarations)!`, 'success');
-        } else {
-            showNotification(result.error || 'Failed to clear submissions', 'error');
-        }
-    } catch (error) {
-        loadingModal.hide();
-        console.error('Error clearing submissions:', error);
-        showNotification('Error clearing submissions', 'error');
-    }
-}
-
-/**
- * Validate fraud prevention headers against HMRC Test API
+ * Validate fraud prevention headers
  */
 async function validateFraudHeaders() {
-    const btn = document.getElementById('validateFraudHeadersBtn');
     const resultDiv = document.getElementById('fraudHeadersResult');
     const alertDiv = document.getElementById('fraudHeadersAlert');
     const detailsPre = document.getElementById('fraudHeadersDetails');
     
     try {
-        btn.disabled = true;
-        btn.innerHTML = '<i class="bi bi-hourglass-split"></i> Validating...';
+        resultDiv.classList.remove('d-none');
+        alertDiv.className = 'alert alert-info';
+        alertDiv.innerHTML = '<i class="bi bi-hourglass-split"></i> Validating fraud prevention headers...';
+        detailsPre.textContent = '';
         
         const response = await fetch('/api/hmrc/fraud-headers/validate');
         const result = await response.json();
-        
-        resultDiv.classList.remove('d-none');
         
         if (result.success) {
             alertDiv.className = 'alert alert-success';
@@ -496,7 +306,6 @@ async function validateFraudHeaders() {
             `;
         }
         
-        // Show full response details
         detailsPre.textContent = JSON.stringify(result, null, 2);
         
     } catch (error) {
@@ -507,71 +316,122 @@ async function validateFraudHeaders() {
             <h6><i class="bi bi-exclamation-circle-fill"></i> Error</h6>
             <p class="mb-0">Failed to validate fraud headers: ${error.message}</p>
         `;
-    } finally {
-        btn.disabled = false;
-        btn.innerHTML = '<i class="bi bi-shield-check"></i> Validate Fraud Headers Now';
     }
 }
 
 /**
- * Load HMRC authentication status
+ * Run sandbox tests (placeholder)
  */
-async function loadSandboxAuthStatus() {
-    try {
-        const response = await fetch('/api/hmrc/auth/status');
-        const responseData = await response.json();
-        const data = responseData.success ? responseData.data : responseData;
-        
-        const statusDiv = document.getElementById('sandboxAuthStatus');
-        if (!statusDiv) return;
-        
-        if (data.authenticated) {
-            const expiryDate = new Date(data.expires_at);
-            const now = new Date();
-            const hoursRemaining = Math.round((expiryDate - now) / (1000 * 60 * 60));
-            
-            statusDiv.innerHTML = `
-                <span class="badge bg-success">
-                    <i class="bi bi-check-circle-fill"></i> Connected
-                </span>
-                <span class="text-muted ms-2">
-                    Expires in ${hoursRemaining} hours (${expiryDate.toLocaleString()})
-                </span>
-            `;
-        } else {
-            statusDiv.innerHTML = `
-                <span class="badge bg-secondary">
-                    <i class="bi bi-x-circle"></i> Not authenticated
-                </span>
-            `;
-        }
-    } catch (error) {
-        console.error('Error loading auth status:', error);
-    }
+function runSandboxTests() {
+    showNotification('Sandbox test runner not yet implemented', 'info');
 }
 
 /**
- * Connect to HMRC via OAuth (reuses existing flow from settings page)
+ * Generate test expenses
  */
-async function connectToHMRC() {
+async function generateTestExpenses() {
+    if (!confirm('Generate 12 sample expenses for testing?')) return;
+    
     try {
-        const response = await fetch('/api/hmrc/auth/start', {
-            credentials: 'same-origin',
+        loadingModal.show();
+        document.getElementById('loadingMessage').textContent = 'Generating test expenses...';
+        
+        const response = await fetch('/api/hmrc/sandbox/generate-test-expenses', {
+            method: 'POST',
             headers: {
+                'Content-Type': 'application/json',
                 'X-CSRFToken': getCsrfToken()
             }
         });
         
-        const data = await response.json();
+        const result = await response.json();
+        loadingModal.hide();
         
-        if (data.success && data.auth_url) {
-            // Redirect to HMRC OAuth page
-            window.location.href = data.auth_url;
+        if (result.success) {
+            showNotification('Test expenses generated successfully', 'success');
         } else {
-            showNotification(data.error || 'Failed to start OAuth flow', 'error');
+            showNotification(result.error || 'Failed to generate test expenses', 'error');
         }
     } catch (error) {
-        console.error('Error starting OAuth:', error);
-        showNotification('Failed to connect to HMRC', 'error');
+        loadingModal.hide();
+        console.error('Error generating test expenses:', error);
+        showNotification('Error generating test expenses', 'error');
+    }
+}
+
+/**
+ * Delete test expenses
+ */
+async function deleteTestExpenses() {
+    if (!confirm('Delete all test expenses? This cannot be undone.')) return;
+    
+    try {
+        loadingModal.show();
+        document.getElementById('loadingMessage').textContent = 'Deleting test expenses...';
+        
+        const response = await fetch('/api/hmrc/sandbox/delete-test-expenses', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+        
+        const result = await response.json();
+        loadingModal.hide();
+        
+        if (result.success) {
+            showNotification('Test expenses deleted successfully', 'success');
+        } else {
+            showNotification(result.error || 'Failed to delete test expenses', 'error');
+        }
+    } catch (error) {
+        loadingModal.hide();
+        console.error('Error deleting test expenses:', error);
+        showNotification('Error deleting test expenses', 'error');
+    }
+}
+
+/**
+ * Clear all HMRC submissions
+ */
+async function clearAllSubmissions() {
+    if (!confirm('Clear all HMRC submission records? This cannot be undone.')) return;
+    
+    try {
+        loadingModal.show();
+        document.getElementById('loadingMessage').textContent = 'Clearing submissions...';
+        
+        const response = await fetch('/api/hmrc/sandbox/clear-submissions', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            }
+        });
+        
+        const result = await response.json();
+        loadingModal.hide();
+        
+        if (result.success) {
+            showNotification('Submissions cleared successfully', 'success');
+        } else {
+            showNotification(result.error || 'Failed to clear submissions', 'error');
+        }
+    } catch (error) {
+        loadingModal.hide();
+        console.error('Error clearing submissions:', error);
+        showNotification('Error clearing submissions', 'error');
+    }
+}
+
+/**
+ * Show notification (reuses base.js if available)
+ */
+function showNotification(message, type) {
+    if (typeof window.showNotification === 'function') {
+        window.showNotification(message, type);
+    } else {
+        alert(message);
     }
 }
