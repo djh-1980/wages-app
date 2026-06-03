@@ -30,6 +30,8 @@ async function loadOAuthStatus() {
         const responseData = await response.json();
         const data = responseData.success ? responseData.data : responseData;
         
+        console.log('Auth status response:', data);
+        
         const badge = document.getElementById('oauthStatusBadge');
         if (!badge) return;
         

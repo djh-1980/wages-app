@@ -312,12 +312,12 @@ def auth_callback():
         stored_state = session.get('hmrc_oauth_state')
         if not stored_state or stored_state != state:
             logger.error("CSRF state mismatch in OAuth callback")
-            return redirect(url_for('main.settings_hmrc', auth='error', message='Invalid state parameter'))
+            return redirect(url_for('main.mtd_sandbox', auth='error', message='Invalid state parameter'))
         
         if not code:
             error = request.args.get('error', 'Unknown error')
             logger.error(f"OAuth callback missing code: {error}")
-            return redirect(url_for('main.settings_hmrc', auth='error', message=f'Authorization failed: {error}'))
+            return redirect(url_for('main.mtd_sandbox', auth='error', message=f'Authorization failed: {error}'))
         
         # Restore user session if lost during OAuth redirect
         if not current_user.is_authenticated:
@@ -349,16 +349,16 @@ def auth_callback():
         # Log result for debugging (do not log actual tokens)
         if result.get('success'):
             logger.info("HMRC token exchange completed successfully")
-            # Redirect to settings page with success message
-            return redirect(url_for('main.settings_hmrc', auth='success'))
+            # Redirect to sandbox page with success message
+            return redirect(url_for('main.mtd_sandbox', auth='success'))
         else:
             error_msg = result.get('error', 'Unknown error')
             logger.warning(f"HMRC token exchange failed: {error_msg}")
-            return redirect(url_for('main.settings_hmrc', auth='error', message=error_msg))
+            return redirect(url_for('main.mtd_sandbox', auth='error', message=error_msg))
     
     except Exception as e:
         logger.error(f'Error in HMRC auth callback: {e}', exc_info=True)
-        return redirect(url_for('main.settings_hmrc', auth='error', message='Callback error'))
+        return redirect(url_for('main.mtd_sandbox', auth='error', message='Callback error'))
 
 
 @hmrc_bp.route('/auth/status')
