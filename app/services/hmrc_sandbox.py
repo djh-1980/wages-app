@@ -38,6 +38,7 @@ class HMRCSandboxService:
         Returns:
             str: Access token or None if failed
         """
+        import traceback
         try:
             data = {
                 'grant_type': 'client_credentials',
@@ -45,20 +46,30 @@ class HMRCSandboxService:
                 'client_secret': self.client_secret
             }
             
-            logger.info('Requesting application token for test user creation')
+            logger.info(f'Requesting application token from {self.token_url}')
+            logger.info(f'Client ID: {self.client_id[:10] if self.client_id else "NONE"}...')
+            logger.info(f'Client Secret: {"SET" if self.client_secret else "NOT SET"}')
+            
             response = requests.post(self.token_url, data=data, timeout=30)
+            
+            logger.info(f'OAuth response status: {response.status_code}')
+            logger.info(f'OAuth response headers: {dict(response.headers)}')
             
             if response.status_code == 200:
                 token_data = response.json()
                 access_token = token_data.get('access_token')
-                logger.info('Successfully obtained application token')
+                logger.info(f'Successfully obtained application token: {access_token[:20] if access_token else "NONE"}...')
                 return access_token
             else:
-                logger.error(f'Failed to get application token: {response.status_code} - {response.text}')
+                logger.error(f'Failed to get application token: {response.status_code}')
+                logger.error(f'Response body: {response.text}')
+                logger.error(f'Response headers: {dict(response.headers)}')
                 return None
         
         except Exception as e:
-            logger.error(f'Error getting application token: {e}')
+            error_detail = traceback.format_exc()
+            logger.error(f'Exception getting application token: {e}')
+            logger.error(f'Full traceback:\n{error_detail}')
             return None
     
     def create_test_individual(self):

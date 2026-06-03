@@ -75,23 +75,31 @@ def fraud_headers_validate():
         JSON envelope with HMRC's response body (specVersion, code,
         message, errors[], warnings[]).
     """
+    import traceback
     import requests
     from ..config import Config
     from ..services.hmrc_fraud_headers import build_fraud_prevention_headers
     from ..services.hmrc_sandbox import HMRCSandboxService
 
     try:
+        logger.info('=== fraud_headers_validate START ===')
         sandbox = HMRCSandboxService()
+        logger.info(f'HMRCSandboxService created: client_id={sandbox.client_id[:10] if sandbox.client_id else "NONE"}...')
+        
         app_token = sandbox._get_application_token()
+        logger.info(f'_get_application_token returned: {app_token[:20] if app_token else "NONE"}...')
+        
         if not app_token:
+            error_msg = (
+                'Could not obtain application OAuth token. Check '
+                'HMRC_CLIENT_ID / HMRC_CLIENT_SECRET and that the '
+                'application is subscribed to "Test Fraud Prevention '
+                'Headers" in the Developer Hub.'
+            )
+            logger.error(f'fraud_headers_validate: {error_msg}')
             return jsonify({
                 'success': False,
-                'error': (
-                    'Could not obtain application OAuth token. Check '
-                    'HMRC_CLIENT_ID / HMRC_CLIENT_SECRET and that the '
-                    'application is subscribed to "Test Fraud Prevention '
-                    'Headers" in the Developer Hub.'
-                ),
+                'error': error_msg,
             }), 502
 
         fp_headers = build_fraud_prevention_headers()
@@ -129,7 +137,54 @@ def fraud_headers_validate():
             'data': body,
         })
     except Exception as e:  # noqa: BLE001
-        logger.error(f'Error calling HMRC fraud header validator: {e}', exc_info=True)
+        error_detail = traceback.format_exc()
+        logger.error(f'Error calling HMRC fraud header validator: {e}')
+        logger.error(f'Full traceback:\n{error_detail}')
+        return jsonify({'success': False, 'error': str(e), 'traceback': error_detail}), 500
+
+
+@hmrc_bp.route('/fraud-headers/debug', methods=['GET'])
+@limiter.limit("60 per hour", override_defaults=True)
+def fraud_headers_debug():
+    """
+    DEBUG ENDPOINT: Return all assembled fraud prevention headers as JSON.
+    
+    This lets us see exactly what values the server is building without
+    calling HMRC's validator. Useful for diagnosing Cloudflare tunnel issues.
+    
+    WARNING: REMOVE BEFORE PRODUCTION - exposes internal header values.
+    """
+    from ..services.hmrc_fraud_headers import build_fraud_prevention_headers
+    
+    try:
+        fp_headers = build_fraud_prevention_headers()
+        
+        # Also capture raw request headers for comparison
+        raw_headers = {
+            'X-Forwarded-For': request.headers.get('X-Forwarded-For', 'NOT SET'),
+            'X-Forwarded-Port': request.headers.get('X-Forwarded-Port', 'NOT SET'),
+            'X-Real-IP': request.headers.get('X-Real-IP', 'NOT SET'),
+            'CF-Connecting-IP': request.headers.get('CF-Connecting-IP', 'NOT SET'),
+            'REMOTE_ADDR': request.remote_addr,
+            'REMOTE_PORT': request.environ.get('REMOTE_PORT', 'NOT SET'),
+        }
+        
+        # Session context for debugging
+        session_context = {
+            'has_browser_context': 'hmrc_fraud_context' in session,
+            'browser_keys': list(session.get('hmrc_fraud_context', {}).keys()) if 'hmrc_fraud_context' in session else [],
+        }
+        
+        return jsonify({
+            'success': True,
+            'fraud_prevention_headers': fp_headers,
+            'raw_request_headers': raw_headers,
+            'session_context': session_context,
+            'header_count': len(fp_headers),
+            'note': 'This is a debug endpoint. Remove before production.',
+        })
+    except Exception as e:  # noqa: BLE001
+        logger.error(f'Error in fraud headers debug: {e}', exc_info=True)
         return jsonify({'success': False, 'error': str(e)}), 500
 
 
