@@ -179,6 +179,11 @@
                             <button class="btn btn-outline-primary" id="viewFinalDeclarationBtn">
                                 <i class="fas fa-arrow-right me-1"></i>View Details
                             </button>
+                            {% if config.HMRC_ENVIRONMENT == 'sandbox' %}
+                            <button type="button" class="btn btn-outline-secondary btn-sm ms-2" data-bs-toggle="modal" data-bs-target="#finalDeclarationPreviewModal">
+                                Preview Declaration (Sandbox)
+                            </button>
+                            {% endif %}
                         </div>
                     </div>
                 </div>
@@ -277,6 +282,47 @@
                     <!-- Content will be loaded dynamically -->
                     <p class="text-muted">Final declaration details will appear here.</p>
                 </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Final Declaration Preview Modal (Sandbox Only - For Screenshots) -->
+<div class="modal fade" id="finalDeclarationPreviewModal" tabindex="-1" aria-labelledby="finalDeclarationPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="finalDeclarationPreviewModalLabel">
+                    <i class="fas fa-file-signature me-2"></i>Final Declaration Preview (Sandbox)
+                </h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    <strong>Sandbox Preview:</strong> This is a preview of the Final Declaration statement for HMRC screenshot requirements. All controls are disabled.
+                </div>
+                
+                <p class="mb-3">Before you can submit the information displayed here in response to your notice to file from HM Revenue &amp; Customs, you must read and agree to the following statement by ticking the box below.</p>
+                
+                <div class="alert alert-danger" aria-labelledby="previewDeclarationStatementHeading">
+                    <h6 id="previewDeclarationStatementHeading" class="mb-3"><strong>Final Declaration Statement</strong></h6>
+                    <p class="mb-0">I declare that the information and tax return I have submitted are (taken together) correct and complete to the best of my knowledge. I understand that I may have to pay financial penalties and face prosecution if I give false information.</p>
+                </div>
+                
+                <div class="form-check mb-3">
+                    <input type="checkbox" class="form-check-input" id="previewDeclarationCheckbox" disabled>
+                    <label class="form-check-label" for="previewDeclarationCheckbox">
+                        I confirm that I have read and understood the declaration statement above
+                    </label>
+                </div>
+                
+                <button class="btn btn-danger" disabled>
+                    <i class="fas fa-file-signature me-1"></i>Submit Final Declaration to HMRC
+                </button>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
         </div>
     </div>
