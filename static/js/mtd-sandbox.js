@@ -7,7 +7,7 @@ let loadingModal;
 let credentialsModal;
 let activeUserNino = null;
 
-document.addEventListener('DOMContentLoaded', function() {
+function initSandboxPage() {
     const loadingEl = document.getElementById('loadingModal');
     const credentialsEl = document.getElementById('credentialsModal');
     if (loadingEl) loadingModal = new bootstrap.Modal(loadingEl);
@@ -16,7 +16,7 @@ document.addEventListener('DOMContentLoaded', function() {
     loadOAuthStatus();
     loadActiveUser();
     loadTestUserHistory();
-});
+}
 
 function getCsrfToken() {
     const metaTag = document.querySelector('meta[name="csrf-token"]');
