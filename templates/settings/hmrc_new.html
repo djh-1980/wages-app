@@ -2,8 +2,12 @@
 
 {% block title %}HMRC Making Tax Digital - TVS Wages{% endblock %}
 
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-mtd-redesign.css') }}">
+{% endblock %}
+
 {% block content %}
-<div class="container-fluid mt-4">
+<div class="container-fluid mt-4 hmrc-mtd-page">
     
     <!-- Warning Banner (Sandbox Mode) -->
     <div id="sandboxWarning" class="alert alert-warning alert-dismissible fade show d-none" role="alert">
@@ -15,28 +19,28 @@
     <!-- Page Header with Status Bar -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="bg-primary text-white p-3 rounded">
+            <div class="mtd-header-card">
                 <div class="d-flex justify-content-between align-items-center flex-wrap">
                     <!-- Tax Year Label -->
-                    <div>
-                        <h1 class="h4 mb-1">
+                    <div class="tax-year-label">
+                        <h1 class="mb-1">
                             <i class="fas fa-landmark me-2"></i>Making Tax Digital
                         </h1>
-                        <p class="mb-0 small" id="taxYearLabel">
+                        <p class="text-muted mb-0" id="taxYearLabel">
                             <span id="taxYearDisplay">2026–27</span> · 
                             <span id="taxYearDates">6 Apr 2026 – 5 Apr 2027</span>
                         </p>
                     </div>
                     
                     <!-- Status Badges -->
-                    <div class="d-flex gap-2 flex-wrap mt-2 mt-md-0">
-                        <span class="badge bg-light text-dark" id="currentQuarterBadge">
-                            <i class="fas fa-calendar-check me-1"></i>Q1 Open
+                    <div class="status-badges d-flex gap-2 flex-wrap">
+                        <span class="badge badge-pill badge-quarter" id="currentQuarterBadge">
+                            <i class="fas fa-calendar-check me-1"></i>Q2 Open
                         </span>
-                        <span class="badge bg-light text-dark" id="credentialBadge">
+                        <span class="badge badge-pill badge-credential" id="credentialBadge">
                             <i class="fas fa-plug me-1"></i>Not Connected
                         </span>
-                        <span class="badge bg-warning text-dark" id="environmentBadge">
+                        <span class="badge badge-pill badge-environment" id="environmentBadge">
                             Sandbox
                         </span>
                     </div>
@@ -53,22 +57,24 @@
         
         <!-- Q1 Card -->
         <div class="col-12 col-md-6 col-xl-3 mb-3">
-            <div class="card" id="q1Card" data-quarter="1">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Q1</h5>
-                    <span class="badge bg-success" id="q1Status">Open</span>
+            <div class="quarterly-card" id="q1Card" data-quarter="1">
+                <div class="quarterly-card-header">
+                    <div class="quarter-label">Q1</div>
+                    <div class="quarter-status">
+                        <span class="badge badge-status badge-future">Future</span>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="mb-2">
+                <div class="quarterly-card-body">
+                    <div class="date-range mb-2">
                         <i class="fas fa-calendar me-1"></i>
-                        <span>6 Apr – 5 Jul</span>
+                        <span class="dates">6 Apr – 5 Jul</span>
                     </div>
-                    <div class="mb-3">
+                    <div class="deadline mb-3">
                         <i class="fas fa-clock me-1"></i>
-                        <strong>Due 7 Aug</strong>
+                        <small class="text-muted">Due:</small> <strong>7 Aug</strong>
                     </div>
-                    <button class="btn btn-primary w-100 quarter-action-btn" data-quarter="1" data-status="open">
-                        <i class="fas fa-edit me-1"></i>Prepare Update
+                    <button class="btn btn-primary w-100 quarter-action-btn" disabled>
+                        <i class="fas fa-lock me-1"></i>Not Available
                     </button>
                 </div>
             </div>
@@ -76,22 +82,24 @@
         
         <!-- Q2 Card -->
         <div class="col-12 col-md-6 col-xl-3 mb-3">
-            <div class="card" id="q2Card" data-quarter="2">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Q2</h5>
-                    <span class="badge bg-secondary" id="q2Status">Future</span>
+            <div class="quarterly-card quarterly-card-active" id="q2Card" data-quarter="2">
+                <div class="quarterly-card-header">
+                    <div class="quarter-label">Q2</div>
+                    <div class="quarter-status">
+                        <span class="badge badge-status badge-open">Open</span>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="mb-2">
+                <div class="quarterly-card-body">
+                    <div class="date-range mb-2">
                         <i class="fas fa-calendar me-1"></i>
-                        <span>6 Jul – 5 Oct</span>
+                        <span class="dates">6 Jul – 5 Oct</span>
                     </div>
-                    <div class="mb-3">
+                    <div class="deadline mb-3">
                         <i class="fas fa-clock me-1"></i>
-                        <strong>Due 7 Nov</strong>
+                        <small class="text-muted">Due:</small> <strong>7 Nov</strong>
                     </div>
-                    <button class="btn btn-secondary w-100 quarter-action-btn" disabled data-quarter="2" data-status="future">
-                        <i class="fas fa-calendar-plus me-1"></i>Opens 6 Jul
+                    <button class="btn btn-success w-100 quarter-action-btn">
+                        <i class="fas fa-edit me-1"></i>Prepare Update
                     </button>
                 </div>
             </div>
@@ -99,22 +107,24 @@
         
         <!-- Q3 Card -->
         <div class="col-12 col-md-6 col-xl-3 mb-3">
-            <div class="card" id="q3Card" data-quarter="3">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Q3</h5>
-                    <span class="badge bg-secondary" id="q3Status">Future</span>
+            <div class="quarterly-card" id="q3Card" data-quarter="3">
+                <div class="quarterly-card-header">
+                    <div class="quarter-label">Q3</div>
+                    <div class="quarter-status">
+                        <span class="badge badge-status badge-future">Future</span>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="mb-2">
+                <div class="quarterly-card-body">
+                    <div class="date-range mb-2">
                         <i class="fas fa-calendar me-1"></i>
-                        <span>6 Oct – 5 Jan</span>
+                        <span class="dates">6 Oct – 5 Jan</span>
                     </div>
-                    <div class="mb-3">
+                    <div class="deadline mb-3">
                         <i class="fas fa-clock me-1"></i>
-                        <strong>Due 7 Feb</strong>
+                        <small class="text-muted">Due:</small> <strong>7 Feb</strong>
                     </div>
-                    <button class="btn btn-secondary w-100 quarter-action-btn" disabled data-quarter="3" data-status="future">
-                        <i class="fas fa-calendar-plus me-1"></i>Opens 6 Oct
+                    <button class="btn btn-primary w-100 quarter-action-btn" disabled>
+                        <i class="fas fa-lock me-1"></i>Not Available
                     </button>
                 </div>
             </div>
@@ -122,22 +132,24 @@
         
         <!-- Q4 Card -->
         <div class="col-12 col-md-6 col-xl-3 mb-3">
-            <div class="card" id="q4Card" data-quarter="4">
-                <div class="card-header d-flex justify-content-between align-items-center">
-                    <h5 class="mb-0">Q4</h5>
-                    <span class="badge bg-secondary" id="q4Status">Future</span>
+            <div class="quarterly-card" id="q4Card" data-quarter="4">
+                <div class="quarterly-card-header">
+                    <div class="quarter-label">Q4</div>
+                    <div class="quarter-status">
+                        <span class="badge badge-status badge-future">Future</span>
+                    </div>
                 </div>
-                <div class="card-body">
-                    <div class="mb-2">
+                <div class="quarterly-card-body">
+                    <div class="date-range mb-2">
                         <i class="fas fa-calendar me-1"></i>
-                        <span>6 Jan – 5 Apr</span>
+                        <span class="dates">6 Jan – 5 Apr</span>
                     </div>
-                    <div class="mb-3">
+                    <div class="deadline mb-3">
                         <i class="fas fa-clock me-1"></i>
-                        <strong>Due 7 May</strong>
+                        <small class="text-muted">Due:</small> <strong>7 May</strong>
                     </div>
-                    <button class="btn btn-secondary w-100 quarter-action-btn" disabled data-quarter="4" data-status="future">
-                        <i class="fas fa-calendar-plus me-1"></i>Opens 6 Jan
+                    <button class="btn btn-primary w-100 quarter-action-btn" disabled>
+                        <i class="fas fa-lock me-1"></i>Not Available
                     </button>
                 </div>
             </div>
@@ -147,7 +159,7 @@
     <!-- End of Year / Final Declaration Section -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card">
+            <div class="card final-declaration-card">
                 <div class="card-body">
                     <div class="d-flex justify-content-between align-items-start flex-wrap">
                         <div class="flex-grow-1 mb-3 mb-md-0">
@@ -159,18 +171,18 @@
                             </p>
                             
                             <!-- Step Pills -->
-                            <div class="d-flex gap-2 flex-wrap">
-                                <span class="badge bg-success" id="stepBsas">
-                                    ✓ BSAS Adjustments
+                            <div class="final-steps d-flex gap-2 flex-wrap">
+                                <span class="badge badge-step badge-step-pending">
+                                    <i class="fas fa-calculator me-1"></i>BSAS Adjustments
                                 </span>
-                                <span class="badge bg-success" id="stepLosses">
-                                    ✓ Losses
+                                <span class="badge badge-step badge-step-pending">
+                                    <i class="fas fa-chart-line me-1"></i>Losses
                                 </span>
-                                <span class="badge bg-success" id="stepDeclaration">
-                                    ✓ Declaration
+                                <span class="badge badge-step badge-step-pending">
+                                    <i class="fas fa-file-signature me-1"></i>Declaration
                                 </span>
-                                <span class="badge bg-warning text-dark" id="stepQuarters">
-                                    <i class="fas fa-clock me-1"></i>All Quarters Submitted
+                                <span class="badge badge-step badge-step-pending">
+                                    <i class="fas fa-check-circle me-1"></i>All Quarters Submitted
                                 </span>
                             </div>
                         </div>
@@ -189,35 +201,35 @@
     <!-- Connection Metadata Strip -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="bg-light p-3 rounded">
+            <div class="connection-metadata">
                 <div class="row g-3">
-                    <div class="col-6 col-md-3 text-center">
-                        <div>
-                            <small class="text-muted text-uppercase d-block mb-2">Environment</small>
-                            <div id="metaEnvironment">
-                                <span class="badge bg-warning text-dark">Sandbox</span>
+                    <div class="col-6 col-md-3">
+                        <div class="metadata-tile">
+                            <div class="metadata-label">Environment</div>
+                            <div class="metadata-value" id="metaEnvironment">
+                                <span class="badge bg-warning">Sandbox</span>
                             </div>
                         </div>
                     </div>
-                    <div class="col-6 col-md-3 text-center">
-                        <div>
-                            <small class="text-muted text-uppercase d-block mb-2">Application</small>
-                            <div><strong>TVS Wages</strong></div>
+                    <div class="col-6 col-md-3">
+                        <div class="metadata-tile">
+                            <div class="metadata-label">Application</div>
+                            <div class="metadata-value">TVS Wages</div>
                         </div>
                     </div>
-                    <div class="col-6 col-md-3 text-center">
-                        <div>
-                            <small class="text-muted text-uppercase d-block mb-2">HMRC Authorisation</small>
-                            <div id="metaAuth">
+                    <div class="col-6 col-md-3">
+                        <div class="metadata-tile">
+                            <div class="metadata-label">HMRC Authorisation</div>
+                            <div class="metadata-value" id="metaAuth">
                                 <i class="fas fa-times-circle text-danger me-1"></i>
                                 <span>Not Connected</span>
                             </div>
                         </div>
                     </div>
-                    <div class="col-6 col-md-3 text-center">
-                        <div>
-                            <small class="text-muted text-uppercase d-block mb-2">Fraud Prevention</small>
-                            <div id="metaFraud">
+                    <div class="col-6 col-md-3">
+                        <div class="metadata-tile">
+                            <div class="metadata-label">Fraud Prevention</div>
+                            <div class="metadata-value" id="metaFraud">
                                 <i class="fas fa-check-circle text-success me-1"></i>
                                 <span>Active</span>
                             </div>

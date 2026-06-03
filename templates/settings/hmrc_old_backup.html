@@ -1,0 +1,1295 @@
+{% extends "base.html" %}
+
+{% block title %}HMRC MTD Settings - TVS Wages{% endblock %}
+
+{# HMRC MTD page styles live in static/css/unified-styles.css (loaded from base.html) #}
+
+{% block content %}
+<div class="container-fluid mt-4">
+    <!-- Page Header -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <h1 class="mb-2">
+                <i class="fas fa-landmark"></i> HMRC Making Tax Digital
+            </h1>
+            <p class="text-muted">Manage your Making Tax Digital submissions and compliance</p>
+        </div>
+    </div>
+    
+    <!-- Tab Navigation -->
+    <div class="row">
+        <div class="col-12">
+            <ul class="nav nav-pills hmrc-tabs mb-4 flex-nowrap overflow-auto" role="tablist">
+                <li class="nav-item">
+                    <a class="nav-link active" data-bs-toggle="pill" data-bs-target="#overview" role="tab">
+                        <i class="fas fa-home"></i> Overview
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#quarterly" role="tab">
+                        <i class="fas fa-calendar-check"></i> Quarterly Filing
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#endofyear" role="tab">
+                        <i class="fas fa-calculator"></i> End of Year
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#finaldeclaration" role="tab">
+                        <i class="fas fa-file-signature"></i> Final Declaration
+                    </a>
+                </li>
+                <li class="nav-item">
+                    <a class="nav-link" data-bs-toggle="pill" data-bs-target="#help" role="tab">
+                        <i class="fas fa-question-circle"></i> Help
+                    </a>
+                </li>
+            </ul>
+            
+            <!-- Tab Content -->
+            <div class="tab-content">
+                
+                <!-- TAB 1: OVERVIEW -->
+                <div class="tab-pane fade show active" id="overview">
+                    
+    <!-- Connection Status Card - Compact Horizontal -->
+    <div class="row">
+        <div class="col-12">
+            <div id="connectionStatus" class="connection-status disconnected">
+                <div class="status-icon">
+                    <i class="fas fa-plug"></i>
+                </div>
+                <div class="status-text">
+                    <h3>Not Connected</h3>
+                    <p>Connect to HMRC to enable Making Tax Digital submissions</p>
+                </div>
+                <span class="environment-badge sandbox">Sandbox</span>
+                <button id="connectBtn" class="btn btn-primary">
+                    <i class="fas fa-link"></i> Connect to HMRC
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Action Buttons -->
+    <div class="row mb-4 d-none" id="connectedActions">
+        <div class="col-12 col-md-3 mb-3">
+            <button id="disconnectBtn" class="btn btn-danger w-100">
+                <i class="fas fa-unlink"></i> Disconnect
+            </button>
+        </div>
+        <div class="col-12 col-md-3 mb-3">
+            <button id="testConnectionBtn" class="btn btn-info w-100">
+                <i class="fas fa-vial"></i> Test Connection
+            </button>
+        </div>
+        <div class="col-12 col-md-3 mb-3">
+            <button id="refreshObligationsBtn" class="btn btn-secondary w-100">
+                <i class="fas fa-sync"></i> Refresh Obligations
+            </button>
+        </div>
+        <div class="col-12 col-md-3 mb-3">
+            <button id="exportDataBtn" class="btn btn-outline-secondary w-100">
+                <i class="fas fa-download"></i> Export Data
+            </button>
+        </div>
+    </div>
+    
+    <!-- Account Configuration Section (Collapsible) -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card settings-card mb-4">
+                <div class="card-header" style="cursor: pointer;" data-bs-toggle="collapse" data-bs-target="#accountConfigSection" aria-expanded="false">
+                    <h5 class="mb-0">
+                        <i class="fas fa-cog"></i> Account Configuration
+                        <i class="fas fa-chevron-down float-end"></i>
+                    </h5>
+                </div>
+                <div id="accountConfigSection" class="collapse">
+                    <div class="card-body">
+                        
+    <!-- Period of Account Card (Business Details API v2.0) -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card settings-card mb-4 poa-card" id="periodOfAccountCard">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-calendar-day"></i> Period of Account
+                    </h5>
+                    <p class="text-muted">
+                        Your accounting period for the selected tax year. For most
+                        sole traders this is the standard 6 April to 5 April window;
+                        non-standard periods can be set with custom dates.
+                    </p>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-4">
+                            <label for="poaTaxYearSelect" class="form-label">Tax Year</label>
+                            <select class="form-select" id="poaTaxYearSelect">
+                                <option value="2024-25">2024-25</option>
+                                <option value="2025-26" selected>2025-26</option>
+                                <option value="2026-27">2026-27</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Current period summary -->
+                    <div id="poaSummary" class="poa-summary mb-3" aria-live="polite">
+                        <div id="poaSummaryEmpty" class="text-muted poa-summary-empty">
+                            <i class="fas fa-info-circle"></i>
+                            No period of account on record for this tax year yet.
+                        </div>
+                        <div id="poaSummaryContent" class="d-none">
+                            <div class="row g-2 align-items-center">
+                                <div class="col-12 col-md-6">
+                                    <div class="poa-summary-label">Period dates</div>
+                                    <div class="poa-summary-value">
+                                        <strong id="poaSummaryDates">&mdash;</strong>
+                                    </div>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="poa-summary-label">Type</div>
+                                    <span class="badge poa-type-badge" id="poaTypeBadge">&mdash;</span>
+                                </div>
+                                <div class="col-6 col-md-3">
+                                    <div class="poa-summary-label">HMRC Period&nbsp;ID</div>
+                                    <code id="poaSummaryPeriodId" class="poa-period-id">&mdash;</code>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Form -->
+                    <form id="poaForm" novalidate>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" role="switch" id="poaCustomToggle">
+                            <label class="form-check-label" for="poaCustomToggle">
+                                Use custom dates (non-standard period)
+                            </label>
+                        </div>
+
+                        <div id="poaCustomDates" class="row g-3 mb-3 d-none">
+                            <div class="col-12 col-md-6">
+                                <label for="poaStartDate" class="form-label">Start date</label>
+                                <input type="date" class="form-control" id="poaStartDate">
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <label for="poaEndDate" class="form-label">End date</label>
+                                <input type="date" class="form-control" id="poaEndDate">
+                            </div>
+                        </div>
+
+                        <div id="poaResult" class="d-none mb-3" aria-live="polite"></div>
+
+                        <div class="d-grid gap-2 d-md-flex">
+                            <button type="button" class="btn btn-primary poa-action-btn" id="poaCreateBtn">
+                                <i class="fas fa-plus-circle"></i>
+                                <span id="poaCreateBtnLabel">Set Standard Period</span>
+                            </button>
+                            <button type="button" class="btn btn-outline-primary poa-action-btn" id="poaUpdateBtn" disabled>
+                                <i class="fas fa-pen"></i> Update
+                            </button>
+                            <button type="button" class="btn btn-outline-danger poa-action-btn" id="poaDeleteBtn" disabled>
+                                <i class="fas fa-trash"></i> Delete
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Late Accounting Date Rule Card (Business Details API v2.0) -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card settings-card mb-4 ladr-card" id="ladrCard">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-balance-scale"></i> Late Accounting Date Rule
+                    </h5>
+                    <p class="text-muted ladr-helper-text">
+                        The Late Accounting Date Rule applies if your accounting
+                        period ends after 5 April. For most sole traders with a
+                        tax-year aligned period (6 April&ndash;5 April), this rule
+                        does not apply and no action is needed.
+                    </p>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-4">
+                            <label for="ladrTaxYearSelect" class="form-label">Tax Year</label>
+                            <select class="form-select" id="ladrTaxYearSelect">
+                                <option value="2024-25">2024-25</option>
+                                <option value="2025-26" selected>2025-26</option>
+                                <option value="2026-27">2026-27</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Current status summary -->
+                    <div id="ladrSummary" class="ladr-summary mb-3" aria-live="polite">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-md-4">
+                                <div class="ladr-summary-label">Status</div>
+                                <span class="badge ladr-status-badge ladr-status-unknown" id="ladrStatusBadge">Unknown</span>
+                            </div>
+                            <div class="col-12 col-md-5">
+                                <div class="ladr-summary-label">Last synced</div>
+                                <div class="ladr-summary-value">
+                                    <span id="ladrLastSynced">&mdash;</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-3">
+                                <span class="badge ladr-stale-badge d-none" id="ladrStaleBadge">
+                                    <i class="fas fa-cloud-arrow-down"></i> Stale (cached)
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div id="ladrResult" class="d-none mb-3" aria-live="polite"></div>
+
+                    <div class="d-grid gap-2 d-md-flex">
+                        <button type="button" class="btn btn-outline-primary ladr-action-btn" id="ladrRefreshBtn">
+                            <i class="fas fa-sync"></i> Refresh from HMRC
+                        </button>
+                        <button type="button" class="btn btn-warning ladr-action-btn d-none" id="ladrDisapplyBtn" disabled>
+                            <i class="fas fa-ban"></i> Disapply Rule
+                        </button>
+                        <button type="button" class="btn btn-success ladr-action-btn d-none" id="ladrWithdrawBtn" disabled>
+                            <i class="fas fa-undo"></i> Withdraw Disapplication
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+                        
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Annual Submission Card (Self-Employment Business API v5.0) -->
+    <div class="row">
+        <div class="col-12">
+            <div class="card settings-card mb-4 ann-card" id="annCard">
+                <div class="card-body">
+                    <h5 class="card-title">
+                        <i class="fas fa-file-invoice"></i> Annual Submission
+                    </h5>
+                    <p class="text-muted ann-helper-text" id="annHelperText">
+                        Annual submission is required at the end of each tax
+                        year. Most sole traders on cash basis submit zeroes for
+                        allowances and adjustments. This is mandatory regardless
+                        of the values.
+                    </p>
+
+                    <div class="row g-3 mb-3">
+                        <div class="col-12 col-md-4">
+                            <label for="annTaxYearSelect" class="form-label">Tax Year</label>
+                            <select class="form-select" id="annTaxYearSelect">
+                                <option value="2024-25">2024-25</option>
+                                <option value="2025-26" selected>2025-26</option>
+                                <option value="2026-27">2026-27</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Status row: last submitted + draft age -->
+                    <div class="ann-summary mb-3" aria-live="polite">
+                        <div class="row g-2 align-items-center">
+                            <div class="col-12 col-md-6">
+                                <div class="ann-summary-label">Last submitted</div>
+                                <div class="ann-summary-value">
+                                    <span id="annLastSubmittedTimestamp">&mdash;</span>
+                                </div>
+                            </div>
+                            <div class="col-12 col-md-6">
+                                <span class="badge ann-draft-badge d-none" id="annDraftBadge">
+                                    <i class="fas fa-pen"></i>
+                                    Draft saved <span id="annDraftAge">&mdash;</span>
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+
+                    <form id="annForm" novalidate>
+                        <div class="accordion ann-accordion" id="annAccordion">
+
+                            <!-- Allowances -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#annAllowancesBody"
+                                            aria-expanded="false"
+                                            aria-controls="annAllowancesBody"
+                                            id="annAllowancesToggle">
+                                        <i class="fas fa-coins me-2"></i> Allowances
+                                    </button>
+                                </h2>
+                                <div id="annAllowancesBody" class="accordion-collapse collapse"
+                                     data-bs-parent="#annAccordion">
+                                    <div class="accordion-body">
+                                        <p class="text-muted small mb-3">
+                                            Defaults are zero. Most cash-basis sole traders leave these untouched.
+                                        </p>
+                                        <div class="row g-3">
+                                            <div class="col-12 col-md-6">
+                                                <label for="annAnnualInvestmentAllowance" class="form-label">Annual Investment Allowance (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annAnnualInvestmentAllowance"
+                                                       data-section="allowances"
+                                                       data-field="annualInvestmentAllowance"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annCapitalAllowanceMainPool" class="form-label">Capital Allowance (Main Pool) (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annCapitalAllowanceMainPool"
+                                                       data-section="allowances"
+                                                       data-field="capitalAllowanceMainPool"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annCapitalAllowanceSpecialRatePool" class="form-label">Capital Allowance (Special Rate Pool) (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annCapitalAllowanceSpecialRatePool"
+                                                       data-section="allowances"
+                                                       data-field="capitalAllowanceSpecialRatePool"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annZeroEmissionGoodsVehicleAllowance" class="form-label">Zero-Emission Goods Vehicle Allowance (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annZeroEmissionGoodsVehicleAllowance"
+                                                       data-section="allowances"
+                                                       data-field="zeroEmissionGoodsVehicleAllowance"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annBusinessPremisesRenovationAllowance" class="form-label">Business Premises Renovation Allowance (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annBusinessPremisesRenovationAllowance"
+                                                       data-section="allowances"
+                                                       data-field="businessPremisesRenovationAllowance"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annEnhancedCapitalAllowance" class="form-label">Enhanced Capital Allowance (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annEnhancedCapitalAllowance"
+                                                       data-section="allowances"
+                                                       data-field="enhancedCapitalAllowance"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annAllowanceOnSales" class="form-label">Allowance on Sales (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annAllowanceOnSales"
+                                                       data-section="allowances"
+                                                       data-field="allowanceOnSales"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Adjustments -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#annAdjustmentsBody"
+                                            aria-expanded="false"
+                                            aria-controls="annAdjustmentsBody"
+                                            id="annAdjustmentsToggle">
+                                        <i class="fas fa-balance-scale-right me-2"></i> Adjustments
+                                    </button>
+                                </h2>
+                                <div id="annAdjustmentsBody" class="accordion-collapse collapse"
+                                     data-bs-parent="#annAccordion">
+                                    <div class="accordion-body">
+                                        <p class="text-muted small mb-3">
+                                            Defaults are zero. Use these only if HMRC has asked you to declare an adjustment.
+                                        </p>
+                                        <div class="row g-3">
+                                            <div class="col-12 col-md-6">
+                                                <label for="annIncludedNonTaxableProfits" class="form-label">Included Non-Taxable Profits (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annIncludedNonTaxableProfits"
+                                                       data-section="adjustments"
+                                                       data-field="includedNonTaxableProfits"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annBasisAdjustment" class="form-label">Basis Adjustment (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annBasisAdjustment"
+                                                       data-section="adjustments"
+                                                       data-field="basisAdjustment"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annOverlapReliefUsed" class="form-label">Overlap Relief Used (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annOverlapReliefUsed"
+                                                       data-section="adjustments"
+                                                       data-field="overlapReliefUsed"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annAccountingAdjustment" class="form-label">Accounting Adjustment (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annAccountingAdjustment"
+                                                       data-section="adjustments"
+                                                       data-field="accountingAdjustment"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annAveragingAdjustment" class="form-label">Averaging Adjustment (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annAveragingAdjustment"
+                                                       data-section="adjustments"
+                                                       data-field="averagingAdjustment"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annOutstandingBusinessIncome" class="form-label">Outstanding Business Income (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annOutstandingBusinessIncome"
+                                                       data-section="adjustments"
+                                                       data-field="outstandingBusinessIncome"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annBalancingChargeBpra" class="form-label">Balancing Charge (BPRA) (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annBalancingChargeBpra"
+                                                       data-section="adjustments"
+                                                       data-field="balancingChargeBpra"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annBalancingChargeOther" class="form-label">Balancing Charge (Other) (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annBalancingChargeOther"
+                                                       data-section="adjustments"
+                                                       data-field="balancingChargeOther"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                            <div class="col-12 col-md-6">
+                                                <label for="annGoodsAndServicesOwnUse" class="form-label">Goods and Services for Own Use (&pound;)</label>
+                                                <input type="number" class="form-control ann-numeric"
+                                                       id="annGoodsAndServicesOwnUse"
+                                                       data-section="adjustments"
+                                                       data-field="goodsAndServicesOwnUse"
+                                                       step="0.01" min="0" value="0">
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <!-- Non-Financials -->
+                            <div class="accordion-item">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed" type="button"
+                                            data-bs-toggle="collapse"
+                                            data-bs-target="#annNonFinancialsBody"
+                                            aria-expanded="false"
+                                            aria-controls="annNonFinancialsBody"
+                                            id="annNonFinancialsToggle">
+                                        <i class="fas fa-clipboard-list me-2"></i> Non-Financials
+                                    </button>
+                                </h2>
+                                <div id="annNonFinancialsBody" class="accordion-collapse collapse"
+                                     data-bs-parent="#annAccordion">
+                                    <div class="accordion-body">
+                                        <div class="form-check mb-3">
+                                            <input type="checkbox" class="form-check-input"
+                                                   id="annBusinessDetailsChangedRecently"
+                                                   data-section="nonFinancials"
+                                                   data-field="businessDetailsChangedRecently">
+                                            <label class="form-check-label" for="annBusinessDetailsChangedRecently">
+                                                Business details changed recently
+                                            </label>
+                                        </div>
+
+                                        <div class="row g-3">
+                                            <div class="col-12 col-md-6">
+                                                <label for="annClass4NicsExemptionReason" class="form-label">Class 4 NICs Exemption Reason</label>
+                                                <select class="form-select"
+                                                        id="annClass4NicsExemptionReason"
+                                                        data-section="nonFinancials"
+                                                        data-field="class4NicsExemptionReason">
+                                                    <option value="">None (not exempt)</option>
+                                                    <option value="non-resident">Non-resident</option>
+                                                    <option value="trustee">Trustee</option>
+                                                    <option value="diver">Diver</option>
+                                                    <option value="ITTOIA-2005">ITTOIA 2005</option>
+                                                    <option value="over-state-pension-age">Over State Pension age</option>
+                                                    <option value="under-16">Under 16</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="annResult" class="d-none mt-3 mb-3" aria-live="polite"></div>
+
+                        <div class="d-grid gap-2 d-md-flex mt-3">
+                            <button type="button" class="btn btn-outline-primary ann-action-btn" id="annSaveDraftBtn">
+                                <i class="fas fa-save"></i> Save Draft
+                            </button>
+                            <button type="button" class="btn btn-outline-secondary ann-action-btn d-none" id="annDiscardDraftBtn">
+                                <i class="fas fa-trash"></i> Discard Draft
+                            </button>
+                            <button type="button" class="btn btn-success ann-action-btn" id="annSubmitBtn">
+                                <i class="fas fa-paper-plane"></i> Submit to HMRC
+                            </button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+                </div>
+                <!-- END TAB 1: OVERVIEW -->
+                
+                <!-- TAB 2: QUARTERLY FILING -->
+                <div class="tab-pane fade" id="quarterly">
+                    
+                    <!-- Quarterly Obligations -->
+                    <div class="card settings-card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title">Quarterly Obligations</h5>
+
+                            <div class="alert alert-info">
+                                <strong><i class="fas fa-lock"></i> Digital Records Lock</strong>
+                                <p class="mb-0 mt-2">Once submitted, your quarterly update has been sent to HMRC. To amend this data, you must resubmit the period with corrected figures.</p>
+                            </div>
+
+                            <div class="alert alert-warning">
+                                <strong><i class="fas fa-info-circle"></i> Cumulative Submissions</strong>
+                                <p class="mb-0 mt-2">Each quarterly update is a <strong>running total</strong> from 6 April of the tax year up to the end of the current quarter. Q2 includes Q1's figures, Q3 includes Q1 + Q2, and Q4 covers the full year.</p>
+                            </div>
+
+                            <div id="obligationsList">
+                                <div class="text-center text-muted py-5">
+                                    <i class="fas fa-calendar-times fa-3x mb-3"></i>
+                                    <p>Connect to HMRC to view your quarterly obligations</p>
+                                </div>
+                            </div>
+
+                            <!-- Cumulative submission panel -->
+                            <div id="cumulativePanel" class="cumulative-panel d-none mt-4" aria-live="polite">
+                                <div class="card">
+                                    <div class="card-header d-flex justify-content-between align-items-center">
+                                        <h6 class="mb-0">
+                                            <i class="fas fa-paper-plane"></i>
+                                            Submit Quarterly Update
+                                            (<span id="cumulativePanelPeriod">—</span>)
+                                        </h6>
+                                        <button type="button" class="btn-close" id="cumulativePanelClose" aria-label="Close"></button>
+                                    </div>
+                                    <div class="card-body">
+                                        <p class="text-muted mb-3">
+                                            <i class="fas fa-calendar-alt"></i>
+                                            Cumulative window:
+                                            <strong id="cumulativeStartDate">—</strong>
+                                            to
+                                            <strong id="cumulativeEndDate">—</strong>
+                                        </p>
+
+                                        <div id="cumulativeLoading" class="text-center py-4">
+                                            <i class="fas fa-spinner fa-spin fa-2x text-muted"></i>
+                                            <p class="mt-2 mb-0 text-muted">Calculating cumulative totals…</p>
+                                        </div>
+
+                                        <div id="cumulativeContent" class="d-none">
+                                            <div class="row g-3 mb-3">
+                                                <div class="col-12 col-md-6">
+                                                    <div class="cumulative-summary-card">
+                                                        <div class="cumulative-summary-label">Cumulative Turnover</div>
+                                                        <div class="cumulative-summary-value" id="cumulativeTurnover">£0.00</div>
+                                                    </div>
+                                                </div>
+                                                <div class="col-12 col-md-6">
+                                                    <div class="cumulative-summary-card">
+                                                        <div class="cumulative-summary-label">Other Income</div>
+                                                        <div class="cumulative-summary-value" id="cumulativeOther">£0.00</div>
+                                                    </div>
+                                                </div>
+                                            </div>
+
+                                            <h6 class="mt-4">Cumulative Expenses</h6>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm cumulative-expenses-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th scope="col">Category</th>
+                                                            <th scope="col" class="text-end">Cumulative Total</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="cumulativeExpenseBody">
+                                                        <tr><td colspan="2" class="text-muted text-center">No expenses</td></tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <h6 class="mt-4">Quarterly Breakdown</h6>
+                                            <p class="text-muted small">
+                                                Shows what each quarter contributed to today's running total.
+                                            </p>
+                                            <div class="table-responsive">
+                                                <table class="table table-sm cumulative-breakdown-table">
+                                                    <thead>
+                                                        <tr>
+                                                            <th scope="col">Quarter</th>
+                                                            <th scope="col">Window</th>
+                                                            <th scope="col" class="text-end">Turnover</th>
+                                                            <th scope="col" class="text-end">Expenses</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody id="cumulativeBreakdownBody">
+                                                        <tr><td colspan="4" class="text-muted text-center">—</td></tr>
+                                                    </tbody>
+                                                </table>
+                                            </div>
+
+                                            <hr class="my-4">
+
+                                            <div class="form-check mb-3">
+                                                <input type="checkbox" class="form-check-input" id="cumulativeConfirmCheckbox">
+                                                <label class="form-check-label" for="cumulativeConfirmCheckbox">
+                                                    I confirm these cumulative totals are correct and I want to submit them to HMRC.
+                                                </label>
+                                            </div>
+
+                                            <div id="cumulativeResult" class="d-none mb-3"></div>
+
+                                            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                                                <button type="button" class="btn btn-secondary" id="cumulativePanelCancel">
+                                                    Cancel
+                                                </button>
+                                                <button type="button" class="btn btn-primary" id="cumulativeSubmitBtn" disabled>
+                                                    <i class="fas fa-paper-plane"></i> Confirm and Submit
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                    <!-- Submission History -->
+                    <div class="card settings-card">
+                        <div class="card-body">
+                            <h5 class="card-title">Submission History</h5>
+                            <div id="submissionsList">
+                                <div class="text-center text-muted py-5">
+                                    <i class="fas fa-spinner fa-spin fa-3x mb-3"></i>
+                                    <p>Loading submissions...</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+                <!-- END TAB 2: QUARTERLY FILING -->
+                
+                <!-- TAB 3: END OF YEAR -->
+                <div class="tab-pane fade" id="endofyear">
+                
+                    <!-- BSAS Section -->
+                    <div class="card settings-card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-calculator"></i> Business Source Adjustable Summary (BSAS)
+                            </h5>
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle"></i> What is BSAS?</h6>
+                                <p class="mb-0">BSAS API v7.0 allows you to retrieve a tax calculation summary for a specific accounting period. This is useful for reviewing your tax position before making adjustments or submitting your final declaration.</p>
+                            </div>
+                            
+                            <!-- Trigger BSAS Section -->
+                            <h6><i class="fas fa-play-circle"></i> Trigger BSAS Calculation</h6>
+                            <p class="text-muted">Generate a new adjustable summary for a tax year</p>
+                            
+                            <div class="row mb-4">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Tax Year</label>
+                                        <input type="text" class="form-control" id="bsasTaxYear" value="2024/2025" placeholder="2024/2025">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Business Type</label>
+                                        <select class="form-control" id="bsasBusinessType">
+                                            <option value="self-employment">Self-Employment</option>
+                                            <option value="uk-property">UK Property</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Business ID</label>
+                                        <input type="text" class="form-control" id="bsasBusinessId" placeholder="XAIS12345678901">
+                                        <small class="form-text text-muted">Optional - uses saved ID if empty</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>&nbsp;</label>
+                                        <button id="triggerBsasBtn" class="btn btn-primary w-100">
+                                            <i class="fas fa-play"></i> Trigger BSAS
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- BSAS ID Display -->
+                            <div id="bsasIdDisplay" class="mb-4 d-none">
+                                <div class="alert alert-success">
+                                    <h6><i class="fas fa-check-circle"></i> BSAS Triggered Successfully</h6>
+                                    <p class="mb-2"><strong>BSAS ID:</strong> <code id="bsasIdValue"></code></p>
+                                    <button id="fetchBsasSummaryBtn" class="btn btn-sm btn-info">
+                                        <i class="fas fa-eye"></i> Fetch Summary
+                                    </button>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <!-- BSAS Summary Display -->
+                            <h6><i class="fas fa-file-invoice"></i> BSAS Summary</h6>
+                            <div id="bsasSummaryDisplay">
+                                <div class="text-center text-muted py-5">
+                                    <i class="fas fa-calculator fa-3x mb-3"></i>
+                                    <p>Trigger a BSAS calculation to view the summary</p>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <!-- BSAS Adjustments Section -->
+                            <h6><i class="fas fa-edit"></i> BSAS Adjustments</h6>
+                            <p class="text-muted">List and submit accounting adjustments for BSAS summaries</p>
+                            
+                            <!-- List BSAS Summaries -->
+                            <div class="row mb-4">
+                                <div class="col-12 col-md-4">
+                                    <div class="form-group">
+                                        <label>Tax Year</label>
+                                        <input type="text" class="form-control" id="bsasListTaxYear" value="2024/2025" placeholder="2024/2025">
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <div class="form-group">
+                                        <label>Business Type</label>
+                                        <select class="form-control" id="bsasListBusinessType">
+                                            <option value="self-employment">Self-Employment</option>
+                                            <option value="uk-property">UK Property</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-12 col-md-4">
+                                    <div class="form-group">
+                                        <label>&nbsp;</label>
+                                        <button id="listBsasBtn" class="btn btn-primary w-100">
+                                            <i class="fas fa-list"></i> List BSAS Summaries
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- BSAS List Display -->
+                            <div id="bsasListDisplay" class="mb-4 d-none">
+                                <div class="table-responsive">
+                                    <table class="table table-sm table-hover">
+                                        <thead>
+                                            <tr>
+                                                <th>Calculation ID</th>
+                                                <th>Status</th>
+                                                <th>Type</th>
+                                                <th>Actions</th>
+                                            </tr>
+                                        </thead>
+                                        <tbody id="bsasListTableBody">
+                                        </tbody>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            <!-- Adjustments Form -->
+                            <div id="bsasAdjustmentsForm" class="d-none">
+                                <div class="alert alert-warning">
+                                    <h6><i class="fas fa-exclamation-triangle"></i> Submit Adjustments</h6>
+                                    <p class="mb-2"><strong>Calculation ID:</strong> <code id="selectedCalculationId"></code></p>
+                                </div>
+                                
+                                <div class="row g-3">
+                                    <div class="col-12">
+                                        <h6>Income Adjustments</h6>
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label for="adjTurnover" class="form-label">Turnover (&pound;)</label>
+                                        <input type="number" class="form-control" id="adjTurnover" step="0.01" value="0">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label for="adjOtherIncome" class="form-label">Other Income (&pound;)</label>
+                                        <input type="number" class="form-control" id="adjOtherIncome" step="0.01" value="0">
+                                    </div>
+                                    
+                                    <div class="col-12 mt-4">
+                                        <h6>Expense Adjustments</h6>
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label for="adjCostOfGoods" class="form-label">Cost of Goods (&pound;)</label>
+                                        <input type="number" class="form-control" id="adjCostOfGoods" step="0.01" value="0">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label for="adjAdminCosts" class="form-label">Admin Costs (&pound;)</label>
+                                        <input type="number" class="form-control" id="adjAdminCosts" step="0.01" value="0">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label for="adjPremisesRunningCosts" class="form-label">Premises Running Costs (&pound;)</label>
+                                        <input type="number" class="form-control" id="adjPremisesRunningCosts" step="0.01" value="0">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label for="adjMaintenanceCosts" class="form-label">Maintenance Costs (&pound;)</label>
+                                        <input type="number" class="form-control" id="adjMaintenanceCosts" step="0.01" value="0">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label for="adjTravelCosts" class="form-label">Travel Costs (&pound;)</label>
+                                        <input type="number" class="form-control" id="adjTravelCosts" step="0.01" value="0">
+                                    </div>
+                                    <div class="col-12 col-md-6">
+                                        <label for="adjOtherExpenses" class="form-label">Other Expenses (&pound;)</label>
+                                        <input type="number" class="form-control" id="adjOtherExpenses" step="0.01" value="0">
+                                    </div>
+                                    
+                                    <div class="col-12 mt-3">
+                                        <button id="submitAdjustmentsBtn" class="btn btn-success">
+                                            <i class="fas fa-paper-plane"></i> Submit Adjustments
+                                        </button>
+                                        <button id="cancelAdjustmentsBtn" class="btn btn-secondary ms-2">
+                                            <i class="fas fa-times"></i> Cancel
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Losses Section -->
+                    <div class="card settings-card mb-4">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-chart-line"></i> Individual Losses (Brought Forward)
+                            </h5>
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle"></i> What are Brought Forward Losses?</h6>
+                                <p class="mb-0">Individual Losses API v6.0 allows you to record losses from previous tax years that can be carried forward to offset against future profits. This is useful for managing tax-deductible losses from self-employment or property businesses.</p>
+                            </div>
+                            
+                            <!-- List Losses Section -->
+                            <h6><i class="fas fa-list"></i> Your Losses</h6>
+                            <p class="text-muted">View all brought forward losses on record</p>
+                            
+                            <button id="listLossesBtn" class="btn btn-primary mb-3">
+                                <i class="fas fa-sync"></i> List Losses
+                            </button>
+                            
+                            <div id="lossesListDisplay">
+                                <div class="text-center text-muted py-5">
+                                    <i class="fas fa-chart-line fa-3x mb-3"></i>
+                                    <p>Click "List Losses" to view your brought forward losses</p>
+                                </div>
+                            </div>
+                            
+                            <hr>
+                            
+                            <!-- Create Loss Section -->
+                            <h6><i class="fas fa-plus-circle"></i> Record Brought Forward Loss</h6>
+                            <p class="text-muted">Record a new brought forward loss from a previous tax year</p>
+                            
+                            <div class="row mb-3">
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Tax Year Brought Forward From</label>
+                                        <input type="text" class="form-control" id="lossTaxYear" value="2023-24" placeholder="2023-24">
+                                        <small class="form-text text-muted">Year the loss originated</small>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Loss Type</label>
+                                        <select class="form-control" id="lossType">
+                                            <option value="self-employment">Self-Employment</option>
+                                            <option value="uk-property-fhl">UK Property FHL</option>
+                                            <option value="uk-property-non-fhl">UK Property Non-FHL</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Loss Amount (£)</label>
+                                        <input type="number" class="form-control" id="lossAmount" value="1000.00" step="0.01" min="0.01" placeholder="1000.00">
+                                    </div>
+                                </div>
+                                <div class="col-md-3">
+                                    <div class="form-group">
+                                        <label>Business ID</label>
+                                        <input type="text" class="form-control" id="lossBusinessId" placeholder="XBIS12345678901">
+                                        <small class="form-text text-muted">Optional - uses saved ID if empty</small>
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <button id="createLossBtn" class="btn btn-success">
+                                <i class="fas fa-plus"></i> Create Loss
+                            </button>
+                            
+                            <!-- Create Loss Result -->
+                            <div id="createLossResult" class="mt-3 d-none"></div>
+                        </div>
+                    </div>
+                    
+                </div>
+                <!-- END TAB 3: END OF YEAR -->
+                
+                <!-- TAB 4: FINAL DECLARATION -->
+                <div class="tab-pane fade" id="finaldeclaration">
+                    <div class="card settings-card">
+                        <div class="card-body">
+                            <h5 class="card-title">
+                                <i class="fas fa-file-signature"></i> Final Declaration (Crystallisation)
+                            </h5>
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle"></i> What is Final Declaration?</h6>
+                                <p class="mb-0">After submitting all 4 quarterly updates, you must submit a final declaration to HMRC confirming that all information is complete and correct. This is a mandatory MTD requirement.</p>
+                            </div>
+                            
+                            <!-- Amendment Mode Banner -->
+                            <div id="amendmentBanner" class="alert alert-warning d-none">
+                                <h6><i class="fas fa-edit"></i> Amendment Mode</h6>
+                                <p class="mb-0">A Final Declaration has already been submitted for this tax year. You can amend it below using the amendment flow.</p>
+                            </div>
+                            
+                            <!-- Tax Year Selector -->
+                            <div class="form-group mb-4">
+                                <label for="finalDeclTaxYear"><strong>Select Tax Year:</strong></label>
+                                <select class="form-control tax-year-select" id="finalDeclTaxYear">
+                                    <option value="2024/2025">2024/2025</option>
+                                    <option value="2025/2026">2025/2026</option>
+                                    <option value="2026/2027">2026/2027</option>
+                                </select>
+                            </div>
+                            
+                            <!-- Step-by-Step Flow -->
+                            <div id="finalDeclSteps">
+                                <!-- Step 1: Trigger Calculation -->
+                                <div id="step1" class="mb-4">
+                                    <h6 class="text-primary"><i class="fas fa-circle"></i> Step 1: Trigger Tax Calculation</h6>
+                                    <p>Request HMRC to calculate your tax liability for the selected tax year.</p>
+                                    <button id="triggerCalcBtn" class="btn btn-primary">
+                                        <i class="fas fa-calculator"></i> Trigger Tax Calculation
+                                    </button>
+                                    <div id="step1Loading" class="mt-3 d-none">
+                                        <i class="fas fa-spinner fa-spin"></i> Requesting calculation from HMRC...
+                                    </div>
+                                </div>
+                                
+                                <!-- Step 2: View Calculation -->
+                                <div id="step2" class="mb-4 d-none">
+                                    <h6 class="text-success"><i class="fas fa-check-circle"></i> Step 2: View Calculation</h6>
+                                    <div class="alert alert-success">
+                                        <p><strong>Calculation ID:</strong> <code id="calcIdDisplay"></code></p>
+                                    </div>
+                                    <button id="viewCalcBtn" class="btn btn-info">
+                                        <i class="fas fa-eye"></i> View Calculation Details
+                                    </button>
+                                    <div id="calcDetails" class="mt-3 d-none">
+                                        <div class="card">
+                                            <div class="card-body">
+                                                <h6>Tax Calculation Summary</h6>
+                                                <div id="calcSummary"></div>
+                                                <div class="alert alert-warning mt-3">
+                                                    <strong><i class="fas fa-exclamation-triangle"></i> MANDATORY HMRC DISCLAIMER</strong>
+                                                    <p class="mb-0 mt-2" id="hmrcCalculationDisclaimer">This calculation is only based on information HMRC have received about your income and expenses to <span id="calculationDate"></span>. This may change as we receive further information about you during the tax year.</p>
+                                                </div>
+                                                <button id="proceedToStep3Btn" class="btn btn-primary mt-2">
+                                                    <i class="fas fa-arrow-right"></i> Proceed to Final Declaration
+                                                </button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                                
+                                <!-- Step 3: Final Declaration -->
+                                <div id="step3" class="mb-4 d-none">
+                                    <h6 class="text-warning"><i class="fas fa-exclamation-triangle"></i> Step 3: Final Declaration</h6>
+                                    <!--
+                                        Final Declaration Statement (Individual customers).
+                                        Wording is taken verbatim from the HMRC MTD IT End to End
+                                        Service Guide and MUST NOT be paraphrased.
+                                        https://developer.service.hmrc.gov.uk/guides/income-tax-mtd-end-to-end-service-guide/
+                                    -->
+                                    <p class="mb-3">Before you can submit the information displayed here in response to your notice to file from HM Revenue &amp; Customs, you must read and agree to the following statement by ticking the box below.</p>
+                                    
+                                    <div class="alert alert-danger" id="finalDeclarationStatement" aria-labelledby="finalDeclarationStatementHeading">
+                                        <h6 id="finalDeclarationStatementHeading" class="mb-3"><strong>Final Declaration Statement</strong></h6>
+                                        <p class="mb-0">I declare that the information and tax return I have submitted are (taken together) correct and complete to the best of my knowledge. I understand that I may have to pay financial penalties and face prosecution if I give false information.</p>
+                                    </div>
+                                    <div class="form-check mb-3">
+                                        <input type="checkbox" class="form-check-input" id="declarationCheckbox">
+                                        <label class="form-check-label" for="declarationCheckbox">
+                                            <strong>I have read and agreed to the declaration above</strong>
+                                        </label>
+                                    </div>
+                                    <button id="submitDeclBtn" class="btn btn-danger" disabled>
+                                        <i class="fas fa-file-signature"></i> Submit Final Declaration to HMRC
+                                    </button>
+                                </div>
+                                
+                                <!-- Success Message -->
+                                <div id="stepSuccess" class="d-none">
+                                    <div class="alert alert-success">
+                                        <h6><i class="fas fa-check-circle"></i> Final Declaration Submitted Successfully!</h6>
+                                        <p id="successMessage"></p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+                <!-- END TAB 4: FINAL DECLARATION -->
+                
+                <!-- TAB 5: HELP -->
+                <div class="tab-pane fade" id="help">
+                    <div class="card settings-card">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-book"></i> Help & Documentation</h5>
+                            
+                            <div class="alert alert-info">
+                                <h6><i class="fas fa-info-circle"></i> What is Making Tax Digital?</h6>
+                                <p>Making Tax Digital (MTD) is HMRC's initiative to digitize the tax system. Self-employed individuals must submit quarterly updates of income and expenses digitally.</p>
+                            </div>
+                            
+                            <h6><i class="fas fa-tasks"></i> MTD Process Overview</h6>
+                            <ol>
+                                <li><strong>Connect to HMRC:</strong> Authorize this application to access your MTD account</li>
+                                <li><strong>Submit Quarterly Updates:</strong> Submit income and expenses for each quarter (Q1-Q4)</li>
+                                <li><strong>Trigger Tax Calculation:</strong> After all 4 quarters, request HMRC to calculate your tax</li>
+                                <li><strong>Submit Final Declaration:</strong> Confirm all information is correct and complete</li>
+                                <li><strong>Pay Tax:</strong> Pay any tax owed by the deadline (31 January)</li>
+                            </ol>
+                            
+                            <hr>
+                            
+                            <h6><i class="fas fa-calendar-alt"></i> Quarterly Deadlines</h6>
+                            <div class="table-responsive">
+                                <table class="table table-bordered">
+                                    <thead>
+                                        <tr>
+                                            <th>Quarter</th>
+                                            <th>Period</th>
+                                            <th>Submission Deadline</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr>
+                                            <td><strong>Q1</strong></td>
+                                            <td>6 April - 5 July</td>
+                                            <td>5 August</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Q2</strong></td>
+                                            <td>6 July - 5 October</td>
+                                            <td>5 November</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Q3</strong></td>
+                                            <td>6 October - 5 January</td>
+                                            <td>5 February</td>
+                                        </tr>
+                                        <tr>
+                                            <td><strong>Q4</strong></td>
+                                            <td>6 January - 5 April</td>
+                                            <td>5 May</td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            
+                            <hr>
+                            
+                            <h6><i class="fas fa-link"></i> HMRC Resources</h6>
+                            <ul>
+                                <li><a href="https://www.gov.uk/guidance/sign-up-for-making-tax-digital-for-income-tax" target="_blank" rel="noopener">Sign up for MTD <i class="fas fa-external-link-alt"></i></a></li>
+                                <li><a href="https://developer.service.hmrc.gov.uk" target="_blank" rel="noopener">HMRC Developer Hub <i class="fas fa-external-link-alt"></i></a></li>
+                                <li><a href="https://www.gov.uk/government/organisations/hm-revenue-customs/contact/income-tax-enquiries-for-individuals-pensioners-and-employees" target="_blank" rel="noopener">Contact HMRC Support <i class="fas fa-external-link-alt"></i></a></li>
+                                <li><a href="https://developer.service.hmrc.gov.uk/api-documentation/docs/api/service/self-assessment-api" target="_blank" rel="noopener">MTD API Documentation <i class="fas fa-external-link-alt"></i></a></li>
+                            </ul>
+                            
+                            <hr>
+                            
+                            <h6><i class="fas fa-phone"></i> HMRC Contact Details</h6>
+                            <div class="card bg-light">
+                                <div class="card-body">
+                                    <p><strong>Self Assessment Helpline:</strong></p>
+                                    <p class="mb-2"><i class="fas fa-phone"></i> 0300 200 3310</p>
+                                    <p class="mb-2"><i class="fas fa-clock"></i> Monday to Friday, 8am to 6pm</p>
+                                    <p class="mb-0"><small class="text-muted">Closed on weekends and bank holidays</small></p>
+                                </div>
+                            </div>
+                            
+                            <div class="alert alert-warning mt-3">
+                                <h6><i class="fas fa-exclamation-triangle"></i> Important Notes</h6>
+                                <ul class="mb-0">
+                                    <li>Always test in <strong>sandbox environment</strong> first before using production</li>
+                                    <li>Keep your HMRC credentials secure and never share them</li>
+                                    <li>Late submissions may incur penalties from HMRC</li>
+                                    <li>Review all data carefully before submitting</li>
+                                    <li>Final declarations cannot be undone once submitted</li>
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                    
+                </div>
+                <!-- END TAB 5: HELP -->
+                
+            </div>
+            <!-- END TAB CONTENT -->
+        </div>
+    </div>
+    
+    <!-- MTD Software Notice Footer -->
+    <div class="row mtd-footer">
+        <div class="col-12">
+            <div class="card bg-light">
+                <div class="card-body text-center py-2">
+                    <small class="text-muted">
+                        <i class="fas fa-check-circle text-success"></i> 
+                        <strong>TVS Wages is MTD-compatible software.</strong> 
+                        For HMRC support visit 
+                        <a href="https://www.gov.uk/guidance/find-software-thats-compatible-with-making-tax-digital-for-income-tax" target="_blank" rel="noopener noreferrer">
+                            www.gov.uk/guidance/find-software-thats-compatible-with-making-tax-digital-for-income-tax
+                        </a>
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- NINO/Business ID Modal -->
+<div class="modal fade" id="configModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title">Enter HMRC Details</h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <p>Before refreshing obligations, please provide your HMRC details:</p>
+                <div class="form-group">
+                    <label>National Insurance Number</label>
+                    <input type="text" class="form-control" id="modalNino" placeholder="AA123456A">
+                </div>
+                <div class="form-group">
+                    <label>Business ID</label>
+                    <input type="text" class="form-control" id="modalBusinessId" placeholder="XAIS12345678901">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="modalSaveBtn">Save & Continue</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Final Declaration Confirmation Modal -->
+<div class="modal fade" id="finalDeclConfirmModal" tabindex="-1">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title">
+                    <i class="fas fa-exclamation-triangle"></i> Confirm Final Declaration
+                </h5>
+                <button type="button" class="close" data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="alert alert-danger">
+                    <h6><i class="fas fa-exclamation-circle"></i> Point of No Return</h6>
+                    <p class="mb-0">This action cannot be undone. Once submitted, you cannot make changes to this tax year.</p>
+                </div>
+                
+                <p><strong>You are about to submit the following declaration to HMRC:</strong></p>
+                <div class="alert alert-warning">
+                    <p class="mb-0"><em>I declare that the information and tax return I have submitted are (taken together) correct and complete to the best of my knowledge. I understand that I may have to pay financial penalties and face prosecution if I give false information.</em></p>
+                </div>
+                
+                <p><strong>Please confirm that:</strong></p>
+                <ul>
+                    <li>All 4 quarterly updates have been submitted accurately</li>
+                    <li>You have reviewed the tax calculation</li>
+                    <li>You accept the calculated tax liability</li>
+                </ul>
+                
+                <div class="form-check">
+                    <input type="checkbox" class="form-check-input" id="confirmCheckbox">
+                    <label class="form-check-label" for="confirmCheckbox">
+                        <strong>I confirm this declaration is correct and complete</strong>
+                    </label>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-danger" id="confirmSubmitBtn" disabled>
+                    <i class="fas fa-file-signature"></i> Submit Final Declaration
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% endblock %}
+
+{% block extra_css %}
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-tabs.css') }}?v={{ range(1000, 9999) | random }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-cumulative.css') }}?v={{ range(1000, 9999) | random }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-periods-of-account.css') }}?v={{ range(1000, 9999) | random }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-ladr.css') }}?v={{ range(1000, 9999) | random }}">
+<link rel="stylesheet" href="{{ url_for('static', filename='css/hmrc-annual-submission.css') }}?v={{ range(1000, 9999) | random }}">
+{% endblock %}
+
+{% block extra_js %}
+<script src="{{ url_for('static', filename='js/hmrc-fraud-headers.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hmrc-cumulative.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hmrc-periods-of-account.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hmrc-ladr.js') }}"></script>
+<script src="{{ url_for('static', filename='js/hmrc-annual-submission.js') }}"></script>
+<script src="{{ url_for('static', filename='js/settings-hmrc.js') }}"></script>
+{% endblock %}
