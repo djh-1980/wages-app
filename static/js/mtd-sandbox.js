@@ -1,149 +1,141 @@
 /**
  * HMRC Sandbox Testing Dashboard
- * 
  * WARNING: SANDBOX TESTING ONLY
- * Remove this file before production deployment.
  */
 
 let loadingModal;
 let credentialsModal;
+let activeUserNino = null;
 
 document.addEventListener('DOMContentLoaded', function() {
     loadingModal = new bootstrap.Modal(document.getElementById('loadingModal'));
     credentialsModal = new bootstrap.Modal(document.getElementById('credentialsModal'));
     
+    loadOAuthStatus();
     loadActiveUser();
     loadTestUserHistory();
-    loadAuthStatus();
 });
 
-/**
- * Get CSRF token from meta tag
- */
 function getCsrfToken() {
     const metaTag = document.querySelector('meta[name="csrf-token"]');
     return metaTag ? metaTag.content : '';
 }
 
 /**
- * Load HMRC authentication status
+ * Load OAuth status for connection status bar
  */
-async function loadAuthStatus() {
+async function loadOAuthStatus() {
     try {
         const response = await fetch('/api/hmrc/auth/status');
         const responseData = await response.json();
         const data = responseData.success ? responseData.data : responseData;
         
-        const statusDiv = document.getElementById('oauthStatus');
-        if (!statusDiv) return;
+        const badge = document.getElementById('oauthStatusBadge');
+        if (!badge) return;
         
         if (data.authenticated) {
             const expiryDate = new Date(data.expires_at);
             const now = new Date();
             const hoursRemaining = Math.round((expiryDate - now) / (1000 * 60 * 60));
             
-            statusDiv.innerHTML = `
-                <span class="badge bg-success" title="Expires: ${expiryDate.toLocaleString()}">
-                    <i class="bi bi-check-circle-fill"></i> Connected (${hoursRemaining}h)
-                </span>
-            `;
+            badge.className = 'badge bg-success';
+            badge.textContent = `Connected · expires in ${hoursRemaining}h`;
         } else {
-            statusDiv.innerHTML = `
-                <span class="badge bg-secondary">
-                    <i class="bi bi-x-circle"></i> Not Connected
-                </span>
-            `;
+            badge.className = 'badge bg-secondary';
+            badge.textContent = 'Not connected';
         }
     } catch (error) {
-        console.error('Error loading auth status:', error);
+        console.error('Error loading OAuth status:', error);
     }
 }
 
 /**
- * Load the active test user
+ * Load active test user
  */
 async function loadActiveUser() {
     try {
         const response = await fetch('/api/hmrc/sandbox/active-test-user');
         const result = await response.json();
         
+        const bodyDiv = document.getElementById('activeUserBody');
+        const statusNino = document.getElementById('statusNino');
+        const statusBusinessId = document.getElementById('statusBusinessId');
+        const fetchBtn = document.getElementById('fetchBusinessBtn');
+        
         if (result.success && result.data) {
-            displayActiveUser(result.data);
+            const user = result.data;
+            activeUserNino = user.nino;
+            
+            // Update status bar
+            if (statusNino) statusNino.textContent = user.nino || '—';
+            if (statusBusinessId) statusBusinessId.textContent = user.businessId || '—';
+            
+            // Update card body with simple table
+            bodyDiv.innerHTML = `
+                <table class="table table-sm mb-0">
+                    <tr><td class="fw-bold">User ID</td><td>${user.userId || '—'}</td></tr>
+                    <tr><td class="fw-bold">NINO</td><td>${user.nino || '—'}</td></tr>
+                    <tr><td class="fw-bold">SA UTR</td><td>${user.saUtr || '—'}</td></tr>
+                    <tr><td class="fw-bold">Business ID</td><td>${user.businessId || 'Not fetched'}</td></tr>
+                    <tr><td class="fw-bold">Trading Name</td><td>${user.tradingName || '—'}</td></tr>
+                    <tr><td class="fw-bold">Created</td><td>${new Date(user.createdAt).toLocaleString()}</td></tr>
+                </table>
+            `;
+            
+            // Enable/disable fetch button
+            if (fetchBtn) {
+                fetchBtn.disabled = !!user.businessId;
+            }
         } else {
-            showNoUserAlert();
+            activeUserNino = null;
+            if (statusNino) statusNino.textContent = '—';
+            if (statusBusinessId) statusBusinessId.textContent = '—';
+            bodyDiv.innerHTML = '<p class="text-muted">No active test user — click Create below.</p>';
+            if (fetchBtn) fetchBtn.disabled = true;
         }
     } catch (error) {
         console.error('Error loading active user:', error);
-        showNotification('Error loading test user', 'error');
     }
 }
 
 /**
- * Display active test user in the card
+ * Load test user history
  */
-function displayActiveUser(user) {
-    const bodyDiv = document.getElementById('activeUserBody');
-    const ninoDiv = document.getElementById('activeNino');
-    const businessDiv = document.getElementById('activeBusinessId');
-    
-    // Update status tiles
-    if (ninoDiv) ninoDiv.innerHTML = `<strong>${user.nino || '—'}</strong>`;
-    if (businessDiv) businessDiv.innerHTML = `<strong>${user.businessId || '—'}</strong>`;
-    
-    // Update card body
-    bodyDiv.innerHTML = `
-        <div class="row">
-            <div class="col-md-6 mb-3">
-                <label class="form-label fw-bold">User ID</label>
-                <input type="text" class="form-control" value="${user.userId || ''}" readonly>
-            </div>
-            <div class="col-md-6 mb-3">
-                <label class="form-label fw-bold">NINO</label>
-                <input type="text" class="form-control" value="${user.nino || ''}" readonly>
-            </div>
-            <div class="col-md-6 mb-3">
-                <label class="form-label fw-bold">SA UTR</label>
-                <input type="text" class="form-control" value="${user.saUtr || ''}" readonly>
-            </div>
-            <div class="col-md-6 mb-3">
-                <label class="form-label fw-bold">Business ID</label>
-                <input type="text" class="form-control" value="${user.businessId || 'Not fetched'}" readonly>
-            </div>
-            <div class="col-md-6 mb-3">
-                <label class="form-label fw-bold">Trading Name</label>
-                <input type="text" class="form-control" value="${user.tradingName || '—'}" readonly>
-            </div>
-            <div class="col-md-6 mb-3">
-                <label class="form-label fw-bold">Created</label>
-                <input type="text" class="form-control" value="${new Date(user.createdAt).toLocaleString()}" readonly>
-            </div>
-        </div>
-        <button type="button" class="btn btn-success" onclick="fetchBusinessId('${user.nino}')" ${user.businessId ? 'disabled' : ''}>
-            <i class="bi bi-download"></i> Fetch Business ID
-        </button>
-    `;
+async function loadTestUserHistory() {
+    try {
+        const response = await fetch('/api/hmrc/sandbox/test-users');
+        const result = await response.json();
+        
+        const tbody = document.getElementById('historyTableBody');
+        if (!tbody) return;
+        
+        if (result.success && result.data && result.data.length > 0) {
+            tbody.innerHTML = result.data.map(user => `
+                <tr>
+                    <td>${user.nino}</td>
+                    <td>${user.business_id || '—'}</td>
+                    <td>
+                        ${user.is_active ? 
+                            '<span class="badge bg-success">Active</span>' : 
+                            '<span class="badge bg-secondary">Inactive</span>'}
+                    </td>
+                    <td>${new Date(user.created_at).toLocaleString()}</td>
+                </tr>
+            `).join('');
+        } else {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No test users found</td></tr>';
+        }
+    } catch (error) {
+        console.error('Error loading test user history:', error);
+        const tbody = document.getElementById('historyTableBody');
+        if (tbody) {
+            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-danger">Error loading history</td></tr>';
+        }
+    }
 }
 
 /**
- * Show "no user" alert
- */
-function showNoUserAlert() {
-    const bodyDiv = document.getElementById('activeUserBody');
-    const ninoDiv = document.getElementById('activeNino');
-    const businessDiv = document.getElementById('activeBusinessId');
-    
-    if (ninoDiv) ninoDiv.innerHTML = '<span class="text-muted">—</span>';
-    if (businessDiv) businessDiv.innerHTML = '<span class="text-muted">—</span>';
-    
-    bodyDiv.innerHTML = `
-        <div class="alert alert-info">
-            <i class="bi bi-info-circle"></i> No active test user — create one below
-        </div>
-    `;
-}
-
-/**
- * Create a new test user
+ * Create new test user
  */
 async function createTestUser() {
     try {
@@ -179,7 +171,12 @@ async function createTestUser() {
 /**
  * Fetch business ID for active user
  */
-async function fetchBusinessId(nino) {
+async function fetchBusinessId() {
+    if (!activeUserNino) {
+        showNotification('No active test user', 'error');
+        return;
+    }
+    
     try {
         loadingModal.show();
         document.getElementById('loadingMessage').textContent = 'Fetching business ID...';
@@ -190,7 +187,7 @@ async function fetchBusinessId(nino) {
                 'Content-Type': 'application/json',
                 'X-CSRFToken': getCsrfToken()
             },
-            body: JSON.stringify({ nino: nino })
+            body: JSON.stringify({ nino: activeUserNino })
         });
         
         const result = await response.json();
@@ -218,18 +215,11 @@ function showCredentialsModal(data) {
         <div class="alert alert-success">
             <i class="bi bi-check-circle-fill"></i> Test user created successfully!
         </div>
-        <div class="mb-3">
-            <label class="form-label fw-bold">User ID</label>
-            <input type="text" class="form-control" value="${data.userId}" readonly>
-        </div>
-        <div class="mb-3">
-            <label class="form-label fw-bold">Password</label>
-            <input type="text" class="form-control" value="${data.password}" readonly>
-        </div>
-        <div class="mb-3">
-            <label class="form-label fw-bold">NINO</label>
-            <input type="text" class="form-control" value="${data.nino}" readonly>
-        </div>
+        <table class="table table-sm">
+            <tr><td class="fw-bold">User ID</td><td>${data.userId}</td></tr>
+            <tr><td class="fw-bold">Password</td><td>${data.password}</td></tr>
+            <tr><td class="fw-bold">NINO</td><td>${data.nino}</td></tr>
+        </table>
         <div class="alert alert-info">
             <strong>Next Steps:</strong>
             <ol class="mb-0 mt-2">
@@ -243,84 +233,40 @@ function showCredentialsModal(data) {
 }
 
 /**
- * Load test user history
- */
-async function loadTestUserHistory() {
-    try {
-        const response = await fetch('/api/hmrc/sandbox/test-users');
-        const result = await response.json();
-        
-        const tbody = document.getElementById('testUserHistoryBody');
-        if (!tbody) return;
-        
-        if (result.success && result.data && result.data.length > 0) {
-            tbody.innerHTML = result.data.map(user => `
-                <tr>
-                    <td>${user.nino}</td>
-                    <td>${user.business_id || '—'}</td>
-                    <td>${new Date(user.created_at).toLocaleString()}</td>
-                    <td>
-                        ${user.is_active ? 
-                            '<span class="badge bg-success">Active</span>' : 
-                            '<span class="badge bg-secondary">Inactive</span>'}
-                    </td>
-                </tr>
-            `).join('');
-        } else {
-            tbody.innerHTML = '<tr><td colspan="4" class="text-center text-muted">No test users found</td></tr>';
-        }
-    } catch (error) {
-        console.error('Error loading test user history:', error);
-    }
-}
-
-/**
  * Validate fraud prevention headers
  */
 async function validateFraudHeaders() {
-    const resultDiv = document.getElementById('fraudHeadersResult');
-    const alertDiv = document.getElementById('fraudHeadersAlert');
-    const detailsPre = document.getElementById('fraudHeadersDetails');
+    const resultDiv = document.getElementById('fraudResultBody');
     
     try {
-        resultDiv.classList.remove('d-none');
-        alertDiv.className = 'alert alert-info';
-        alertDiv.innerHTML = '<i class="bi bi-hourglass-split"></i> Validating fraud prevention headers...';
-        detailsPre.textContent = '';
+        resultDiv.innerHTML = '<p class="text-muted"><i class="bi bi-hourglass-split"></i> Validating...</p>';
         
         const response = await fetch('/api/hmrc/fraud-headers/validate');
         const result = await response.json();
         
         if (result.success) {
-            alertDiv.className = 'alert alert-success';
-            alertDiv.innerHTML = `
-                <h6><i class="bi bi-check-circle-fill"></i> Validation Successful</h6>
-                <p class="mb-0">All fraud prevention headers validated successfully.</p>
-                <p class="mb-0 mt-2"><strong>Headers sent:</strong> ${result.sent_headers ? result.sent_headers.length : 0}</p>
+            resultDiv.innerHTML = `
+                <div class="alert alert-success alert-sm mb-2">
+                    <i class="bi bi-check-circle-fill"></i> Valid (${result.sent_headers ? result.sent_headers.length : 0} headers)
+                </div>
+                <pre class="small mb-0" style="max-height: 300px; overflow-y: auto;">${JSON.stringify(result, null, 2)}</pre>
             `;
         } else {
-            alertDiv.className = 'alert alert-danger';
-            alertDiv.innerHTML = `
-                <h6><i class="bi bi-exclamation-circle-fill"></i> Validation Failed</h6>
-                <p class="mb-0">${result.error || 'Unknown error occurred'}</p>
+            resultDiv.innerHTML = `
+                <div class="alert alert-danger alert-sm mb-2">
+                    <i class="bi bi-exclamation-circle-fill"></i> Failed
+                </div>
+                <pre class="small mb-0" style="max-height: 300px; overflow-y: auto;">${JSON.stringify(result, null, 2)}</pre>
             `;
         }
-        
-        detailsPre.textContent = JSON.stringify(result, null, 2);
-        
     } catch (error) {
         console.error('Error validating fraud headers:', error);
-        resultDiv.classList.remove('d-none');
-        alertDiv.className = 'alert alert-danger';
-        alertDiv.innerHTML = `
-            <h6><i class="bi bi-exclamation-circle-fill"></i> Error</h6>
-            <p class="mb-0">Failed to validate fraud headers: ${error.message}</p>
-        `;
+        resultDiv.innerHTML = `<p class="text-danger">Error: ${error.message}</p>`;
     }
 }
 
 /**
- * Run sandbox tests (placeholder)
+ * Run sandbox tests
  */
 function runSandboxTests() {
     showNotification('Sandbox test runner not yet implemented', 'info');
@@ -426,7 +372,7 @@ async function clearAllSubmissions() {
 }
 
 /**
- * Show notification (reuses base.js if available)
+ * Show notification
  */
 function showNotification(message, type) {
     if (typeof window.showNotification === 'function') {

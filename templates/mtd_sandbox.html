@@ -1,191 +1,140 @@
 {% extends "base.html" %}
 
-{% block title %}HMRC Sandbox Testing{% endblock %}
+{% block title %}HMRC Sandbox{% endblock %}
 
 {% block content %}
 <div class="container-fluid mt-4">
-    <!-- Page Header -->
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h2>
-            <i class="bi bi-bug-fill text-warning"></i>
-            HMRC Sandbox Testing
-            <span class="badge bg-warning text-dark ms-2">Sandbox Only</span>
-        </h2>
-    </div>
+    <!-- Page Title -->
+    <h4>HMRC Sandbox <span class="badge bg-warning text-dark ms-2" style="font-size:0.5em;">Sandbox Only</span></h4>
 
-    <!-- Section 1: Connection Status Strip -->
-    <div class="row mb-4">
-        <div class="col-12 col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body text-center">
-                    <small class="text-muted d-block">Environment</small>
-                    <h5 class="mb-0" id="environmentBadge">
-                        <span class="badge bg-warning text-dark">Sandbox</span>
-                    </h5>
-                </div>
+    <!-- Connection Status Bar (Most Important Element) -->
+    <div class="bg-light border rounded p-3 mb-4">
+        <div class="row align-items-center">
+            <div class="col-auto">
+                <strong>Environment:</strong>
+                <span class="badge bg-warning text-dark">Sandbox</span>
             </div>
-        </div>
-        <div class="col-12 col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body text-center">
-                    <small class="text-muted d-block">OAuth Status</small>
-                    <h6 class="mb-0" id="oauthStatus">
-                        <span class="badge bg-secondary">Not Connected</span>
-                    </h6>
-                </div>
+            <div class="col-auto">
+                <strong>OAuth:</strong>
+                <span id="oauthStatusBadge" class="badge bg-secondary">Not connected</span>
             </div>
-        </div>
-        <div class="col-12 col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body text-center">
-                    <small class="text-muted d-block">Active NINO</small>
-                    <h6 class="mb-0" id="activeNino">
-                        <span class="text-muted">—</span>
-                    </h6>
-                </div>
+            <div class="col-auto">
+                <strong>NINO:</strong>
+                <span id="statusNino">—</span>
             </div>
-        </div>
-        <div class="col-12 col-md-3 mb-3">
-            <div class="card">
-                <div class="card-body text-center">
-                    <small class="text-muted d-block">Active Business ID</small>
-                    <h6 class="mb-0" id="activeBusinessId">
-                        <span class="text-muted">—</span>
-                    </h6>
-                </div>
+            <div class="col-auto">
+                <strong>Business ID:</strong>
+                <span id="statusBusinessId">—</span>
+            </div>
+            <div class="col text-end">
+                <a href="/api/hmrc/auth/start/redirect" class="btn btn-primary btn-sm">
+                    <i class="bi bi-plug"></i> Connect to HMRC
+                </a>
             </div>
         </div>
     </div>
 
-    <!-- Connect Button -->
+    <!-- Three Column Layout -->
     <div class="row mb-4">
-        <div class="col-12">
-            <a href="/api/hmrc/auth/start/redirect" class="btn btn-primary">
-                <i class="bi bi-plug"></i> Connect to HMRC
-            </a>
-        </div>
-    </div>
-
-    <!-- Section 2: Active Test User Card -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <div class="card" id="activeUserCard">
+        <!-- Col 1: Active Test User -->
+        <div class="col-md-4 mb-3">
+            <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-person-badge"></i> Active Test User
-                    </h5>
+                    <h6 class="mb-0">Active Test User</h6>
                 </div>
                 <div class="card-body" id="activeUserBody">
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> No active test user — create one below
-                    </div>
+                    <p class="text-muted">No active test user — click Create below.</p>
+                </div>
+                <div class="card-footer">
+                    <button id="fetchBusinessBtn" class="btn btn-outline-primary btn-sm w-100" onclick="fetchBusinessId()" disabled>
+                        <i class="bi bi-download"></i> Fetch Business ID
+                    </button>
                 </div>
             </div>
         </div>
-    </div>
 
-    <!-- Section 3: Actions Row -->
-    <div class="row mb-4">
-        <div class="col-12">
-            <h5 class="mb-3">Actions</h5>
-            <div class="btn-group" role="group">
-                <button type="button" class="btn btn-primary" onclick="createTestUser()">
-                    <i class="bi bi-plus-circle"></i> Create New Test User
-                </button>
-                <button type="button" class="btn btn-info" onclick="validateFraudHeaders()">
-                    <i class="bi bi-shield-check"></i> Validate Fraud Headers
-                </button>
-                <button type="button" class="btn btn-secondary" onclick="runSandboxTests()">
-                    <i class="bi bi-play-circle"></i> Run Sandbox Tests
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Section 4: Fraud Header Validation Result -->
-    <div class="row mb-4 d-none" id="fraudHeadersResult">
-        <div class="col-12">
+        <!-- Col 2: Actions -->
+        <div class="col-md-4 mb-3">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-shield-check"></i> Fraud Header Validation Result
-                    </h5>
+                    <h6 class="mb-0">Actions</h6>
                 </div>
                 <div class="card-body">
-                    <div class="alert" id="fraudHeadersAlert" role="alert"></div>
-                    <details>
-                        <summary class="text-muted">Show full JSON response</summary>
-                        <pre id="fraudHeadersDetails" class="mt-2 p-2 bg-light border rounded small"></pre>
-                    </details>
+                    <button class="btn btn-primary w-100 mb-2" onclick="createTestUser()">
+                        <i class="bi bi-plus-circle"></i> Create New Test User
+                    </button>
+                    <button class="btn btn-outline-secondary w-100 mb-2" onclick="validateFraudHeaders()">
+                        <i class="bi bi-shield-check"></i> Validate Fraud Headers
+                    </button>
+                    <button class="btn btn-outline-secondary w-100" onclick="runSandboxTests()">
+                        <i class="bi bi-play-circle"></i> Run Sandbox Tests
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Col 3: Fraud Header Result -->
+        <div class="col-md-4 mb-3">
+            <div class="card">
+                <div class="card-header">
+                    <h6 class="mb-0">Fraud Header Result</h6>
+                </div>
+                <div class="card-body" id="fraudResultBody">
+                    <p class="text-muted">Run validation to see results</p>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Section 5: Test User History Table -->
+    <!-- Test User History -->
     <div class="row mb-4">
         <div class="col-12">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">
-                        <i class="bi bi-clock-history"></i> Test User History
-                    </h5>
+                    <h6 class="mb-0">Test User History</h6>
                 </div>
                 <div class="card-body">
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>NINO</th>
-                                    <th>Business ID</th>
-                                    <th>Created</th>
-                                    <th>Status</th>
-                                </tr>
-                            </thead>
-                            <tbody id="testUserHistoryBody">
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted">Loading...</td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
+                    <table class="table table-sm table-bordered mb-0">
+                        <thead>
+                            <tr>
+                                <th>NINO</th>
+                                <th>Business ID</th>
+                                <th>Status</th>
+                                <th>Created</th>
+                            </tr>
+                        </thead>
+                        <tbody id="historyTableBody">
+                            <tr>
+                                <td colspan="4" class="text-center text-muted">Loading...</td>
+                            </tr>
+                        </tbody>
+                    </table>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Section 6: Danger Zone (Collapsed) -->
+    <!-- Danger Zone -->
     <div class="row mb-4">
         <div class="col-12">
-            <div class="card border-danger">
-                <div class="card-header bg-danger text-white">
-                    <h5 class="mb-0">
-                        <a class="text-white text-decoration-none" data-bs-toggle="collapse" href="#dangerZone" role="button" aria-expanded="false">
-                            <i class="bi bi-exclamation-triangle-fill"></i> Danger Zone
-                            <i class="bi bi-chevron-down float-end"></i>
-                        </a>
-                    </h5>
+            <details>
+                <summary class="text-danger fw-bold" style="cursor: pointer;">⚠️ Danger Zone — expand to access destructive actions</summary>
+                <div class="border border-danger rounded p-3 mt-2">
+                    <p class="text-danger mb-3">
+                        <i class="bi bi-exclamation-triangle-fill"></i>
+                        <strong>Warning:</strong> These actions modify test data and cannot be undone.
+                    </p>
+                    <button class="btn btn-warning btn-sm me-2" onclick="generateTestExpenses()">
+                        <i class="bi bi-database-fill-add"></i> Generate Test Expenses
+                    </button>
+                    <button class="btn btn-danger btn-sm me-2" onclick="deleteTestExpenses()">
+                        <i class="bi bi-trash"></i> Delete Test Expenses
+                    </button>
+                    <button class="btn btn-danger btn-sm" onclick="clearAllSubmissions()">
+                        <i class="bi bi-x-circle"></i> Clear All Submissions
+                    </button>
                 </div>
-                <div class="collapse" id="dangerZone">
-                    <div class="card-body">
-                        <div class="alert alert-warning">
-                            <i class="bi bi-exclamation-triangle"></i>
-                            <strong>Warning:</strong> These actions modify test data and cannot be undone.
-                        </div>
-                        <div class="btn-group" role="group">
-                            <button type="button" class="btn btn-warning" onclick="generateTestExpenses()">
-                                <i class="bi bi-database-fill-add"></i> Generate Test Expenses
-                            </button>
-                            <button type="button" class="btn btn-danger" onclick="deleteTestExpenses()">
-                                <i class="bi bi-trash"></i> Delete Test Expenses
-                            </button>
-                            <button type="button" class="btn btn-danger" onclick="clearAllSubmissions()">
-                                <i class="bi bi-x-circle"></i> Clear All Submissions
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+            </details>
         </div>
     </div>
 </div>
@@ -212,9 +161,7 @@
                 <h5 class="modal-title">Test User Credentials</h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
-            <div class="modal-body" id="credentialsBody">
-                <!-- Populated by JavaScript -->
-            </div>
+            <div class="modal-body" id="credentialsBody"></div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
             </div>
